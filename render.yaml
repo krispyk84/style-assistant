@@ -3,9 +3,13 @@ services:
     name: style-assistant-api
     runtime: node
     rootDir: backend
-    buildCommand: npm install && npm run prisma:generate && npm run build
+    buildCommand: npm install --include=dev && npm run prisma:generate && npm run build
     startCommand: npm run start:migrate
     envVars:
+      - key: NODE_VERSION
+        value: 20.19.0
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
       - key: NODE_ENV
         value: production
       - key: LOG_LEVEL
