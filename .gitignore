@@ -35,6 +35,11 @@ yarn-error.*
 .env.*
 .env*.local
 
+# backend local/reference files
+backend/*.epub
+backend/style-guides/processed/
+backend/storage/uploads/
+
 # typescript
 *.tsbuildinfo
 
