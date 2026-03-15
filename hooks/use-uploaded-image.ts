@@ -1,0 +1,84 @@
+import { useState } from 'react';
+
+import { useImagePicker } from '@/hooks/use-image-picker';
+import { uploadsService } from '@/services/uploads';
+import type { LocalImageAsset, UploadedImageAsset, UploadedImageCategory } from '@/types/media';
+
+export function useUploadedImage(category: UploadedImageCategory, initialImage: LocalImageAsset | null = null) {
+  const { image, isPicking, error: pickerError, pickFromLibrary, takePhoto, removeImage, setImage } = useImagePicker(initialImage);
+  const [uploadedImage, setUploadedImage] = useState<UploadedImageAsset | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
+
+  async function uploadSelectedImage(nextImage: LocalImageAsset | null) {
+
+    if (!nextImage) {
+      return;
+    }
+
+    if (uploadedImage) {
+      await uploadsService.deleteUpload(uploadedImage.id);
+      setUploadedImage(null);
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    setUploadError(null);
+    setUploadSuccessMessage(null);
+
+    const response = await uploadsService.uploadImage({
+      image: nextImage,
+      category,
+      onProgress: setUploadProgress,
+    });
+
+    if (response.success && response.data) {
+      setUploadedImage(response.data);
+      setUploadSuccessMessage('Upload complete.');
+    } else {
+      setUploadError(response.error?.message ?? 'Image upload failed.');
+    }
+
+    setIsUploading(false);
+  }
+
+  async function pickAndUpload() {
+    const nextImage = await pickFromLibrary();
+    await uploadSelectedImage(nextImage);
+  }
+
+  async function captureAndUpload() {
+    const nextImage = await takePhoto();
+    await uploadSelectedImage(nextImage);
+  }
+
+  async function removeUploadedImage() {
+    if (uploadedImage) {
+      await uploadsService.deleteUpload(uploadedImage.id);
+    }
+
+    removeImage();
+    setUploadedImage(null);
+    setUploadProgress(0);
+    setUploadError(null);
+    setUploadSuccessMessage(null);
+  }
+
+  return {
+    image,
+    uploadedImage,
+    isPicking,
+    isUploading,
+    uploadProgress,
+    error: uploadError ?? pickerError,
+    uploadSuccessMessage,
+    pickFromLibrary: pickAndUpload,
+    takePhoto: captureAndUpload,
+    removeImage: removeUploadedImage,
+    replaceImage: pickAndUpload,
+    setImage,
+    setUploadedImage,
+  };
+}

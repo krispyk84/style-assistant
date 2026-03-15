@@ -1,0 +1,164 @@
+import { Href, Link } from 'expo-router';
+import { Pressable, View } from 'react-native';
+
+import { spacing, theme } from '@/constants/theme';
+import type { LookRecommendation } from '@/types/look-request';
+import { AppText } from '@/components/ui/app-text';
+
+type LookResultCardProps = {
+  recommendation: LookRecommendation;
+  onRegenerate: () => void;
+  detailHref: Href;
+  isRegenerating?: boolean;
+};
+
+export function LookResultCard({ recommendation, onRegenerate, detailHref, isRegenerating = false }: LookResultCardProps) {
+  const labeledPieces = buildLabeledPieces(recommendation);
+
+  return (
+    <View
+      style={{
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.border,
+        borderRadius: 28,
+        borderWidth: 1,
+        gap: spacing.lg,
+        padding: spacing.lg,
+      }}>
+      <View style={{ gap: spacing.xs }}>
+        <AppText variant="title">{formatTierLabel(recommendation.tier)}</AppText>
+        <AppText tone="muted">{recommendation.title}</AppText>
+      </View>
+
+      <View style={{ gap: spacing.sm }}>
+        {labeledPieces.map((piece) => (
+          <View
+            key={`${piece.label}-${piece.value}`}
+            style={{
+              borderBottomColor: theme.colors.border,
+              borderBottomWidth: 1,
+              gap: spacing.xs,
+              paddingBottom: spacing.sm,
+            }}>
+            <AppText variant="sectionTitle">{piece.label}</AppText>
+            <AppText tone="muted">{piece.value}</AppText>
+          </View>
+        ))}
+      </View>
+
+      <CardSection title="Fit notes" items={recommendation.fitNotes} />
+
+      <View style={{ gap: spacing.xs }}>
+        <AppText variant="sectionTitle">Why it works</AppText>
+        <AppText tone="muted">{recommendation.whyItWorks}</AppText>
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <Pressable disabled={isRegenerating} onPress={onRegenerate} style={[actionButtonStyle, { backgroundColor: theme.colors.text, opacity: isRegenerating ? 0.7 : 1 }]}>
+          <AppText style={{ color: theme.colors.background }}>{isRegenerating ? 'Regenerating...' : 'Regenerate'}</AppText>
+        </Pressable>
+        <Link href={detailHref} asChild>
+          <Pressable style={actionButtonStyle}>
+            <AppText>Select tier</AppText>
+          </Pressable>
+        </Link>
+      </View>
+    </View>
+  );
+}
+
+function formatTierLabel(tier: LookRecommendation['tier']) {
+  if (tier === 'smart-casual') {
+    return 'Smart Casual';
+  }
+
+  return tier.charAt(0).toUpperCase() + tier.slice(1);
+}
+
+function buildLabeledPieces(recommendation: LookRecommendation) {
+  const usedLabels = new Set<string>();
+  const pieces = recommendation.keyPieces.map((piece, index) => ({
+    label: uniqueLabel(labelForKeyPiece(piece, index), usedLabels),
+    value: piece,
+  }));
+
+  recommendation.shoes.forEach((shoe, index) => {
+    pieces.push({
+      label: uniqueLabel(index === 0 ? 'Shoes' : `Shoe ${index + 1}`, usedLabels),
+      value: shoe,
+    });
+  });
+
+  recommendation.accessories.forEach((accessory, index) => {
+    pieces.push({
+      label: uniqueLabel(`Accessory ${index + 1}`, usedLabels),
+      value: accessory,
+    });
+  });
+
+  return pieces;
+}
+
+function uniqueLabel(baseLabel: string, usedLabels: Set<string>) {
+  if (!usedLabels.has(baseLabel)) {
+    usedLabels.add(baseLabel);
+    return baseLabel;
+  }
+
+  let counter = 2;
+  let nextLabel = `${baseLabel} ${counter}`;
+  while (usedLabels.has(nextLabel)) {
+    counter += 1;
+    nextLabel = `${baseLabel} ${counter}`;
+  }
+
+  usedLabels.add(nextLabel);
+  return nextLabel;
+}
+
+function labelForKeyPiece(piece: string, index: number) {
+  const normalized = piece.toLowerCase();
+
+  if (/(suit|blazer|jacket|coat|topcoat|overshirt|chore)/.test(normalized)) {
+    return 'Outerwear';
+  }
+
+  if (/(shirt|tee|t-shirt|polo|crewneck|sweater|knit|cardigan|hoodie)/.test(normalized)) {
+    return 'Top';
+  }
+
+  if (/(trouser|pant|pants|jean|denim)/.test(normalized)) {
+    return 'Pants';
+  }
+
+  if (/(shorts)/.test(normalized)) {
+    return 'Shorts';
+  }
+
+  return index === 0 ? 'Piece 1' : `Piece ${index + 1}`;
+}
+
+function CardSection({ title, items }: { title: string; items: string[] }) {
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <AppText variant="sectionTitle">{title}</AppText>
+      {items.map((item) => (
+        <AppText key={item} tone="muted">
+          • {item}
+        </AppText>
+      ))}
+    </View>
+  );
+}
+
+const actionButtonStyle = {
+  alignItems: 'center',
+  backgroundColor: theme.colors.card,
+  borderColor: theme.colors.border,
+  borderRadius: 999,
+  borderWidth: 1,
+  flex: 1,
+  justifyContent: 'center',
+  minHeight: 48,
+  paddingHorizontal: spacing.md,
+} as const;

@@ -1,0 +1,87 @@
+import { appConfig } from '@/constants/config';
+import type { ApiResponse, DeleteUploadResponse, UploadImageResponse } from '@/types/api';
+import type { LocalImageAsset, UploadedImageCategory } from '@/types/media';
+import type { UploadsService } from '@/services/uploads/uploads-service';
+
+function uploadWithProgress(input: {
+  image: LocalImageAsset;
+  category: UploadedImageCategory;
+  onProgress?: (progress: number) => void;
+}): Promise<ApiResponse<UploadImageResponse>> {
+  return new Promise((resolve) => {
+    if (!appConfig.apiBaseUrl) {
+      resolve({
+        success: false,
+        data: null,
+        error: {
+          code: 'UPLOAD_CONFIG_MISSING',
+          message: 'Missing EXPO_PUBLIC_API_BASE_URL for uploads.',
+        },
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('category', input.category);
+    formData.append('width', String(input.image.width ?? ''));
+    formData.append('height', String(input.image.height ?? ''));
+    formData.append('file', {
+      uri: input.image.uri,
+      name: input.image.fileName ?? `${input.category}.jpg`,
+      type: input.image.mimeType ?? 'image/jpeg',
+    } as never);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${appConfig.apiBaseUrl}/uploads`);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && input.onProgress) {
+        input.onProgress(event.loaded / event.total);
+      }
+    };
+
+    xhr.onerror = () => {
+      resolve({
+        success: false,
+        data: null,
+        error: {
+          code: 'UPLOAD_FAILED',
+          message: 'Image upload failed.',
+        },
+      });
+    };
+
+    xhr.onload = () => {
+      try {
+        const parsed = JSON.parse(xhr.responseText) as ApiResponse<UploadImageResponse>;
+        resolve(parsed);
+      } catch {
+        resolve({
+          success: false,
+          data: null,
+          error: {
+            code: 'UPLOAD_RESPONSE_INVALID',
+            message: 'Upload response could not be parsed.',
+          },
+        });
+      }
+    };
+
+    xhr.send(formData);
+  });
+}
+
+export const apiUploadsService: UploadsService = {
+  uploadImage(input) {
+    return uploadWithProgress(input);
+  },
+
+  async deleteUpload(uploadId) {
+    const response = await fetch(`${appConfig.apiBaseUrl}/uploads/${uploadId}`, {
+      method: 'DELETE',
+    });
+
+    const parsed = (await response.json()) as ApiResponse<DeleteUploadResponse>;
+    return parsed;
+  },
+};

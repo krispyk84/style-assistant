@@ -1,0 +1,77 @@
+import type { GenerateOutfitsRequest, OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
+import { buildBaseOutfitRules } from './base-stylist-rules.js';
+import { formatProfileContext } from '../prompt-context.js';
+
+type PromptProfile = Parameters<typeof formatProfileContext>[0];
+
+const tierList = 'business, smart-casual, casual';
+
+export function buildGenerateOutfitsInstructions() {
+  return [
+    ...buildBaseOutfitRules(),
+    'Return only structured JSON matching the provided schema.',
+    `Always produce exactly three tier recommendations in this order: ${tierList}.`,
+    'Anchor the recommendations to the provided item or image evidence.',
+    'If no image is provided, rely only on the text description and profile context.',
+    'Do not mention missing information, policy, or the schema in the output.',
+  ].join(' ');
+}
+
+export function buildGenerateOutfitsUserPrompt(
+  input: GenerateOutfitsRequest,
+  profile: PromptProfile,
+  styleGuideContext?: string | null
+) {
+  return [
+    formatProfileContext(profile),
+    styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
+    'Styling request:',
+    `- anchorItemDescription: ${input.anchorItemDescription.trim() || 'No text description provided.'}`,
+    `- hasAnchorImage: ${Boolean(input.anchorImageId || input.anchorImageUrl)}`,
+    `- selectedTiersFromClient: ${input.selectedTiers.join(', ')}`,
+    `- photoPending: ${String(input.photoPending)}`,
+    'Return three recommendations for business, smart-casual, and casual.',
+    'Each recommendation should include a specific title, anchor item wording, key pieces, shoes, accessories, fit notes, why it works, styling direction, and detail notes.',
+  ].join('\n');
+}
+
+export function buildRegenerateTierInstructions() {
+  return [
+    ...buildBaseOutfitRules(),
+    'You are regenerating one tier of a menswear styling recommendation.',
+    'Return only structured JSON matching the schema.',
+    'Generate only the requested tier.',
+    'The new recommendation must stay faithful to the anchor item and overall wardrobe direction while being materially different from the previous version.',
+    'Do not repeat the previous title or the exact same key pieces.',
+  ].join(' ');
+}
+
+export function buildRegenerateTierUserPrompt(input: {
+  profile: PromptProfile;
+  existing: OutfitResponse;
+  tier: OutfitTierSlug;
+  styleGuideContext?: string | null;
+}) {
+  const previousTier = input.existing.recommendations.find((item) => item.tier === input.tier);
+
+  return [
+    formatProfileContext(input.profile),
+    input.styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
+    'Original styling request:',
+    `- anchorItemDescription: ${input.existing.input.anchorItemDescription.trim() || 'No text description provided.'}`,
+    `- hasAnchorImage: ${Boolean(input.existing.input.anchorImageId || input.existing.input.anchorImageUrl)}`,
+    `- requestedTier: ${input.tier}`,
+    previousTier
+      ? [
+          'Previous recommendation to replace:',
+          `- title: ${previousTier.title}`,
+          `- stylingDirection: ${previousTier.stylingDirection}`,
+          `- keyPieces: ${previousTier.keyPieces.join('; ')}`,
+          `- shoes: ${previousTier.shoes.join('; ')}`,
+          `- accessories: ${previousTier.accessories.join('; ')}`,
+          `- whyItWorks: ${previousTier.whyItWorks}`,
+        ].join('\n')
+      : 'There is no previous recommendation for the requested tier.',
+    'Return one new recommendation for the requested tier only.',
+  ].join('\n');
+}

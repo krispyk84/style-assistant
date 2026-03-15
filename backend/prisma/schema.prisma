@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OutfitTier {
+  BUSINESS
+  SMART_CASUAL
+  CASUAL
+}
+
+enum AnalysisVerdict {
+  WORKS_GREAT
+  WORKS_OKAY
+  DOESNT_WORK
+}
+
+enum UploadedImageCategory {
+  ANCHOR_ITEM
+  CANDIDATE_PIECE
+  SELFIE
+}
+
+model UserProfile {
+  id                   String               @id @default(cuid())
+  gender               String
+  heightCm             Int
+  weightKg             Int
+  fitPreference        String
+  stylePreference      String
+  budget               String
+  hairColor            String
+  skinTone             String
+  notes                String?
+  onboardingCompleted  Boolean              @default(false)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  outfitRequests       OutfitRequest[]
+  compatibilityChecks  CompatibilityCheck[]
+  selfieReviews        SelfieReview[]
+}
+
+model OutfitRequest {
+  id                    String         @id
+  profileId             String?
+  anchorImageId         String?
+  anchorItemDescription String
+  anchorImageUrl        String?
+  photoPending          Boolean        @default(false)
+  selectedTiers         OutfitTier[]
+  promptVersion         String         @default("mock-v1")
+  status                String         @default("completed")
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  profile               UserProfile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  anchorImage           UploadedImage? @relation("AnchorItemImage", fields: [anchorImageId], references: [id], onDelete: SetNull)
+  result                OutfitResult?
+}
+
+model OutfitResult {
+  id             String       @id @default(cuid())
+  requestId      String       @unique
+  status         String
+  provider       String       @default("mock")
+  rawResponse    Json?
+  generatedAt    DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  request        OutfitRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  tierResults    TierResult[]
+}
+
+model TierResult {
+  id                String      @id @default(cuid())
+  outfitResultId    String
+  tier              OutfitTier
+  title             String
+  anchorItem        String
+  keyPieces         Json
+  shoes             Json
+  accessories       Json
+  fitNotes          Json
+  whyItWorks        String
+  stylingDirection  String
+  detailNotes       Json
+  variantIndex      Int         @default(0)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  outfitResult      OutfitResult @relation(fields: [outfitResultId], references: [id], onDelete: Cascade)
+
+  @@unique([outfitResultId, tier])
+}
+
+model CompatibilityCheck {
+  id                String           @id @default(cuid())
+  profileId         String?
+  imageId           String?
+  imageUrl          String?
+  imageKey          String?
+  imageFilename     String?
+  imageMimeType     String?
+  imageWidth        Int?
+  imageHeight       Int?
+  imageSizeBytes    Int?
+  verdict           AnalysisVerdict
+  stylistNotes      Json
+  suggestedChanges  Json
+  rawResponse       Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  profile           UserProfile?     @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  image             UploadedImage?   @relation("CompatibilityImage", fields: [imageId], references: [id], onDelete: SetNull)
+}
+
+model SelfieReview {
+  id                String           @id @default(cuid())
+  profileId         String?
+  imageId           String?
+  imageUrl          String?
+  imageKey          String?
+  imageFilename     String?
+  imageMimeType     String?
+  imageWidth        Int?
+  imageHeight       Int?
+  imageSizeBytes    Int?
+  verdict           AnalysisVerdict
+  stylistNotes      Json
+  suggestedChanges  Json
+  rawResponse       Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  profile           UserProfile?     @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  image             UploadedImage?   @relation("SelfieImage", fields: [imageId], references: [id], onDelete: SetNull)
+}
+
+model UploadedImage {
+  id                    String                 @id @default(cuid())
+  category              UploadedImageCategory
+  storageProvider       String
+  storageKey            String                 @unique
+  publicUrl             String
+  originalFilename      String?
+  mimeType              String?
+  sizeBytes             Int?
+  width                 Int?
+  height                Int?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  anchorItemRequests    OutfitRequest[]        @relation("AnchorItemImage")
+  compatibilityChecks   CompatibilityCheck[]   @relation("CompatibilityImage")
+  selfieReviews         SelfieReview[]         @relation("SelfieImage")
+}
+
+model StyleGuideDocument {
+  id                  String   @id @default(cuid())
+  name                String
+  sourceFilename      String
+  sourceMimeType      String?
+  sourcePath          String?
+  processedTextPath   String?
+  openAiFileId        String?
+  vectorStoreId       String
+  retrievalProvider   String   @default("openai")
+  status              String   @default("ready")
+  active              Boolean  @default(true)
+  metadata            Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
