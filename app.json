@@ -12,6 +12,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.krispyk84.styleassistant",
       "supportsTablet": false
     },
     "plugins": [
