@@ -19,7 +19,11 @@ export function createApp() {
   const app = express();
 
   app.disable('x-powered-by');
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: false,
+    })
+  );
   app.use(
     cors({
       origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN,
@@ -27,7 +31,15 @@ export function createApp() {
   );
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
-  app.use('/media', express.static(storageConfig.localDirectory));
+  app.use(
+    '/media',
+    express.static(storageConfig.localDirectory, {
+      setHeaders(response) {
+        response.setHeader('Access-Control-Allow-Origin', '*');
+        response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      },
+    })
+  );
 
   app.use(healthRouter);
 
