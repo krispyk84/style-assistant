@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Vesture",
-    "slug": "vesture",
+    "slug": "style-assistant",
     "version": "1.0.0",
     "platforms": [
       "ios"
