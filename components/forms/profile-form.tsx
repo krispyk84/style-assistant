@@ -25,6 +25,28 @@ type ProfileFormProps = {
   onSubmit: (profile: Profile) => Promise<void> | void;
 };
 
+type WeightUnit = 'kg' | 'lbs';
+
+function kilogramsToPounds(value: string) {
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return '';
+  }
+
+  return Math.round(numeric * 2.20462).toString();
+}
+
+function poundsToKilograms(value: string) {
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return '';
+  }
+
+  return Math.round(numeric / 2.20462).toString();
+}
+
 export function ProfileForm({
   initialValue = defaultProfile,
   submitLabel,
@@ -32,21 +54,29 @@ export function ProfileForm({
   onSubmit,
 }: ProfileFormProps) {
   const [profile, setProfile] = useState(initialValue);
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>('kg');
+  const [weightValue, setWeightValue] = useState(initialValue.weightKg);
   const [errors, setErrors] = useState<ProfileValidationErrors>({});
 
   useEffect(() => {
     setProfile(initialValue);
+    setWeightUnit('kg');
+    setWeightValue(initialValue.weightKg);
   }, [initialValue]);
 
   async function handleSubmit() {
-    const nextErrors = validateProfile(profile);
+    const normalizedProfile = {
+      ...profile,
+      weightKg: weightUnit === 'lbs' ? poundsToKilograms(weightValue) : weightValue,
+    };
+    const nextErrors = validateProfile(normalizedProfile);
     setErrors(nextErrors);
 
     if (hasValidationErrors(nextErrors)) {
       return;
     }
 
-    await onSubmit(profile);
+    await onSubmit(normalizedProfile);
   }
 
   function updateField<Key extends keyof Profile>(key: Key, value: Profile[Key]) {
@@ -58,38 +88,60 @@ export function ProfileForm({
     });
   }
 
+  function handleWeightUnitChange(nextUnit: string) {
+    if (nextUnit !== 'kg' && nextUnit !== 'lbs') {
+      return;
+    }
+
+    if (nextUnit === weightUnit) {
+      return;
+    }
+
+    setWeightValue((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return nextUnit === 'lbs' ? kilogramsToPounds(current) : poundsToKilograms(current);
+    });
+    setWeightUnit(nextUnit);
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.weightKg;
+      return next;
+    });
+  }
+
   return (
     <View style={{ gap: spacing.xl }}>
       <FormField label="Gender" hint="Used to tailor fit and style guidance.">
         <SegmentedControl options={GENDER_OPTIONS} value={profile.gender} onChange={(value) => updateField('gender', value)} />
       </FormField>
 
-      <View style={{ flexDirection: 'row', gap: spacing.md }}>
-        <View style={{ flex: 1 }}>
-          <FormField label="Height" hint="Centimeters work best here." error={errors.heightCm as string | undefined}>
-            <TextInput
-              keyboardType="number-pad"
-              onChangeText={(value) => updateField('heightCm', value.replace(/[^0-9]/g, ''))}
-              placeholder="183"
-              placeholderTextColor={theme.colors.subtleText}
-              style={inputStyle}
-              value={profile.heightCm}
-            />
-          </FormField>
+      <FormField label="Height" hint="Enter your height in centimeters." error={errors.heightCm as string | undefined}>
+        <TextInput
+          keyboardType="number-pad"
+          onChangeText={(value) => updateField('heightCm', value.replace(/[^0-9]/g, ''))}
+          placeholder="183"
+          placeholderTextColor={theme.colors.subtleText}
+          style={inputStyle}
+          value={profile.heightCm}
+        />
+      </FormField>
+
+      <FormField label="Weight" hint="Switch between kilograms and pounds anytime." error={errors.weightKg as string | undefined}>
+        <View style={{ gap: spacing.md }}>
+          <SegmentedControl options={['kg', 'lbs']} value={weightUnit} onChange={handleWeightUnitChange} />
+          <TextInput
+            keyboardType="number-pad"
+            onChangeText={(value) => setWeightValue(value.replace(/[^0-9]/g, ''))}
+            placeholder={weightUnit === 'kg' ? '79' : '174'}
+            placeholderTextColor={theme.colors.subtleText}
+            style={inputStyle}
+            value={weightValue}
+          />
         </View>
-        <View style={{ flex: 1 }}>
-          <FormField label="Weight" hint="Enter kilograms." error={errors.weightKg as string | undefined}>
-            <TextInput
-              keyboardType="number-pad"
-              onChangeText={(value) => updateField('weightKg', value.replace(/[^0-9]/g, ''))}
-              placeholder="79"
-              placeholderTextColor={theme.colors.subtleText}
-              style={inputStyle}
-              value={profile.weightKg}
-            />
-          </FormField>
-        </View>
-      </View>
+      </FormField>
 
       <FormField label="Fit preference" hint="How you want clothes to sit on the body.">
         <SegmentedControl
@@ -141,7 +193,7 @@ export function ProfileForm({
 
       <View style={{ gap: spacing.sm }}>
         <PrimaryButton disabled={disabled} label={disabled ? 'Saving...' : submitLabel} onPress={handleSubmit} />
-        <AppText tone="muted">Your profile is stored locally on device for this prototype.</AppText>
+        <AppText tone="muted">Your profile is saved to the Vesture backend and used for personalized guidance.</AppText>
       </View>
     </View>
   );

@@ -11,7 +11,7 @@ export default function HomeScreen() {
     <AppScreen scrollable>
       <View style={{ gap: spacing.xl }}>
         <View style={{ gap: spacing.sm }}>
-          <AppText variant="eyebrow">Style Assistant</AppText>
+          <AppText variant="eyebrow">Vesture</AppText>
           <AppText variant="hero">Start a new styling request.</AppText>
           <AppText tone="muted">
             Use the app to build a look, check a candidate piece, or preview a selfie-based styling review.

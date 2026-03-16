@@ -26,24 +26,35 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
     let isMounted = true;
 
     async function hydrate() {
-      const response = await profileService.loadSession();
+      try {
+        const response = await profileService.loadSession();
 
-      if (!isMounted) {
-        return;
-      }
+        if (!isMounted) {
+          return;
+        }
 
-      if (!response.success) {
-        setErrorMessage(response.error?.message ?? 'Failed to load session.');
+        if (!response.success) {
+          setErrorMessage(response.error?.message ?? 'Failed to load session.');
+          setProfile(defaultProfile);
+          setHasCompletedOnboarding(false);
+          setIsHydrated(true);
+          return;
+        }
+
+        setErrorMessage(null);
+        setProfile(response.data?.profile ?? defaultProfile);
+        setHasCompletedOnboarding(response.data?.onboardingCompleted ?? false);
+        setIsHydrated(true);
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setErrorMessage('Failed to load session.');
         setProfile(defaultProfile);
         setHasCompletedOnboarding(false);
         setIsHydrated(true);
-        return;
       }
-
-      setErrorMessage(null);
-      setProfile(response.data?.profile ?? defaultProfile);
-      setHasCompletedOnboarding(response.data?.onboardingCompleted ?? false);
-      setIsHydrated(true);
     }
 
     hydrate();

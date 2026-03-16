@@ -1,10 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
 
+import { BrandSplash } from '@/components/ui/brand-splash';
 import { theme } from '@/constants/theme';
 import { useAppSession } from '@/hooks/use-app-session';
-import { LoadingState } from '@/components/ui/loading-state';
-import { AppScreen } from '@/components/ui/app-screen';
 
 const TAB_ICON_SIZE = 22;
 
@@ -12,11 +11,7 @@ export default function AppTabsLayout() {
   const { hasCompletedOnboarding, isHydrated } = useAppSession();
 
   if (!isHydrated) {
-    return (
-      <AppScreen>
-        <LoadingState label="Loading your app..." />
-      </AppScreen>
-    );
+    return <BrandSplash subtitle="Loading your Vesture workspace." />;
   }
 
   if (!hasCompletedOnboarding) {

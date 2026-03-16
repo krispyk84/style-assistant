@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "style-assistant",
-    "slug": "style-assistant",
+    "name": "Vesture",
+    "slug": "vesture",
     "version": "1.0.0",
     "platforms": [
       "ios"
@@ -13,15 +13,18 @@
     "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.krispyk84.styleassistant",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "plugins": [
       "expo-router",
       [
         "expo-image-picker",
         {
-          "photosPermission": "Style Assistant uses your photo library so you can upload anchor items, candidate pieces, and outfit selfies.",
-          "cameraPermission": "Style Assistant uses the camera so you can capture anchor items, candidate pieces, and outfit selfies."
+          "photosPermission": "Vesture uses your photo library so you can upload anchor items, candidate pieces, and outfit selfies.",
+          "cameraPermission": "Vesture uses the camera so you can capture anchor items, candidate pieces, and outfit selfies."
         }
       ],
       [
@@ -37,6 +40,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "40fa7bfb-a09f-4a9f-983e-7e1a7f32976b"
+      }
     }
   }
 }

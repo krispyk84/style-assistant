@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { ProfileForm } from '@/components/forms/profile-form';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
-import { LoadingState } from '@/components/ui/loading-state';
+import { BrandSplash } from '@/components/ui/brand-splash';
 import { SectionHeader } from '@/components/ui/section-header';
 import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
@@ -15,11 +15,7 @@ export default function OnboardingScreen() {
   const { showToast } = useToast();
 
   if (!isHydrated) {
-    return (
-      <AppScreen>
-        <LoadingState label="Preparing onboarding..." />
-      </AppScreen>
-    );
+    return <BrandSplash subtitle="Preparing your Vesture onboarding." />;
   }
 
   if (hasCompletedOnboarding) {

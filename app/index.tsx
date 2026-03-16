@@ -1,17 +1,12 @@
 import { Redirect } from 'expo-router';
-import { AppScreen } from '@/components/ui/app-screen';
-import { LoadingState } from '@/components/ui/loading-state';
+import { BrandSplash } from '@/components/ui/brand-splash';
 import { useAppSession } from '@/hooks/use-app-session';
 
 export default function LandingScreen() {
   const { hasCompletedOnboarding, isHydrated } = useAppSession();
 
   if (!isHydrated) {
-    return (
-      <AppScreen>
-        <LoadingState label="Loading your local Style Assistant profile..." />
-      </AppScreen>
-    );
+    return <BrandSplash subtitle="Preparing your Vesture profile and styling context." />;
   }
 
   return <Redirect href={hasCompletedOnboarding ? '/(app)/home' : '/onboarding'} />;
