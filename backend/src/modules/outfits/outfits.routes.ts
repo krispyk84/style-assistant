@@ -8,6 +8,15 @@ import { generateOutfitsSchema, regenerateTierSchema } from './outfits.validatio
 
 export const outfitsRouter = Router();
 
+outfitsRouter.get(
+  '/outfits/:id',
+  asyncHandler(async (request, response) => {
+    const requestId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+    const result = await outfitsService.getOutfitResult(requestId);
+    return sendSuccess(response, result);
+  })
+);
+
 outfitsRouter.post(
   '/outfits/generate',
   asyncHandler(async (request, response) => {

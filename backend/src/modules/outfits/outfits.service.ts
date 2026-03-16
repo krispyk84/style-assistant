@@ -39,6 +39,16 @@ async function findProfile(profileId?: string) {
 }
 
 export const outfitsService = {
+  async getOutfitResult(requestId: string) {
+    const existing = await outfitsRepository.findGeneratedOutfit(requestId);
+
+    if (!existing) {
+      throw new HttpError(404, 'OUTFIT_REQUEST_NOT_FOUND', 'No outfit request exists for the provided id.');
+    }
+
+    return existing;
+  },
+
   async generateOutfits(input: GenerateOutfitsRequest, variantMap?: Partial<Record<OutfitTierSlug, number>>) {
     const selectedTiers = [...CANONICAL_TIERS];
     const profile = await findProfile(input.profileId);
