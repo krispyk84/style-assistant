@@ -23,7 +23,18 @@ export const localStorageProvider: StorageProvider = {
     const destinationPath = path.join(storageConfig.localDirectory, storageKey);
 
     await fs.mkdir(path.dirname(destinationPath), { recursive: true });
-    await fs.rename(input.tempFilePath, destinationPath);
+    try {
+      await fs.rename(input.tempFilePath, destinationPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EXDEV') {
+        throw error;
+      }
+
+      // Render stores multipart temp files under /tmp, which can be a different
+      // device from the app filesystem. Fall back to copy+delete in that case.
+      await fs.copyFile(input.tempFilePath, destinationPath);
+      await fs.rm(input.tempFilePath, { force: true });
+    }
 
     return {
       storageProvider: 'local',
