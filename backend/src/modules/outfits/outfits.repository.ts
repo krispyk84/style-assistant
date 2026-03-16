@@ -78,6 +78,10 @@ export const outfitsRepository = {
             whyItWorks: recommendation.whyItWorks,
             stylingDirection: recommendation.stylingDirection,
             detailNotes: recommendation.detailNotes,
+            sketchStatus: recommendation.sketchStatus,
+            sketchImageUrl: recommendation.sketchImageUrl,
+            sketchStorageKey: recommendation.sketchStorageKey,
+            sketchMimeType: recommendation.sketchMimeType,
             variantIndex: recommendation.variantIndex,
           },
           create: {
@@ -92,6 +96,10 @@ export const outfitsRepository = {
             whyItWorks: recommendation.whyItWorks,
             stylingDirection: recommendation.stylingDirection,
             detailNotes: recommendation.detailNotes,
+            sketchStatus: recommendation.sketchStatus,
+            sketchImageUrl: recommendation.sketchImageUrl,
+            sketchStorageKey: recommendation.sketchStorageKey,
+            sketchMimeType: recommendation.sketchMimeType,
             variantIndex: recommendation.variantIndex,
           },
         });
@@ -145,10 +153,50 @@ export const outfitsRepository = {
         whyItWorks: tier.whyItWorks,
         stylingDirection: tier.stylingDirection,
         detailNotes: tier.detailNotes as string[],
+        sketchStatus:
+          tier.sketchStatus === 'ready' || tier.sketchStatus === 'failed' ? tier.sketchStatus : 'pending',
+        sketchImageUrl: tier.sketchImageUrl ?? null,
+        sketchStorageKey: tier.sketchStorageKey ?? null,
+        sketchMimeType: tier.sketchMimeType ?? null,
         variantIndex: tier.variantIndex,
       })),
     };
 
     return output;
+  },
+
+  async updateTierSketch(
+    requestId: string,
+    tier: OutfitTierSlug,
+    input: {
+      sketchStatus: 'pending' | 'ready' | 'failed';
+      sketchImageUrl: string | null;
+      sketchStorageKey: string | null;
+      sketchMimeType: string | null;
+    }
+  ) {
+    const result = await prisma.outfitResult.findUnique({
+      where: { requestId },
+      select: { id: true },
+    });
+
+    if (!result) {
+      return;
+    }
+
+    await prisma.tierResult.update({
+      where: {
+        outfitResultId_tier: {
+          outfitResultId: result.id,
+          tier: toPrismaTier(tier),
+        },
+      },
+      data: {
+        sketchStatus: input.sketchStatus,
+        sketchImageUrl: input.sketchImageUrl,
+        sketchStorageKey: input.sketchStorageKey,
+        sketchMimeType: input.sketchMimeType,
+      },
+    });
   },
 };

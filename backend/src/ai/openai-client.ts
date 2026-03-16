@@ -37,6 +37,13 @@ type CreateStructuredResponseInput<TSchema extends z.ZodTypeAny> = {
   userContent: InputContent[];
 };
 
+type GenerateImageInput = {
+  prompt: string;
+  size?: '1024x1024' | '1024x1536' | '1536x1024' | 'auto';
+  quality?: 'low' | 'medium' | 'high' | 'auto';
+  outputFormat?: 'png' | 'jpeg' | 'webp';
+};
+
 function extractOutputText(payload: any): string | null {
   if (typeof payload?.output_text === 'string' && payload.output_text.trim()) {
     return payload.output_text;
@@ -146,6 +153,68 @@ export const openAiClient = {
 
       logger.error({ error }, 'Unexpected OpenAI client failure');
       throw new HttpError(502, 'OPENAI_UNAVAILABLE', 'The AI provider is currently unavailable.');
+    } finally {
+      clearTimeout(timeout);
+    }
+  },
+
+  async generateImage(input: GenerateImageInput) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), env.OPENAI_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(`${env.OPENAI_BASE_URL}/v1/images/generations`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: env.OPENAI_IMAGE_MODEL,
+          prompt: input.prompt,
+          size: input.size ?? '1024x1536',
+          quality: input.quality ?? 'medium',
+          output_format: input.outputFormat ?? 'jpeg',
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        logger.error(
+          {
+            statusCode: response.status,
+            error: payload?.error?.message ?? payload?.error ?? 'Unknown OpenAI image generation error',
+          },
+          'OpenAI image generation failed'
+        );
+
+        throw new HttpError(502, 'OPENAI_IMAGE_FAILED', 'The AI provider could not generate the sketch.');
+      }
+
+      const imageBase64 = payload?.data?.[0]?.b64_json;
+      if (typeof imageBase64 !== 'string' || !imageBase64) {
+        logger.error({ payload }, 'OpenAI image generation response did not include image data');
+        throw new HttpError(502, 'OPENAI_IMAGE_INVALID', 'The AI provider returned an invalid sketch response.');
+      }
+
+      return {
+        mimeType: `image/${input.outputFormat ?? 'jpeg'}`,
+        data: Buffer.from(imageBase64, 'base64'),
+      };
+    } catch (error) {
+      if (error instanceof HttpError) {
+        throw error;
+      }
+
+      if (error instanceof Error && error.name === 'AbortError') {
+        logger.error('OpenAI image request timed out');
+        throw new HttpError(504, 'OPENAI_IMAGE_TIMEOUT', 'The AI provider timed out while generating the sketch.');
+      }
+
+      logger.error({ error }, 'Unexpected OpenAI image generation failure');
+      throw new HttpError(502, 'OPENAI_IMAGE_UNAVAILABLE', 'The AI provider is currently unavailable for sketches.');
     } finally {
       clearTimeout(timeout);
     }

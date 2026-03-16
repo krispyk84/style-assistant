@@ -12,6 +12,7 @@ const envSchema = z.object({
   API_PREFIX: z.string().default('/api'),
   OPENAI_API_KEY: z.string().min(1),
   OPENAI_RESPONSES_MODEL: z.string().min(1).default('gpt-4.1'),
+  OPENAI_IMAGE_MODEL: z.string().min(1).default('gpt-image-1'),
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com'),
   OPENAI_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   STYLE_GUIDE_ENABLED: z.coerce.boolean().default(true),

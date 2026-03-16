@@ -1,4 +1,5 @@
 export type OutfitTierSlug = 'business' | 'smart-casual' | 'casual';
+export type TierSketchStatus = 'pending' | 'ready' | 'failed';
 
 export type GenerateOutfitsRequest = {
   requestId: string;
@@ -21,6 +22,10 @@ export type TierRecommendationDto = {
   whyItWorks: string;
   stylingDirection: string;
   detailNotes: string[];
+  sketchStatus: TierSketchStatus;
+  sketchImageUrl: string | null;
+  sketchStorageKey: string | null;
+  sketchMimeType: string | null;
   variantIndex: number;
 };
 

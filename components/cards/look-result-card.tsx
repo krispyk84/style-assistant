@@ -1,5 +1,6 @@
 import { Href, Link } from 'expo-router';
 import { Pressable, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import { spacing, theme } from '@/constants/theme';
 import type { LookRecommendation } from '@/types/look-request';
@@ -29,6 +30,8 @@ export function LookResultCard({ recommendation, onRegenerate, detailHref, isReg
         <AppText variant="title">{formatTierLabel(recommendation.tier)}</AppText>
         <AppText tone="muted">{recommendation.title}</AppText>
       </View>
+
+      <TierSketch recommendation={recommendation} />
 
       <View style={{ gap: spacing.sm }}>
         {labeledPieces.map((piece) => (
@@ -62,6 +65,66 @@ export function LookResultCard({ recommendation, onRegenerate, detailHref, isReg
             <AppText>Select tier</AppText>
           </Pressable>
         </Link>
+      </View>
+    </View>
+  );
+}
+
+function TierSketch({ recommendation }: { recommendation: LookRecommendation }) {
+  if (recommendation.sketchStatus === 'ready' && recommendation.sketchImageUrl) {
+    return (
+      <Image
+        source={{ uri: recommendation.sketchImageUrl }}
+        style={{ width: '100%', aspectRatio: 3 / 4, borderRadius: 22, backgroundColor: theme.colors.card }}
+        contentFit="cover"
+      />
+    );
+  }
+
+  if (recommendation.sketchStatus === 'pending' || !recommendation.sketchStatus) {
+    return (
+      <View
+        style={{
+          alignItems: 'center',
+          backgroundColor: theme.colors.card,
+          borderColor: theme.colors.border,
+          borderRadius: 22,
+          borderWidth: 1,
+          justifyContent: 'center',
+          minHeight: 280,
+          padding: spacing.lg,
+        }}>
+        <View style={{ gap: spacing.xs }}>
+          <AppText variant="sectionTitle" style={{ textAlign: 'center' }}>
+            Rendering sketch...
+          </AppText>
+          <AppText tone="muted" style={{ textAlign: 'center' }}>
+            This tier illustration will appear automatically when it is ready.
+          </AppText>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={{
+        alignItems: 'center',
+        backgroundColor: theme.colors.card,
+        borderColor: theme.colors.border,
+        borderRadius: 22,
+        borderWidth: 1,
+        justifyContent: 'center',
+        minHeight: 180,
+        padding: spacing.lg,
+      }}>
+      <View style={{ gap: spacing.xs }}>
+        <AppText variant="sectionTitle" style={{ textAlign: 'center' }}>
+          Sketch unavailable
+        </AppText>
+        <AppText tone="muted" style={{ textAlign: 'center' }}>
+          The outfit details are still usable even when the illustration is unavailable.
+        </AppText>
       </View>
     </View>
   );

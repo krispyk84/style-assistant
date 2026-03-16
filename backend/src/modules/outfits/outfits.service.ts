@@ -13,6 +13,7 @@ import { uploadsRepository } from '../uploads/uploads.repository.js';
 import { outfitsRepository } from './outfits.repository.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
+import { tierSketchService } from './tier-sketch.service.js';
 
 const CANONICAL_TIERS: OutfitTierSlug[] = ['business', 'smart-casual', 'casual'];
 
@@ -115,12 +116,17 @@ export const outfitsService = {
           ...recommendation,
           tier,
           anchorItem: recommendation.anchorItem.trim() || getCanonicalAnchorDescription(input),
+          sketchStatus: 'pending',
+          sketchImageUrl: null,
+          sketchStorageKey: null,
+          sketchMimeType: null,
           variantIndex: variantMap?.[tier] ?? 0,
         };
       }),
     };
 
     await outfitsRepository.upsertGeneratedOutfit(input.profileId, response);
+    void tierSketchService.queueSketchesForOutfit(response);
     return response;
   },
 
@@ -190,6 +196,10 @@ export const outfitsService = {
               ...aiOutput.recommendation,
               tier,
               anchorItem: aiOutput.recommendation.anchorItem.trim() || existing.input.anchorItemDescription,
+              sketchStatus: 'pending',
+              sketchImageUrl: null,
+              sketchStorageKey: null,
+              sketchMimeType: null,
               variantIndex: nextVariantIndex,
             }
           : recommendation
@@ -197,6 +207,7 @@ export const outfitsService = {
     };
 
     await outfitsRepository.upsertGeneratedOutfit(undefined, mergedResponse);
+    void tierSketchService.queueSketchForTier(mergedResponse, tier);
     return mergedResponse;
   },
 };

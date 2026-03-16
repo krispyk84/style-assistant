@@ -29,6 +29,10 @@ type LookRouteParams = {
   recommendationWhyItWorks?: string;
   recommendationStylingDirection?: string;
   recommendationDetailNotes?: string;
+  recommendationSketchStatus?: string;
+  recommendationSketchImageUrl?: string;
+  recommendationSketchStorageKey?: string;
+  recommendationSketchMimeType?: string;
 };
 
 function encodeList(values: string[]) {
@@ -106,6 +110,10 @@ export function parseLookRecommendation(
     | 'recommendationWhyItWorks'
     | 'recommendationStylingDirection'
     | 'recommendationDetailNotes'
+    | 'recommendationSketchStatus'
+    | 'recommendationSketchImageUrl'
+    | 'recommendationSketchStorageKey'
+    | 'recommendationSketchMimeType'
   > &
     { tier?: string }
 ): LookRecommendation | null {
@@ -124,6 +132,13 @@ export function parseLookRecommendation(
     whyItWorks: params.recommendationWhyItWorks ?? '',
     stylingDirection: params.recommendationStylingDirection ?? '',
     detailNotes: decodeList(params.recommendationDetailNotes),
+    sketchStatus:
+      params.recommendationSketchStatus === 'ready' || params.recommendationSketchStatus === 'failed'
+        ? params.recommendationSketchStatus
+        : 'pending',
+    sketchImageUrl: params.recommendationSketchImageUrl ?? null,
+    sketchStorageKey: params.recommendationSketchStorageKey ?? null,
+    sketchMimeType: params.recommendationSketchMimeType ?? null,
   };
 }
 
@@ -207,6 +222,10 @@ export function buildTierHref(
       recommendationWhyItWorks: recommendation.whyItWorks,
       recommendationStylingDirection: recommendation.stylingDirection,
       recommendationDetailNotes: encodeList(recommendation.detailNotes),
+      recommendationSketchStatus: recommendation.sketchStatus,
+      recommendationSketchImageUrl: recommendation.sketchImageUrl ?? undefined,
+      recommendationSketchStorageKey: recommendation.sketchStorageKey ?? undefined,
+      recommendationSketchMimeType: recommendation.sketchMimeType ?? undefined,
       variantIndex: String(variantIndex),
     },
   };

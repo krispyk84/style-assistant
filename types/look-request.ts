@@ -32,6 +32,10 @@ export type LookRecommendation = {
   whyItWorks: string;
   stylingDirection: string;
   detailNotes: string[];
+  sketchStatus?: 'pending' | 'ready' | 'failed';
+  sketchImageUrl?: string | null;
+  sketchStorageKey?: string | null;
+  sketchMimeType?: string | null;
 };
 
 export type LookRequestResponse = {

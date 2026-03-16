@@ -14,6 +14,10 @@ function extensionFromFilename(filename?: string) {
   return ext ? ext.toLowerCase() : '';
 }
 
+function normalizeExtension(fileExtension: string) {
+  return fileExtension.startsWith('.') ? fileExtension.toLowerCase() : `.${fileExtension.toLowerCase()}`;
+}
+
 export const localStorageProvider: StorageProvider = {
   async storeFile(input) {
     await fs.mkdir(storageConfig.localDirectory, { recursive: true });
@@ -35,6 +39,22 @@ export const localStorageProvider: StorageProvider = {
       await fs.copyFile(input.tempFilePath, destinationPath);
       await fs.rm(input.tempFilePath, { force: true });
     }
+
+    return {
+      storageProvider: 'local',
+      storageKey,
+      publicUrl: `${storageConfig.publicBaseUrl}/media/${storageKey}`,
+    };
+  },
+
+  async storeGeneratedFile(input) {
+    await fs.mkdir(storageConfig.localDirectory, { recursive: true });
+
+    const storageKey = `${input.category}/${crypto.randomUUID()}${normalizeExtension(input.fileExtension)}`;
+    const destinationPath = path.join(storageConfig.localDirectory, storageKey);
+
+    await fs.mkdir(path.dirname(destinationPath), { recursive: true });
+    await fs.writeFile(destinationPath, input.data);
 
     return {
       storageProvider: 'local',

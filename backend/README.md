@@ -110,6 +110,7 @@ Required Render environment variables:
 - `CORS_ORIGIN` set to your Expo/API consumer origin as needed
 - `OPENAI_API_KEY`
 - `OPENAI_RESPONSES_MODEL`
+- `OPENAI_IMAGE_MODEL`
 - `OPENAI_BASE_URL`
 - `OPENAI_TIMEOUT_MS`
 - `STYLE_GUIDE_ENABLED`

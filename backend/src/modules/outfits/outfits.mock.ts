@@ -1,6 +1,12 @@
 import type { GenerateOutfitsRequest, OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 
-const recommendationVariants: Record<OutfitTierSlug, Omit<TierRecommendationDto, 'tier' | 'anchorItem' | 'variantIndex'>[]> = {
+const recommendationVariants: Record<
+  OutfitTierSlug,
+  Omit<
+    TierRecommendationDto,
+    'tier' | 'anchorItem' | 'variantIndex' | 'sketchStatus' | 'sketchImageUrl' | 'sketchStorageKey' | 'sketchMimeType'
+  >[]
+> = {
   business: [
     {
       title: 'Structured client dinner look',
@@ -82,12 +88,18 @@ export function buildMockOutfitResponse(
     const variantIndex = variantMap[tier] ?? 0;
     const variant = variants[((variantIndex % variants.length) + variants.length) % variants.length];
 
-    return {
+    const recommendation: TierRecommendationDto = {
       tier,
       anchorItem: input.anchorItemDescription,
+      sketchStatus: 'failed',
+      sketchImageUrl: null,
+      sketchStorageKey: null,
+      sketchMimeType: null,
       variantIndex,
       ...variant,
     };
+
+    return recommendation;
   });
 
   return {

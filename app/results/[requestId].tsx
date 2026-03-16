@@ -117,6 +117,22 @@ export default function ResultDetailsScreen() {
     };
   }, [params.requestId, parsedInput]);
 
+  useEffect(() => {
+    if (!response?.requestId || !response.recommendations.some((item) => item.sketchStatus === 'pending')) {
+      return;
+    }
+
+    const interval = setInterval(async () => {
+      const serviceResponse = await outfitsService.getOutfitResult(response.requestId);
+
+      if (serviceResponse.success && serviceResponse.data) {
+        setResponse(serviceResponse.data);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [response]);
+
   async function retryLoad() {
     if (!params.requestId) {
       return;

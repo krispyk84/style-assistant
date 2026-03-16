@@ -1,10 +1,15 @@
-import type { UploadedImageCategory } from '../contracts/uploads.contracts.js';
-
 export type StoreFileInput = {
-  category: UploadedImageCategory;
+  category: string;
   tempFilePath: string;
   originalFilename?: string;
   mimeType?: string;
+};
+
+export type StoreGeneratedFileInput = {
+  category: string;
+  fileExtension: string;
+  mimeType?: string;
+  data: Uint8Array | Buffer;
 };
 
 export type StoredFile = {
@@ -15,5 +20,6 @@ export type StoredFile = {
 
 export type StorageProvider = {
   storeFile: (input: StoreFileInput) => Promise<StoredFile>;
+  storeGeneratedFile: (input: StoreGeneratedFileInput) => Promise<StoredFile>;
   deleteFile: (storageKey: string) => Promise<void>;
 };

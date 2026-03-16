@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router, useLocalSearchParams } from 'expo-router';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { LookTierDetailCard } from '@/components/cards/look-tier-detail-card';
@@ -13,6 +13,7 @@ import { spacing, theme } from '@/constants/theme';
 import { getLookTierDefinition } from '@/lib/look-mock-data';
 import { parseLookInput, parseLookRecommendation } from '@/lib/look-route';
 import type { LookRecommendation } from '@/types/look-request';
+import { outfitsService } from '@/services/outfits';
 
 export default function TierScreen() {
   const params = useLocalSearchParams<{
@@ -41,9 +42,14 @@ export default function TierScreen() {
     recommendationWhyItWorks?: string;
     recommendationStylingDirection?: string;
     recommendationDetailNotes?: string;
+    recommendationSketchStatus?: string;
+    recommendationSketchImageUrl?: string;
+    recommendationSketchStorageKey?: string;
+    recommendationSketchMimeType?: string;
     variantIndex?: string;
   }>();
   const matchedTier = params.tier ? getLookTierDefinition(params.tier) : undefined;
+  const [liveRecommendation, setLiveRecommendation] = useState<LookRecommendation | null>(null);
 
   const requestInput = useMemo(
     () =>
@@ -94,6 +100,10 @@ export default function TierScreen() {
         recommendationWhyItWorks: params.recommendationWhyItWorks,
         recommendationStylingDirection: params.recommendationStylingDirection,
         recommendationDetailNotes: params.recommendationDetailNotes,
+        recommendationSketchStatus: params.recommendationSketchStatus,
+        recommendationSketchImageUrl: params.recommendationSketchImageUrl,
+        recommendationSketchStorageKey: params.recommendationSketchStorageKey,
+        recommendationSketchMimeType: params.recommendationSketchMimeType,
       }),
     [
       params.recommendationAccessories,
@@ -101,6 +111,10 @@ export default function TierScreen() {
       params.recommendationDetailNotes,
       params.recommendationFitNotes,
       params.recommendationKeyPieces,
+      params.recommendationSketchImageUrl,
+      params.recommendationSketchMimeType,
+      params.recommendationSketchStatus,
+      params.recommendationSketchStorageKey,
       params.recommendationShoes,
       params.recommendationStylingDirection,
       params.recommendationTitle,
@@ -109,7 +123,35 @@ export default function TierScreen() {
     ]
   );
 
-  if (!matchedTier || !recommendation) {
+  useEffect(() => {
+    setLiveRecommendation(recommendation);
+  }, [recommendation]);
+
+  useEffect(() => {
+    const requestId = params.requestId;
+    const tier = params.tier;
+
+    if (!requestId || !tier || liveRecommendation?.sketchStatus !== 'pending') {
+      return;
+    }
+
+    const interval = setInterval(async () => {
+      const serviceResponse = await outfitsService.getOutfitResult(requestId);
+
+      if (!serviceResponse.success || !serviceResponse.data) {
+        return;
+      }
+
+      const nextRecommendation = serviceResponse.data.recommendations.find((item) => item.tier === tier);
+      if (nextRecommendation) {
+        setLiveRecommendation(nextRecommendation);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [liveRecommendation?.sketchStatus, params.requestId, params.tier]);
+
+  if (!matchedTier || !liveRecommendation) {
     return (
       <AppScreen>
         <ErrorState
@@ -122,13 +164,13 @@ export default function TierScreen() {
     );
   }
 
-  const piecesToCheck = buildPiecesToCheck(recommendation);
+  const piecesToCheck = buildPiecesToCheck(liveRecommendation);
 
   return (
     <AppScreen scrollable>
       <View style={{ gap: spacing.lg }}>
         <SectionHeader title={matchedTier.label} subtitle={matchedTier.shortDescription} />
-        <LookTierDetailCard definition={matchedTier} recommendation={recommendation} />
+        <LookTierDetailCard definition={matchedTier} recommendation={liveRecommendation} />
         <View style={{ gap: spacing.md }}>
           <AppText variant="sectionTitle">Check recommended pieces</AppText>
           <AppText tone="muted">
@@ -141,8 +183,8 @@ export default function TierScreen() {
                 pathname: '/check-piece',
                 params: {
                   requestId: params.requestId,
-                  tier: recommendation.tier,
-                  outfitTitle: recommendation.title,
+                  tier: liveRecommendation.tier,
+                  outfitTitle: liveRecommendation.title,
                   anchorItemDescription: requestInput?.anchorItemDescription,
                   pieceName: piece.value,
                 },
@@ -170,8 +212,8 @@ export default function TierScreen() {
                 pathname: '/selfie-review',
                 params: {
                   requestId: params.requestId,
-                  tier: recommendation.tier,
-                  outfitTitle: recommendation.title,
+                  tier: liveRecommendation.tier,
+                  outfitTitle: liveRecommendation.title,
                   anchorItemDescription: requestInput?.anchorItemDescription,
                 },
               })
