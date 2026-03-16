@@ -1,10 +1,10 @@
 import { Href, Link } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { Image } from 'expo-image';
 
 import { spacing, theme } from '@/constants/theme';
 import type { LookRecommendation } from '@/types/look-request';
 import { AppText } from '@/components/ui/app-text';
+import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
 
 type LookResultCardProps = {
   recommendation: LookRecommendation;
@@ -73,10 +73,12 @@ export function LookResultCard({ recommendation, onRegenerate, detailHref, isReg
 function TierSketch({ recommendation }: { recommendation: LookRecommendation }) {
   if (recommendation.sketchStatus === 'ready' && recommendation.sketchImageUrl) {
     return (
-      <Image
-        source={{ uri: recommendation.sketchImageUrl }}
-        style={{ width: '100%', aspectRatio: 3 / 4, borderRadius: 22, backgroundColor: theme.colors.card }}
-        contentFit="cover"
+      <RemoteImagePanel
+        uri={recommendation.sketchImageUrl}
+        aspectRatio={3 / 4}
+        minHeight={280}
+        fallbackTitle="Sketch unavailable"
+        fallbackMessage="The illustration could not be displayed on this device."
       />
     );
   }

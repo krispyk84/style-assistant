@@ -1,9 +1,9 @@
 import { View } from 'react-native';
-import { Image } from 'expo-image';
 
 import { spacing, theme } from '@/constants/theme';
 import type { CreateLookInput } from '@/types/look-request';
 import { AppText } from '@/components/ui/app-text';
+import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
 
 type LookRequestReviewCardProps = {
   input: CreateLookInput;
@@ -24,10 +24,12 @@ export function LookRequestReviewCard({ input }: LookRequestReviewCardProps) {
         padding: spacing.lg,
       }}>
       {previewUri ? (
-        <Image
-          source={{ uri: previewUri }}
-          style={{ width: '100%', aspectRatio: 4 / 5, borderRadius: 20, backgroundColor: theme.colors.card }}
-          contentFit="cover"
+        <RemoteImagePanel
+          uri={previewUri}
+          aspectRatio={4 / 5}
+          minHeight={320}
+          fallbackTitle="Anchor image unavailable"
+          fallbackMessage="The uploaded reference image could not be displayed."
         />
       ) : null}
       {description ? <AppText tone="muted">{description}</AppText> : null}
