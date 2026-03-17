@@ -50,7 +50,7 @@ export const outfitsService = {
   },
 
   async generateOutfits(input: GenerateOutfitsRequest, variantMap?: Partial<Record<OutfitTierSlug, number>>) {
-    const selectedTiers = [...CANONICAL_TIERS];
+    const selectedTiers = CANONICAL_TIERS.filter((tier) => input.selectedTiers.includes(tier));
     const profile = await findProfile(input.profileId);
     const uploadedAnchorImage = input.anchorImageId ? await uploadsRepository.findById(input.anchorImageId) : null;
     const styleGuideContext = await styleGuideService.retrieveGuidance({
@@ -97,7 +97,7 @@ export const outfitsService = {
         description: 'Three menswear outfit tiers for one anchor item.',
         schema: tieredOutfitGenerationJsonSchema,
       },
-      instructions: buildGenerateOutfitsInstructions(),
+      instructions: buildGenerateOutfitsInstructions(selectedTiers),
       userContent,
     });
 
@@ -115,7 +115,7 @@ export const outfitsService = {
         photoPending: input.photoPending,
         selectedTiers,
       },
-      recommendations: CANONICAL_TIERS.map((tier) => {
+      recommendations: selectedTiers.map((tier) => {
         const recommendation = recommendationMap.get(tier);
 
         if (!recommendation) {

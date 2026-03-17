@@ -66,8 +66,8 @@ export function CreateLookRequestForm({
       return;
     }
 
-    if (selectedTiers.length !== LOOK_TIER_OPTIONS.length) {
-      setTierError('This comparison flow requires all three outfit tiers.');
+    if (!selectedTiers.length) {
+      setTierError('Select at least one outfit tier.');
       return;
     }
 
@@ -89,7 +89,6 @@ export function CreateLookRequestForm({
     <View style={{ gap: spacing.xl }}>
       <ImagePickerField
         label="Anchor item image"
-        hint="Choose a reference image for the item you want styled."
         image={image}
         isPicking={isPicking || isUploading}
         error={error}
@@ -102,15 +101,13 @@ export function CreateLookRequestForm({
         }
         pickLabel={isUploading ? `Uploading ${Math.round(uploadProgress * 100)}%` : 'Choose from library'}
         cameraLabel="Take photo"
-        futureCameraHint="Use your library or capture the anchor item directly with the camera."
         onPick={pickFromLibrary}
         onTakePhoto={takePhoto}
         onRemove={removeImage}
       />
 
       <FormField
-        label="Anchor item"
-        hint="Add a short description if you want to give more context."
+        label="Anchor item description"
         error={anchorError ?? undefined}>
         <TextInput
           multiline
@@ -128,7 +125,6 @@ export function CreateLookRequestForm({
 
       <FormField
         label="Outfit tiers"
-        hint="This mocked comparison returns one outfit for each tier, so all three should stay selected."
         error={tierError ?? undefined}>
         <View style={{ gap: spacing.sm }}>
           {LOOK_TIER_OPTIONS.map((tier) => {

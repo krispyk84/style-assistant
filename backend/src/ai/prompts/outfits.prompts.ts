@@ -4,13 +4,11 @@ import { formatProfileContext } from '../prompt-context.js';
 
 type PromptProfile = Parameters<typeof formatProfileContext>[0];
 
-const tierList = 'business, smart-casual, casual';
-
-export function buildGenerateOutfitsInstructions() {
+export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[]) {
   return [
     ...buildBaseOutfitRules(),
     'Return only structured JSON matching the provided schema.',
-    `Always produce exactly three tier recommendations in this order: ${tierList}.`,
+    `Return only the requested tier recommendations in this order: ${selectedTiers.join(', ')}.`,
     'Anchor the recommendations to the provided item or image evidence.',
     'If no image is provided, rely only on the text description and profile context.',
     'Do not mention missing information, policy, or the schema in the output.',
@@ -30,7 +28,7 @@ export function buildGenerateOutfitsUserPrompt(
     `- hasAnchorImage: ${Boolean(input.anchorImageId || input.anchorImageUrl)}`,
     `- selectedTiersFromClient: ${input.selectedTiers.join(', ')}`,
     `- photoPending: ${String(input.photoPending)}`,
-    'Return three recommendations for business, smart-casual, and casual.',
+    `Return recommendations only for: ${input.selectedTiers.join(', ')}.`,
     'Each recommendation should include a specific title, anchor item wording, key pieces, shoes, accessories, fit notes, why it works, styling direction, and detail notes.',
   ].join('\n');
 }

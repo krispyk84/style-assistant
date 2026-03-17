@@ -52,7 +52,7 @@ export default function ReviewRequestScreen() {
         />
         <LookRequestReviewCard input={input} />
         <AppText tone="muted">
-          The backend will use your anchor item, image, and profile context to generate three styling tiers.
+          The backend will use your anchor item, image, and profile context to generate the selected styling tiers.
         </AppText>
         <View style={{ gap: spacing.sm }}>
           <PrimaryButton

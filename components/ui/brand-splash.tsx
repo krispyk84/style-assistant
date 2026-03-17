@@ -1,13 +1,30 @@
 import { Image, View } from 'react-native';
+import { useEffect, useState } from 'react';
 
 import { spacing, theme } from '@/constants/theme';
 import { AppText } from '@/components/ui/app-text';
 
 type BrandSplashProps = {
   subtitle?: string;
+  messages?: string[];
 };
 
-export function BrandSplash({ subtitle }: BrandSplashProps) {
+export function BrandSplash({ subtitle, messages }: BrandSplashProps) {
+  const [messageIndex, setMessageIndex] = useState(0);
+  const activeSubtitle = messages?.length ? messages[Math.min(messageIndex, messages.length - 1)] : subtitle;
+
+  useEffect(() => {
+    if (!messages?.length || messages.length === 1) {
+      return;
+    }
+
+    const timeout = setInterval(() => {
+      setMessageIndex((current) => (current < messages.length - 1 ? current + 1 : current));
+    }, 2200);
+
+    return () => clearInterval(timeout);
+  }, [messages]);
+
   return (
     <View
       style={{
@@ -24,17 +41,17 @@ export function BrandSplash({ subtitle }: BrandSplashProps) {
           width: '100%',
         }}>
         <Image
-          source={require('@/assets/images/splash-icon.png')}
+          source={require('../../logo.png')}
           style={{
-            height: 360,
-            maxWidth: 280,
+            height: 220,
+            maxWidth: 220,
             resizeMode: 'contain',
             width: '100%',
           }}
         />
-        {subtitle ? (
+        {activeSubtitle ? (
           <AppText tone="muted" style={{ maxWidth: 260, textAlign: 'center' }}>
-            {subtitle}
+            {activeSubtitle}
           </AppText>
         ) : null}
       </View>

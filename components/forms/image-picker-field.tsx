@@ -8,7 +8,7 @@ import { FormField } from '@/components/ui/form-field';
 
 type ImagePickerFieldProps = {
   label: string;
-  hint: string;
+  hint?: string;
   image: LocalImageAsset | null;
   isPicking?: boolean;
   error?: string | null;
@@ -28,7 +28,7 @@ export function ImagePickerField({
   isPicking = false,
   error,
   statusMessage,
-  futureCameraHint = 'Camera capture can be connected here later.',
+  futureCameraHint,
   pickLabel = 'Choose from library',
   cameraLabel = 'Take photo',
   onPick,
@@ -67,7 +67,7 @@ export function ImagePickerField({
           <>
             <View style={{ gap: spacing.xs }}>
               <AppText variant="title">Add image</AppText>
-              <AppText tone="muted">{futureCameraHint}</AppText>
+              {futureCameraHint ? <AppText tone="muted">{futureCameraHint}</AppText> : null}
               {statusMessage ? <AppText tone="muted">{statusMessage}</AppText> : null}
             </View>
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>

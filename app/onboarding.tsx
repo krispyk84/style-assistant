@@ -15,7 +15,15 @@ export default function OnboardingScreen() {
   const { showToast } = useToast();
 
   if (!isHydrated) {
-    return <BrandSplash subtitle="Preparing your Vesture onboarding." />;
+    return (
+      <BrandSplash
+        messages={[
+          'Preparing your Vesture onboarding.',
+          'Loading your profile details.',
+          'Getting your style setup ready.',
+        ]}
+      />
+    );
   }
 
   if (hasCompletedOnboarding) {

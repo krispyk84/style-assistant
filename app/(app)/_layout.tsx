@@ -11,7 +11,15 @@ export default function AppTabsLayout() {
   const { hasCompletedOnboarding, isHydrated } = useAppSession();
 
   if (!isHydrated) {
-    return <BrandSplash subtitle="Loading your Vesture workspace." />;
+    return (
+      <BrandSplash
+        messages={[
+          'Loading your Vesture workspace.',
+          'Checking your saved profile.',
+          'Preparing your styling tools.',
+        ]}
+      />
+    );
   }
 
   if (!hasCompletedOnboarding) {

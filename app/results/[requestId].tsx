@@ -180,7 +180,14 @@ export default function ResultDetailsScreen() {
   if (isLoading) {
     return (
       <AppScreen>
-        <LoadingState label="Generating outfit options..." />
+        <LoadingState
+          label="Generating outfit options..."
+          messages={[
+            'Building your selected looks.',
+            'Shaping the outfit direction.',
+            'Finalizing your recommendations.',
+          ]}
+        />
       </AppScreen>
     );
   }
@@ -206,7 +213,7 @@ export default function ResultDetailsScreen() {
       <View style={{ gap: spacing.xl }}>
         <SectionHeader
           title="Outfit results"
-          subtitle="Three tiered styling directions built from the same anchor item."
+          subtitle="Styling directions built from the same anchor item."
         />
         <LookRequestReviewCard input={response.input} />
         {response.recommendations.map((recommendation) => (

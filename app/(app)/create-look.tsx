@@ -9,10 +9,7 @@ export default function CreateLookScreen() {
   return (
     <AppScreen scrollable>
       <View style={{ gap: spacing.xl }}>
-        <SectionHeader
-          title="Create a look"
-          subtitle="Add an image, a description, or both, then compare the request across Business, Smart Casual, and Casual."
-        />
+        <SectionHeader title="Create a look" />
         <CreateLookRequestForm
           initialValue={{
             anchorItemDescription: '',

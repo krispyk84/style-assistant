@@ -17,7 +17,7 @@ export const outfitRecommendationSchema = z.object({
 });
 
 export const tieredOutfitGenerationSchema = z.object({
-  recommendations: z.array(outfitRecommendationSchema).length(3),
+  recommendations: z.array(outfitRecommendationSchema).min(1).max(3),
 });
 
 export const singleTierRegenerationSchema = z.object({
@@ -122,7 +122,7 @@ export const tieredOutfitGenerationJsonSchema = {
   properties: {
     recommendations: {
       type: 'array',
-      minItems: 3,
+      minItems: 1,
       maxItems: 3,
       items: outfitRecommendationJsonSchema,
     },
