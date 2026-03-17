@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Href, Link } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
@@ -11,9 +12,20 @@ type LookResultCardProps = {
   onRegenerate: () => void;
   detailHref: Href;
   isRegenerating?: boolean;
+  isSaved?: boolean;
+  isSaving?: boolean;
+  onSave?: () => void;
 };
 
-export function LookResultCard({ recommendation, onRegenerate, detailHref, isRegenerating = false }: LookResultCardProps) {
+export function LookResultCard({
+  recommendation,
+  onRegenerate,
+  detailHref,
+  isRegenerating = false,
+  isSaved = false,
+  isSaving = false,
+  onSave,
+}: LookResultCardProps) {
   const labeledPieces = buildLabeledPieces(recommendation);
 
   return (
@@ -32,6 +44,26 @@ export function LookResultCard({ recommendation, onRegenerate, detailHref, isReg
       </View>
 
       <TierSketch recommendation={recommendation} />
+
+      <Pressable
+        disabled={isSaved || isSaving || !onSave}
+        onPress={onSave}
+        style={[
+          actionButtonStyle,
+          {
+            backgroundColor: isSaved ? theme.colors.border : theme.colors.card,
+            flex: 0,
+          },
+        ]}>
+        <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+          <Ionicons
+            color={theme.colors.text}
+            name={isSaved ? 'bookmark' : 'bookmark-outline'}
+            size={18}
+          />
+          <AppText>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}</AppText>
+        </View>
+      </Pressable>
 
       <View style={{ gap: spacing.sm }}>
         {labeledPieces.map((piece) => (

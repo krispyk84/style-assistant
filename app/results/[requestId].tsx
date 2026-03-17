@@ -9,7 +9,9 @@ import { ErrorState } from '@/components/ui/error-state';
 import { LoadingState } from '@/components/ui/loading-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { SectionHeader } from '@/components/ui/section-header';
+import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
+import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
 import { buildTierHref, parseLookInput } from '@/lib/look-route';
 import type { GenerateOutfitsResponse } from '@/types/api';
 import { outfitsService } from '@/services/outfits';
@@ -38,6 +40,9 @@ export default function ResultDetailsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [regeneratingTier, setRegeneratingTier] = useState<LookTierSlug | null>(null);
+  const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
+  const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
+  const { showToast } = useToast();
   const parsedInput = useMemo(
     () =>
       parseLookInput({
@@ -133,6 +138,26 @@ export default function ResultDetailsScreen() {
     return () => clearInterval(interval);
   }, [response]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSavedState() {
+      const savedOutfits = await loadSavedOutfits();
+
+      if (!isMounted) {
+        return;
+      }
+
+      setSavedOutfitIds(savedOutfits.map((item) => item.id));
+    }
+
+    void loadSavedState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [response?.requestId]);
+
   async function retryLoad() {
     if (!params.requestId) {
       return;
@@ -177,6 +202,34 @@ export default function ResultDetailsScreen() {
     setRegeneratingTier(null);
   }
 
+  async function handleSave(tier: LookTierSlug) {
+    if (!response) {
+      return;
+    }
+
+    const recommendation = response.recommendations.find((item) => item.tier === tier);
+    if (!recommendation) {
+      return;
+    }
+
+    const savedOutfitId = buildSavedOutfitId(response.requestId, tier);
+    if (savedOutfitIds.includes(savedOutfitId)) {
+      return;
+    }
+
+    setSavingTier(tier);
+
+    try {
+      await saveSavedOutfit(response.input, recommendation, response.requestId);
+      setSavedOutfitIds((current) => [...current, savedOutfitId]);
+      showToast('Outfit saved to history.');
+    } catch {
+      showToast('Could not save this outfit.', 'error');
+    }
+
+    setSavingTier(null);
+  }
+
   if (isLoading) {
     return (
       <AppScreen>
@@ -210,7 +263,7 @@ export default function ResultDetailsScreen() {
 
   return (
     <AppScreen scrollable>
-      <View style={{ gap: spacing.xl }}>
+      <View style={{ gap: spacing.lg, marginTop: -spacing.sm }}>
         <SectionHeader
           title="Outfit results"
           subtitle="Styling directions built from the same anchor item."
@@ -222,6 +275,9 @@ export default function ResultDetailsScreen() {
             recommendation={recommendation}
             onRegenerate={() => void handleRegenerate(recommendation.tier)}
             isRegenerating={regeneratingTier === recommendation.tier}
+            isSaved={savedOutfitIds.includes(buildSavedOutfitId(response.requestId, recommendation.tier))}
+            isSaving={savingTier === recommendation.tier}
+            onSave={() => void handleSave(recommendation.tier)}
             detailHref={buildTierHref(
               recommendation.tier,
               response.requestId,
