@@ -1,6 +1,7 @@
 import { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react';
 
 import { defaultProfile } from '@/lib/default-profile';
+import { loadSession as loadStoredSession, saveProfile as saveStoredProfile } from '@/lib/profile-storage';
 import type { Profile } from '@/types/profile';
 import { profileService } from '@/services/profile';
 
@@ -27,6 +28,26 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
 
     async function hydrate() {
       try {
+        const cachedSession = await loadStoredSession();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setProfile(cachedSession.profile ?? defaultProfile);
+        setHasCompletedOnboarding(cachedSession.onboardingCompleted);
+        setIsHydrated(true);
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setProfile(defaultProfile);
+        setHasCompletedOnboarding(false);
+        setIsHydrated(true);
+      }
+
+      try {
         const response = await profileService.loadSession();
 
         if (!isMounted) {
@@ -35,29 +56,26 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
 
         if (!response.success) {
           setErrorMessage(response.error?.message ?? 'Failed to load session.');
-          setProfile(defaultProfile);
-          setHasCompletedOnboarding(false);
-          setIsHydrated(true);
           return;
         }
 
+        const nextProfile = response.data?.profile ?? defaultProfile;
+        const nextOnboardingCompleted = response.data?.onboardingCompleted ?? false;
+
         setErrorMessage(null);
-        setProfile(response.data?.profile ?? defaultProfile);
-        setHasCompletedOnboarding(response.data?.onboardingCompleted ?? false);
-        setIsHydrated(true);
+        setProfile(nextProfile);
+        setHasCompletedOnboarding(nextOnboardingCompleted);
+        await saveStoredProfile(nextProfile, nextOnboardingCompleted);
       } catch {
         if (!isMounted) {
           return;
         }
 
         setErrorMessage('Failed to load session.');
-        setProfile(defaultProfile);
-        setHasCompletedOnboarding(false);
-        setIsHydrated(true);
       }
     }
 
-    hydrate();
+    void hydrate();
 
     return () => {
       isMounted = false;
@@ -73,8 +91,12 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
     });
 
     if (response.success && response.data) {
-      setProfile(response.data.profile ?? defaultProfile);
-      setHasCompletedOnboarding(response.data.onboardingCompleted);
+      const nextProfile = response.data.profile ?? defaultProfile;
+      const nextOnboardingCompleted = response.data.onboardingCompleted;
+
+      setProfile(nextProfile);
+      setHasCompletedOnboarding(nextOnboardingCompleted);
+      await saveStoredProfile(nextProfile, nextOnboardingCompleted);
       setIsSaving(false);
       return true;
     } else {
