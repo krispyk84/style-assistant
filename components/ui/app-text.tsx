@@ -1,5 +1,5 @@
 import { PropsWithChildren } from 'react';
-import { StyleProp, Text, TextStyle } from 'react-native';
+import { StyleProp, Text, TextProps, TextStyle } from 'react-native';
 
 import { theme } from '@/constants/theme';
 
@@ -10,7 +10,8 @@ type AppTextProps = PropsWithChildren<{
   variant?: TextVariant;
   tone?: TextTone;
   style?: StyleProp<TextStyle>;
-}>;
+}> &
+  Pick<TextProps, 'numberOfLines'>;
 
 const variantStyles: Record<TextVariant, TextStyle> = {
   body: {
@@ -64,6 +65,10 @@ const toneStyles: Record<TextTone, TextStyle> = {
   subtle: { color: theme.colors.subtleText },
 };
 
-export function AppText({ children, variant = 'body', tone = 'default', style }: AppTextProps) {
-  return <Text style={[variantStyles[variant], toneStyles[tone], style]}>{children}</Text>;
+export function AppText({ children, variant = 'body', tone = 'default', style, numberOfLines }: AppTextProps) {
+  return (
+    <Text numberOfLines={numberOfLines} style={[variantStyles[variant], toneStyles[tone], style]}>
+      {children}
+    </Text>
+  );
 }

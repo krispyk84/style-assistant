@@ -91,6 +91,7 @@ model TierResult {
   sketchImageUrl    String?
   sketchStorageKey  String?
   sketchMimeType    String?
+  sketchImageData   Bytes?
   variantIndex      Int         @default(0)
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt

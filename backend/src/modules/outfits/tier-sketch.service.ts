@@ -1,3 +1,4 @@
+import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildTierSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
@@ -35,9 +36,10 @@ async function generateSingleTierSketch(requestId: string, anchorItemDescription
 
     await outfitsRepository.updateTierSketch(requestId, recommendation.tier, {
       sketchStatus: 'ready',
-      sketchImageUrl: storedFile.publicUrl,
+      sketchImageUrl: `${env.STORAGE_PUBLIC_BASE_URL}/outfits/${requestId}/sketch/${recommendation.tier}`,
       sketchStorageKey: storedFile.storageKey,
       sketchMimeType: generatedImage.mimeType,
+      sketchImageData: generatedImage.data,
     });
   } catch (error) {
     logger.error(
@@ -54,15 +56,18 @@ async function generateSingleTierSketch(requestId: string, anchorItemDescription
       sketchImageUrl: null,
       sketchStorageKey: null,
       sketchMimeType: null,
+      sketchImageData: null,
     });
   }
 }
 
 export const tierSketchService = {
   async queueSketchesForOutfit(outfit: OutfitResponse) {
-    for (const recommendation of outfit.recommendations) {
-      await generateSingleTierSketch(outfit.requestId, outfit.input.anchorItemDescription, recommendation);
-    }
+    await Promise.all(
+      outfit.recommendations.map((recommendation) =>
+        generateSingleTierSketch(outfit.requestId, outfit.input.anchorItemDescription, recommendation)
+      )
+    );
   },
 
   async queueSketchForTier(outfit: OutfitResponse, tier: OutfitTierSlug) {

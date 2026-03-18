@@ -82,6 +82,9 @@ export const outfitsRepository = {
             sketchImageUrl: recommendation.sketchImageUrl,
             sketchStorageKey: recommendation.sketchStorageKey,
             sketchMimeType: recommendation.sketchMimeType,
+            ...(recommendation.sketchImageData
+              ? ({ sketchImageData: recommendation.sketchImageData } as any)
+              : {}),
             variantIndex: recommendation.variantIndex,
           },
           create: {
@@ -100,6 +103,9 @@ export const outfitsRepository = {
             sketchImageUrl: recommendation.sketchImageUrl,
             sketchStorageKey: recommendation.sketchStorageKey,
             sketchMimeType: recommendation.sketchMimeType,
+            ...(recommendation.sketchImageData
+              ? ({ sketchImageData: recommendation.sketchImageData } as any)
+              : {}),
             variantIndex: recommendation.variantIndex,
           },
         });
@@ -129,6 +135,7 @@ export const outfitsRepository = {
     }
 
     const requestRecord = result.request as any;
+    const tierResults = result.tierResults as any[];
 
     const output: OutfitResponse = {
       requestId: result.requestId,
@@ -142,7 +149,7 @@ export const outfitsRepository = {
         photoPending: requestRecord.photoPending,
         selectedTiers: requestRecord.selectedTiers.map(toSlug),
       },
-      recommendations: result.tierResults.map((tier) => ({
+      recommendations: tierResults.map((tier) => ({
         tier: toSlug(tier.tier),
         title: tier.title,
         anchorItem: tier.anchorItem,
@@ -158,6 +165,7 @@ export const outfitsRepository = {
         sketchImageUrl: tier.sketchImageUrl ?? null,
         sketchStorageKey: tier.sketchStorageKey ?? null,
         sketchMimeType: tier.sketchMimeType ?? null,
+        sketchImageData: tier.sketchImageData ?? null,
         variantIndex: tier.variantIndex,
       })),
     };
@@ -173,6 +181,7 @@ export const outfitsRepository = {
       sketchImageUrl: string | null;
       sketchStorageKey: string | null;
       sketchMimeType: string | null;
+      sketchImageData?: Buffer | null;
     }
   ) {
     const result = await prisma.outfitResult.findUnique({
@@ -196,7 +205,42 @@ export const outfitsRepository = {
         sketchImageUrl: input.sketchImageUrl,
         sketchStorageKey: input.sketchStorageKey,
         sketchMimeType: input.sketchMimeType,
+        ...(input.sketchImageData !== undefined ? ({ sketchImageData: input.sketchImageData } as any) : {}),
+      } as any,
+    });
+  },
+
+  async findTierSketch(requestId: string, tier: OutfitTierSlug) {
+    const result = await prisma.outfitResult.findUnique({
+      where: { requestId },
+      select: {
+        id: true,
       },
     });
+
+    if (!result) {
+      return null;
+    }
+
+    return prisma.tierResult.findUnique({
+      where: {
+        outfitResultId_tier: {
+          outfitResultId: result.id,
+          tier: toPrismaTier(tier),
+        },
+      },
+      select: {
+        sketchStatus: true,
+        sketchImageUrl: true,
+        sketchStorageKey: true,
+        sketchMimeType: true,
+      } as any,
+    }) as Promise<{
+      sketchStatus: string;
+      sketchImageUrl: string | null;
+      sketchStorageKey: string | null;
+      sketchMimeType: string | null;
+      sketchImageData?: Buffer | null;
+    } | null>;
   },
 };

@@ -1,3 +1,4 @@
+import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/http-error.js';
 import type { GenerateOutfitsRequest, OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
 import { openAiClient } from '../../ai/openai-client.js';
@@ -16,6 +17,10 @@ import { styleGuideService } from '../style-guides/style-guide.service.js';
 import { tierSketchService } from './tier-sketch.service.js';
 
 const CANONICAL_TIERS: OutfitTierSlug[] = ['business', 'smart-casual', 'casual'];
+
+function buildStableSketchUrl(requestId: string, tier: OutfitTierSlug) {
+  return `${env.STORAGE_PUBLIC_BASE_URL}/outfits/${requestId}/sketch/${tier}`;
+}
 
 function getCanonicalAnchorDescription(input: Pick<GenerateOutfitsRequest, 'anchorItemDescription' | 'anchorImageId' | 'anchorImageUrl'>) {
   const description = input.anchorItemDescription.trim();
@@ -47,6 +52,29 @@ export const outfitsService = {
     }
 
     return existing;
+  },
+
+  async getTierSketch(requestId: string, tier: OutfitTierSlug) {
+    const sketch = await outfitsRepository.findTierSketch(requestId, tier);
+
+    if (!sketch || sketch.sketchStatus !== 'ready') {
+      throw new HttpError(404, 'OUTFIT_SKETCH_NOT_FOUND', 'No sketch exists for the provided outfit tier.');
+    }
+
+    if (sketch.sketchImageData) {
+      return {
+        mimeType: sketch.sketchMimeType ?? 'image/jpeg',
+        data: sketch.sketchImageData,
+      };
+    }
+
+    if (sketch.sketchStorageKey) {
+      return {
+        redirectUrl: `${env.STORAGE_PUBLIC_BASE_URL}/media/${sketch.sketchStorageKey}`,
+      };
+    }
+
+    throw new HttpError(404, 'OUTFIT_SKETCH_NOT_FOUND', 'No sketch exists for the provided outfit tier.');
   },
 
   async generateOutfits(input: GenerateOutfitsRequest, variantMap?: Partial<Record<OutfitTierSlug, number>>) {
@@ -127,9 +155,10 @@ export const outfitsService = {
           tier,
           anchorItem: recommendation.anchorItem.trim() || getCanonicalAnchorDescription(input),
           sketchStatus: 'pending',
-          sketchImageUrl: null,
+          sketchImageUrl: buildStableSketchUrl(input.requestId, tier),
           sketchStorageKey: null,
           sketchMimeType: null,
+          sketchImageData: null,
           variantIndex: variantMap?.[tier] ?? 0,
         };
       }),
@@ -207,9 +236,10 @@ export const outfitsService = {
               tier,
               anchorItem: aiOutput.recommendation.anchorItem.trim() || existing.input.anchorItemDescription,
               sketchStatus: 'pending',
-              sketchImageUrl: null,
+              sketchImageUrl: buildStableSketchUrl(existing.requestId, tier),
               sketchStorageKey: null,
               sketchMimeType: null,
+              sketchImageData: null,
               variantIndex: nextVariantIndex,
             }
           : recommendation

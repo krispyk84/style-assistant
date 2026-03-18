@@ -24,7 +24,12 @@ export function AppScreen({ children, scrollable = false }: AppScreenProps) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'left', 'right']}>
       {scrollable ? (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
+        <ScrollView
+          automaticallyAdjustKeyboardInsets
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
           {content}
         </ScrollView>
       ) : (

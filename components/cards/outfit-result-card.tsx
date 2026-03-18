@@ -6,6 +6,7 @@ import { spacing, theme } from '@/constants/theme';
 import { buildTierHref } from '@/lib/look-route';
 import type { SavedOutfit } from '@/types/style';
 import { AppText } from '@/components/ui/app-text';
+import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
 
 type OutfitResultCardProps = {
   result: SavedOutfit;
@@ -59,35 +60,23 @@ export function OutfitResultCard({ result, onDelete }: OutfitResultCardProps) {
         style={{
           gap: spacing.md,
         }}>
+        {result.recommendation.sketchImageUrl ? (
+          <RemoteImagePanel
+            uri={result.recommendation.sketchImageUrl}
+            aspectRatio={4 / 5}
+            minHeight={220}
+            fallbackTitle="Sketch unavailable"
+            fallbackMessage="The saved illustration could not be displayed."
+          />
+        ) : null}
         <View style={{ gap: spacing.xs }}>
           <AppText variant="title">{result.recommendation.title}</AppText>
-          <AppText tone="muted">{result.input.anchorItemDescription || result.recommendation.anchorItem}</AppText>
-        </View>
-
-        <View style={{ gap: spacing.xs }}>
-          {buildSummaryPieces(result.recommendation).map((piece) => (
-            <AppText key={`${piece.label}-${piece.value}`} tone="muted">
-              • {piece.label} · {piece.value}
-            </AppText>
-          ))}
+          <AppText tone="muted" numberOfLines={2}>{result.input.anchorItemDescription || result.recommendation.anchorItem}</AppText>
         </View>
         </Pressable>
       </Link>
     </View>
   );
-}
-
-function buildSummaryPieces(recommendation: SavedOutfit['recommendation']) {
-  return [
-    ...recommendation.keyPieces.map((piece, index) => ({
-      label: index === 0 ? 'Key piece' : `Piece ${index + 1}`,
-      value: piece,
-    })),
-    ...recommendation.shoes.map((piece, index) => ({
-      label: index === 0 ? 'Shoes' : `Shoe ${index + 1}`,
-      value: piece,
-    })),
-  ].slice(0, 4);
 }
 
 function formatTierLabel(tier: SavedOutfit['recommendation']['tier']) {

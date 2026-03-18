@@ -2,11 +2,38 @@ import { Router } from 'express';
 
 import { sendSuccess } from '../../lib/api-response.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { HttpError } from '../../lib/http-error.js';
 import { parseWithSchema } from '../../lib/validation.js';
 import { outfitsService } from './outfits.service.js';
 import { generateOutfitsSchema, regenerateTierSchema } from './outfits.validation.js';
 
 export const outfitsRouter = Router();
+
+outfitsRouter.get(
+  '/outfits/:id/sketch/:tier',
+  asyncHandler(async (request, response) => {
+    const requestId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+    const tier = Array.isArray(request.params.tier) ? request.params.tier[0] : request.params.tier;
+
+    if (!requestId || !tier) {
+      throw new HttpError(400, 'INVALID_OUTFIT_REQUEST', 'The outfit sketch request is incomplete.');
+    }
+
+    if (tier !== 'business' && tier !== 'smart-casual' && tier !== 'casual') {
+      throw new HttpError(400, 'INVALID_TIER', 'The provided outfit tier is not supported.');
+    }
+
+    const sketch = await outfitsService.getTierSketch(requestId, tier);
+
+    if ('redirectUrl' in sketch) {
+      return response.redirect(sketch.redirectUrl ?? '/');
+    }
+
+    response.setHeader('Content-Type', sketch.mimeType);
+    response.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    return response.send(sketch.data);
+  })
+);
 
 outfitsRouter.get(
   '/outfits/:id',

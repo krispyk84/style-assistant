@@ -1,4 +1,5 @@
-import { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react';
+import { createContext, PropsWithChildren, useContext, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { defaultProfile } from '@/lib/default-profile';
 import { loadSession as loadStoredSession, saveProfile as saveStoredProfile } from '@/lib/profile-storage';
@@ -6,6 +7,7 @@ import type { Profile } from '@/types/profile';
 import { profileService } from '@/services/profile';
 
 type AppSessionValue = {
+  appInstanceKey: number;
   hasCompletedOnboarding: boolean;
   isHydrated: boolean;
   isSaving: boolean;
@@ -15,6 +17,7 @@ type AppSessionValue = {
 };
 
 const AppSessionContext = createContext<AppSessionValue | null>(null);
+const STALE_APP_RESET_MS = 1000 * 60 * 10;
 
 export function AppSessionProvider({ children }: PropsWithChildren) {
   const [profile, setProfile] = useState(defaultProfile);
@@ -22,6 +25,25 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
   const [isHydrated, setIsHydrated] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [appInstanceKey, setAppInstanceKey] = useState(0);
+  const lastBackgroundedAtRef = useRef<number | null>(null);
+
+  async function refreshSessionFromBackend() {
+    const response = await profileService.loadSession();
+
+    if (!response.success) {
+      setErrorMessage(response.error?.message ?? 'Failed to load session.');
+      return;
+    }
+
+    const nextProfile = response.data?.profile ?? defaultProfile;
+    const nextOnboardingCompleted = response.data?.onboardingCompleted ?? false;
+
+    setErrorMessage(null);
+    setProfile(nextProfile);
+    setHasCompletedOnboarding(nextOnboardingCompleted);
+    await saveStoredProfile(nextProfile, nextOnboardingCompleted);
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -48,24 +70,7 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
       }
 
       try {
-        const response = await profileService.loadSession();
-
-        if (!isMounted) {
-          return;
-        }
-
-        if (!response.success) {
-          setErrorMessage(response.error?.message ?? 'Failed to load session.');
-          return;
-        }
-
-        const nextProfile = response.data?.profile ?? defaultProfile;
-        const nextOnboardingCompleted = response.data?.onboardingCompleted ?? false;
-
-        setErrorMessage(null);
-        setProfile(nextProfile);
-        setHasCompletedOnboarding(nextOnboardingCompleted);
-        await saveStoredProfile(nextProfile, nextOnboardingCompleted);
+        await refreshSessionFromBackend();
       } catch {
         if (!isMounted) {
           return;
@@ -80,6 +85,30 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        lastBackgroundedAtRef.current = Date.now();
+        return;
+      }
+
+      if (nextState !== 'active') {
+        return;
+      }
+
+      const lastBackgroundedAt = lastBackgroundedAtRef.current;
+      const wasStale = lastBackgroundedAt ? Date.now() - lastBackgroundedAt > STALE_APP_RESET_MS : false;
+
+      void refreshSessionFromBackend().catch(() => undefined);
+
+      if (wasStale) {
+        setAppInstanceKey((current) => current + 1);
+      }
+    });
+
+    return () => subscription.remove();
   }, []);
 
   async function saveProfile(nextProfile: Profile, completeOnboarding = hasCompletedOnboarding) {
@@ -110,6 +139,7 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
   return (
     <AppSessionContext.Provider
       value={{
+        appInstanceKey,
         hasCompletedOnboarding,
         isHydrated,
         isSaving,

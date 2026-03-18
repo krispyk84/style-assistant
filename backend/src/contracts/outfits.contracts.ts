@@ -26,6 +26,7 @@ export type TierRecommendationDto = {
   sketchImageUrl: string | null;
   sketchStorageKey: string | null;
   sketchMimeType: string | null;
+  sketchImageData?: Buffer | null;
   variantIndex: number;
 };
 
