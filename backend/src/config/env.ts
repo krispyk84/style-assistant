@@ -14,7 +14,7 @@ const envSchema = z.object({
   OPENAI_RESPONSES_MODEL: z.string().min(1).default('gpt-4.1'),
   OPENAI_IMAGE_MODEL: z.string().min(1).default('gpt-image-1'),
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com'),
-  OPENAI_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  OPENAI_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
   STYLE_GUIDE_ENABLED: z.coerce.boolean().default(true),
   STYLE_GUIDE_VECTOR_STORE_ID: z.string().optional(),
   STYLE_GUIDE_SOURCE_PATH: z.string().default('style-guides/source/Esquire-2024.epub'),

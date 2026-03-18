@@ -236,9 +236,13 @@ export default function ResultDetailsScreen() {
         <LoadingState
           label="Generating outfit options..."
           messages={[
-            'Building your selected looks.',
-            'Shaping the outfit direction.',
-            'Finalizing your recommendations.',
+            'Tailoring your next great outfit.',
+            'Pressing lapels and polishing loafers.',
+            'Arguing softly with the imaginary stylist in Milan.',
+            'Checking whether this deserves a compliment at dinner.',
+            'Steaming the lookbook and adjusting the hem.',
+            'Making sure the outfit says effortless, not accidental.',
+            'Deciding how much swagger is appropriate here.',
           ]}
         />
       </AppScreen>

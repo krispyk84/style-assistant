@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { ProfileCard } from '@/components/cards/profile-card';
 import { ProfileSummaryCard } from '@/components/cards/profile-summary-card';
 import { ProfileForm } from '@/components/forms/profile-form';
 import { AppScreen } from '@/components/ui/app-screen';
@@ -31,7 +30,6 @@ export default function ProfileScreen() {
           title="Profile"
           subtitle="Review and edit the personal inputs that will drive future recommendations."
         />
-        <ProfileCard profile={profile} />
         {isEditing ? (
           <ProfileForm
             initialValue={profile}
