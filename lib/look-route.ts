@@ -2,6 +2,7 @@ import type { Href } from 'expo-router';
 
 import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
+import type { WeatherContext, WeatherSeason } from '@/types/weather';
 import { LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
 
 type LookRouteParams = {
@@ -33,6 +34,14 @@ type LookRouteParams = {
   recommendationSketchImageUrl?: string;
   recommendationSketchStorageKey?: string;
   recommendationSketchMimeType?: string;
+  weatherTemperatureC?: string;
+  weatherApparentTemperatureC?: string;
+  weatherCode?: string;
+  weatherSeason?: string;
+  weatherSummary?: string;
+  weatherStylingHint?: string;
+  weatherLocationLabel?: string;
+  weatherFetchedAt?: string;
 };
 
 function encodeList(values: string[]) {
@@ -85,6 +94,7 @@ export function parseLookInput(params: LookRouteParams): CreateLookInput | null 
     anchorItemDescription: params.anchorItemDescription ?? '',
     photoPending: params.photoPending === 'true',
     selectedTiers,
+    weatherContext: parseWeatherContext(params),
     uploadedAnchorImage: parseUploadedAnchorImage(params),
     anchorImage: params.anchorImageUri
       ? {
@@ -95,6 +105,28 @@ export function parseLookInput(params: LookRouteParams): CreateLookInput | null 
           mimeType: params.anchorImageMimeType ?? undefined,
         }
       : null,
+  };
+}
+
+function parseWeatherContext(params: LookRouteParams): WeatherContext | null {
+  if (!params.weatherSeason || !params.weatherSummary || !params.weatherFetchedAt) {
+    return null;
+  }
+
+  const season = params.weatherSeason as WeatherSeason;
+  if (!['winter', 'spring', 'summer', 'fall'].includes(season)) {
+    return null;
+  }
+
+  return {
+    temperatureC: params.weatherTemperatureC ? Number(params.weatherTemperatureC) : 0,
+    apparentTemperatureC: params.weatherApparentTemperatureC ? Number(params.weatherApparentTemperatureC) : 0,
+    weatherCode: params.weatherCode ? Number(params.weatherCode) : 0,
+    season,
+    summary: params.weatherSummary,
+    stylingHint: params.weatherStylingHint ?? '',
+    locationLabel: params.weatherLocationLabel ?? null,
+    fetchedAt: params.weatherFetchedAt,
   };
 }
 
@@ -162,6 +194,14 @@ export function buildLookResultsHref(requestId: string, input: CreateLookInput):
       uploadedAnchorImagePublicUrl: input.uploadedAnchorImage?.publicUrl,
       uploadedAnchorImageOriginalFilename: input.uploadedAnchorImage?.originalFilename ?? undefined,
       uploadedAnchorImageSizeBytes: input.uploadedAnchorImage?.sizeBytes ? String(input.uploadedAnchorImage.sizeBytes) : undefined,
+      weatherTemperatureC: input.weatherContext ? String(input.weatherContext.temperatureC) : undefined,
+      weatherApparentTemperatureC: input.weatherContext ? String(input.weatherContext.apparentTemperatureC) : undefined,
+      weatherCode: input.weatherContext ? String(input.weatherContext.weatherCode) : undefined,
+      weatherSeason: input.weatherContext?.season,
+      weatherSummary: input.weatherContext?.summary,
+      weatherStylingHint: input.weatherContext?.stylingHint,
+      weatherLocationLabel: input.weatherContext?.locationLabel ?? undefined,
+      weatherFetchedAt: input.weatherContext?.fetchedAt,
     },
   };
 }
@@ -184,6 +224,14 @@ export function buildLookRouteParams(requestId: string, input: CreateLookInput) 
     uploadedAnchorImagePublicUrl: input.uploadedAnchorImage?.publicUrl,
     uploadedAnchorImageOriginalFilename: input.uploadedAnchorImage?.originalFilename ?? undefined,
     uploadedAnchorImageSizeBytes: input.uploadedAnchorImage?.sizeBytes ? String(input.uploadedAnchorImage.sizeBytes) : undefined,
+    weatherTemperatureC: input.weatherContext ? String(input.weatherContext.temperatureC) : undefined,
+    weatherApparentTemperatureC: input.weatherContext ? String(input.weatherContext.apparentTemperatureC) : undefined,
+    weatherCode: input.weatherContext ? String(input.weatherContext.weatherCode) : undefined,
+    weatherSeason: input.weatherContext?.season,
+    weatherSummary: input.weatherContext?.summary,
+    weatherStylingHint: input.weatherContext?.stylingHint,
+    weatherLocationLabel: input.weatherContext?.locationLabel ?? undefined,
+    weatherFetchedAt: input.weatherContext?.fetchedAt,
   };
 }
 
@@ -213,6 +261,14 @@ export function buildTierHref(
       uploadedAnchorImagePublicUrl: input.uploadedAnchorImage?.publicUrl,
       uploadedAnchorImageOriginalFilename: input.uploadedAnchorImage?.originalFilename ?? undefined,
       uploadedAnchorImageSizeBytes: input.uploadedAnchorImage?.sizeBytes ? String(input.uploadedAnchorImage.sizeBytes) : undefined,
+      weatherTemperatureC: input.weatherContext ? String(input.weatherContext.temperatureC) : undefined,
+      weatherApparentTemperatureC: input.weatherContext ? String(input.weatherContext.apparentTemperatureC) : undefined,
+      weatherCode: input.weatherContext ? String(input.weatherContext.weatherCode) : undefined,
+      weatherSeason: input.weatherContext?.season,
+      weatherSummary: input.weatherContext?.summary,
+      weatherStylingHint: input.weatherContext?.stylingHint,
+      weatherLocationLabel: input.weatherContext?.locationLabel ?? undefined,
+      weatherFetchedAt: input.weatherContext?.fetchedAt,
       recommendationTitle: recommendation.title,
       recommendationAnchorItem: recommendation.anchorItem,
       recommendationKeyPieces: encodeList(recommendation.keyPieces),

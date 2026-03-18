@@ -9,6 +9,7 @@ export const upsertProfileSchema = z.object({
   budget: z.string().min(1),
   hairColor: z.string().min(1),
   skinTone: z.string().min(1),
+  summerBottomPreference: z.string().min(1),
   notes: z.string().max(240).optional(),
   onboardingCompleted: z.boolean(),
 });

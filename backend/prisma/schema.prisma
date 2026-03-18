@@ -35,6 +35,7 @@ model UserProfile {
   budget               String
   hairColor            String
   skinTone             String
+  summerBottomPreference String           @default("prefer-trousers")
   notes                String?
   onboardingCompleted  Boolean              @default(false)
   createdAt            DateTime             @default(now())
@@ -52,6 +53,7 @@ model OutfitRequest {
   anchorImageUrl        String?
   photoPending          Boolean        @default(false)
   selectedTiers         OutfitTier[]
+  weatherContext        Json?
   promptVersion         String         @default("mock-v1")
   status                String         @default("completed")
   createdAt             DateTime       @default(now())

@@ -17,6 +17,7 @@ export default function CreateLookScreen() {
             uploadedAnchorImage: null,
             photoPending: false,
             selectedTiers: ['business', 'smart-casual', 'casual'],
+            weatherContext: null,
           }}
         />
       </View>

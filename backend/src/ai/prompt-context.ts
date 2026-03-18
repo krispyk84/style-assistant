@@ -7,6 +7,7 @@ type PromptProfile = {
   budget: string;
   hairColor: string;
   skinTone: string;
+  summerBottomPreference?: string;
   notes: string | null;
 } | null;
 
@@ -29,6 +30,7 @@ export function formatProfileContext(profile: PromptProfile) {
     `- budget: ${emptyFallback(profile.budget)}`,
     `- hairColor: ${emptyFallback(profile.hairColor)}`,
     `- skinTone: ${emptyFallback(profile.skinTone)}`,
+    `- summerBottomPreference: ${emptyFallback(profile.summerBottomPreference)}`,
     `- notes: ${emptyFallback(profile.notes)}`,
   ].join('\n');
 }

@@ -9,5 +9,6 @@ export const defaultProfile: Profile = {
   budget: 'premium',
   hairColor: 'brown',
   skinTone: 'olive',
+  summerBottomPreference: 'prefer-trousers',
   notes: '',
 };

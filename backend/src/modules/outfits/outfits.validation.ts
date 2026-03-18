@@ -10,6 +10,19 @@ export const generateOutfitsSchema = z.object({
   anchorImageUrl: z.string().url().optional(),
   photoPending: z.boolean(),
   selectedTiers: z.array(outfitTierSchema).min(1),
+  weatherContext: z
+    .object({
+      temperatureC: z.number(),
+      apparentTemperatureC: z.number(),
+      weatherCode: z.number(),
+      season: z.enum(['winter', 'spring', 'summer', 'fall']),
+      summary: z.string().min(1),
+      stylingHint: z.string().min(1),
+      locationLabel: z.string().nullable(),
+      fetchedAt: z.string().min(1),
+    })
+    .nullable()
+    .optional(),
 }).superRefine((value, ctx) => {
   if (!value.anchorItemDescription.trim() && !value.anchorImageId && !value.anchorImageUrl) {
     ctx.addIssue({

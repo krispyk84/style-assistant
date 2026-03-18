@@ -5,6 +5,7 @@ import { Pressable, TextInput, View } from 'react-native';
 import { spacing, theme } from '@/constants/theme';
 import { createMockRequestId } from '@/lib/look-mock-data';
 import { buildLookRouteParams } from '@/lib/look-route';
+import { loadWeatherContext } from '@/lib/weather-storage';
 import type { CreateLookInput, LookTierSlug } from '@/types/look-request';
 import { LOOK_TIER_OPTIONS } from '@/types/look-request';
 import { AppText } from '@/components/ui/app-text';
@@ -60,7 +61,7 @@ export function CreateLookRequestForm({
     setTierError(null);
   }
 
-  function handleContinue() {
+  async function handleContinue() {
     if (!trimmedAnchor && !image) {
       setAnchorError('Add an image, a description, or both before continuing.');
       return;
@@ -72,6 +73,7 @@ export function CreateLookRequestForm({
     }
 
     const requestId = createMockRequestId();
+    const weatherContext = await loadWeatherContext();
 
     router.push({
       pathname: '/review-request',
@@ -81,6 +83,7 @@ export function CreateLookRequestForm({
         uploadedAnchorImage: uploadedImage,
         photoPending: !image,
         selectedTiers,
+        weatherContext,
       }),
     });
   }
@@ -157,7 +160,7 @@ export function CreateLookRequestForm({
         </View>
       </FormField>
 
-      <PrimaryButton disabled={!hasAnyInput || isUploading} label={isUploading ? 'Uploading image...' : 'Review request'} onPress={handleContinue} />
+      <PrimaryButton disabled={!hasAnyInput || isUploading} label={isUploading ? 'Uploading image...' : 'Review request'} onPress={() => void handleContinue()} />
     </View>
   );
 }

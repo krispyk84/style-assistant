@@ -35,6 +35,14 @@ export default function ResultDetailsScreen() {
     uploadedAnchorImagePublicUrl?: string;
     uploadedAnchorImageOriginalFilename?: string;
     uploadedAnchorImageSizeBytes?: string;
+    weatherTemperatureC?: string;
+    weatherApparentTemperatureC?: string;
+    weatherCode?: string;
+    weatherSeason?: string;
+    weatherSummary?: string;
+    weatherStylingHint?: string;
+    weatherLocationLabel?: string;
+    weatherFetchedAt?: string;
   }>();
   const [response, setResponse] = useState<GenerateOutfitsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,6 +69,14 @@ export default function ResultDetailsScreen() {
         uploadedAnchorImagePublicUrl: params.uploadedAnchorImagePublicUrl,
         uploadedAnchorImageOriginalFilename: params.uploadedAnchorImageOriginalFilename,
         uploadedAnchorImageSizeBytes: params.uploadedAnchorImageSizeBytes,
+        weatherTemperatureC: params.weatherTemperatureC,
+        weatherApparentTemperatureC: params.weatherApparentTemperatureC,
+        weatherCode: params.weatherCode,
+        weatherSeason: params.weatherSeason,
+        weatherSummary: params.weatherSummary,
+        weatherStylingHint: params.weatherStylingHint,
+        weatherLocationLabel: params.weatherLocationLabel,
+        weatherFetchedAt: params.weatherFetchedAt,
       }),
     [
       params.anchorImageFileName,
@@ -78,6 +94,14 @@ export default function ResultDetailsScreen() {
       params.uploadedAnchorImageSizeBytes,
       params.uploadedAnchorImageStorageKey,
       params.uploadedAnchorImageStorageProvider,
+      params.weatherApparentTemperatureC,
+      params.weatherCode,
+      params.weatherFetchedAt,
+      params.weatherLocationLabel,
+      params.weatherSeason,
+      params.weatherStylingHint,
+      params.weatherSummary,
+      params.weatherTemperatureC,
     ]
   );
 

@@ -55,6 +55,7 @@ export const apiOutfitsService: OutfitsService = {
         anchorImageUrl: request.uploadedAnchorImage?.publicUrl,
         photoPending: request.photoPending,
         selectedTiers: request.selectedTiers,
+        weatherContext: request.weatherContext ?? null,
       },
     });
 

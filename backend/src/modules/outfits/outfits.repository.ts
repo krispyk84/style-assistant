@@ -29,6 +29,7 @@ export const outfitsRepository = {
           anchorImageUrl: output.input.anchorImageUrl,
           photoPending: output.input.photoPending,
           selectedTiers: output.input.selectedTiers.map(toPrismaTier),
+          weatherContext: output.input.weatherContext ?? Prisma.JsonNull,
           status: output.status,
         },
         create: {
@@ -39,6 +40,7 @@ export const outfitsRepository = {
           anchorImageUrl: output.input.anchorImageUrl,
           photoPending: output.input.photoPending,
           selectedTiers: output.input.selectedTiers.map(toPrismaTier),
+          weatherContext: output.input.weatherContext ?? Prisma.JsonNull,
           status: output.status,
         },
       });
@@ -148,6 +150,7 @@ export const outfitsRepository = {
         anchorImageUrl: requestRecord.anchorImageUrl,
         photoPending: requestRecord.photoPending,
         selectedTiers: requestRecord.selectedTiers.map(toSlug),
+        weatherContext: requestRecord.weatherContext ?? null,
       },
       recommendations: tierResults.map((tier) => ({
         tier: toSlug(tier.tier),

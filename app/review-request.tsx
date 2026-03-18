@@ -21,6 +21,14 @@ export default function ReviewRequestScreen() {
     anchorImageHeight?: string;
     anchorImageFileName?: string;
     anchorImageMimeType?: string;
+    weatherTemperatureC?: string;
+    weatherApparentTemperatureC?: string;
+    weatherCode?: string;
+    weatherSeason?: string;
+    weatherSummary?: string;
+    weatherStylingHint?: string;
+    weatherLocationLabel?: string;
+    weatherFetchedAt?: string;
   }>();
   const input = parseLookInput(params);
 

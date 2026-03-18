@@ -28,6 +28,15 @@ export default function HistoryScreen() {
     async function loadHistory() {
       try {
         const savedOutfits = await loadSavedOutfits();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setItems(savedOutfits);
+        setErrorMessage(null);
+        setIsLoading(false);
+
         const hydratedSavedOutfits = await Promise.all(
           savedOutfits.map(async (savedOutfit) => {
             const response = await outfitsService.getOutfitResult(savedOutfit.requestId);
@@ -47,7 +56,10 @@ export default function HistoryScreen() {
             return {
               ...savedOutfit,
               input: response.data.input,
-              recommendation: liveRecommendation,
+              recommendation: {
+                ...liveRecommendation,
+                sketchImageUrl: liveRecommendation.sketchImageUrl ?? savedOutfit.recommendation.sketchImageUrl,
+              },
             };
           })
         );
@@ -67,8 +79,6 @@ export default function HistoryScreen() {
         setItems([]);
         setErrorMessage('Failed to load saved outfits.');
       }
-
-      setIsLoading(false);
     }
 
     if (isFocused) {

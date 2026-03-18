@@ -8,6 +8,7 @@ export type ProfileDto = {
   budget: string;
   hairColor: string;
   skinTone: string;
+  summerBottomPreference: string;
   notes: string | null;
   onboardingCompleted: boolean;
   createdAt: string;
@@ -25,6 +26,7 @@ export type UpsertProfileRequest = {
   budget: string;
   hairColor: string;
   skinTone: string;
+  summerBottomPreference: string;
   notes?: string;
   onboardingCompleted: boolean;
 };

@@ -87,6 +87,9 @@ export const outfitsService = {
         'menswear styling guidance',
         `anchor item: ${getCanonicalAnchorDescription(input)}`,
         'cover business, smart casual, and casual tiers',
+        input.weatherContext
+          ? `weather: ${input.weatherContext.season}, ${input.weatherContext.temperatureC}C, ${input.weatherContext.summary}`
+          : null,
         profile?.stylePreference ? `user style preference: ${profile.stylePreference}` : null,
         profile?.fitPreference ? `user fit preference: ${profile.fitPreference}` : null,
       ]
@@ -142,6 +145,7 @@ export const outfitsService = {
         anchorImageUrl: input.anchorImageUrl ?? uploadedAnchorImage?.publicUrl ?? null,
         photoPending: input.photoPending,
         selectedTiers,
+        weatherContext: input.weatherContext ?? null,
       },
       recommendations: selectedTiers.map((tier) => {
         const recommendation = recommendationMap.get(tier);
@@ -187,6 +191,9 @@ export const outfitsService = {
         'menswear styling guidance for regenerating one outfit tier',
         `tier: ${tier}`,
         `anchor item: ${existing.input.anchorItemDescription}`,
+        existing.input.weatherContext
+          ? `weather: ${existing.input.weatherContext.season}, ${existing.input.weatherContext.temperatureC}C, ${existing.input.weatherContext.summary}`
+          : null,
         currentRecommendation ? `current styling direction: ${currentRecommendation.stylingDirection}` : null,
       ]
         .filter(Boolean)

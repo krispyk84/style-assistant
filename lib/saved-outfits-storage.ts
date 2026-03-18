@@ -1,4 +1,3 @@
-import { appConfig } from '@/constants/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
@@ -38,16 +37,6 @@ export async function loadSavedOutfits(): Promise<SavedOutfit[]> {
           item.recommendation !== null
         );
       })
-      .map((item) => ({
-        ...item,
-        recommendation: {
-          ...item.recommendation,
-          sketchImageUrl:
-            !appConfig.useMockServices && appConfig.apiBaseUrl
-              ? `${appConfig.apiBaseUrl}/outfits/${item.requestId}/sketch/${item.recommendation.tier}`
-              : item.recommendation.sketchImageUrl ?? null,
-        },
-      }))
       .sort((left, right) => right.savedAt.localeCompare(left.savedAt));
   } catch {
     return [];
@@ -68,13 +57,7 @@ export async function saveSavedOutfit(input: CreateLookInput, recommendation: Lo
     requestId,
     savedAt: new Date().toISOString(),
     input,
-    recommendation: {
-      ...recommendation,
-      sketchImageUrl:
-        !appConfig.useMockServices && appConfig.apiBaseUrl
-          ? `${appConfig.apiBaseUrl}/outfits/${requestId}/sketch/${recommendation.tier}`
-          : recommendation.sketchImageUrl ?? null,
-    },
+    recommendation,
   };
 
   const nextSavedOutfits = [nextSavedOutfit, ...savedOutfits];

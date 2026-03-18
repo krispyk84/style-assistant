@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { spacing, theme } from '@/constants/theme';
+import { appConfig } from '@/constants/config';
 import { buildTierHref } from '@/lib/look-route';
 import type { SavedOutfit } from '@/types/style';
 import { AppText } from '@/components/ui/app-text';
@@ -14,6 +15,11 @@ type OutfitResultCardProps = {
 };
 
 export function OutfitResultCard({ result, onDelete }: OutfitResultCardProps) {
+  const sketchUri =
+    result.recommendation.sketchImageUrl ??
+    (!appConfig.useMockServices && appConfig.apiBaseUrl
+      ? `${appConfig.apiBaseUrl}/outfits/${result.requestId}/sketch/${result.recommendation.tier}`
+      : null);
   const detailHref = buildTierHref(
     result.recommendation.tier,
     result.requestId,
@@ -60,9 +66,9 @@ export function OutfitResultCard({ result, onDelete }: OutfitResultCardProps) {
         style={{
           gap: spacing.md,
         }}>
-        {result.recommendation.sketchImageUrl ? (
+        {sketchUri ? (
           <RemoteImagePanel
-            uri={result.recommendation.sketchImageUrl}
+            uri={sketchUri}
             aspectRatio={4 / 5}
             minHeight={220}
             fallbackTitle="Sketch unavailable"

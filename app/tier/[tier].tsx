@@ -33,6 +33,14 @@ export default function TierScreen() {
     uploadedAnchorImagePublicUrl?: string;
     uploadedAnchorImageOriginalFilename?: string;
     uploadedAnchorImageSizeBytes?: string;
+    weatherTemperatureC?: string;
+    weatherApparentTemperatureC?: string;
+    weatherCode?: string;
+    weatherSeason?: string;
+    weatherSummary?: string;
+    weatherStylingHint?: string;
+    weatherLocationLabel?: string;
+    weatherFetchedAt?: string;
     recommendationTitle?: string;
     recommendationAnchorItem?: string;
     recommendationKeyPieces?: string;
@@ -69,6 +77,14 @@ export default function TierScreen() {
         uploadedAnchorImagePublicUrl: params.uploadedAnchorImagePublicUrl,
         uploadedAnchorImageOriginalFilename: params.uploadedAnchorImageOriginalFilename,
         uploadedAnchorImageSizeBytes: params.uploadedAnchorImageSizeBytes,
+        weatherTemperatureC: params.weatherTemperatureC,
+        weatherApparentTemperatureC: params.weatherApparentTemperatureC,
+        weatherCode: params.weatherCode,
+        weatherSeason: params.weatherSeason,
+        weatherSummary: params.weatherSummary,
+        weatherStylingHint: params.weatherStylingHint,
+        weatherLocationLabel: params.weatherLocationLabel,
+        weatherFetchedAt: params.weatherFetchedAt,
       }),
     [
       params.anchorImageFileName,
@@ -85,6 +101,14 @@ export default function TierScreen() {
       params.uploadedAnchorImageSizeBytes,
       params.uploadedAnchorImageStorageKey,
       params.uploadedAnchorImageStorageProvider,
+      params.weatherApparentTemperatureC,
+      params.weatherCode,
+      params.weatherFetchedAt,
+      params.weatherLocationLabel,
+      params.weatherSeason,
+      params.weatherStylingHint,
+      params.weatherSummary,
+      params.weatherTemperatureC,
     ]
   );
   const recommendation = useMemo(

@@ -9,6 +9,16 @@ export type GenerateOutfitsRequest = {
   anchorImageUrl?: string;
   photoPending: boolean;
   selectedTiers: OutfitTierSlug[];
+  weatherContext?: {
+    temperatureC: number;
+    apparentTemperatureC: number;
+    weatherCode: number;
+    season: 'winter' | 'spring' | 'summer' | 'fall';
+    summary: string;
+    stylingHint: string;
+    locationLabel: string | null;
+    fetchedAt: string;
+  } | null;
 };
 
 export type TierRecommendationDto = {
@@ -41,6 +51,7 @@ export type OutfitResponse = {
     anchorImageUrl: string | null;
     photoPending: boolean;
     selectedTiers: OutfitTierSlug[];
+    weatherContext?: GenerateOutfitsRequest['weatherContext'];
   };
   recommendations: TierRecommendationDto[];
 };

@@ -1,4 +1,5 @@
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
+import type { WeatherContext } from '@/types/weather';
 
 export const LOOK_TIER_OPTIONS = ['business', 'smart-casual', 'casual'] as const;
 
@@ -10,6 +11,7 @@ export type CreateLookInput = {
   uploadedAnchorImage: UploadedImageAsset | null;
   photoPending: boolean;
   selectedTiers: LookTierSlug[];
+  weatherContext?: WeatherContext | null;
 };
 
 export type LookTierDefinition = {

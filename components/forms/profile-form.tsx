@@ -12,6 +12,7 @@ import {
   HAIR_COLOR_OPTIONS,
   SKIN_TONE_OPTIONS,
   STYLE_PREFERENCE_OPTIONS,
+  SUMMER_BOTTOM_OPTIONS,
 } from '@/types/profile';
 import { AppText } from '@/components/ui/app-text';
 import { FormField } from '@/components/ui/form-field';
@@ -176,6 +177,14 @@ export function ProfileForm({
           options={SKIN_TONE_OPTIONS}
           value={profile.skinTone}
           onChange={(value) => updateField('skinTone', value)}
+        />
+      </FormField>
+
+      <FormField label="Warm weather bottoms" hint="Choose whether summer looks can include shorts or should stay with longer bottoms.">
+        <SegmentedControl
+          options={SUMMER_BOTTOM_OPTIONS}
+          value={profile.summerBottomPreference}
+          onChange={(value) => updateField('summerBottomPreference', value)}
         />
       </FormField>
 
