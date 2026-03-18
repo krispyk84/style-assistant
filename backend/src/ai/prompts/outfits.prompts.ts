@@ -29,21 +29,12 @@ export function buildGenerateOutfitsUserPrompt(
     `- selectedTiersFromClient: ${input.selectedTiers.join(', ')}`,
     `- photoPending: ${String(input.photoPending)}`,
     input.weatherContext
-      ? [
-          `- currentSeason: ${input.weatherContext.season}`,
-          `- currentTemperatureC: ${input.weatherContext.temperatureC}`,
-          `- apparentTemperatureC: ${input.weatherContext.apparentTemperatureC}`,
-          `- weatherSummary: ${input.weatherContext.summary}`,
-          `- weatherStylingHint: ${input.weatherContext.stylingHint}`,
-          input.weatherContext.locationLabel ? `- locationLabel: ${input.weatherContext.locationLabel}` : null,
-        ]
-          .filter(Boolean)
-          .join('\n')
-      : '- weatherContext: unavailable',
+      ? `- currentSeason: ${input.weatherContext.season}`
+      : '- currentSeason: unavailable',
     `Return recommendations only for: ${input.selectedTiers.join(', ')}.`,
     'Each recommendation should include a specific title, anchor item wording, key pieces, shoes, accessories, fit notes, why it works, styling direction, and detail notes.',
-    'Weather should materially influence fabric weight, layering, footwear, and seasonal styling choices.',
-    'If the weather is hot and the profile says prefer-trousers for summer bottoms, keep recommending longer bottoms instead of shorts.',
+    'Use only the season to influence fabric weight, layering, palette, and overall styling direction. Do not infer extra constraints from current weather conditions.',
+    'If the season is summer and the profile says prefer-trousers for summer bottoms, keep recommending longer bottoms instead of shorts.',
   ].join('\n');
 }
 
@@ -74,13 +65,8 @@ export function buildRegenerateTierUserPrompt(input: {
     `- hasAnchorImage: ${Boolean(input.existing.input.anchorImageId || input.existing.input.anchorImageUrl)}`,
     `- requestedTier: ${input.tier}`,
     input.existing.input.weatherContext
-      ? [
-          `- currentSeason: ${input.existing.input.weatherContext.season}`,
-          `- currentTemperatureC: ${input.existing.input.weatherContext.temperatureC}`,
-          `- weatherSummary: ${input.existing.input.weatherContext.summary}`,
-          `- weatherStylingHint: ${input.existing.input.weatherContext.stylingHint}`,
-        ].join('\n')
-      : '- weatherContext: unavailable',
+      ? `- currentSeason: ${input.existing.input.weatherContext.season}`
+      : '- currentSeason: unavailable',
     previousTier
       ? [
           'Previous recommendation to replace:',
@@ -93,5 +79,6 @@ export function buildRegenerateTierUserPrompt(input: {
         ].join('\n')
       : 'There is no previous recommendation for the requested tier.',
     'Return one new recommendation for the requested tier only.',
+    'Use only the season to shape the styling update. Do not treat current weather details as constraints.',
   ].join('\n');
 }

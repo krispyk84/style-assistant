@@ -86,12 +86,11 @@ export const outfitsService = {
       query: [
         'menswear styling guidance',
         `anchor item: ${getCanonicalAnchorDescription(input)}`,
-        'cover business, smart casual, and casual tiers',
-        input.weatherContext
-          ? `weather: ${input.weatherContext.season}, ${input.weatherContext.temperatureC}C, ${input.weatherContext.summary}`
-          : null,
+        `requested tiers: ${selectedTiers.join(', ')}`,
+        input.weatherContext ? `season: ${input.weatherContext.season}` : null,
         profile?.stylePreference ? `user style preference: ${profile.stylePreference}` : null,
         profile?.fitPreference ? `user fit preference: ${profile.fitPreference}` : null,
+        profile?.summerBottomPreference ? `summer bottoms preference: ${profile.summerBottomPreference}` : null,
       ]
         .filter(Boolean)
         .join(' | '),
@@ -191,9 +190,7 @@ export const outfitsService = {
         'menswear styling guidance for regenerating one outfit tier',
         `tier: ${tier}`,
         `anchor item: ${existing.input.anchorItemDescription}`,
-        existing.input.weatherContext
-          ? `weather: ${existing.input.weatherContext.season}, ${existing.input.weatherContext.temperatureC}C, ${existing.input.weatherContext.summary}`
-          : null,
+        existing.input.weatherContext ? `season: ${existing.input.weatherContext.season}` : null,
         currentRecommendation ? `current styling direction: ${currentRecommendation.stylingDirection}` : null,
       ]
         .filter(Boolean)
