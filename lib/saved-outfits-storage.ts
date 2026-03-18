@@ -89,3 +89,8 @@ export async function deleteSavedOutfit(savedOutfitId: string) {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
   return nextSavedOutfits;
 }
+
+export async function replaceSavedOutfits(savedOutfits: SavedOutfit[]) {
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(savedOutfits));
+  return savedOutfits;
+}

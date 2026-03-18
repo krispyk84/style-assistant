@@ -5,12 +5,11 @@ import { View } from 'react-native';
 import { MockAnalysisCard } from '@/components/cards/mock-analysis-card';
 import { ImagePickerField } from '@/components/forms/image-picker-field';
 import { AppScreen } from '@/components/ui/app-screen';
-import { AppText } from '@/components/ui/app-text';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { SectionHeader } from '@/components/ui/section-header';
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import type { CompatibilityCheckResponse } from '@/types/api';
 import { compatibilityService } from '@/services/compatibility';
@@ -69,31 +68,10 @@ export default function CheckPieceScreen() {
 
   return (
     <AppScreen scrollable>
-      <View style={{ gap: spacing.xl }}>
-        <SectionHeader
-          title="Check a piece"
-          subtitle={
-            params.pieceName
-              ? `Compare your own ${params.pieceName} against the selected ${params.tier?.replaceAll('-', ' ')} recommendation.`
-              : 'Upload a candidate piece and the backend will evaluate whether it supports the selected outfit.'
-          }
-        />
-        {params.outfitTitle ? (
-          <View style={{ gap: spacing.xs }}>
-            <AppText variant="sectionTitle">Selected outfit</AppText>
-            <AppText tone="muted">
-              {params.outfitTitle}
-              {params.anchorItemDescription ? ` • anchored by ${params.anchorItemDescription}` : ''}
-            </AppText>
-          </View>
-        ) : null}
+      <View style={{ gap: spacing.lg, marginTop: -spacing.sm }}>
+        <SectionHeader title={params.pieceName ?? 'Check piece'} />
         <ImagePickerField
-          label="Candidate piece image"
-          hint={
-            params.pieceName
-              ? `Upload the ${params.pieceName} you own so the app can assess whether it fits the recommendation.`
-              : 'Choose the item you want reviewed against your wardrobe direction.'
-          }
+          label="Piece image"
           image={image}
           isPicking={isPicking || isUploading}
           error={error}
@@ -115,27 +93,13 @@ export default function CheckPieceScreen() {
             setAnalysisError(null);
           }}
         />
-        <View
-          style={{
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
-            borderRadius: 28,
-            borderWidth: 1,
-            gap: spacing.sm,
-            padding: spacing.lg,
-          }}>
-          <AppText variant="sectionTitle">How it works</AppText>
-          <AppText tone="muted">
-            The image is uploaded first, then the backend reviews it against your selected outfit context and returns a compatibility verdict.
-          </AppText>
-          {image && uploadedImage ? (
-            <PrimaryButton
-              label={isAnalyzing ? 'Analyzing...' : 'Check this piece'}
-              onPress={runAnalysis}
-              disabled={isAnalyzing}
-            />
-          ) : null}
-        </View>
+        {image && uploadedImage ? (
+          <PrimaryButton
+            label={isAnalyzing ? 'Analyzing...' : 'Check this piece'}
+            onPress={runAnalysis}
+            disabled={isAnalyzing}
+          />
+        ) : null}
         {analysisError ? <ErrorState title="Analysis unavailable" message={analysisError} /> : null}
         {analysisError ? (
           <PrimaryButton
@@ -168,10 +132,10 @@ export default function CheckPieceScreen() {
               />
             ) : null}
           </>
-        ) : (
+            ) : (
           <EmptyState
             title="No piece selected"
-            message="Choose an image from your photo library to get a compatibility assessment for the piece you own."
+            message="Add a photo of the piece you want to check."
           />
         )}
       </View>

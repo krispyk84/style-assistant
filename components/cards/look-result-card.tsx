@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Href, Link } from 'expo-router';
-import { Pressable, View } from 'react-native';
+import { Animated, Easing, Pressable, View } from 'react-native';
+import { useEffect, useRef } from 'react';
 
 import { spacing, theme } from '@/constants/theme';
 import type { LookRecommendation } from '@/types/look-request';
@@ -128,6 +129,7 @@ function TierSketch({ recommendation }: { recommendation: LookRecommendation }) 
           minHeight: 280,
           padding: spacing.lg,
         }}>
+        <AnimatedLoadingBar />
         <View style={{ gap: spacing.xs }}>
           <AppText variant="sectionTitle" style={{ textAlign: 'center' }}>
             Rendering sketch...
@@ -160,6 +162,54 @@ function TierSketch({ recommendation }: { recommendation: LookRecommendation }) 
           The outfit details are still usable even when the illustration is unavailable.
         </AppText>
       </View>
+    </View>
+  );
+}
+
+function AnimatedLoadingBar() {
+  const translateX = useRef(new Animated.Value(-140)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(translateX, {
+          toValue: 220,
+          duration: 1400,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateX, {
+          toValue: -140,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [translateX]);
+
+  return (
+    <View
+      style={{
+        backgroundColor: theme.colors.border,
+        borderRadius: 999,
+        height: 10,
+        marginBottom: spacing.md,
+        overflow: 'hidden',
+        width: '100%',
+      }}>
+      <Animated.View
+        style={{
+          backgroundColor: theme.colors.accent,
+          borderRadius: 999,
+          height: '100%',
+          transform: [{ translateX }],
+          width: 140,
+        }}
+      />
     </View>
   );
 }

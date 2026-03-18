@@ -17,7 +17,7 @@ type AppSessionValue = {
 };
 
 const AppSessionContext = createContext<AppSessionValue | null>(null);
-const STALE_APP_RESET_MS = 1000 * 60 * 10;
+const APP_RELAUNCH_RESET_MS = 1000 * 3;
 
 export function AppSessionProvider({ children }: PropsWithChildren) {
   const [profile, setProfile] = useState(defaultProfile);
@@ -99,11 +99,11 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
       }
 
       const lastBackgroundedAt = lastBackgroundedAtRef.current;
-      const wasStale = lastBackgroundedAt ? Date.now() - lastBackgroundedAt > STALE_APP_RESET_MS : false;
+      const shouldRestartApp = lastBackgroundedAt ? Date.now() - lastBackgroundedAt > APP_RELAUNCH_RESET_MS : false;
 
       void refreshSessionFromBackend().catch(() => undefined);
 
-      if (wasStale) {
+      if (shouldRestartApp) {
         setAppInstanceKey((current) => current + 1);
       }
     });

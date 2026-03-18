@@ -10,7 +10,8 @@ import { LoadingState } from '@/components/ui/loading-state';
 import { SectionHeader } from '@/components/ui/section-header';
 import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
-import { deleteSavedOutfit, loadSavedOutfits } from '@/lib/saved-outfits-storage';
+import { deleteSavedOutfit, loadSavedOutfits, replaceSavedOutfits } from '@/lib/saved-outfits-storage';
+import { outfitsService } from '@/services/outfits';
 import type { SavedOutfit } from '@/types/style';
 
 export default function HistoryScreen() {
@@ -27,13 +28,37 @@ export default function HistoryScreen() {
     async function loadHistory() {
       try {
         const savedOutfits = await loadSavedOutfits();
+        const hydratedSavedOutfits = await Promise.all(
+          savedOutfits.map(async (savedOutfit) => {
+            const response = await outfitsService.getOutfitResult(savedOutfit.requestId);
+
+            if (!response.success || !response.data) {
+              return savedOutfit;
+            }
+
+            const liveRecommendation = response.data.recommendations.find(
+              (item) => item.tier === savedOutfit.recommendation.tier
+            );
+
+            if (!liveRecommendation) {
+              return savedOutfit;
+            }
+
+            return {
+              ...savedOutfit,
+              input: response.data.input,
+              recommendation: liveRecommendation,
+            };
+          })
+        );
 
         if (!isMounted) {
           return;
         }
 
-        setItems(savedOutfits);
+        setItems(hydratedSavedOutfits);
         setErrorMessage(null);
+        await replaceSavedOutfits(hydratedSavedOutfits);
       } catch {
         if (!isMounted) {
           return;

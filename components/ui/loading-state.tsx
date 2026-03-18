@@ -21,7 +21,7 @@ export function LoadingState({ label, messages }: LoadingStateProps) {
 
     const timeout = setInterval(() => {
       setMessageIndex((current) => current + 1);
-    }, 2200);
+    }, 6600);
 
     return () => clearInterval(timeout);
   }, [messages]);
