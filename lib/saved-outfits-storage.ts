@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { appConfig } from '@/constants/config';
-import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
+import type { CreateLookInput, LookAnchorItem, LookRecommendation } from '@/types/look-request';
 import type { SavedOutfit } from '@/types/style';
 
 const STORAGE_KEY = 'style-assistant/saved-outfits';
@@ -18,9 +18,32 @@ function buildStableSavedSketchUri(requestId: string, tier: LookRecommendation['
   return `${appConfig.apiBaseUrl}/outfits/${requestId}/sketch/${tier}`;
 }
 
+function normalizeAnchorItems(input: CreateLookInput): LookAnchorItem[] {
+  if (Array.isArray(input.anchorItems) && input.anchorItems.length) {
+    return input.anchorItems;
+  }
+
+  if (input.anchorItemDescription || input.anchorImage || input.uploadedAnchorImage) {
+    return [
+      {
+        id: 'anchor-primary',
+        description: input.anchorItemDescription ?? '',
+        image: input.anchorImage ?? null,
+        uploadedImage: input.uploadedAnchorImage ?? null,
+      },
+    ];
+  }
+
+  return [];
+}
+
 function normalizeSavedOutfit(savedOutfit: SavedOutfit): SavedOutfit {
   return {
     ...savedOutfit,
+    input: {
+      ...savedOutfit.input,
+      anchorItems: normalizeAnchorItems(savedOutfit.input),
+    },
     recommendation: {
       ...savedOutfit.recommendation,
       sketchImageUrl:
