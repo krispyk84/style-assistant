@@ -26,6 +26,8 @@ function AppNavigation() {
         screenOptions={{
           animation: 'fade',
           contentStyle: { backgroundColor: navTheme.colors.background },
+          headerBackButtonDisplayMode: 'minimal',
+          headerTitleAlign: 'center',
           headerShadowVisible: false,
           headerStyle: { backgroundColor: navTheme.colors.background },
           headerTintColor: navTheme.colors.text,

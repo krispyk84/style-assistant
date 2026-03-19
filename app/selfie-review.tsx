@@ -66,7 +66,7 @@ export default function SelfieReviewScreen() {
   }
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable topInset={false}>
       <View style={{ gap: spacing.xl }}>
         <SectionHeader
           title="Selfie review"

@@ -67,7 +67,7 @@ export default function CheckPieceScreen() {
   }
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable topInset={false}>
       <View style={{ gap: spacing.lg, marginTop: -spacing.sm }}>
         <SectionHeader title={params.pieceName ?? 'Check piece'} />
         <ImagePickerField

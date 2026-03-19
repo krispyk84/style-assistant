@@ -34,7 +34,7 @@ export default function ReviewRequestScreen() {
 
   if (!input) {
     return (
-      <AppScreen>
+      <AppScreen topInset={false}>
         <ErrorState
           title="Request details missing"
           message="Start from Create a look so the review step has an anchor item and tier selections."
@@ -52,7 +52,7 @@ export default function ReviewRequestScreen() {
   const requestId = params.requestId;
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable topInset={false}>
       <View style={{ gap: spacing.xl }}>
         <SectionHeader
           title="Review request"

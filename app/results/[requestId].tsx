@@ -256,7 +256,7 @@ export default function ResultDetailsScreen() {
 
   if (isLoading) {
     return (
-      <AppScreen>
+      <AppScreen topInset={false}>
         <LoadingState
           label="Generating outfit options..."
           messages={[
@@ -275,7 +275,7 @@ export default function ResultDetailsScreen() {
 
   if (!response) {
     return (
-      <AppScreen>
+      <AppScreen topInset={false}>
         <View style={{ gap: spacing.md }}>
           <ErrorState
             title="Result not found"
@@ -290,7 +290,7 @@ export default function ResultDetailsScreen() {
   }
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable topInset={false}>
       <View style={{ gap: spacing.lg, marginTop: -spacing.sm }}>
         <SectionHeader
           title="Outfit results"

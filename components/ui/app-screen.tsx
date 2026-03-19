@@ -6,15 +6,16 @@ import { spacing, theme } from '@/constants/theme';
 
 type AppScreenProps = PropsWithChildren<{
   scrollable?: boolean;
+  topInset?: boolean;
 }>;
 
-export function AppScreen({ children, scrollable = false }: AppScreenProps) {
+export function AppScreen({ children, scrollable = false, topInset = true }: AppScreenProps) {
   const content = (
     <View
       style={{
         flex: 1,
         paddingHorizontal: spacing.lg,
-        paddingTop: spacing.md,
+        paddingTop: topInset ? spacing.md : spacing.xs,
         paddingBottom: spacing.xl,
       }}>
       {children}
@@ -22,7 +23,9 @@ export function AppScreen({ children, scrollable = false }: AppScreenProps) {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'left', 'right']}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.colors.background }}
+      edges={topInset ? ['top', 'left', 'right'] : ['left', 'right']}>
       {scrollable ? (
         <ScrollView
           automaticallyAdjustKeyboardInsets

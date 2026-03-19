@@ -3,7 +3,6 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { spacing, theme } from '@/constants/theme';
-import { appConfig } from '@/constants/config';
 import { buildTierHref } from '@/lib/look-route';
 import type { SavedOutfit } from '@/types/style';
 import { AppText } from '@/components/ui/app-text';
@@ -15,11 +14,7 @@ type OutfitResultCardProps = {
 };
 
 export function OutfitResultCard({ result, onDelete }: OutfitResultCardProps) {
-  const sketchUri =
-    result.recommendation.sketchImageUrl ??
-    (!appConfig.useMockServices && appConfig.apiBaseUrl
-      ? `${appConfig.apiBaseUrl}/outfits/${result.requestId}/sketch/${result.recommendation.tier}`
-      : null);
+  const sketchUri = result.recommendation.sketchImageUrl;
   const detailHref = buildTierHref(
     result.recommendation.tier,
     result.requestId,
@@ -65,6 +60,7 @@ export function OutfitResultCard({ result, onDelete }: OutfitResultCardProps) {
         <Pressable
         style={{
           gap: spacing.md,
+          width: '100%',
         }}>
         {sketchUri ? (
           <RemoteImagePanel
@@ -76,8 +72,12 @@ export function OutfitResultCard({ result, onDelete }: OutfitResultCardProps) {
           />
         ) : null}
         <View style={{ gap: spacing.xs }}>
-          <AppText variant="title">{result.recommendation.title}</AppText>
-          <AppText tone="muted" numberOfLines={2}>{result.input.anchorItemDescription || result.recommendation.anchorItem}</AppText>
+          <AppText style={{ flexShrink: 1, width: '100%' }} variant="title">
+            {result.recommendation.title}
+          </AppText>
+          <AppText numberOfLines={1} tone="muted">
+            {result.input.anchorItemDescription || result.recommendation.anchorItem}
+          </AppText>
         </View>
         </Pressable>
       </Link>

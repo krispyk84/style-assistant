@@ -31,7 +31,7 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable topInset={false}>
       <View style={{ gap: spacing.xl }}>
         <SectionHeader
           title="Onboarding"

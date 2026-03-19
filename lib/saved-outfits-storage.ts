@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { appConfig } from '@/constants/config';
 import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
 import type { SavedOutfit } from '@/types/style';
 
@@ -7,6 +8,27 @@ const STORAGE_KEY = 'style-assistant/saved-outfits';
 
 export function buildSavedOutfitId(requestId: string, tier: LookRecommendation['tier']) {
   return `${requestId}:${tier}`;
+}
+
+function buildStableSavedSketchUri(requestId: string, tier: LookRecommendation['tier']) {
+  if (appConfig.useMockServices || !appConfig.apiBaseUrl) {
+    return null;
+  }
+
+  return `${appConfig.apiBaseUrl}/outfits/${requestId}/sketch/${tier}`;
+}
+
+function normalizeSavedOutfit(savedOutfit: SavedOutfit): SavedOutfit {
+  return {
+    ...savedOutfit,
+    recommendation: {
+      ...savedOutfit.recommendation,
+      sketchImageUrl:
+        savedOutfit.recommendation.sketchStatus === 'ready'
+          ? buildStableSavedSketchUri(savedOutfit.requestId, savedOutfit.recommendation.tier)
+          : savedOutfit.recommendation.sketchImageUrl ?? null,
+    },
+  };
 }
 
 export async function loadSavedOutfits(): Promise<SavedOutfit[]> {
@@ -37,6 +59,7 @@ export async function loadSavedOutfits(): Promise<SavedOutfit[]> {
           item.recommendation !== null
         );
       })
+      .map(normalizeSavedOutfit)
       .sort((left, right) => right.savedAt.localeCompare(left.savedAt));
   } catch {
     return [];
@@ -57,12 +80,18 @@ export async function saveSavedOutfit(input: CreateLookInput, recommendation: Lo
     requestId,
     savedAt: new Date().toISOString(),
     input,
-    recommendation,
+    recommendation: {
+      ...recommendation,
+      sketchImageUrl:
+        recommendation.sketchStatus === 'ready'
+          ? buildStableSavedSketchUri(requestId, recommendation.tier)
+          : recommendation.sketchImageUrl ?? null,
+    },
   };
 
   const nextSavedOutfits = [nextSavedOutfit, ...savedOutfits];
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
-  return nextSavedOutfit;
+  return normalizeSavedOutfit(nextSavedOutfit);
 }
 
 export async function deleteSavedOutfit(savedOutfitId: string) {
@@ -74,6 +103,7 @@ export async function deleteSavedOutfit(savedOutfitId: string) {
 }
 
 export async function replaceSavedOutfits(savedOutfits: SavedOutfit[]) {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(savedOutfits));
-  return savedOutfits;
+  const normalizedSavedOutfits = savedOutfits.map(normalizeSavedOutfit);
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedSavedOutfits));
+  return normalizedSavedOutfits;
 }

@@ -51,7 +51,14 @@ export const outfitsService = {
       throw new HttpError(404, 'OUTFIT_REQUEST_NOT_FOUND', 'No outfit request exists for the provided id.');
     }
 
-    return existing;
+    return {
+      ...existing,
+      recommendations: existing.recommendations.map((recommendation) => ({
+        ...recommendation,
+        sketchImageUrl:
+          recommendation.sketchStatus === 'ready' ? buildStableSketchUrl(requestId, recommendation.tier) : null,
+      })),
+    };
   },
 
   async getTierSketch(requestId: string, tier: OutfitTierSlug) {

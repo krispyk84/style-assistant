@@ -237,6 +237,7 @@ export const outfitsRepository = {
         sketchImageUrl: true,
         sketchStorageKey: true,
         sketchMimeType: true,
+        sketchImageData: true,
       } as any,
     }) as Promise<{
       sketchStatus: string;

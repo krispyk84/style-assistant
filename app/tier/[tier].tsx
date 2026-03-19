@@ -177,7 +177,7 @@ export default function TierScreen() {
 
   if (!matchedTier || !liveRecommendation) {
     return (
-      <AppScreen>
+      <AppScreen topInset={false}>
         <ErrorState
           title="Tier not found"
           message="Open tier details from a generated look so the route carries the selected recommendation."
@@ -191,7 +191,7 @@ export default function TierScreen() {
   const piecesToCheck = buildPiecesToCheck(liveRecommendation);
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable topInset={false}>
       <View style={{ gap: spacing.lg }}>
         <SectionHeader title={matchedTier.label} subtitle={matchedTier.shortDescription} />
         <LookTierDetailCard definition={matchedTier} recommendation={liveRecommendation} />

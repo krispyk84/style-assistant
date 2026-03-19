@@ -58,7 +58,7 @@ export default function HistoryScreen() {
               input: response.data.input,
               recommendation: {
                 ...liveRecommendation,
-                sketchImageUrl: liveRecommendation.sketchImageUrl ?? savedOutfit.recommendation.sketchImageUrl,
+                sketchImageUrl: liveRecommendation.sketchImageUrl,
               },
             };
           })
