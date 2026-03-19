@@ -20,6 +20,7 @@ import type { LookTierSlug } from '@/types/look-request';
 export default function ResultDetailsScreen() {
   const params = useLocalSearchParams<{
     requestId: string;
+    anchorItems?: string;
     anchorItemDescription?: string;
     photoPending?: string;
     tiers?: string;
@@ -55,6 +56,7 @@ export default function ResultDetailsScreen() {
     () =>
       parseLookInput({
         anchorItemDescription: params.anchorItemDescription,
+        anchorItems: params.anchorItems,
         photoPending: params.photoPending,
         tiers: params.tiers,
         anchorImageUri: params.anchorImageUri,
@@ -84,6 +86,7 @@ export default function ResultDetailsScreen() {
       params.anchorImageMimeType,
       params.anchorImageUri,
       params.anchorImageWidth,
+      params.anchorItems,
       params.anchorItemDescription,
       params.photoPending,
       params.tiers,

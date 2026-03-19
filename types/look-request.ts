@@ -5,7 +5,15 @@ export const LOOK_TIER_OPTIONS = ['business', 'smart-casual', 'casual'] as const
 
 export type LookTierSlug = (typeof LOOK_TIER_OPTIONS)[number];
 
+export type LookAnchorItem = {
+  id: string;
+  description: string;
+  image: LocalImageAsset | null;
+  uploadedImage: UploadedImageAsset | null;
+};
+
 export type CreateLookInput = {
+  anchorItems: LookAnchorItem[];
   anchorItemDescription: string;
   anchorImage: LocalImageAsset | null;
   uploadedAnchorImage: UploadedImageAsset | null;

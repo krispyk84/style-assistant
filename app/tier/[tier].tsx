@@ -19,6 +19,7 @@ export default function TierScreen() {
   const params = useLocalSearchParams<{
     tier: string;
     requestId?: string;
+    anchorItems?: string;
     anchorItemDescription?: string;
     photoPending?: string;
     anchorImageUri?: string;
@@ -63,6 +64,7 @@ export default function TierScreen() {
     () =>
       parseLookInput({
         anchorItemDescription: params.anchorItemDescription,
+        anchorItems: params.anchorItems,
         photoPending: params.photoPending,
         tiers: 'business,smart-casual,casual',
         anchorImageUri: params.anchorImageUri,
@@ -92,6 +94,7 @@ export default function TierScreen() {
       params.anchorImageMimeType,
       params.anchorImageUri,
       params.anchorImageWidth,
+      params.anchorItems,
       params.anchorItemDescription,
       params.photoPending,
       params.uploadedAnchorImageCategory,

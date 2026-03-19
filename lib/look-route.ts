@@ -1,11 +1,12 @@
 import type { Href } from 'expo-router';
 
-import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
+import type { CreateLookInput, LookAnchorItem, LookRecommendation } from '@/types/look-request';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 import type { WeatherContext, WeatherSeason } from '@/types/weather';
 import { LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
 
 type LookRouteParams = {
+  anchorItems?: string;
   anchorItemDescription?: string;
   photoPending?: string;
   tiers?: string;
@@ -42,6 +43,23 @@ type LookRouteParams = {
   weatherStylingHint?: string;
   weatherLocationLabel?: string;
   weatherFetchedAt?: string;
+};
+
+type SerializedAnchorItem = {
+  id: string;
+  description: string;
+  anchorImageUri?: string;
+  anchorImageWidth?: string;
+  anchorImageHeight?: string;
+  anchorImageFileName?: string;
+  anchorImageMimeType?: string;
+  uploadedAnchorImageId?: string;
+  uploadedAnchorImageCategory?: string;
+  uploadedAnchorImageStorageProvider?: string;
+  uploadedAnchorImageStorageKey?: string;
+  uploadedAnchorImagePublicUrl?: string;
+  uploadedAnchorImageOriginalFilename?: string;
+  uploadedAnchorImageSizeBytes?: string;
 };
 
 function encodeList(values: string[]) {
@@ -81,6 +99,92 @@ function parseUploadedAnchorImage(params: LookRouteParams): UploadedImageAsset |
   };
 }
 
+function parseSerializedAnchorItem(item: SerializedAnchorItem): LookAnchorItem {
+  return {
+    id: item.id,
+    description: item.description ?? '',
+    image: item.anchorImageUri
+      ? {
+          uri: item.anchorImageUri,
+          width: item.anchorImageWidth ? Number(item.anchorImageWidth) : undefined,
+          height: item.anchorImageHeight ? Number(item.anchorImageHeight) : undefined,
+          fileName: item.anchorImageFileName ?? undefined,
+          mimeType: item.anchorImageMimeType ?? undefined,
+        }
+      : null,
+    uploadedImage:
+      item.uploadedAnchorImageId && item.uploadedAnchorImagePublicUrl && item.uploadedAnchorImageStorageKey
+        ? {
+            id: item.uploadedAnchorImageId,
+            category: (item.uploadedAnchorImageCategory as UploadedImageAsset['category']) ?? 'anchor-item',
+            storageProvider: item.uploadedAnchorImageStorageProvider ?? 'local',
+            storageKey: item.uploadedAnchorImageStorageKey,
+            publicUrl: item.uploadedAnchorImagePublicUrl,
+            originalFilename: item.uploadedAnchorImageOriginalFilename ?? null,
+            mimeType: item.anchorImageMimeType ?? null,
+            sizeBytes: item.uploadedAnchorImageSizeBytes ? Number(item.uploadedAnchorImageSizeBytes) : null,
+            width: item.anchorImageWidth ? Number(item.anchorImageWidth) : null,
+            height: item.anchorImageHeight ? Number(item.anchorImageHeight) : null,
+            createdAt: new Date().toISOString(),
+          }
+        : null,
+  };
+}
+
+function parseAnchorItems(params: LookRouteParams): LookAnchorItem[] {
+  if (params.anchorItems) {
+    try {
+      const parsed = JSON.parse(params.anchorItems);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((item): item is SerializedAnchorItem => typeof item === 'object' && item !== null && typeof item.id === 'string')
+          .map(parseSerializedAnchorItem)
+          .filter((item) => item.description.trim() || item.image || item.uploadedImage);
+      }
+    } catch {
+      // ignore and fall through to legacy single-item parsing
+    }
+  }
+
+  const legacyItem: LookAnchorItem = {
+    id: 'anchor-primary',
+    description: params.anchorItemDescription ?? '',
+    image: params.anchorImageUri
+      ? {
+          uri: params.anchorImageUri,
+          width: params.anchorImageWidth ? Number(params.anchorImageWidth) : undefined,
+          height: params.anchorImageHeight ? Number(params.anchorImageHeight) : undefined,
+          fileName: params.anchorImageFileName ?? undefined,
+          mimeType: params.anchorImageMimeType ?? undefined,
+        }
+      : null,
+    uploadedImage: parseUploadedAnchorImage(params),
+  };
+
+  return legacyItem.description.trim() || legacyItem.image || legacyItem.uploadedImage ? [legacyItem] : [];
+}
+
+function serializeAnchorItems(anchorItems: LookAnchorItem[]) {
+  return JSON.stringify(
+    anchorItems.map((item) => ({
+      id: item.id,
+      description: item.description,
+      anchorImageUri: item.image?.uri,
+      anchorImageWidth: item.image?.width ? String(item.image.width) : undefined,
+      anchorImageHeight: item.image?.height ? String(item.image.height) : undefined,
+      anchorImageFileName: item.image?.fileName ?? undefined,
+      anchorImageMimeType: item.image?.mimeType ?? undefined,
+      uploadedAnchorImageId: item.uploadedImage?.id,
+      uploadedAnchorImageCategory: item.uploadedImage?.category,
+      uploadedAnchorImageStorageProvider: item.uploadedImage?.storageProvider,
+      uploadedAnchorImageStorageKey: item.uploadedImage?.storageKey,
+      uploadedAnchorImagePublicUrl: item.uploadedImage?.publicUrl,
+      uploadedAnchorImageOriginalFilename: item.uploadedImage?.originalFilename ?? undefined,
+      uploadedAnchorImageSizeBytes: item.uploadedImage?.sizeBytes ? String(item.uploadedImage.sizeBytes) : undefined,
+    }))
+  );
+}
+
 export function parseLookInput(params: LookRouteParams): CreateLookInput | null {
   const selectedTiers = (params.tiers?.split(',') ?? []).filter((tier): tier is LookTierSlug =>
     LOOK_TIER_OPTIONS.includes(tier as LookTierSlug)
@@ -90,21 +194,22 @@ export function parseLookInput(params: LookRouteParams): CreateLookInput | null 
     return null;
   }
 
+  const anchorItems = parseAnchorItems(params);
+  const primaryAnchorItem = anchorItems[0] ?? null;
+
   return {
-    anchorItemDescription: params.anchorItemDescription ?? '',
+    anchorItems,
+    anchorItemDescription:
+      params.anchorItemDescription ??
+      anchorItems
+        .map((item) => item.description.trim())
+        .filter(Boolean)
+        .join(' • '),
     photoPending: params.photoPending === 'true',
     selectedTiers,
     weatherContext: parseWeatherContext(params),
-    uploadedAnchorImage: parseUploadedAnchorImage(params),
-    anchorImage: params.anchorImageUri
-      ? {
-          uri: params.anchorImageUri,
-          width: params.anchorImageWidth ? Number(params.anchorImageWidth) : undefined,
-          height: params.anchorImageHeight ? Number(params.anchorImageHeight) : undefined,
-          fileName: params.anchorImageFileName ?? undefined,
-          mimeType: params.anchorImageMimeType ?? undefined,
-        }
-      : null,
+    uploadedAnchorImage: primaryAnchorItem?.uploadedImage ?? parseUploadedAnchorImage(params),
+    anchorImage: primaryAnchorItem?.image ?? null,
   };
 }
 
@@ -179,6 +284,7 @@ export function buildLookResultsHref(requestId: string, input: CreateLookInput):
     pathname: '/results/[requestId]',
     params: {
       requestId,
+      anchorItems: serializeAnchorItems(input.anchorItems),
       anchorItemDescription: input.anchorItemDescription,
       photoPending: String(input.photoPending),
       tiers: input.selectedTiers.join(','),
@@ -209,6 +315,7 @@ export function buildLookResultsHref(requestId: string, input: CreateLookInput):
 export function buildLookRouteParams(requestId: string, input: CreateLookInput) {
   return {
     requestId,
+    anchorItems: serializeAnchorItems(input.anchorItems),
     anchorItemDescription: input.anchorItemDescription,
     photoPending: String(input.photoPending),
     tiers: input.selectedTiers.join(','),
@@ -247,6 +354,7 @@ export function buildTierHref(
     params: {
       tier,
       requestId,
+      anchorItems: serializeAnchorItems(input.anchorItems),
       anchorItemDescription: input.anchorItemDescription,
       photoPending: String(input.photoPending),
       anchorImageUri: input.anchorImage?.uri,

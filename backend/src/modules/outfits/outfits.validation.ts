@@ -5,6 +5,16 @@ const outfitTierSchema = z.enum(['business', 'smart-casual', 'casual']);
 export const generateOutfitsSchema = z.object({
   requestId: z.string().min(1),
   profileId: z.string().optional(),
+  anchorItems: z
+    .array(
+      z.object({
+        description: z.string().default(''),
+        imageId: z.string().optional(),
+        imageUrl: z.string().url().optional(),
+      })
+    )
+    .max(5)
+    .optional(),
   anchorItemDescription: z.string().default(''),
   anchorImageId: z.string().optional(),
   anchorImageUrl: z.string().url().optional(),
@@ -24,10 +34,14 @@ export const generateOutfitsSchema = z.object({
     .nullable()
     .optional(),
 }).superRefine((value, ctx) => {
-  if (!value.anchorItemDescription.trim() && !value.anchorImageId && !value.anchorImageUrl) {
+  const hasAnchorItems = Boolean(
+    value.anchorItems?.some((item) => item.description.trim() || item.imageId || item.imageUrl)
+  );
+
+  if (!hasAnchorItems && !value.anchorItemDescription.trim() && !value.anchorImageId && !value.anchorImageUrl) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ['anchorItemDescription'],
+      path: ['anchorItems'],
       message: 'Provide an anchor item description or image.',
     });
   }

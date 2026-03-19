@@ -13,6 +13,7 @@ import { buildLookResultsHref, parseLookInput } from '@/lib/look-route';
 export default function ReviewRequestScreen() {
   const params = useLocalSearchParams<{
     requestId?: string;
+    anchorItems?: string;
     anchorItemDescription?: string;
     photoPending?: string;
     tiers?: string;

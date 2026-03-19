@@ -20,12 +20,24 @@ export function buildGenerateOutfitsUserPrompt(
   profile: PromptProfile,
   styleGuideContext?: string | null
 ) {
+  const anchorItems = input.anchorItems?.length
+    ? input.anchorItems
+    : [
+        {
+          description: input.anchorItemDescription,
+          imageId: input.anchorImageId,
+          imageUrl: input.anchorImageUrl,
+        },
+      ];
+
   return [
     formatProfileContext(profile),
     styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
     'Styling request:',
-    `- anchorItemDescription: ${input.anchorItemDescription.trim() || 'No text description provided.'}`,
-    `- hasAnchorImage: ${Boolean(input.anchorImageId || input.anchorImageUrl)}`,
+    ...anchorItems.map(
+      (item, index) =>
+        `- anchorItem ${index + 1}: ${item.description.trim() || 'No text description provided.'} | hasImage: ${Boolean(item.imageId || item.imageUrl)}`
+    ),
     `- selectedTiersFromClient: ${input.selectedTiers.join(', ')}`,
     `- photoPending: ${String(input.photoPending)}`,
     input.weatherContext
@@ -61,8 +73,15 @@ export function buildRegenerateTierUserPrompt(input: {
     formatProfileContext(input.profile),
     input.styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
     'Original styling request:',
-    `- anchorItemDescription: ${input.existing.input.anchorItemDescription.trim() || 'No text description provided.'}`,
-    `- hasAnchorImage: ${Boolean(input.existing.input.anchorImageId || input.existing.input.anchorImageUrl)}`,
+    ...(input.existing.input.anchorItems?.length
+      ? input.existing.input.anchorItems.map(
+          (item, index) =>
+            `- anchorItem ${index + 1}: ${item.description.trim() || 'No text description provided.'} | hasImage: ${Boolean(item.imageId || item.imageUrl)}`
+        )
+      : [
+          `- anchorItemDescription: ${input.existing.input.anchorItemDescription.trim() || 'No text description provided.'}`,
+          `- hasAnchorImage: ${Boolean(input.existing.input.anchorImageId || input.existing.input.anchorImageUrl)}`,
+        ]),
     `- requestedTier: ${input.tier}`,
     input.existing.input.weatherContext
       ? `- currentSeason: ${input.existing.input.weatherContext.season}`

@@ -4,6 +4,11 @@ export type TierSketchStatus = 'pending' | 'ready' | 'failed';
 export type GenerateOutfitsRequest = {
   requestId: string;
   profileId?: string;
+  anchorItems?: Array<{
+    description: string;
+    imageId?: string;
+    imageUrl?: string;
+  }>;
   anchorItemDescription: string;
   anchorImageId?: string;
   anchorImageUrl?: string;
@@ -46,6 +51,7 @@ export type OutfitResponse = {
   provider: 'mock' | 'openai';
   generatedAt: string;
   input: {
+    anchorItems?: GenerateOutfitsRequest['anchorItems'];
     anchorItemDescription: string;
     anchorImageId: string | null;
     anchorImageUrl: string | null;

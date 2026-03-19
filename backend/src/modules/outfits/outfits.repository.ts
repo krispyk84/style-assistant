@@ -138,6 +138,8 @@ export const outfitsRepository = {
 
     const requestRecord = result.request as any;
     const tierResults = result.tierResults as any[];
+    const rawResponse = result.rawResponse as any;
+    const rawAnchorItems = Array.isArray(rawResponse?.input?.anchorItems) ? rawResponse.input.anchorItems : null;
 
     const output: OutfitResponse = {
       requestId: result.requestId,
@@ -145,7 +147,16 @@ export const outfitsRepository = {
       provider: result.provider === 'openai' ? 'openai' : 'mock',
       generatedAt: result.generatedAt.toISOString(),
       input: {
-        anchorItemDescription: requestRecord.anchorItemDescription,
+        anchorItems:
+          rawAnchorItems ??
+          [
+            {
+              description: requestRecord.anchorItemDescription,
+              imageId: requestRecord.anchorImageId ?? undefined,
+              imageUrl: requestRecord.anchorImageUrl ?? undefined,
+            },
+          ].filter((item) => item.description?.trim() || item.imageId || item.imageUrl),
+        anchorItemDescription: rawResponse?.input?.anchorItemDescription ?? requestRecord.anchorItemDescription,
         anchorImageId: requestRecord.anchorImageId ?? null,
         anchorImageUrl: requestRecord.anchorImageUrl,
         photoPending: requestRecord.photoPending,

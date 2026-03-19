@@ -6,11 +6,23 @@ import type { GenerateOutfitsResponse, OutfitHistoryResponse } from '@/types/api
 function normalizeOutfitResponse(response: GenerateOutfitsResponse): GenerateOutfitsResponse {
   const anchorImageUrl = (response as any)?.input?.anchorImageUrl as string | null | undefined;
   const anchorImageId = (response as any)?.input?.anchorImageId as string | null | undefined;
+  const anchorItems =
+    response.input.anchorItems?.length
+      ? response.input.anchorItems
+      : [
+          {
+            id: 'anchor-primary',
+            description: response.input.anchorItemDescription,
+            image: response.input.anchorImage,
+            uploadedImage: response.input.uploadedAnchorImage,
+          },
+        ].filter((item) => item.description.trim() || item.image || item.uploadedImage);
 
   return {
     ...response,
     input: {
       ...response.input,
+      anchorItems,
       anchorImage:
         response.input.anchorImage ??
         (anchorImageUrl
@@ -50,6 +62,11 @@ export const apiOutfitsService: OutfitsService = {
       method: 'POST',
       body: {
         requestId: request.requestId,
+        anchorItems: request.anchorItems.map((item) => ({
+          description: item.description,
+          imageId: item.uploadedImage?.id,
+          imageUrl: item.uploadedImage?.publicUrl,
+        })),
         anchorItemDescription: request.anchorItemDescription,
         anchorImageId: request.uploadedAnchorImage?.id,
         anchorImageUrl: request.uploadedAnchorImage?.publicUrl,

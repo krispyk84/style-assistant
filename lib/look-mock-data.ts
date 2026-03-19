@@ -99,6 +99,14 @@ const lookRecommendationVariants: Record<LookTierSlug, Omit<LookRecommendation, 
 
 const sampleRequests: Record<string, CreateLookInput> = {
   'request-001': {
+    anchorItems: [
+      {
+        id: 'anchor-request-001',
+        description: anchorItem.name,
+        image: null,
+        uploadedImage: null,
+      },
+    ],
     anchorItemDescription: anchorItem.name,
     anchorImage: null,
     uploadedAnchorImage: null,
@@ -106,6 +114,14 @@ const sampleRequests: Record<string, CreateLookInput> = {
     selectedTiers: ['business', 'smart-casual', 'casual'],
   },
   'request-002': {
+    anchorItems: [
+      {
+        id: 'anchor-request-002',
+        description: 'Navy knit overshirt',
+        image: null,
+        uploadedImage: null,
+      },
+    ],
     anchorItemDescription: 'Navy knit overshirt',
     anchorImage: null,
     uploadedAnchorImage: null,
@@ -113,6 +129,14 @@ const sampleRequests: Record<string, CreateLookInput> = {
     selectedTiers: ['business', 'smart-casual', 'casual'],
   },
   'request-003': {
+    anchorItems: [
+      {
+        id: 'anchor-request-003',
+        description: 'Black zip cardigan',
+        image: null,
+        uploadedImage: null,
+      },
+    ],
     anchorItemDescription: 'Black zip cardigan',
     anchorImage: null,
     uploadedAnchorImage: null,

@@ -22,7 +22,47 @@ function buildStableSketchUrl(requestId: string, tier: OutfitTierSlug) {
   return `${env.STORAGE_PUBLIC_BASE_URL}/outfits/${requestId}/sketch/${tier}`;
 }
 
-function getCanonicalAnchorDescription(input: Pick<GenerateOutfitsRequest, 'anchorItemDescription' | 'anchorImageId' | 'anchorImageUrl'>) {
+function getNormalizedAnchorItems(
+  input: {
+    anchorItems?: GenerateOutfitsRequest['anchorItems'];
+    anchorItemDescription: string;
+    anchorImageId?: string | null;
+    anchorImageUrl?: string | null;
+  }
+) {
+  if (input.anchorItems?.length) {
+    return input.anchorItems
+      .filter((item) => item.description.trim() || item.imageId || item.imageUrl)
+      .map((item) => ({
+        description: item.description,
+        ...(item.imageId ? { imageId: item.imageId } : {}),
+        ...(item.imageUrl ? { imageUrl: item.imageUrl } : {}),
+      }));
+  }
+
+  return [
+    {
+      description: input.anchorItemDescription,
+      ...(input.anchorImageId ? { imageId: input.anchorImageId } : {}),
+      ...(input.anchorImageUrl ? { imageUrl: input.anchorImageUrl } : {}),
+    },
+  ].filter((item) => item.description.trim() || item.imageId || item.imageUrl);
+}
+
+function getCanonicalAnchorDescription(input: {
+  anchorItems?: GenerateOutfitsRequest['anchorItems'];
+  anchorItemDescription: string;
+  anchorImageId?: string | null;
+  anchorImageUrl?: string | null;
+}) {
+  const anchorItems = getNormalizedAnchorItems(input);
+
+  if (anchorItems.length > 1) {
+    return anchorItems
+      .map((item, index) => item.description.trim() || `Anchor item ${index + 1} identified from uploaded image`)
+      .join(' | ');
+  }
+
   const description = input.anchorItemDescription.trim();
   if (description) {
     return description;
@@ -86,13 +126,17 @@ export const outfitsService = {
 
   async generateOutfits(input: GenerateOutfitsRequest, variantMap?: Partial<Record<OutfitTierSlug, number>>) {
     const selectedTiers = CANONICAL_TIERS.filter((tier) => input.selectedTiers.includes(tier));
+    const anchorItems = getNormalizedAnchorItems(input);
     const profile = await findProfile(input.profileId);
-    const uploadedAnchorImage = input.anchorImageId ? await uploadsRepository.findById(input.anchorImageId) : null;
+    const uploadedAnchorImages = await Promise.all(
+      anchorItems.map(async (item) => (item.imageId ? uploadsRepository.findById(item.imageId) : null))
+    );
+    const primaryUploadedAnchorImage = uploadedAnchorImages.find(Boolean) ?? null;
     const styleGuideContext = await styleGuideService.retrieveGuidance({
       task: 'outfit-generation',
       query: [
         'menswear styling guidance',
-        `anchor item: ${getCanonicalAnchorDescription(input)}`,
+        ...anchorItems.map((item, index) => `anchor item ${index + 1}: ${item.description.trim() || 'image-led reference'}`),
         `requested tiers: ${selectedTiers.join(', ')}`,
         input.weatherContext ? `season: ${input.weatherContext.season}` : null,
         profile?.stylePreference ? `user style preference: ${profile.stylePreference}` : null,
@@ -108,6 +152,7 @@ export const outfitsService = {
         text: buildGenerateOutfitsUserPrompt(
           {
             ...input,
+            anchorItems,
             selectedTiers,
             anchorItemDescription: getCanonicalAnchorDescription(input),
           },
@@ -117,15 +162,21 @@ export const outfitsService = {
       },
     ];
 
-    if (uploadedAnchorImage) {
-      userContent.push(await buildModelImageInput(uploadedAnchorImage));
-    } else if (input.anchorImageUrl) {
-      userContent.push({
-        type: 'input_image',
-        image_url: input.anchorImageUrl,
-        detail: 'high',
-      });
+    for (const uploadedAnchorImage of uploadedAnchorImages) {
+      if (uploadedAnchorImage) {
+        userContent.push(await buildModelImageInput(uploadedAnchorImage));
+      }
     }
+
+    anchorItems
+      .filter((item) => item.imageUrl && !item.imageId)
+      .forEach((item) => {
+        userContent.push({
+          type: 'input_image',
+          image_url: item.imageUrl!,
+          detail: 'high',
+        });
+      });
 
     const aiOutput = await openAiClient.createStructuredResponse({
       schema: tieredOutfitGenerationSchema,
@@ -146,9 +197,10 @@ export const outfitsService = {
       provider: 'openai' as const,
       generatedAt: new Date().toISOString(),
       input: {
+        anchorItems,
         anchorItemDescription: getCanonicalAnchorDescription(input),
-        anchorImageId: input.anchorImageId ?? null,
-        anchorImageUrl: input.anchorImageUrl ?? uploadedAnchorImage?.publicUrl ?? null,
+        anchorImageId: input.anchorImageId ?? primaryUploadedAnchorImage?.id ?? null,
+        anchorImageUrl: input.anchorImageUrl ?? primaryUploadedAnchorImage?.publicUrl ?? anchorItems[0]?.imageUrl ?? null,
         photoPending: input.photoPending,
         selectedTiers,
         weatherContext: input.weatherContext ?? null,
@@ -190,13 +242,16 @@ export const outfitsService = {
     const currentVariantIndex = currentRecommendation?.variantIndex ?? 0;
     const nextVariantIndex = currentVariantIndex + 1;
     const profile = await findProfile(undefined);
-    const uploadedAnchorImage = existing.input.anchorImageId ? await uploadsRepository.findById(existing.input.anchorImageId) : null;
+    const anchorItems = getNormalizedAnchorItems(existing.input);
+    const uploadedAnchorImages = await Promise.all(
+      anchorItems.map(async (item) => (item.imageId ? uploadsRepository.findById(item.imageId) : null))
+    );
     const styleGuideContext = await styleGuideService.retrieveGuidance({
       task: 'tier-regeneration',
       query: [
         'menswear styling guidance for regenerating one outfit tier',
         `tier: ${tier}`,
-        `anchor item: ${existing.input.anchorItemDescription}`,
+        ...anchorItems.map((item, index) => `anchor item ${index + 1}: ${item.description.trim() || 'image-led reference'}`),
         existing.input.weatherContext ? `season: ${existing.input.weatherContext.season}` : null,
         currentRecommendation ? `current styling direction: ${currentRecommendation.stylingDirection}` : null,
       ]
@@ -215,15 +270,21 @@ export const outfitsService = {
       },
     ];
 
-    if (uploadedAnchorImage) {
-      userContent.push(await buildModelImageInput(uploadedAnchorImage));
-    } else if (existing.input.anchorImageUrl) {
-      userContent.push({
-        type: 'input_image',
-        image_url: existing.input.anchorImageUrl,
-        detail: 'high',
-      });
+    for (const uploadedAnchorImage of uploadedAnchorImages) {
+      if (uploadedAnchorImage) {
+        userContent.push(await buildModelImageInput(uploadedAnchorImage));
+      }
     }
+
+    anchorItems
+      .filter((item) => item.imageUrl && !item.imageId)
+      .forEach((item) => {
+        userContent.push({
+          type: 'input_image',
+          image_url: item.imageUrl!,
+          detail: 'high',
+        });
+      });
 
     const aiOutput = await openAiClient.createStructuredResponse({
       schema: singleTierRegenerationSchema,

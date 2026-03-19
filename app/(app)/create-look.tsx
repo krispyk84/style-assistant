@@ -12,6 +12,7 @@ export default function CreateLookScreen() {
         <SectionHeader title="Create a look" />
         <CreateLookRequestForm
           initialValue={{
+            anchorItems: [],
             anchorItemDescription: '',
             anchorImage: null,
             uploadedAnchorImage: null,
