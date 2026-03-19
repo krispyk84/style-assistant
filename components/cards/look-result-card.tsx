@@ -16,6 +16,7 @@ type LookResultCardProps = {
   isSaved?: boolean;
   isSaving?: boolean;
   onSave?: () => void;
+  onAddToWeek?: () => void;
 };
 
 export function LookResultCard({
@@ -26,6 +27,7 @@ export function LookResultCard({
   isSaved = false,
   isSaving = false,
   onSave,
+  onAddToWeek,
 }: LookResultCardProps) {
   const labeledPieces = buildLabeledPieces(recommendation);
 
@@ -46,25 +48,32 @@ export function LookResultCard({
 
       <TierSketch recommendation={recommendation} />
 
-      <Pressable
-        disabled={isSaved || isSaving || !onSave}
-        onPress={onSave}
-        style={[
-          actionButtonStyle,
-          {
-            backgroundColor: isSaved ? theme.colors.border : theme.colors.card,
-            flex: 0,
-          },
-        ]}>
-        <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-          <Ionicons
-            color={theme.colors.text}
-            name={isSaved ? 'bookmark' : 'bookmark-outline'}
-            size={18}
-          />
-          <AppText>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}</AppText>
-        </View>
-      </Pressable>
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <Pressable
+          disabled={isSaved || isSaving || !onSave}
+          onPress={onSave}
+          style={[
+            actionButtonStyle,
+            {
+              backgroundColor: isSaved ? theme.colors.border : theme.colors.card,
+            },
+          ]}>
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+            <Ionicons
+              color={theme.colors.text}
+              name={isSaved ? 'bookmark' : 'bookmark-outline'}
+              size={18}
+            />
+            <AppText>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}</AppText>
+          </View>
+        </Pressable>
+        <Pressable disabled={!onAddToWeek} onPress={onAddToWeek} style={actionButtonStyle}>
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+            <Ionicons color={theme.colors.text} name="calendar-outline" size={18} />
+            <AppText>Add to week</AppText>
+          </View>
+        </Pressable>
+      </View>
 
       <View style={{ gap: spacing.sm }}>
         {labeledPieces.map((piece) => (

@@ -45,3 +45,12 @@ export type SavedOutfit = {
   input: CreateLookInput;
   recommendation: LookRecommendation;
 };
+
+export type WeekPlannedOutfit = {
+  dayKey: string;
+  dayLabel: string;
+  requestId: string;
+  assignedAt: string;
+  input: CreateLookInput;
+  recommendation: LookRecommendation;
+};

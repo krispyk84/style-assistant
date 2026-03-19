@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Modal, Pressable, View } from 'react-native';
 
 import { LookResultCard } from '@/components/cards/look-result-card';
 import { LookRequestReviewCard } from '@/components/cards/look-request-review-card';
@@ -12,6 +12,7 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
+import { assignOutfitToWeekDay, getNextSevenDays } from '@/lib/week-plan-storage';
 import { buildTierHref, parseLookInput } from '@/lib/look-route';
 import type { GenerateOutfitsResponse } from '@/types/api';
 import { outfitsService } from '@/services/outfits';
@@ -51,6 +52,7 @@ export default function ResultDetailsScreen() {
   const [regeneratingTier, setRegeneratingTier] = useState<LookTierSlug | null>(null);
   const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
   const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
+  const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
   const { showToast } = useToast();
   const parsedInput = useMemo(
     () =>
@@ -257,6 +259,26 @@ export default function ResultDetailsScreen() {
     setSavingTier(null);
   }
 
+  async function handleAssignToWeek(dayKey: string, dayLabel: string) {
+    if (!response || !weekPickerTier) {
+      return;
+    }
+
+    const recommendation = response.recommendations.find((item) => item.tier === weekPickerTier);
+    if (!recommendation) {
+      return;
+    }
+
+    try {
+      await assignOutfitToWeekDay(dayKey, dayLabel, response.input, recommendation, response.requestId);
+      showToast(`Added to ${dayLabel}.`);
+    } catch {
+      showToast('Could not add this outfit to your week.', 'error');
+    }
+
+    setWeekPickerTier(null);
+  }
+
   if (isLoading) {
     return (
       <AppScreen topInset={false}>
@@ -309,6 +331,7 @@ export default function ResultDetailsScreen() {
             isSaved={savedOutfitIds.includes(buildSavedOutfitId(response.requestId, recommendation.tier))}
             isSaving={savingTier === recommendation.tier}
             onSave={() => void handleSave(recommendation.tier)}
+            onAddToWeek={() => setWeekPickerTier(recommendation.tier)}
             detailHref={buildTierHref(
               recommendation.tier,
               response.requestId,
@@ -319,6 +342,59 @@ export default function ResultDetailsScreen() {
           />
         ))}
       </View>
+      <WeekPickerModal
+        visible={Boolean(weekPickerTier)}
+        onClose={() => setWeekPickerTier(null)}
+        onSelectDay={handleAssignToWeek}
+      />
     </AppScreen>
+  );
+}
+
+function WeekPickerModal({
+  visible,
+  onClose,
+  onSelectDay,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSelectDay: (dayKey: string, dayLabel: string) => void;
+}) {
+  const days = getNextSevenDays();
+
+  return (
+    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+      <Pressable
+        onPress={onClose}
+        style={{
+          alignItems: 'center',
+          backgroundColor: 'rgba(24, 18, 14, 0.24)',
+          flex: 1,
+          justifyContent: 'center',
+          padding: spacing.lg,
+        }}>
+        <Pressable
+          onPress={() => undefined}
+          style={{
+            backgroundColor: '#FFFDFC',
+            borderRadius: 28,
+            gap: spacing.md,
+            maxWidth: 420,
+            padding: spacing.lg,
+            width: '100%',
+          }}>
+          <SectionHeader title="Add to week" subtitle="Choose one of the next 7 days." />
+          {days.map((day) => (
+            <PrimaryButton
+              key={day.dayKey}
+              label={day.dayLabel}
+              onPress={() => onSelectDay(day.dayKey, day.dayLabel)}
+              variant="secondary"
+            />
+          ))}
+          <PrimaryButton label="Cancel" onPress={onClose} variant="secondary" />
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }

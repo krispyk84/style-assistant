@@ -109,7 +109,7 @@ export default function HistoryScreen() {
     <AppScreen scrollable>
       <View style={{ gap: spacing.lg }}>
         <SectionHeader
-          title="History"
+          title="Favorites"
           subtitle="Saved outfits you can return to whenever you want to revisit a recommendation."
         />
         {isLoading ? (

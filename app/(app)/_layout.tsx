@@ -57,17 +57,17 @@ export default function AppTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="week"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ color }) => <Ionicons color={color} name="person-outline" size={TAB_ICON_SIZE} />,
+          title: 'Week',
+          tabBarIcon: ({ color }) => <Ionicons color={color} name="calendar-outline" size={TAB_ICON_SIZE} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: 'History',
-          tabBarIcon: ({ color }) => <Ionicons color={color} name="time-outline" size={TAB_ICON_SIZE} />,
+          title: 'Favorites',
+          tabBarIcon: ({ color }) => <Ionicons color={color} name="heart-outline" size={TAB_ICON_SIZE} />,
         }}
       />
       <Tabs.Screen
@@ -79,6 +79,12 @@ export default function AppTabsLayout() {
       />
       <Tabs.Screen
         name="create-look"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
         options={{
           href: null,
         }}
