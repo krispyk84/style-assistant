@@ -11,11 +11,24 @@ type LoadingStateProps = {
 
 export function LoadingState({ label, messages }: LoadingStateProps) {
   const [messageIndex, setMessageIndex] = useState(0);
-  const activeLabel = messages?.length ? messages[messageIndex % messages.length] : label;
+  const [messageOrder, setMessageOrder] = useState<string[]>(messages ?? []);
+  const activeLabel = messageOrder.length ? messageOrder[messageIndex % messageOrder.length] : label;
   const translateX = useRef(new Animated.Value(-140)).current;
 
   useEffect(() => {
-    if (!messages?.length || messages.length === 1) {
+    if (!messages?.length) {
+      setMessageOrder([]);
+      setMessageIndex(0);
+      return;
+    }
+
+    const shuffledMessages = [...messages].sort(() => Math.random() - 0.5);
+    setMessageOrder(shuffledMessages);
+    setMessageIndex(0);
+  }, [messages]);
+
+  useEffect(() => {
+    if (!messageOrder.length || messageOrder.length === 1) {
       return;
     }
 
@@ -24,7 +37,7 @@ export function LoadingState({ label, messages }: LoadingStateProps) {
     }, 6600);
 
     return () => clearInterval(timeout);
-  }, [messages]);
+  }, [messageOrder]);
 
   useEffect(() => {
     const animation = Animated.loop(

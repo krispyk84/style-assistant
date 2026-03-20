@@ -6,6 +6,18 @@ import type { WeekPlannedOutfit } from '@/types/style';
 
 const STORAGE_KEY = 'style-assistant/week-plan';
 
+function getLocalDayKey(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function isFutureWeekDay(dayKey: string) {
+  const validDayKeys = new Set(getNextSevenDays().map((day) => day.dayKey));
+  return validDayKeys.has(dayKey);
+}
+
 function buildStableSketchUri(requestId: string, tier: LookRecommendation['tier']) {
   if (appConfig.useMockServices || !appConfig.apiBaseUrl) {
     return null;
@@ -36,7 +48,7 @@ export function getNextSevenDays() {
     date.setDate(baseDate.getDate() + offset);
 
     days.push({
-      dayKey: date.toISOString().slice(0, 10),
+      dayKey: getLocalDayKey(date),
       dayLabel: date.toLocaleDateString(undefined, {
         weekday: 'long',
         month: 'short',
@@ -62,7 +74,7 @@ export async function loadWeekPlan(): Promise<WeekPlannedOutfit[]> {
       return [];
     }
 
-    return parsed
+    const normalizedItems = parsed
       .filter(
         (item): item is WeekPlannedOutfit =>
           typeof item === 'object' &&
@@ -77,7 +89,11 @@ export async function loadWeekPlan(): Promise<WeekPlannedOutfit[]> {
           item.recommendation !== null
       )
       .map(normalizeWeekPlannedOutfit)
+      .filter((item) => isFutureWeekDay(item.dayKey))
       .sort((left, right) => left.dayKey.localeCompare(right.dayKey));
+
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedItems));
+    return normalizedItems;
   } catch {
     return [];
   }

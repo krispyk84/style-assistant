@@ -18,8 +18,9 @@ import { tierSketchService } from './tier-sketch.service.js';
 
 const CANONICAL_TIERS: OutfitTierSlug[] = ['business', 'smart-casual', 'casual'];
 
-function buildStableSketchUrl(requestId: string, tier: OutfitTierSlug) {
-  return `${env.STORAGE_PUBLIC_BASE_URL}/outfits/${requestId}/sketch/${tier}`;
+function buildStableSketchUrl(requestId: string, tier: OutfitTierSlug, version?: string | number) {
+  const baseUrl = `${env.STORAGE_PUBLIC_BASE_URL}/outfits/${requestId}/sketch/${tier}`;
+  return version === undefined ? baseUrl : `${baseUrl}?v=${encodeURIComponent(String(version))}`;
 }
 
 function getNormalizedAnchorItems(
@@ -96,7 +97,9 @@ export const outfitsService = {
       recommendations: existing.recommendations.map((recommendation) => ({
         ...recommendation,
         sketchImageUrl:
-          recommendation.sketchStatus === 'ready' ? buildStableSketchUrl(requestId, recommendation.tier) : null,
+          recommendation.sketchStatus === 'ready'
+            ? buildStableSketchUrl(requestId, recommendation.tier, `${existing.generatedAt}-${recommendation.variantIndex}`)
+            : null,
       })),
     };
   },
@@ -217,7 +220,7 @@ export const outfitsService = {
           tier,
           anchorItem: recommendation.anchorItem.trim() || getCanonicalAnchorDescription(input),
           sketchStatus: 'pending',
-          sketchImageUrl: buildStableSketchUrl(input.requestId, tier),
+          sketchImageUrl: buildStableSketchUrl(input.requestId, tier, variantMap?.[tier] ?? 0),
           sketchStorageKey: null,
           sketchMimeType: null,
           sketchImageData: null,
@@ -308,7 +311,7 @@ export const outfitsService = {
               tier,
               anchorItem: aiOutput.recommendation.anchorItem.trim() || existing.input.anchorItemDescription,
               sketchStatus: 'pending',
-              sketchImageUrl: buildStableSketchUrl(existing.requestId, tier),
+              sketchImageUrl: buildStableSketchUrl(existing.requestId, tier, nextVariantIndex),
               sketchStorageKey: null,
               sketchMimeType: null,
               sketchImageData: null,
