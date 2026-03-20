@@ -15,6 +15,7 @@ export type LookAnchorItem = {
 export type CreateLookInput = {
   anchorItems: LookAnchorItem[];
   anchorItemDescription: string;
+  vibeKeywords?: string;
   anchorImage: LocalImageAsset | null;
   uploadedAnchorImage: UploadedImageAsset | null;
   photoPending: boolean;

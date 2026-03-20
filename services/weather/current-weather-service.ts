@@ -12,6 +12,7 @@ type OpenMeteoResponse = {
     time: string[];
     weather_code: number[];
     temperature_2m_max: number[];
+    temperature_2m_min: number[];
   };
 };
 
@@ -19,6 +20,7 @@ export type WeekForecastDay = {
   dayKey: string;
   weatherCode: number;
   highTempC: number;
+  lowTempC: number;
 };
 
 function getSeason(date = new Date()): WeatherSeason {
@@ -137,7 +139,7 @@ export async function loadNextSevenDayForecast(): Promise<WeekForecastDay[]> {
   });
 
   const weatherResponse = await fetch(
-    `https://api.open-meteo.com/v1/forecast?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}&daily=weather_code,temperature_2m_max&forecast_days=8&timezone=auto`
+    `https://api.open-meteo.com/v1/forecast?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=8&timezone=auto`
   );
 
   if (!weatherResponse.ok) {
@@ -156,6 +158,7 @@ export async function loadNextSevenDayForecast(): Promise<WeekForecastDay[]> {
       dayKey,
       weatherCode: daily.weather_code[index],
       highTempC: daily.temperature_2m_max[index],
+      lowTempC: daily.temperature_2m_min[index],
     }))
     .slice(1, 8);
 }

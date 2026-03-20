@@ -38,6 +38,7 @@ export function buildGenerateOutfitsUserPrompt(
       (item, index) =>
         `- anchorItem ${index + 1}: ${item.description.trim() || 'No text description provided.'} | hasImage: ${Boolean(item.imageId || item.imageUrl)}`
     ),
+    input.vibeKeywords?.trim() ? `- vibeKeywords: ${input.vibeKeywords.trim()}` : '- vibeKeywords: none provided',
     `- selectedTiersFromClient: ${input.selectedTiers.join(', ')}`,
     `- photoPending: ${String(input.photoPending)}`,
     input.weatherContext
@@ -82,6 +83,9 @@ export function buildRegenerateTierUserPrompt(input: {
           `- anchorItemDescription: ${input.existing.input.anchorItemDescription.trim() || 'No text description provided.'}`,
           `- hasAnchorImage: ${Boolean(input.existing.input.anchorImageId || input.existing.input.anchorImageUrl)}`,
         ]),
+    input.existing.input.vibeKeywords?.trim()
+      ? `- vibeKeywords: ${input.existing.input.vibeKeywords.trim()}`
+      : '- vibeKeywords: none provided',
     `- requestedTier: ${input.tier}`,
     input.existing.input.weatherContext
       ? `- currentSeason: ${input.existing.input.weatherContext.season}`

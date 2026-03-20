@@ -10,6 +10,7 @@ export type GenerateOutfitsRequest = {
     imageUrl?: string;
   }>;
   anchorItemDescription: string;
+  vibeKeywords?: string;
   anchorImageId?: string;
   anchorImageUrl?: string;
   photoPending: boolean;
@@ -53,6 +54,7 @@ export type OutfitResponse = {
   input: {
     anchorItems?: GenerateOutfitsRequest['anchorItems'];
     anchorItemDescription: string;
+    vibeKeywords?: string;
     anchorImageId: string | null;
     anchorImageUrl: string | null;
     photoPending: boolean;

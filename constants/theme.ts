@@ -9,7 +9,7 @@ export const theme = {
     text: '#221C18',
     mutedText: '#6F625A',
     subtleText: '#9E8F85',
-    accent: '#B86B7C',
+    accent: '#A56A1F',
     danger: '#C95F4A',
   },
   fonts: {

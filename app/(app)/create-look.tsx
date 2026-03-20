@@ -14,6 +14,7 @@ export default function CreateLookScreen() {
           initialValue={{
             anchorItems: [],
             anchorItemDescription: '',
+            vibeKeywords: '',
             anchorImage: null,
             uploadedAnchorImage: null,
             photoPending: false,

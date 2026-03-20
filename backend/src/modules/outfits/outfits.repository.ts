@@ -157,6 +157,7 @@ export const outfitsRepository = {
             },
           ].filter((item) => item.description?.trim() || item.imageId || item.imageUrl),
         anchorItemDescription: rawResponse?.input?.anchorItemDescription ?? requestRecord.anchorItemDescription,
+        vibeKeywords: rawResponse?.input?.vibeKeywords ?? undefined,
         anchorImageId: requestRecord.anchorImageId ?? null,
         anchorImageUrl: requestRecord.anchorImageUrl,
         photoPending: requestRecord.photoPending,

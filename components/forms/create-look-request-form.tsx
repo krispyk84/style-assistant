@@ -64,6 +64,7 @@ export function CreateLookRequestForm({
   },
 }: CreateLookRequestFormProps) {
   const [anchorItems, setAnchorItems] = useState<LookAnchorItem[]>(() => buildInitialAnchorItems(initialValue));
+  const [vibeKeywords, setVibeKeywords] = useState(initialValue.vibeKeywords ?? '');
   const [selectedTiers, setSelectedTiers] = useState<LookTierSlug[]>(initialValue.selectedTiers);
   const [anchorError, setAnchorError] = useState<string | null>(null);
   const [tierError, setTierError] = useState<string | null>(null);
@@ -116,6 +117,7 @@ export function CreateLookRequestForm({
       params: buildLookRouteParams(requestId, {
         anchorItems: populatedAnchorItems,
         anchorItemDescription,
+        vibeKeywords: vibeKeywords.trim(),
         anchorImage: primaryAnchorItem?.image ?? null,
         uploadedAnchorImage: primaryAnchorItem?.uploadedImage ?? null,
         photoPending: !populatedAnchorItems.some((item) => item.image || item.uploadedImage),
@@ -154,6 +156,14 @@ export function CreateLookRequestForm({
       <FormField
         label="Outfit tiers"
         error={tierError ?? undefined}>
+        <TextInput
+          autoCapitalize="words"
+          onChangeText={setVibeKeywords}
+          placeholder='Optional vibe keywords, e.g. "Old Money" or "Resort"'
+          placeholderTextColor={theme.colors.subtleText}
+          style={inputStyle}
+          value={vibeKeywords}
+        />
         <View style={{ gap: spacing.sm }}>
           {LOOK_TIER_OPTIONS.map((tier) => {
             const isSelected = selectedTiers.includes(tier);
@@ -178,7 +188,7 @@ export function CreateLookRequestForm({
                         : 'Relaxed, clean, and off-duty.'}
                   </AppText>
                 </View>
-                <AppText tone={isSelected ? 'default' : 'muted'}>{isSelected ? 'Selected' : 'Tap to include'}</AppText>
+                {isSelected ? <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} /> : null}
               </Pressable>
             );
           })}

@@ -8,6 +8,7 @@ import { LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
 type LookRouteParams = {
   anchorItems?: string;
   anchorItemDescription?: string;
+  vibeKeywords?: string;
   photoPending?: string;
   tiers?: string;
   anchorImageUri?: string;
@@ -205,6 +206,7 @@ export function parseLookInput(params: LookRouteParams): CreateLookInput | null 
         .map((item) => item.description.trim())
         .filter(Boolean)
         .join(' • '),
+    vibeKeywords: params.vibeKeywords ?? '',
     photoPending: params.photoPending === 'true',
     selectedTiers,
     weatherContext: parseWeatherContext(params),
@@ -286,6 +288,7 @@ export function buildLookResultsHref(requestId: string, input: CreateLookInput):
       requestId,
       anchorItems: serializeAnchorItems(input.anchorItems),
       anchorItemDescription: input.anchorItemDescription,
+      vibeKeywords: input.vibeKeywords,
       photoPending: String(input.photoPending),
       tiers: input.selectedTiers.join(','),
       anchorImageUri: input.anchorImage?.uri,
@@ -317,6 +320,7 @@ export function buildLookRouteParams(requestId: string, input: CreateLookInput) 
     requestId,
     anchorItems: serializeAnchorItems(input.anchorItems),
     anchorItemDescription: input.anchorItemDescription,
+    vibeKeywords: input.vibeKeywords,
     photoPending: String(input.photoPending),
     tiers: input.selectedTiers.join(','),
     anchorImageUri: input.anchorImage?.uri,

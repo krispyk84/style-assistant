@@ -110,6 +110,7 @@ export const apiOutfitsService: OutfitsService = {
           imageUrl: item.uploadedImage?.publicUrl,
         })),
         anchorItemDescription: request.anchorItemDescription,
+        vibeKeywords: request.vibeKeywords?.trim() || undefined,
         anchorImageId: request.uploadedAnchorImage?.id,
         anchorImageUrl: request.uploadedAnchorImage?.publicUrl,
         photoPending: request.photoPending,

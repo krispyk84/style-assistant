@@ -14,12 +14,14 @@ import { spacing, theme } from '@/constants/theme';
 import { buildTierHref } from '@/lib/look-route';
 import { getNextSevenDays, loadWeekPlan, removeWeekPlan } from '@/lib/week-plan-storage';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
+import { loadNextSevenDayForecast, type WeekForecastDay } from '@/services/weather/current-weather-service';
 import type { WeekPlannedOutfit } from '@/types/style';
 
 export default function WeekScreen() {
   const [items, setItems] = useState<WeekPlannedOutfit[]>([]);
   const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [forecastByDay, setForecastByDay] = useState<Record<string, WeekForecastDay>>({});
   const isFocused = useIsFocused();
   const { showToast } = useToast();
 
@@ -27,10 +29,15 @@ export default function WeekScreen() {
     let isMounted = true;
 
     async function hydrate() {
-      const [nextItems, savedOutfits] = await Promise.all([loadWeekPlan(), loadSavedOutfits()]);
+      const [nextItems, savedOutfits, forecast] = await Promise.all([
+        loadWeekPlan(),
+        loadSavedOutfits(),
+        loadNextSevenDayForecast().catch(() => [] as WeekForecastDay[]),
+      ]);
       if (isMounted) {
         setItems(nextItems);
         setSavedOutfitIds(savedOutfits.map((item) => item.id));
+        setForecastByDay(Object.fromEntries(forecast.map((day) => [day.dayKey, day])));
       }
     }
 
@@ -68,6 +75,7 @@ export default function WeekScreen() {
         <SectionHeader title="Week" subtitle="Plan your next 7 days of outfits." />
         {days.map((day) => {
           const assignment = items.find((item) => item.dayKey === day.dayKey);
+          const forecast = forecastByDay[day.dayKey];
 
           if (!assignment) {
             return (
@@ -81,7 +89,15 @@ export default function WeekScreen() {
                   gap: spacing.xs,
                   padding: spacing.lg,
                 }}>
-                <AppText variant="sectionTitle">{day.dayLabel}</AppText>
+                <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <AppText variant="sectionTitle">{day.dayLabel}</AppText>
+                  {forecast ? (
+                    <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
+                      <Ionicons color={theme.colors.subtleText} name={weatherIconName(forecast.weatherCode)} size={16} />
+                      <AppText tone="muted">{`${Math.round(forecast.highTempC)}° / ${Math.round(forecast.lowTempC)}°C`}</AppText>
+                    </View>
+                  ) : null}
+                </View>
                 <AppText tone="muted">Nothing planned yet.</AppText>
               </View>
             );
@@ -108,7 +124,15 @@ export default function WeekScreen() {
                   padding: spacing.lg,
                 }}>
                 <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <AppText variant="sectionTitle">{day.dayLabel}</AppText>
+                  <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+                    <AppText variant="sectionTitle">{day.dayLabel}</AppText>
+                    {forecast ? (
+                      <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
+                        <Ionicons color={theme.colors.subtleText} name={weatherIconName(forecast.weatherCode)} size={16} />
+                        <AppText tone="muted">{`${Math.round(forecast.highTempC)}° / ${Math.round(forecast.lowTempC)}°C`}</AppText>
+                      </View>
+                    ) : null}
+                  </View>
                   <Pressable
                     hitSlop={8}
                     onPress={async (event) => {
@@ -187,4 +211,14 @@ function formatTierLabel(tier: WeekPlannedOutfit['recommendation']['tier']) {
   }
 
   return tier.charAt(0).toUpperCase() + tier.slice(1);
+}
+
+function weatherIconName(code: number): React.ComponentProps<typeof Ionicons>['name'] {
+  if (code === 0) return 'sunny-outline';
+  if ([1, 2, 3].includes(code)) return 'partly-sunny-outline';
+  if ([45, 48].includes(code)) return 'cloud-outline';
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 'rainy-outline';
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return 'snow-outline';
+  if ([95, 96, 99].includes(code)) return 'thunderstorm-outline';
+  return 'cloud-outline';
 }

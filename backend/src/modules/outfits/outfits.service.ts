@@ -202,6 +202,7 @@ export const outfitsService = {
       input: {
         anchorItems,
         anchorItemDescription: getCanonicalAnchorDescription(input),
+        vibeKeywords: input.vibeKeywords?.trim() || undefined,
         anchorImageId: input.anchorImageId ?? primaryUploadedAnchorImage?.id ?? null,
         anchorImageUrl: input.anchorImageUrl ?? primaryUploadedAnchorImage?.publicUrl ?? anchorItems[0]?.imageUrl ?? null,
         photoPending: input.photoPending,

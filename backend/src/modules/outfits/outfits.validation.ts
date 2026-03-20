@@ -16,6 +16,7 @@ export const generateOutfitsSchema = z.object({
     .max(5)
     .optional(),
   anchorItemDescription: z.string().default(''),
+  vibeKeywords: z.string().trim().max(160).optional(),
   anchorImageId: z.string().optional(),
   anchorImageUrl: z.string().url().optional(),
   photoPending: z.boolean(),

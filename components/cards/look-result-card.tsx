@@ -144,7 +144,7 @@ function TierSketch({ recommendation }: { recommendation: LookRecommendation }) 
             Rendering sketch...
           </AppText>
           <AppText tone="muted" style={{ textAlign: 'center' }}>
-            This tier illustration will appear automatically when it is ready.
+            This illustration will appear automatically when it is ready.
           </AppText>
         </View>
       </View>

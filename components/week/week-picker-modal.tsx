@@ -168,7 +168,7 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
                       {forecast ? (
                         <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
                           <Ionicons color={theme.colors.subtleText} name={weatherIconName(forecast.weatherCode)} size={16} />
-                          <AppText tone="muted">{`${Math.round(forecast.highTempC)}°C`}</AppText>
+                          <AppText tone="muted">{`${Math.round(forecast.highTempC)}° / ${Math.round(forecast.lowTempC)}°C`}</AppText>
                         </View>
                       ) : null}
                       <AppText tone="muted">{isAssigned ? 'Assigned' : 'Open'}</AppText>
