@@ -63,34 +63,61 @@ export function LoadingState({ label, messages }: LoadingStateProps) {
 
   return (
     <View
-      style={{
-        alignItems: 'center',
-        backgroundColor: theme.colors.surface,
-        borderColor: theme.colors.border,
-        borderRadius: 28,
-        borderWidth: 1,
-        padding: spacing.xl,
-        gap: spacing.md,
-      }}>
+      style={[
+        {
+          alignItems: 'center',
+          backgroundColor: theme.colors.surface,
+          borderRadius: theme.radius.lg,
+          padding: spacing.xxl,
+          gap: spacing.lg,
+        },
+        theme.shadows.sm,
+      ]}>
+      {/* Animated Icon */}
+      <View 
+        style={{ 
+          width: 64, 
+          height: 64, 
+          borderRadius: theme.radius.xl,
+          backgroundColor: theme.colors.accentLight,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <View 
+          style={{ 
+            width: 24, 
+            height: 24, 
+            borderRadius: theme.radius.full,
+            borderWidth: 3,
+            borderColor: theme.colors.accent,
+            borderTopColor: 'transparent',
+          }} 
+        />
+      </View>
+      
+      {/* Progress Bar */}
       <View
         style={{
-          backgroundColor: theme.colors.border,
-          borderRadius: 999,
-          height: 10,
+          backgroundColor: theme.colors.borderSubtle,
+          borderRadius: theme.radius.full,
+          height: 6,
           overflow: 'hidden',
           width: '100%',
+          maxWidth: 200,
         }}>
         <Animated.View
           style={{
             backgroundColor: theme.colors.accent,
-            borderRadius: 999,
+            borderRadius: theme.radius.full,
             height: '100%',
             transform: [{ translateX }],
-            width: 140,
+            width: 80,
           }}
         />
       </View>
-      <AppText tone="muted" style={{ textAlign: 'center' }}>
+      
+      {/* Label */}
+      <AppText variant="caption" tone="muted" style={{ textAlign: 'center' }}>
         {activeLabel}
       </AppText>
     </View>

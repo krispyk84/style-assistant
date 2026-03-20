@@ -2,30 +2,71 @@ import type { Theme } from '@react-navigation/native';
 
 export const theme = {
   colors: {
-    background: '#FCFAF7',
+    // Premium neutral palette with warm undertones
+    background: '#F8F6F3',
     surface: '#FFFFFF',
-    card: '#F5EDE8',
-    border: '#E8DED6',
-    text: '#221C18',
-    mutedText: '#6F625A',
-    subtleText: '#9E8F85',
-    accent: '#B86B7C',
-    danger: '#C95F4A',
+    surfaceElevated: '#FDFCFB',
+    card: '#FFFFFF',
+    border: '#E5E0DB',
+    borderSubtle: '#EFEBE7',
+    // Rich, sophisticated text colors
+    text: '#1A1614',
+    mutedText: '#6B5E56',
+    subtleText: '#9B8E85',
+    // Refined coral/terracotta accent
+    accent: '#D4785C',
+    accentLight: '#F5E6E0',
+    accentDark: '#B85A3F',
+    // Semantic colors
+    success: '#5B8A72',
+    successLight: '#E8F2ED',
+    danger: '#C45C4A',
+    dangerLight: '#F8EEEC',
   },
   fonts: {
-    sans: 'AvenirNext-Regular',
-    sansMedium: 'AvenirNext-DemiBold',
-    serif: 'Georgia-Bold',
+    sans: 'System',
+    sansMedium: 'System',
+    serif: 'Georgia',
+  },
+  shadows: {
+    sm: {
+      shadowColor: '#1A1614',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04,
+      shadowRadius: 3,
+      elevation: 1,
+    },
+    md: {
+      shadowColor: '#1A1614',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.06,
+      shadowRadius: 12,
+      elevation: 3,
+    },
+    lg: {
+      shadowColor: '#1A1614',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.08,
+      shadowRadius: 24,
+      elevation: 5,
+    },
+  },
+  radius: {
+    sm: 12,
+    md: 20,
+    lg: 28,
+    xl: 36,
+    full: 999,
   },
 } as const;
 
 export const spacing = {
   xs: 6,
-  sm: 10,
+  sm: 12,
   md: 16,
-  lg: 20,
-  xl: 28,
-  xxl: 36,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
 } as const;
 
 export const navTheme: Theme = {

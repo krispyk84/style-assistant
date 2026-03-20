@@ -73,36 +73,40 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
         onPress={onClose}
         style={{
           alignItems: 'center',
-          backgroundColor: 'rgba(24, 18, 14, 0.24)',
+          backgroundColor: 'rgba(26, 22, 20, 0.4)',
           flex: 1,
-          justifyContent: 'center',
+          justifyContent: 'flex-end',
           padding: spacing.lg,
         }}>
         <Pressable
           onPress={() => undefined}
-          style={{
-            backgroundColor: '#FFFDFC',
-            borderRadius: 28,
-            gap: spacing.md,
-            maxWidth: 420,
-            padding: spacing.lg,
-            width: '100%',
-          }}>
+          style={[
+            {
+              backgroundColor: theme.colors.surface,
+              borderRadius: theme.radius.xl,
+              gap: spacing.lg,
+              maxWidth: 420,
+              padding: spacing.lg,
+              width: '100%',
+            },
+            theme.shadows.lg,
+          ]}>
           {activeAssignment ? (
-            <View style={{ gap: spacing.md }}>
+            <View style={{ gap: spacing.lg }}>
               <SectionHeader
-                title="Replace planned outfit?"
-                subtitle="There's already an outfit assigned to that day. Are you sure you want to replace it?"
+                eyebrow="Confirmation"
+                title="Replace Outfit?"
+                subtitle="This day already has a planned outfit."
               />
               <View
-                style={{
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border,
-                  borderRadius: 22,
-                  borderWidth: 1,
-                  gap: spacing.md,
-                  padding: spacing.md,
-                }}>
+                style={[
+                  {
+                    backgroundColor: theme.colors.background,
+                    borderRadius: theme.radius.lg,
+                    gap: spacing.md,
+                    padding: spacing.md,
+                  },
+                ]}>
                 <AppText variant="sectionTitle">{activeAssignment.dayLabel}</AppText>
                 {activeAssignment.recommendation.sketchImageUrl ? (
                   <RemoteImagePanel
@@ -134,49 +138,67 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
             </View>
           ) : (
             <>
-              <SectionHeader title="Add to week" subtitle="Choose one of the next 7 days." />
-              {days.map((day) => {
-                const existingAssignment = assignedDays.find((item) => item.dayKey === day.dayKey);
-                const isAssigned = Boolean(existingAssignment);
-                const forecast = forecastByDay[day.dayKey];
+              <SectionHeader 
+                eyebrow="Week Planner"
+                title="Add to Week" 
+                subtitle="Choose a day for this outfit."
+              />
+              <View style={{ gap: spacing.sm }}>
+                {days.map((day) => {
+                  const existingAssignment = assignedDays.find((item) => item.dayKey === day.dayKey);
+                  const isAssigned = Boolean(existingAssignment);
+                  const forecast = forecastByDay[day.dayKey];
 
-                return (
-                  <Pressable
-                    key={day.dayKey}
-                    onPress={() => handleDayPress(day.dayKey, day.dayLabel)}
-                    style={{
-                      alignItems: 'center',
-                      backgroundColor: theme.colors.surface,
-                      borderColor: theme.colors.border,
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      flexDirection: 'row',
-                      gap: spacing.sm,
-                      justifyContent: 'space-between',
-                      minHeight: 54,
-                      paddingHorizontal: spacing.lg,
-                    }}>
-                    <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm, flex: 1 }}>
-                      <Ionicons
-                        color={isAssigned ? theme.colors.accent : theme.colors.subtleText}
-                        name={isAssigned ? 'calendar' : 'ellipse-outline'}
-                        size={18}
-                      />
-                      <AppText style={{ flexShrink: 1 }}>{day.dayLabel}</AppText>
-                    </View>
-                    <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-                      {forecast ? (
-                        <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-                          <Ionicons color={theme.colors.subtleText} name={weatherIconName(forecast.weatherCode)} size={16} />
-                          <AppText tone="muted">{`${Math.round(forecast.highTempC)}°C`}</AppText>
+                  return (
+                    <Pressable
+                      key={day.dayKey}
+                      onPress={() => handleDayPress(day.dayKey, day.dayLabel)}
+                      style={({ pressed }) => [
+                        {
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: isAssigned ? theme.colors.accentLight : theme.colors.background,
+                          borderRadius: theme.radius.md,
+                          minHeight: 56,
+                          paddingHorizontal: spacing.md,
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 }}>
+                        <View 
+                          style={{ 
+                            width: 40, 
+                            height: 40, 
+                            borderRadius: theme.radius.sm,
+                            backgroundColor: isAssigned ? theme.colors.accent : theme.colors.borderSubtle,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}>
+                          <Ionicons
+                            color={isAssigned ? theme.colors.surface : theme.colors.subtleText}
+                            name={isAssigned ? 'checkmark' : 'calendar-outline'}
+                            size={18}
+                          />
                         </View>
-                      ) : null}
-                      <AppText tone="muted">{isAssigned ? 'Assigned' : 'Open'}</AppText>
-                    </View>
-                  </Pressable>
-                );
-              })}
-              <PrimaryButton label="Cancel" onPress={onClose} variant="secondary" />
+                        <View>
+                          <AppText variant="sectionTitle">{day.dayLabel}</AppText>
+                          <AppText variant="caption" tone={isAssigned ? 'accent' : 'subtle'}>
+                            {isAssigned ? 'Has outfit' : 'Available'}
+                          </AppText>
+                        </View>
+                      </View>
+                      {forecast && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                          <Ionicons color={theme.colors.subtleText} name={weatherIconName(forecast.weatherCode)} size={16} />
+                          <AppText variant="caption" tone="muted">{`${Math.round(forecast.highTempC)}°`}</AppText>
+                        </View>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <PrimaryButton label="Cancel" onPress={onClose} variant="ghost" />
             </>
           )}
         </Pressable>

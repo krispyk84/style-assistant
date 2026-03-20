@@ -64,8 +64,13 @@ export default function WeekScreen() {
 
   return (
     <AppScreen scrollable>
-      <View style={{ gap: spacing.lg }}>
-        <SectionHeader title="Week" subtitle="Plan your next 7 days of outfits." />
+      <View style={{ gap: spacing.xl }}>
+        <SectionHeader 
+          eyebrow="Planning"
+          title="Your Week"
+          subtitle="Plan your outfits for the next 7 days."
+          variant="page"
+        />
         {days.map((day) => {
           const assignment = items.find((item) => item.dayKey === day.dayKey);
 
@@ -73,16 +78,33 @@ export default function WeekScreen() {
             return (
               <View
                 key={day.dayKey}
-                style={{
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border,
-                  borderRadius: 28,
-                  borderWidth: 1,
-                  gap: spacing.xs,
-                  padding: spacing.lg,
-                }}>
-                <AppText variant="sectionTitle">{day.dayLabel}</AppText>
-                <AppText tone="muted">Nothing planned yet.</AppText>
+                style={[
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderRadius: theme.radius.lg,
+                    padding: spacing.lg,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: spacing.md,
+                  },
+                  theme.shadows.sm,
+                ]}>
+                <View 
+                  style={{ 
+                    width: 48, 
+                    height: 48, 
+                    borderRadius: theme.radius.md,
+                    backgroundColor: theme.colors.borderSubtle,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                  <Ionicons name="calendar-outline" size={22} color={theme.colors.subtleText} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="sectionTitle">{day.dayLabel}</AppText>
+                  <AppText variant="caption" tone="subtle">No outfit planned</AppText>
+                </View>
+                <Ionicons name="add-circle-outline" size={24} color={theme.colors.subtleText} />
               </View>
             );
           }
@@ -99,70 +121,116 @@ export default function WeekScreen() {
               )}
               asChild>
               <Pressable
-                style={{
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border,
-                  borderRadius: 28,
-                  borderWidth: 1,
-                  gap: spacing.md,
-                  padding: spacing.lg,
-                }}>
-                <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <AppText variant="sectionTitle">{day.dayLabel}</AppText>
+                style={({ pressed }) => [
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderRadius: theme.radius.lg,
+                    overflow: 'hidden',
+                    opacity: pressed ? 0.95 : 1,
+                  },
+                  theme.shadows.md,
+                ]}>
+                {/* Header */}
+                <View 
+                  style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    padding: spacing.lg,
+                    borderBottomWidth: 1,
+                    borderBottomColor: theme.colors.borderSubtle,
+                  }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                    <View 
+                      style={{ 
+                        width: 40, 
+                        height: 40, 
+                        borderRadius: theme.radius.sm,
+                        backgroundColor: theme.colors.accentLight,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                      <Ionicons name="calendar" size={18} color={theme.colors.accent} />
+                    </View>
+                    <View>
+                      <AppText variant="sectionTitle">{day.dayLabel}</AppText>
+                      <AppText variant="meta" tone="accent">{formatTierLabel(assignment.recommendation.tier)}</AppText>
+                    </View>
+                  </View>
                   <Pressable
-                    hitSlop={8}
+                    hitSlop={12}
                     onPress={async (event) => {
                       event.stopPropagation();
                       setItems(await removeWeekPlan(day.dayKey));
-                    }}>
-                    <Ionicons color={theme.colors.danger} name="close" size={20} />
+                    }}
+                    style={({ pressed }) => ({
+                      width: 32,
+                      height: 32,
+                      borderRadius: theme.radius.full,
+                      backgroundColor: pressed ? theme.colors.dangerLight : theme.colors.borderSubtle,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    })}>
+                    <Ionicons color={theme.colors.danger} name="close" size={18} />
                   </Pressable>
                 </View>
-                {assignment.recommendation.sketchImageUrl ? (
-                  <RemoteImagePanel
-                    uri={assignment.recommendation.sketchImageUrl}
-                    aspectRatio={4 / 5}
-                    minHeight={220}
-                    fallbackTitle="Sketch unavailable"
-                    fallbackMessage="The planned illustration could not be displayed."
-                  />
-                ) : null}
-                <Pressable
-                  disabled={savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier))}
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    void handleSave(assignment);
-                  }}
-                  style={{
-                    alignItems: 'center',
-                    backgroundColor: savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier))
-                      ? theme.colors.border
-                      : theme.colors.card,
-                    borderColor: theme.colors.border,
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    flexDirection: 'row',
-                    gap: spacing.xs,
-                    justifyContent: 'center',
-                    minHeight: 48,
-                    paddingHorizontal: spacing.md,
-                  }}>
-                  <Ionicons
-                    color={theme.colors.text}
-                    name={savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier)) ? 'bookmark' : 'bookmark-outline'}
-                    size={18}
-                  />
-                  <AppText>
-                    {savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier))
-                      ? 'Saved'
-                      : savingId === buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier)
-                        ? 'Saving...'
-                        : 'Save outfit'}
-                  </AppText>
-                </Pressable>
-                <View style={{ gap: spacing.xs }}>
+                
+                {/* Image */}
+                {assignment.recommendation.sketchImageUrl && (
+                  <View style={{ padding: spacing.md }}>
+                    <RemoteImagePanel
+                      uri={assignment.recommendation.sketchImageUrl}
+                      aspectRatio={4 / 5}
+                      minHeight={200}
+                      fallbackTitle="Sketch unavailable"
+                      fallbackMessage="The planned illustration could not be displayed."
+                    />
+                  </View>
+                )}
+                
+                {/* Footer */}
+                <View style={{ padding: spacing.lg, gap: spacing.md }}>
                   <AppText variant="title">{assignment.recommendation.title}</AppText>
-                  <AppText tone="muted">{formatTierLabel(assignment.recommendation.tier)}</AppText>
+                  
+                  <Pressable
+                    disabled={savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier))}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      void handleSave(assignment);
+                    }}
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: spacing.xs,
+                      minHeight: 48,
+                      borderRadius: theme.radius.full,
+                      backgroundColor: savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier))
+                        ? theme.colors.successLight
+                        : theme.colors.accentLight,
+                      opacity: pressed ? 0.8 : 1,
+                    })}>
+                    <Ionicons
+                      color={savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier)) 
+                        ? theme.colors.success 
+                        : theme.colors.accent}
+                      name={savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier)) ? 'checkmark-circle' : 'heart-outline'}
+                      size={18}
+                    />
+                    <AppText 
+                      variant="meta"
+                      style={{ 
+                        color: savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier)) 
+                          ? theme.colors.success 
+                          : theme.colors.accent 
+                      }}>
+                      {savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier))
+                        ? 'Saved'
+                        : savingId === buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier)
+                          ? 'Saving...'
+                          : 'Save to Favorites'}
+                    </AppText>
+                  </Pressable>
                 </View>
               </Pressable>
             </Link>

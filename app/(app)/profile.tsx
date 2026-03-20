@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -27,41 +28,70 @@ export default function ProfileScreen() {
     <AppScreen scrollable>
       <View style={{ gap: spacing.xl }}>
         <SectionHeader
-          title="Profile"
-          subtitle="Review and edit the personal inputs that will drive future recommendations."
+          eyebrow="Your Profile"
+          title="Style Preferences"
+          subtitle="These inputs drive personalized outfit recommendations."
+          variant="page"
         />
         {isEditing ? (
-          <ProfileForm
-            initialValue={profile}
-            submitLabel="Save profile"
-            disabled={isSaving}
-            onSubmit={async (nextProfile) => {
-              await saveProfile(nextProfile, true);
-              setIsEditing(false);
-            }}
-          />
+          <View 
+            style={[
+              { 
+                backgroundColor: theme.colors.surface,
+                borderRadius: theme.radius.lg,
+                padding: spacing.lg,
+              },
+              theme.shadows.md,
+            ]}>
+            <ProfileForm
+              initialValue={profile}
+              submitLabel="Save Changes"
+              disabled={isSaving}
+              onSubmit={async (nextProfile) => {
+                await saveProfile(nextProfile, true);
+                setIsEditing(false);
+              }}
+            />
+          </View>
         ) : (
           <>
             <ProfileSummaryCard profile={profile} />
+            
             <View
-              style={{
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.border,
-                borderRadius: 28,
-                borderWidth: 1,
-                padding: spacing.lg,
-                gap: spacing.sm,
-              }}>
-              <AppText variant="sectionTitle">How it works</AppText>
-              <AppText tone="muted">
-                These values are saved through the backend and reused whenever the styling engine builds recommendations.
+              style={[
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderRadius: theme.radius.lg,
+                  padding: spacing.lg,
+                  gap: spacing.md,
+                },
+                theme.shadows.sm,
+              ]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <View 
+                  style={{ 
+                    width: 36, 
+                    height: 36, 
+                    borderRadius: theme.radius.sm,
+                    backgroundColor: theme.colors.successLight,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                  <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.success} />
+                </View>
+                <AppText variant="sectionTitle">Profile Active</AppText>
+              </View>
+              <AppText variant="caption" tone="muted">
+                Your style preferences are synced and will be used to generate personalized outfit recommendations.
               </AppText>
             </View>
+            
             <PrimaryButton
-              label="Edit profile"
+              label="Edit Profile"
+              icon="create-outline"
+              iconPosition="left"
               onPress={() => setIsEditing(true)}
               variant="secondary"
-              style={{ marginTop: spacing.sm }}
             />
           </>
         )}

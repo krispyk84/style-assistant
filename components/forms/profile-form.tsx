@@ -200,22 +200,32 @@ export function ProfileForm({
         />
       </FormField>
 
-      <View style={{ gap: spacing.sm }}>
-        <PrimaryButton disabled={disabled} label={disabled ? 'Saving...' : submitLabel} onPress={handleSubmit} />
-        <AppText tone="muted">Your profile is saved to the Vesture backend and used for personalized guidance.</AppText>
+      <View style={{ gap: spacing.md, marginTop: spacing.md }}>
+        <PrimaryButton 
+          disabled={disabled} 
+          label={disabled ? 'Saving...' : submitLabel} 
+          onPress={handleSubmit}
+          variant="accent"
+          size="large"
+          icon="checkmark-circle"
+          iconPosition="left"
+        />
+        <AppText variant="caption" tone="subtle" style={{ textAlign: 'center' }}>
+          Your profile is securely stored and used for personalized recommendations.
+        </AppText>
       </View>
     </View>
   );
 }
 
 const inputStyle = {
-  backgroundColor: theme.colors.surface,
+  backgroundColor: theme.colors.background,
   borderColor: theme.colors.border,
-  borderRadius: 18,
+  borderRadius: theme.radius.md,
   borderWidth: 1,
   color: theme.colors.text,
   fontFamily: theme.fonts.sans,
   fontSize: 16,
-  minHeight: 54,
+  minHeight: 52,
   paddingHorizontal: spacing.md,
 } as const;

@@ -7,46 +7,55 @@ type SegmentedControlProps<T extends string> = {
   options: readonly T[];
   value: T;
   onChange: (value: T) => void;
+  label?: string;
 };
 
-export function SegmentedControl<T extends string>({ options, value, onChange }: SegmentedControlProps<T>) {
+export function SegmentedControl<T extends string>({ options, value, onChange, label }: SegmentedControlProps<T>) {
   return (
-    <View
-      style={{
-        backgroundColor: theme.colors.surface,
-        borderColor: theme.colors.border,
-        borderRadius: 20,
-        borderWidth: 1,
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.sm,
-        padding: spacing.xs,
-      }}>
-      {options.map((option) => {
-        const isActive = option === value;
+    <View style={{ gap: spacing.sm }}>
+      {label && <AppText variant="eyebrow" tone="subtle">{label}</AppText>}
+      <View
+        style={[
+          {
+            backgroundColor: theme.colors.borderSubtle,
+            borderRadius: theme.radius.lg,
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: spacing.xs,
+            padding: spacing.xs,
+          },
+        ]}>
+        {options.map((option) => {
+          const isActive = option === value;
 
-        return (
-          <Pressable
-            key={option}
-            onPress={() => onChange(option)}
-            style={{
-              backgroundColor: isActive ? theme.colors.text : 'transparent',
-              borderRadius: 16,
-              minHeight: 40,
-              justifyContent: 'center',
-              paddingHorizontal: spacing.md,
-              paddingVertical: 10,
-            }}>
-            <AppText
-              style={{
-                color: isActive ? theme.colors.background : theme.colors.text,
-                textTransform: 'capitalize',
-              }}>
-              {option.replaceAll('-', ' ')}
-            </AppText>
-          </Pressable>
-        );
-      })}
+          return (
+            <Pressable
+              key={option}
+              onPress={() => onChange(option)}
+              style={({ pressed }) => [
+                {
+                  backgroundColor: isActive ? theme.colors.surface : 'transparent',
+                  borderRadius: theme.radius.md,
+                  minHeight: 44,
+                  flex: 1,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.sm,
+                  opacity: pressed && !isActive ? 0.7 : 1,
+                },
+                isActive && theme.shadows.sm,
+              ]}>
+              <AppText
+                variant="sectionTitle"
+                tone={isActive ? 'default' : 'muted'}
+                style={{ textTransform: 'capitalize', fontSize: 14 }}>
+                {option.replaceAll('-', ' ')}
+              </AppText>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }

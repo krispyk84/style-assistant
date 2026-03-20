@@ -10,5 +10,5 @@ type ErrorStateProps = {
 };
 
 export function ErrorState(props: ErrorStateProps) {
-  return <EmptyState {...props} />;
+  return <EmptyState {...props} icon="alert-circle-outline" />;
 }

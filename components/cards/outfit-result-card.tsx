@@ -26,81 +26,104 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek }: OutfitResult
 
   return (
     <View
-      style={{
-        backgroundColor: theme.colors.surface,
-        borderColor: theme.colors.border,
-        borderRadius: 28,
-        borderWidth: 1,
-        padding: spacing.lg,
-        gap: spacing.md,
-      }}>
-      <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md, justifyContent: 'space-between' }}>
-        <View style={{ flex: 1, gap: spacing.xs }}>
-          <AppText variant="meta">
-            {formatTierLabel(result.recommendation.tier)} tier
-          </AppText>
-          <AppText tone="subtle">Saved {formatSavedAt(result.savedAt)}</AppText>
-        </View>
-        {onDelete ? (
-          <Pressable
-            accessibilityLabel="Delete saved outfit"
-            hitSlop={10}
-            onPress={onDelete}
-            style={{
+      style={[
+        {
+          backgroundColor: theme.colors.surface,
+          borderRadius: theme.radius.lg,
+          overflow: 'hidden',
+        },
+        theme.shadows.md,
+      ]}>
+      {/* Header */}
+      <View 
+        style={{ 
+          flexDirection: 'row', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          padding: spacing.lg,
+          borderBottomWidth: 1,
+          borderBottomColor: theme.colors.borderSubtle,
+        }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <View 
+            style={{ 
+              width: 36, 
+              height: 36, 
+              borderRadius: theme.radius.sm,
+              backgroundColor: theme.colors.accentLight,
               alignItems: 'center',
               justifyContent: 'center',
-              minHeight: 36,
-              minWidth: 36,
             }}>
-            <Ionicons color={theme.colors.danger} name="trash-outline" size={20} />
+            <Ionicons name="heart" size={16} color={theme.colors.accent} />
+          </View>
+          <View>
+            <AppText variant="meta" tone="accent">
+              {formatTierLabel(result.recommendation.tier)}
+            </AppText>
+            <AppText variant="caption" tone="subtle">Saved {formatSavedAt(result.savedAt)}</AppText>
+          </View>
+        </View>
+        {onDelete && (
+          <Pressable
+            accessibilityLabel="Delete saved outfit"
+            hitSlop={12}
+            onPress={onDelete}
+            style={({ pressed }) => ({
+              width: 36,
+              height: 36,
+              borderRadius: theme.radius.full,
+              backgroundColor: pressed ? theme.colors.dangerLight : theme.colors.borderSubtle,
+              alignItems: 'center',
+              justifyContent: 'center',
+            })}>
+            <Ionicons color={theme.colors.danger} name="trash-outline" size={18} />
           </Pressable>
-        ) : null}
+        )}
       </View>
 
+      {/* Content */}
       <Link href={detailHref} asChild>
-        <Pressable
-        style={{
-          gap: spacing.md,
-          width: '100%',
-        }}>
-        {sketchUri ? (
-          <RemoteImagePanel
-            uri={sketchUri}
-            aspectRatio={4 / 5}
-            minHeight={220}
-            fallbackTitle="Sketch unavailable"
-            fallbackMessage="The saved illustration could not be displayed."
-          />
-        ) : null}
-        <View style={{ gap: spacing.xs }}>
-          <AppText style={{ flexShrink: 1, width: '100%' }} variant="title">
-            {result.recommendation.title}
-          </AppText>
-          <AppText numberOfLines={1} tone="muted">
-            {result.input.anchorItemDescription || result.recommendation.anchorItem}
-          </AppText>
-        </View>
+        <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.95 : 1 })}>
+          {sketchUri && (
+            <View style={{ padding: spacing.md }}>
+              <RemoteImagePanel
+                uri={sketchUri}
+                aspectRatio={4 / 5}
+                minHeight={200}
+                fallbackTitle="Sketch unavailable"
+                fallbackMessage="The saved illustration could not be displayed."
+              />
+            </View>
+          )}
+          <View style={{ padding: spacing.lg, paddingTop: sketchUri ? 0 : spacing.lg, gap: spacing.xs }}>
+            <AppText variant="title">{result.recommendation.title}</AppText>
+            <AppText variant="caption" numberOfLines={1} tone="muted">
+              {result.input.anchorItemDescription || result.recommendation.anchorItem}
+            </AppText>
+          </View>
         </Pressable>
       </Link>
-      {onAddToWeek ? (
-        <Pressable
-          onPress={onAddToWeek}
-          style={{
-            alignItems: 'center',
-            backgroundColor: theme.colors.card,
-            borderColor: theme.colors.border,
-            borderRadius: 999,
-            borderWidth: 1,
-            flexDirection: 'row',
-            gap: spacing.xs,
-            justifyContent: 'center',
-            minHeight: 48,
-            paddingHorizontal: spacing.md,
-          }}>
-          <Ionicons color={theme.colors.text} name="calendar-outline" size={18} />
-          <AppText>Add to week</AppText>
-        </Pressable>
-      ) : null}
+      
+      {/* Footer Actions */}
+      {onAddToWeek && (
+        <View style={{ padding: spacing.lg, paddingTop: 0 }}>
+          <Pressable
+            onPress={onAddToWeek}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: spacing.sm,
+              minHeight: 48,
+              borderRadius: theme.radius.full,
+              backgroundColor: theme.colors.accentLight,
+              opacity: pressed ? 0.8 : 1,
+            })}>
+            <Ionicons color={theme.colors.accent} name="calendar-outline" size={18} />
+            <AppText variant="meta" tone="accent">Add to Week</AppText>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
