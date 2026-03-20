@@ -9,8 +9,17 @@ function uploadWithProgress(input: {
   onProgress?: (progress: number) => void;
 }): Promise<ApiResponse<UploadImageResponse>> {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (response: ApiResponse<UploadImageResponse>) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(response);
+    };
+
     if (!appConfig.apiBaseUrl) {
-      resolve({
+      finish({
         success: false,
         data: null,
         error: {
@@ -42,7 +51,7 @@ function uploadWithProgress(input: {
     };
 
     xhr.onerror = () => {
-      resolve({
+      finish({
         success: false,
         data: null,
         error: {
@@ -53,7 +62,7 @@ function uploadWithProgress(input: {
     };
 
     xhr.ontimeout = () => {
-      resolve({
+      finish({
         success: false,
         data: null,
         error: {
@@ -64,16 +73,41 @@ function uploadWithProgress(input: {
     };
 
     xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        finish({
+          success: false,
+          data: null,
+          error: {
+            code: 'UPLOAD_FAILED',
+            message: 'Image upload failed.',
+          },
+        });
+        return;
+      }
+
       try {
         const parsed = JSON.parse(xhr.responseText) as ApiResponse<UploadImageResponse>;
-        resolve(parsed);
+        finish(parsed);
       } catch {
-        resolve({
+        finish({
           success: false,
           data: null,
           error: {
             code: 'UPLOAD_RESPONSE_INVALID',
             message: 'Upload response could not be parsed.',
+          },
+        });
+      }
+    };
+
+    xhr.onloadend = () => {
+      if (!settled) {
+        finish({
+          success: false,
+          data: null,
+          error: {
+            code: 'UPLOAD_INCOMPLETE',
+            message: 'Image upload did not finish correctly. Please try again.',
           },
         });
       }

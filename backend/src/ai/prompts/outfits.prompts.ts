@@ -10,6 +10,7 @@ export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[]
     'Return only structured JSON matching the provided schema.',
     `Return only the requested tier recommendations in this order: ${selectedTiers.join(', ')}.`,
     'Anchor the recommendations to the provided item or image evidence.',
+    'If vibe keywords are provided, treat them as a strong creative direction for silhouette, styling references, palette, detailing, and overall attitude while still honoring the selected tier.',
     'If no image is provided, rely only on the text description and profile context.',
     'Do not mention missing information, policy, or the schema in the output.',
   ].join(' ');
@@ -46,6 +47,7 @@ export function buildGenerateOutfitsUserPrompt(
       : '- currentSeason: unavailable',
     `Return recommendations only for: ${input.selectedTiers.join(', ')}.`,
     'Each recommendation should include a specific title, anchor item wording, key pieces, shoes, accessories, fit notes, why it works, styling direction, and detail notes.',
+    'When vibe keywords are present, visibly reflect them in the recommendations instead of treating them as secondary decoration.',
     'Use only the season to influence fabric weight, layering, palette, and overall styling direction. Do not infer extra constraints from current weather conditions.',
     'If the season is summer and the profile says prefer-trousers for summer bottoms, keep recommending longer bottoms instead of shorts.',
   ].join('\n');
@@ -58,6 +60,7 @@ export function buildRegenerateTierInstructions() {
     'Return only structured JSON matching the schema.',
     'Generate only the requested tier.',
     'The new recommendation must stay faithful to the anchor item and overall wardrobe direction while being materially different from the previous version.',
+    'If vibe keywords were provided, keep them prominent in the regenerated outfit.',
     'Do not repeat the previous title or the exact same key pieces.',
   ].join(' ');
 }
@@ -102,6 +105,7 @@ export function buildRegenerateTierUserPrompt(input: {
         ].join('\n')
       : 'There is no previous recommendation for the requested tier.',
     'Return one new recommendation for the requested tier only.',
+    'Make the vibe keywords materially visible in the regenerated outfit if they were provided.',
     'Use only the season to shape the styling update. Do not treat current weather details as constraints.',
   ].join('\n');
 }

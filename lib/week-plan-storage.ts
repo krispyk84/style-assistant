@@ -126,3 +126,9 @@ export async function removeWeekPlan(dayKey: string) {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
   return nextItems;
 }
+
+export async function replaceWeekPlan(items: WeekPlannedOutfit[]) {
+  const normalizedItems = items.map(normalizeWeekPlannedOutfit).filter((item) => isFutureWeekDay(item.dayKey));
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedItems));
+  return normalizedItems;
+}

@@ -41,7 +41,7 @@ export function BrandSplash({ subtitle, messages }: BrandSplashProps) {
           width: '100%',
         }}>
         <Image
-          source={require('../../logo.png')}
+          source={require('../../assets/images/icon.png')}
           style={{
             height: 220,
             maxWidth: 220,

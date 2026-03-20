@@ -13,14 +13,8 @@ export function useUploadedImage(category: UploadedImageCategory, initialImage: 
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
 
   async function uploadSelectedImage(nextImage: LocalImageAsset | null) {
-
     if (!nextImage) {
       return;
-    }
-
-    if (uploadedImage) {
-      await uploadsService.deleteUpload(uploadedImage.id);
-      setUploadedImage(null);
     }
 
     setIsUploading(true);
@@ -28,22 +22,36 @@ export function useUploadedImage(category: UploadedImageCategory, initialImage: 
     setUploadError(null);
     setUploadSuccessMessage(null);
 
-    const response = await uploadsService.uploadImage({
-      image: nextImage,
-      category,
-      onProgress: setUploadProgress,
-    });
+    try {
+      if (uploadedImage) {
+        try {
+          await uploadsService.deleteUpload(uploadedImage.id);
+        } catch {
+          // Ignore stale-upload cleanup failures and continue with the new upload.
+        }
+        setUploadedImage(null);
+      }
 
-    if (response.success && response.data) {
-      setUploadedImage(response.data);
-      setUploadProgress(1);
-      setUploadSuccessMessage('Upload complete.');
-    } else {
+      const response = await uploadsService.uploadImage({
+        image: nextImage,
+        category,
+        onProgress: setUploadProgress,
+      });
+
+      if (response.success && response.data) {
+        setUploadedImage(response.data);
+        setUploadProgress(1);
+        setUploadSuccessMessage('Upload complete.');
+      } else {
+        setUploadProgress(0);
+        setUploadError(response.error?.message ?? 'Image upload failed.');
+      }
+    } catch {
       setUploadProgress(0);
-      setUploadError(response.error?.message ?? 'Image upload failed.');
+      setUploadError('Image upload failed.');
+    } finally {
+      setIsUploading(false);
     }
-
-    setIsUploading(false);
   }
 
   async function pickAndUpload() {

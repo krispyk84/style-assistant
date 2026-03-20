@@ -153,9 +153,7 @@ export function CreateLookRequestForm({
         </View>
       </FormField>
 
-      <FormField
-        label="Outfit tiers"
-        error={tierError ?? undefined}>
+      <FormField label="Vibe Keywords">
         <TextInput
           autoCapitalize="words"
           onChangeText={setVibeKeywords}
@@ -164,6 +162,11 @@ export function CreateLookRequestForm({
           style={inputStyle}
           value={vibeKeywords}
         />
+      </FormField>
+
+      <FormField
+        label="Outfit tiers"
+        error={tierError ?? undefined}>
         <View style={{ gap: spacing.sm }}>
           {LOOK_TIER_OPTIONS.map((tier) => {
             const isSelected = selectedTiers.includes(tier);
@@ -188,7 +191,7 @@ export function CreateLookRequestForm({
                         : 'Relaxed, clean, and off-duty.'}
                   </AppText>
                 </View>
-                {isSelected ? <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} /> : null}
+                {isSelected ? <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} /> : <View style={{ width: 22 }} />}
               </Pressable>
             );
           })}

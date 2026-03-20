@@ -29,6 +29,19 @@ export function RemoteImagePanel({
     setIsLoading(Boolean(uri));
   }, [uri]);
 
+  useEffect(() => {
+    if (!uri || !isLoading) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setHasError(true);
+      setIsLoading(false);
+    }, 8000);
+
+    return () => clearTimeout(timeout);
+  }, [uri, isLoading]);
+
   if (!uri || hasError) {
     return (
       <FallbackCard

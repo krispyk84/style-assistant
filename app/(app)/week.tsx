@@ -12,8 +12,9 @@ import { useToast } from '@/components/ui/toast-provider';
 import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
 import { spacing, theme } from '@/constants/theme';
 import { buildTierHref } from '@/lib/look-route';
-import { getNextSevenDays, loadWeekPlan, removeWeekPlan } from '@/lib/week-plan-storage';
+import { getNextSevenDays, loadWeekPlan, removeWeekPlan, replaceWeekPlan } from '@/lib/week-plan-storage';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
+import { outfitsService } from '@/services/outfits';
 import { loadNextSevenDayForecast, type WeekForecastDay } from '@/services/weather/current-weather-service';
 import type { WeekPlannedOutfit } from '@/types/style';
 
@@ -34,11 +35,38 @@ export default function WeekScreen() {
         loadSavedOutfits(),
         loadNextSevenDayForecast().catch(() => [] as WeekForecastDay[]),
       ]);
+
+      const refreshedItems = await Promise.all(
+        nextItems.map(async (item) => {
+          const response = await outfitsService.getOutfitResult(item.requestId);
+
+          if (!response.success || !response.data) {
+            return item;
+          }
+
+          const latestRecommendation = response.data.recommendations.find(
+            (recommendation) => recommendation.tier === item.recommendation.tier
+          );
+
+          if (!latestRecommendation) {
+            return item;
+          }
+
+          return {
+            ...item,
+            input: response.data.input,
+            recommendation: latestRecommendation,
+          };
+        })
+      );
+
       if (isMounted) {
-        setItems(nextItems);
+        setItems(refreshedItems);
         setSavedOutfitIds(savedOutfits.map((item) => item.id));
         setForecastByDay(Object.fromEntries(forecast.map((day) => [day.dayKey, day])));
       }
+
+      await replaceWeekPlan(refreshedItems);
     }
 
     void hydrate();
