@@ -1,26 +1,23 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View } from 'react-native';
 
 import { LookResultCard } from '@/components/cards/look-result-card';
 import { LookRequestReviewCard } from '@/components/cards/look-request-review-card';
 import { AppScreen } from '@/components/ui/app-screen';
-import { AppText } from '@/components/ui/app-text';
 import { ErrorState } from '@/components/ui/error-state';
-import { LoadingState } from '@/components/ui/loading-state';
+import { LoadingState, extendedFashionLoadingMessages } from '@/components/ui/loading-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
 import { SectionHeader } from '@/components/ui/section-header';
+import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { useToast } from '@/components/ui/toast-provider';
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
-import { assignOutfitToWeekDay, getNextSevenDays, loadWeekPlan } from '@/lib/week-plan-storage';
+import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
 import { buildTierHref, parseLookInput } from '@/lib/look-route';
 import type { GenerateOutfitsResponse } from '@/types/api';
 import { outfitsService } from '@/services/outfits';
 import type { LookTierSlug } from '@/types/look-request';
-import type { WeekPlannedOutfit } from '@/types/style';
 
 export default function ResultDetailsScreen() {
   const params = useLocalSearchParams<{
@@ -288,15 +285,7 @@ export default function ResultDetailsScreen() {
       <AppScreen topInset={false}>
         <LoadingState
           label="Generating outfit options..."
-          messages={[
-            'Tailoring your next great outfit.',
-            'Pressing lapels and polishing loafers.',
-            'Arguing softly with the imaginary stylist in Milan.',
-            'Checking whether this deserves a compliment at dinner.',
-            'Steaming the lookbook and adjusting the hem.',
-            'Making sure the outfit says effortless, not accidental.',
-            'Deciding how much swagger is appropriate here.',
-          ]}
+          messages={extendedFashionLoadingMessages}
         />
       </AppScreen>
     );
@@ -353,170 +342,4 @@ export default function ResultDetailsScreen() {
       />
     </AppScreen>
   );
-}
-
-function WeekPickerModal({
-  visible,
-  onClose,
-  onSelectDay,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onSelectDay: (dayKey: string, dayLabel: string) => void;
-}) {
-  const days = getNextSevenDays();
-  const [assignedDays, setAssignedDays] = useState<WeekPlannedOutfit[]>([]);
-  const [replacementCandidate, setReplacementCandidate] = useState<WeekPlannedOutfit | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function hydrateWeekPlan() {
-      const items = await loadWeekPlan();
-
-      if (isMounted) {
-        setAssignedDays(items);
-      }
-    }
-
-    if (visible) {
-      void hydrateWeekPlan();
-      setReplacementCandidate(null);
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [visible]);
-
-  const activeAssignment = replacementCandidate
-    ? assignedDays.find((item) => item.dayKey === replacementCandidate.dayKey) ?? replacementCandidate
-    : null;
-
-  function handleDayPress(dayKey: string, dayLabel: string) {
-    const existingAssignment = assignedDays.find((item) => item.dayKey === dayKey);
-
-    if (existingAssignment) {
-      setReplacementCandidate(existingAssignment);
-      return;
-    }
-
-    onSelectDay(dayKey, dayLabel);
-  }
-
-  return (
-    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
-        style={{
-          alignItems: 'center',
-          backgroundColor: 'rgba(24, 18, 14, 0.24)',
-          flex: 1,
-          justifyContent: 'center',
-          padding: spacing.lg,
-        }}>
-        <Pressable
-          onPress={() => undefined}
-          style={{
-            backgroundColor: '#FFFDFC',
-            borderRadius: 28,
-            gap: spacing.md,
-            maxWidth: 420,
-            padding: spacing.lg,
-            width: '100%',
-          }}>
-          {activeAssignment ? (
-            <View style={{ gap: spacing.md }}>
-              <SectionHeader
-                title="Replace planned outfit?"
-                subtitle="There's already an outfit assigned to that day. Are you sure you want to replace it?"
-              />
-              <View
-                style={{
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border,
-                  borderRadius: 22,
-                  borderWidth: 1,
-                  gap: spacing.md,
-                  padding: spacing.md,
-                }}>
-                <AppText variant="sectionTitle">{activeAssignment.dayLabel}</AppText>
-                {activeAssignment.recommendation.sketchImageUrl ? (
-                  <RemoteImagePanel
-                    uri={activeAssignment.recommendation.sketchImageUrl}
-                    aspectRatio={4 / 5}
-                    minHeight={180}
-                    fallbackTitle="Sketch unavailable"
-                    fallbackMessage="The assigned illustration could not be displayed."
-                  />
-                ) : null}
-                <View style={{ gap: spacing.xs }}>
-                  <AppText variant="sectionTitle">{activeAssignment.recommendation.title}</AppText>
-                  <AppText tone="muted">{formatTierLabel(activeAssignment.recommendation.tier)}</AppText>
-                </View>
-              </View>
-              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                <PrimaryButton
-                  label="No"
-                  onPress={() => setReplacementCandidate(null)}
-                  style={{ flex: 1 }}
-                  variant="secondary"
-                />
-                <PrimaryButton
-                  label="Yes"
-                  onPress={() => onSelectDay(activeAssignment.dayKey, activeAssignment.dayLabel)}
-                  style={{ flex: 1 }}
-                />
-              </View>
-            </View>
-          ) : (
-            <>
-              <SectionHeader title="Add to week" subtitle="Choose one of the next 7 days." />
-              {days.map((day) => {
-                const existingAssignment = assignedDays.find((item) => item.dayKey === day.dayKey);
-                const isAssigned = Boolean(existingAssignment);
-
-                return (
-                  <Pressable
-                    key={day.dayKey}
-                    onPress={() => handleDayPress(day.dayKey, day.dayLabel)}
-                    style={{
-                      alignItems: 'center',
-                      backgroundColor: theme.colors.surface,
-                      borderColor: theme.colors.border,
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      flexDirection: 'row',
-                      gap: spacing.sm,
-                      justifyContent: 'space-between',
-                      minHeight: 54,
-                      paddingHorizontal: spacing.lg,
-                    }}>
-                    <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-                      <Ionicons
-                        color={isAssigned ? theme.colors.accent : theme.colors.subtleText}
-                        name={isAssigned ? 'calendar' : 'ellipse-outline'}
-                        size={18}
-                      />
-                      <AppText>{day.dayLabel}</AppText>
-                    </View>
-                    <AppText tone="muted">{isAssigned ? 'Assigned' : 'Open'}</AppText>
-                  </Pressable>
-                );
-              })}
-              <PrimaryButton label="Cancel" onPress={onClose} variant="secondary" />
-            </>
-          )}
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-function formatTierLabel(tier: LookTierSlug) {
-  if (tier === 'smart-casual') {
-    return 'Smart Casual';
-  }
-
-  return tier.charAt(0).toUpperCase() + tier.slice(1);
 }

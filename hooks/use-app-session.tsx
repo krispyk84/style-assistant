@@ -17,7 +17,7 @@ type AppSessionValue = {
 };
 
 const AppSessionContext = createContext<AppSessionValue | null>(null);
-const APP_RELAUNCH_RESET_MS = 1000 * 3;
+const APP_RELAUNCH_RESET_MS = 1000 * 30;
 
 export function AppSessionProvider({ children }: PropsWithChildren) {
   const [profile, setProfile] = useState(defaultProfile);

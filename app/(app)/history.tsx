@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 
 import { OutfitResultCard } from '@/components/cards/outfit-result-card';
+import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { AppScreen } from '@/components/ui/app-screen';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
@@ -11,6 +12,7 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
 import { deleteSavedOutfit, loadSavedOutfits, replaceSavedOutfits } from '@/lib/saved-outfits-storage';
+import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
 import { outfitsService } from '@/services/outfits';
 import type { SavedOutfit } from '@/types/style';
 
@@ -19,6 +21,7 @@ export default function HistoryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [weekPickerItem, setWeekPickerItem] = useState<SavedOutfit | null>(null);
   const isFocused = useIsFocused();
   const { showToast } = useToast();
 
@@ -105,6 +108,27 @@ export default function HistoryScreen() {
     setDeletingId(null);
   }
 
+  async function handleAssignToWeek(dayKey: string, dayLabel: string) {
+    if (!weekPickerItem) {
+      return;
+    }
+
+    try {
+      await assignOutfitToWeekDay(
+        dayKey,
+        dayLabel,
+        weekPickerItem.input,
+        weekPickerItem.recommendation,
+        weekPickerItem.requestId
+      );
+      showToast(`Added to ${dayLabel}.`);
+    } catch {
+      showToast('Could not add this outfit to your week.', 'error');
+    }
+
+    setWeekPickerItem(null);
+  }
+
   return (
     <AppScreen scrollable>
       <View style={{ gap: spacing.lg }}>
@@ -121,6 +145,7 @@ export default function HistoryScreen() {
             <OutfitResultCard
               key={result.id}
               result={result}
+              onAddToWeek={() => setWeekPickerItem(result)}
               onDelete={deletingId === result.id ? undefined : () => void handleDelete(result.id)}
             />
           ))
@@ -133,6 +158,11 @@ export default function HistoryScreen() {
           />
         )}
       </View>
+      <WeekPickerModal
+        visible={Boolean(weekPickerItem)}
+        onClose={() => setWeekPickerItem(null)}
+        onSelectDay={handleAssignToWeek}
+      />
     </AppScreen>
   );
 }

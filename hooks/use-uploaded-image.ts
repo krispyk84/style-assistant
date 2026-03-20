@@ -36,8 +36,10 @@ export function useUploadedImage(category: UploadedImageCategory, initialImage: 
 
     if (response.success && response.data) {
       setUploadedImage(response.data);
+      setUploadProgress(1);
       setUploadSuccessMessage('Upload complete.');
     } else {
+      setUploadProgress(0);
       setUploadError(response.error?.message ?? 'Image upload failed.');
     }
 

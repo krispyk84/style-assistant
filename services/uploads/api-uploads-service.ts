@@ -33,10 +33,11 @@ function uploadWithProgress(input: {
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${appConfig.apiBaseUrl}/uploads`);
+    xhr.timeout = 45000;
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && input.onProgress) {
-        input.onProgress(event.loaded / event.total);
+        input.onProgress(Math.min(event.loaded / event.total, 0.95));
       }
     };
 
@@ -47,6 +48,17 @@ function uploadWithProgress(input: {
         error: {
           code: 'UPLOAD_FAILED',
           message: 'Image upload failed.',
+        },
+      });
+    };
+
+    xhr.ontimeout = () => {
+      resolve({
+        success: false,
+        data: null,
+        error: {
+          code: 'UPLOAD_TIMEOUT',
+          message: 'Image upload took too long. Please try again.',
         },
       });
     };

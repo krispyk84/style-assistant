@@ -11,9 +11,10 @@ import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
 type OutfitResultCardProps = {
   result: SavedOutfit;
   onDelete?: () => void;
+  onAddToWeek?: () => void;
 };
 
-export function OutfitResultCard({ result, onDelete }: OutfitResultCardProps) {
+export function OutfitResultCard({ result, onDelete, onAddToWeek }: OutfitResultCardProps) {
   const sketchUri = result.recommendation.sketchImageUrl;
   const detailHref = buildTierHref(
     result.recommendation.tier,
@@ -81,6 +82,25 @@ export function OutfitResultCard({ result, onDelete }: OutfitResultCardProps) {
         </View>
         </Pressable>
       </Link>
+      {onAddToWeek ? (
+        <Pressable
+          onPress={onAddToWeek}
+          style={{
+            alignItems: 'center',
+            backgroundColor: theme.colors.card,
+            borderColor: theme.colors.border,
+            borderRadius: 999,
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.xs,
+            justifyContent: 'center',
+            minHeight: 48,
+            paddingHorizontal: spacing.md,
+          }}>
+          <Ionicons color={theme.colors.text} name="calendar-outline" size={18} />
+          <AppText>Add to week</AppText>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

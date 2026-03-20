@@ -8,6 +8,17 @@ type OpenMeteoResponse = {
     apparent_temperature: number;
     weather_code: number;
   };
+  daily?: {
+    time: string[];
+    weather_code: number[];
+    temperature_2m_max: number[];
+  };
+};
+
+export type WeekForecastDay = {
+  dayKey: string;
+  weatherCode: number;
+  highTempC: number;
 };
 
 function getSeason(date = new Date()): WeatherSeason {
@@ -112,4 +123,39 @@ export async function loadCurrentWeather(): Promise<WeatherContext> {
     locationLabel: formatLocationLabel(address),
     fetchedAt: new Date().toISOString(),
   };
+}
+
+export async function loadNextSevenDayForecast(): Promise<WeekForecastDay[]> {
+  const permission = await Location.requestForegroundPermissionsAsync();
+
+  if (!permission.granted) {
+    throw new Error('Location permission was not granted.');
+  }
+
+  const position = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Balanced,
+  });
+
+  const weatherResponse = await fetch(
+    `https://api.open-meteo.com/v1/forecast?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}&daily=weather_code,temperature_2m_max&forecast_days=8&timezone=auto`
+  );
+
+  if (!weatherResponse.ok) {
+    throw new Error('Weather service unavailable.');
+  }
+
+  const payload = (await weatherResponse.json()) as OpenMeteoResponse;
+  const daily = payload.daily;
+
+  if (!daily) {
+    throw new Error('Forecast data is unavailable.');
+  }
+
+  return daily.time
+    .map((dayKey, index) => ({
+      dayKey,
+      weatherCode: daily.weather_code[index],
+      highTempC: daily.temperature_2m_max[index],
+    }))
+    .slice(1, 8);
 }

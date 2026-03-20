@@ -2,21 +2,63 @@ import { createApiClient } from '@/lib/api/api-client';
 import { mockOutfitsService } from '@/services/outfits/mock-outfits-service';
 import type { OutfitsService } from '@/services/outfits/outfits-service';
 import type { GenerateOutfitsResponse, OutfitHistoryResponse } from '@/types/api';
+import type { LookAnchorItem } from '@/types/look-request';
+
+type RawAnchorItem = {
+  description?: string;
+  imageId?: string;
+  imageUrl?: string;
+};
+
+function normalizeAnchorItems(response: GenerateOutfitsResponse): LookAnchorItem[] {
+  const rawAnchorItems = (Array.isArray(response.input.anchorItems) ? response.input.anchorItems : []) as RawAnchorItem[];
+
+  if (rawAnchorItems.length) {
+    return rawAnchorItems.map((item, index) => ({
+      id: `anchor-${index + 1}`,
+      description: item.description ?? '',
+      image: item.imageUrl
+        ? {
+            uri: item.imageUrl,
+            fileName: undefined,
+            mimeType: undefined,
+            width: undefined,
+            height: undefined,
+          }
+        : null,
+      uploadedImage:
+        item.imageId && item.imageUrl
+          ? {
+              id: item.imageId,
+              category: 'anchor-item',
+              storageProvider: 'local',
+              storageKey: '',
+              publicUrl: item.imageUrl,
+              originalFilename: null,
+              mimeType: null,
+              sizeBytes: null,
+              width: null,
+              height: null,
+              createdAt: new Date().toISOString(),
+            }
+          : null,
+    }));
+  }
+
+  return [
+    {
+      id: 'anchor-primary',
+      description: response.input.anchorItemDescription,
+      image: response.input.anchorImage,
+      uploadedImage: response.input.uploadedAnchorImage,
+    },
+  ].filter((item) => item.description.trim() || item.image || item.uploadedImage);
+}
 
 function normalizeOutfitResponse(response: GenerateOutfitsResponse): GenerateOutfitsResponse {
   const anchorImageUrl = (response as any)?.input?.anchorImageUrl as string | null | undefined;
   const anchorImageId = (response as any)?.input?.anchorImageId as string | null | undefined;
-  const anchorItems =
-    response.input.anchorItems?.length
-      ? response.input.anchorItems
-      : [
-          {
-            id: 'anchor-primary',
-            description: response.input.anchorItemDescription,
-            image: response.input.anchorImage,
-            uploadedImage: response.input.uploadedAnchorImage,
-          },
-        ].filter((item) => item.description.trim() || item.image || item.uploadedImage);
+  const anchorItems = normalizeAnchorItems(response);
 
   return {
     ...response,
