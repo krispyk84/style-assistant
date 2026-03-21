@@ -50,7 +50,7 @@ export default function ResultDetailsScreen() {
   const [response, setResponse] = useState<GenerateOutfitsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [regeneratingTier, setRegeneratingTier] = useState<LookTierSlug | null>(null);
+  const [regeneratingTiers, setRegeneratingTiers] = useState<LookTierSlug[]>([]);
   const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
   const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
   const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
@@ -218,18 +218,46 @@ export default function ResultDetailsScreen() {
       return;
     }
 
-    setRegeneratingTier(tier);
+    setRegeneratingTiers((current) => (current.includes(tier) ? current : [...current, tier]));
     setErrorMessage(null);
+    setResponse((current) =>
+      current
+        ? {
+            ...current,
+            recommendations: current.recommendations.map((item) =>
+              item.tier === tier
+                ? {
+                    ...item,
+                    sketchStatus: 'pending',
+                    sketchImageUrl: null,
+                  }
+                : item
+            ),
+          }
+        : current
+    );
 
     const serviceResponse = await outfitsService.regenerateTier(response.requestId, tier);
 
     if (!serviceResponse.success || !serviceResponse.data) {
       setErrorMessage(serviceResponse.error?.message ?? 'Failed to regenerate this tier.');
     } else {
-      setResponse(serviceResponse.data);
+      const nextRecommendation = serviceResponse.data.recommendations.find((item) => item.tier === tier);
+
+      setResponse((current) => {
+        if (!current || !nextRecommendation || !serviceResponse.data) {
+          return serviceResponse.data;
+        }
+
+        return {
+          ...current,
+          input: serviceResponse.data.input,
+          recommendations: current.recommendations.map((item) => (item.tier === tier ? nextRecommendation : item)),
+        };
+      });
     }
 
-    setRegeneratingTier(null);
+    setRegeneratingTiers((current) => current.filter((item) => item !== tier));
   }
 
   async function handleSave(tier: LookTierSlug) {
@@ -320,7 +348,7 @@ export default function ResultDetailsScreen() {
             key={`${recommendation.tier}-${recommendation.title}`}
             recommendation={recommendation}
             onRegenerate={() => void handleRegenerate(recommendation.tier)}
-            isRegenerating={regeneratingTier === recommendation.tier}
+            isRegenerating={regeneratingTiers.includes(recommendation.tier)}
             isSaved={savedOutfitIds.includes(buildSavedOutfitId(response.requestId, recommendation.tier))}
             isSaving={savingTier === recommendation.tier}
             onSave={() => void handleSave(recommendation.tier)}

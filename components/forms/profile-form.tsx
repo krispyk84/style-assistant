@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { spacing, theme } from '@/constants/theme';
 import { defaultProfile } from '@/lib/default-profile';
@@ -27,6 +28,14 @@ type ProfileFormProps = {
 };
 
 type WeightUnit = 'kg' | 'lbs';
+type PickerFieldKey =
+  | 'gender'
+  | 'fitPreference'
+  | 'stylePreference'
+  | 'budget'
+  | 'hairColor'
+  | 'skinTone'
+  | 'summerBottomPreference';
 
 function kilogramsToPounds(value: string) {
   const numeric = Number(value);
@@ -58,6 +67,7 @@ export function ProfileForm({
   const [weightUnit, setWeightUnit] = useState<WeightUnit>('kg');
   const [weightValue, setWeightValue] = useState(initialValue.weightKg);
   const [errors, setErrors] = useState<ProfileValidationErrors>({});
+  const [pickerField, setPickerField] = useState<PickerFieldKey | null>(null);
 
   useEffect(() => {
     setProfile(initialValue);
@@ -113,10 +123,58 @@ export function ProfileForm({
     });
   }
 
+  const pickerConfigs = useMemo(
+    () => ({
+      gender: {
+        label: 'Gender',
+        options: GENDER_OPTIONS,
+        value: profile.gender,
+        onChange: (value: string) => updateField('gender', value as Profile['gender']),
+      },
+      fitPreference: {
+        label: 'Fit preference',
+        options: FIT_PREFERENCE_OPTIONS,
+        value: profile.fitPreference,
+        onChange: (value: string) => updateField('fitPreference', value as Profile['fitPreference']),
+      },
+      stylePreference: {
+        label: 'Style preference',
+        options: STYLE_PREFERENCE_OPTIONS,
+        value: profile.stylePreference,
+        onChange: (value: string) => updateField('stylePreference', value as Profile['stylePreference']),
+      },
+      budget: {
+        label: 'Budget',
+        options: BUDGET_OPTIONS,
+        value: profile.budget,
+        onChange: (value: string) => updateField('budget', value as Profile['budget']),
+      },
+      hairColor: {
+        label: 'Hair color',
+        options: HAIR_COLOR_OPTIONS,
+        value: profile.hairColor,
+        onChange: (value: string) => updateField('hairColor', value as Profile['hairColor']),
+      },
+      skinTone: {
+        label: 'Skin tone',
+        options: SKIN_TONE_OPTIONS,
+        value: profile.skinTone,
+        onChange: (value: string) => updateField('skinTone', value as Profile['skinTone']),
+      },
+      summerBottomPreference: {
+        label: 'Warm weather bottoms',
+        options: SUMMER_BOTTOM_OPTIONS,
+        value: profile.summerBottomPreference,
+        onChange: (value: string) => updateField('summerBottomPreference', value as Profile['summerBottomPreference']),
+      },
+    }),
+    [profile]
+  );
+
   return (
     <View style={{ gap: spacing.xl }}>
       <FormField label="Gender" hint="Used to tailor fit and style guidance.">
-        <SegmentedControl options={GENDER_OPTIONS} value={profile.gender} onChange={(value) => updateField('gender', value)} />
+        <PickerField value={profile.gender} onPress={() => setPickerField('gender')} />
       </FormField>
 
       <FormField label="Height" hint="Enter your height in centimeters." error={errors.heightCm as string | undefined}>
@@ -145,47 +203,27 @@ export function ProfileForm({
       </FormField>
 
       <FormField label="Fit preference" hint="How you want clothes to sit on the body.">
-        <SegmentedControl
-          options={FIT_PREFERENCE_OPTIONS}
-          value={profile.fitPreference}
-          onChange={(value) => updateField('fitPreference', value)}
-        />
+        <PickerField value={profile.fitPreference} onPress={() => setPickerField('fitPreference')} />
       </FormField>
 
       <FormField label="Style preference" hint="Pick the closest overall direction.">
-        <SegmentedControl
-          options={STYLE_PREFERENCE_OPTIONS}
-          value={profile.stylePreference}
-          onChange={(value) => updateField('stylePreference', value)}
-        />
+        <PickerField value={profile.stylePreference} onPress={() => setPickerField('stylePreference')} />
       </FormField>
 
       <FormField label="Budget" hint="Helps future recommendations stay realistic.">
-        <SegmentedControl options={BUDGET_OPTIONS} value={profile.budget} onChange={(value) => updateField('budget', value)} />
+        <PickerField value={profile.budget} onPress={() => setPickerField('budget')} />
       </FormField>
 
       <FormField label="Hair color" hint="Useful for palette and contrast cues.">
-        <SegmentedControl
-          options={HAIR_COLOR_OPTIONS}
-          value={profile.hairColor}
-          onChange={(value) => updateField('hairColor', value)}
-        />
+        <PickerField value={profile.hairColor} onPress={() => setPickerField('hairColor')} />
       </FormField>
 
       <FormField label="Skin tone" hint="Used later for color guidance.">
-        <SegmentedControl
-          options={SKIN_TONE_OPTIONS}
-          value={profile.skinTone}
-          onChange={(value) => updateField('skinTone', value)}
-        />
+        <PickerField value={profile.skinTone} onPress={() => setPickerField('skinTone')} />
       </FormField>
 
       <FormField label="Warm weather bottoms" hint="Choose whether summer looks can include shorts or should stay with longer bottoms.">
-        <SegmentedControl
-          options={SUMMER_BOTTOM_OPTIONS}
-          value={profile.summerBottomPreference}
-          onChange={(value) => updateField('summerBottomPreference', value)}
-        />
+        <PickerField value={profile.summerBottomPreference} onPress={() => setPickerField('summerBottomPreference')} />
       </FormField>
 
       <FormField label="Notes" hint="Optional context like profession, climate, or wardrobe pain points." error={errors.notes as string | undefined}>
@@ -204,7 +242,82 @@ export function ProfileForm({
         <PrimaryButton disabled={disabled} label={disabled ? 'Saving...' : submitLabel} onPress={handleSubmit} />
         <AppText tone="muted">Your profile is saved to the Vesture backend and used for personalized guidance.</AppText>
       </View>
+
+      <PickerModal
+        visible={Boolean(pickerField)}
+        title={pickerField ? pickerConfigs[pickerField].label : ''}
+        options={pickerField ? pickerConfigs[pickerField].options : []}
+        value={pickerField ? pickerConfigs[pickerField].value : ''}
+        onClose={() => setPickerField(null)}
+        onSelect={(value) => {
+          if (!pickerField) {
+            return;
+          }
+
+          pickerConfigs[pickerField].onChange(value);
+          setPickerField(null);
+        }}
+      />
     </View>
+  );
+}
+
+function PickerField({ value, onPress }: { value: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={pickerFieldStyle}>
+      <AppText style={{ textTransform: 'capitalize' }}>{value.replaceAll('-', ' ')}</AppText>
+      <Ionicons color={theme.colors.subtleText} name="chevron-down" size={18} />
+    </Pressable>
+  );
+}
+
+function PickerModal({
+  visible,
+  title,
+  options,
+  value,
+  onClose,
+  onSelect,
+}: {
+  visible: boolean;
+  title: string;
+  options: readonly string[];
+  value: string;
+  onClose: () => void;
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+      <Pressable onPress={onClose} style={modalOverlayStyle}>
+        <Pressable onPress={(event) => event.stopPropagation()} style={modalCardStyle}>
+          <View style={{ gap: spacing.xs }}>
+            <AppText variant="title">{title}</AppText>
+            <AppText tone="muted">Choose the option that fits you best.</AppText>
+          </View>
+          <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ gap: spacing.sm }}>
+            {options.map((option) => {
+              const isSelected = option === value;
+
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => onSelect(option)}
+                  style={[
+                    pickerOptionStyle,
+                    { borderColor: isSelected ? theme.colors.accent : theme.colors.border },
+                  ]}>
+                  <AppText style={{ textTransform: 'capitalize' }}>{option.replaceAll('-', ' ')}</AppText>
+                  {isSelected ? <Ionicons color={theme.colors.accent} name="checkmark-circle" size={20} /> : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <Pressable onPress={onClose} style={pickerOptionStyle}>
+            <AppText>Cancel</AppText>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -217,5 +330,48 @@ const inputStyle = {
   fontFamily: theme.fonts.sans,
   fontSize: 16,
   minHeight: 54,
+  paddingHorizontal: spacing.md,
+} as const;
+
+const pickerFieldStyle = {
+  alignItems: 'center',
+  backgroundColor: theme.colors.surface,
+  borderColor: theme.colors.border,
+  borderRadius: 18,
+  borderWidth: 1,
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  minHeight: 54,
+  paddingHorizontal: spacing.md,
+} as const;
+
+const modalOverlayStyle = {
+  alignItems: 'center',
+  backgroundColor: 'rgba(24, 20, 16, 0.25)',
+  flex: 1,
+  justifyContent: 'center',
+  padding: spacing.lg,
+} as const;
+
+const modalCardStyle = {
+  backgroundColor: theme.colors.background,
+  borderColor: theme.colors.border,
+  borderRadius: 24,
+  borderWidth: 1,
+  gap: spacing.lg,
+  maxWidth: 420,
+  padding: spacing.lg,
+  width: '100%',
+} as const;
+
+const pickerOptionStyle = {
+  alignItems: 'center',
+  backgroundColor: theme.colors.surface,
+  borderColor: theme.colors.border,
+  borderRadius: 18,
+  borderWidth: 1,
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  minHeight: 52,
   paddingHorizontal: spacing.md,
 } as const;
