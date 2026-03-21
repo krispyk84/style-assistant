@@ -1,6 +1,8 @@
 import { View } from 'react-native';
 
 import { spacing, theme } from '@/constants/theme';
+import { useAppSession } from '@/hooks/use-app-session';
+import { formatTemperature } from '@/lib/temperature-format';
 import { AppText } from '@/components/ui/app-text';
 import type { WeatherContext } from '@/types/weather';
 
@@ -11,6 +13,8 @@ type WeatherCardProps = {
 };
 
 export function WeatherCard({ weather, isLoading = false, errorMessage }: WeatherCardProps) {
+  const { profile } = useAppSession();
+
   return (
     <View
       style={{
@@ -27,7 +31,8 @@ export function WeatherCard({ weather, isLoading = false, errorMessage }: Weathe
       ) : weather ? (
         <>
           <AppText variant="title">
-            {Math.round(weather.temperatureC)}°C{weather.locationLabel ? ` · ${weather.locationLabel}` : ''}
+            {formatTemperature(weather.temperatureC, profile.temperatureUnit)}
+            {weather.locationLabel ? ` · ${weather.locationLabel}` : ''}
           </AppText>
           <AppText tone="muted">
             {weather.summary} • {weather.season.charAt(0).toUpperCase() + weather.season.slice(1)}

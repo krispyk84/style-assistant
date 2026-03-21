@@ -5,6 +5,7 @@ export const BUDGET_OPTIONS = ['budget', 'mid-range', 'premium', 'luxury'] as co
 export const HAIR_COLOR_OPTIONS = ['black', 'brown', 'blonde', 'red', 'gray', 'other'] as const;
 export const SKIN_TONE_OPTIONS = ['fair', 'light', 'medium', 'olive', 'deep'] as const;
 export const SUMMER_BOTTOM_OPTIONS = ['shorts-ok', 'prefer-trousers'] as const;
+export const TEMPERATURE_UNIT_OPTIONS = ['celsius', 'fahrenheit'] as const;
 
 export type Gender = (typeof GENDER_OPTIONS)[number];
 export type FitPreference = (typeof FIT_PREFERENCE_OPTIONS)[number];
@@ -13,6 +14,7 @@ export type BudgetPreference = (typeof BUDGET_OPTIONS)[number];
 export type HairColor = (typeof HAIR_COLOR_OPTIONS)[number];
 export type SkinTone = (typeof SKIN_TONE_OPTIONS)[number];
 export type SummerBottomPreference = (typeof SUMMER_BOTTOM_OPTIONS)[number];
+export type TemperatureUnit = (typeof TEMPERATURE_UNIT_OPTIONS)[number];
 
 export type Profile = {
   gender: Gender;
@@ -24,6 +26,7 @@ export type Profile = {
   hairColor: HairColor;
   skinTone: SkinTone;
   summerBottomPreference: SummerBottomPreference;
+  temperatureUnit: TemperatureUnit;
   notes: string;
 };
 

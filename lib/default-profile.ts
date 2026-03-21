@@ -10,5 +10,6 @@ export const defaultProfile: Profile = {
   hairColor: 'brown',
   skinTone: 'olive',
   summerBottomPreference: 'prefer-trousers',
+  temperatureUnit: 'celsius',
   notes: '',
 };

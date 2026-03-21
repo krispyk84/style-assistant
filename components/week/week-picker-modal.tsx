@@ -7,6 +7,8 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
 import { SectionHeader } from '@/components/ui/section-header';
 import { spacing, theme } from '@/constants/theme';
+import { useAppSession } from '@/hooks/use-app-session';
+import { formatTemperatureRange } from '@/lib/temperature-format';
 import { getNextSevenDays, loadWeekPlan } from '@/lib/week-plan-storage';
 import { loadNextSevenDayForecast, type WeekForecastDay } from '@/services/weather/current-weather-service';
 import type { WeekPlannedOutfit } from '@/types/style';
@@ -22,6 +24,7 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
   const [assignedDays, setAssignedDays] = useState<WeekPlannedOutfit[]>([]);
   const [replacementCandidate, setReplacementCandidate] = useState<WeekPlannedOutfit | null>(null);
   const [forecastByDay, setForecastByDay] = useState<Record<string, WeekForecastDay>>({});
+  const { profile } = useAppSession();
 
   useEffect(() => {
     let isMounted = true;
@@ -31,12 +34,13 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
         loadWeekPlan(),
         loadNextSevenDayForecast().catch(() => [] as WeekForecastDay[]),
       ]);
+      const validDayKeys = new Set(days.map((day) => day.dayKey));
 
       if (!isMounted) {
         return;
       }
 
-      setAssignedDays(items);
+      setAssignedDays(items.filter((item) => validDayKeys.has(item.dayKey)));
       setForecastByDay(
         Object.fromEntries(forecast.map((day) => [day.dayKey, day]))
       );
@@ -50,7 +54,7 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
     return () => {
       isMounted = false;
     };
-  }, [visible]);
+  }, [days, visible]);
 
   const activeAssignment = replacementCandidate
     ? assignedDays.find((item) => item.dayKey === replacementCandidate.dayKey) ?? replacementCandidate
@@ -168,7 +172,7 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
                       {forecast ? (
                         <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
                           <Ionicons color={theme.colors.subtleText} name={weatherIconName(forecast.weatherCode)} size={16} />
-                          <AppText tone="muted">{`${Math.round(forecast.highTempC)}° / ${Math.round(forecast.lowTempC)}°C`}</AppText>
+                          <AppText tone="muted">{formatTemperatureRange(forecast.highTempC, forecast.lowTempC, profile.temperatureUnit)}</AppText>
                         </View>
                       ) : null}
                       <AppText tone="muted">{isAssigned ? 'Assigned' : 'Open'}</AppText>

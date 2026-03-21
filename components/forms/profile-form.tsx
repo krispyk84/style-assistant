@@ -14,6 +14,7 @@ import {
   SKIN_TONE_OPTIONS,
   STYLE_PREFERENCE_OPTIONS,
   SUMMER_BOTTOM_OPTIONS,
+  TEMPERATURE_UNIT_OPTIONS,
 } from '@/types/profile';
 import { AppText } from '@/components/ui/app-text';
 import { FormField } from '@/components/ui/form-field';
@@ -35,7 +36,8 @@ type PickerFieldKey =
   | 'budget'
   | 'hairColor'
   | 'skinTone'
-  | 'summerBottomPreference';
+  | 'summerBottomPreference'
+  | 'temperatureUnit';
 
 function kilogramsToPounds(value: string) {
   const numeric = Number(value);
@@ -167,6 +169,12 @@ export function ProfileForm({
         value: profile.summerBottomPreference,
         onChange: (value: string) => updateField('summerBottomPreference', value as Profile['summerBottomPreference']),
       },
+      temperatureUnit: {
+        label: 'Temperature unit',
+        options: TEMPERATURE_UNIT_OPTIONS,
+        value: profile.temperatureUnit,
+        onChange: (value: string) => updateField('temperatureUnit', value as Profile['temperatureUnit']),
+      },
     }),
     [profile]
   );
@@ -224,6 +232,10 @@ export function ProfileForm({
 
       <FormField label="Warm weather bottoms" hint="Choose whether summer looks can include shorts or should stay with longer bottoms.">
         <PickerField value={profile.summerBottomPreference} onPress={() => setPickerField('summerBottomPreference')} />
+      </FormField>
+
+      <FormField label="Temperature unit" hint="Use your preferred unit wherever temperatures appear in the app.">
+        <PickerField value={profile.temperatureUnit} onPress={() => setPickerField('temperatureUnit')} />
       </FormField>
 
       <FormField label="Notes" hint="Optional context like profession, climate, or wardrobe pain points." error={errors.notes as string | undefined}>

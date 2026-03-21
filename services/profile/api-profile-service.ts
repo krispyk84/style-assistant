@@ -14,6 +14,7 @@ type BackendProfileDto = {
   hairColor: string;
   skinTone: string;
   summerBottomPreference: string;
+  temperatureUnit: string;
   notes: string | null;
   onboardingCompleted: boolean;
 };
@@ -29,6 +30,7 @@ function toProfile(dto: BackendProfileDto): Profile {
     hairColor: dto.hairColor as Profile['hairColor'],
     skinTone: dto.skinTone as Profile['skinTone'],
     summerBottomPreference: dto.summerBottomPreference as Profile['summerBottomPreference'],
+    temperatureUnit: (dto.temperatureUnit as Profile['temperatureUnit']) ?? 'celsius',
     notes: dto.notes ?? '',
   };
 }
@@ -79,6 +81,7 @@ export const apiProfileService: ProfileService = {
         hairColor: request.profile.hairColor,
         skinTone: request.profile.skinTone,
         summerBottomPreference: request.profile.summerBottomPreference,
+        temperatureUnit: request.profile.temperatureUnit,
         notes: request.profile.notes,
         onboardingCompleted: request.onboardingCompleted,
       },

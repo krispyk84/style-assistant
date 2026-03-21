@@ -242,19 +242,8 @@ export default function ResultDetailsScreen() {
     if (!serviceResponse.success || !serviceResponse.data) {
       setErrorMessage(serviceResponse.error?.message ?? 'Failed to regenerate this tier.');
     } else {
-      const nextRecommendation = serviceResponse.data.recommendations.find((item) => item.tier === tier);
-
-      setResponse((current) => {
-        if (!current || !nextRecommendation || !serviceResponse.data) {
-          return serviceResponse.data;
-        }
-
-        return {
-          ...current,
-          input: serviceResponse.data.input,
-          recommendations: current.recommendations.map((item) => (item.tier === tier ? nextRecommendation : item)),
-        };
-      });
+      const latestResponse = await outfitsService.getOutfitResult(response.requestId);
+      setResponse(latestResponse.success && latestResponse.data ? latestResponse.data : serviceResponse.data);
     }
 
     setRegeneratingTiers((current) => current.filter((item) => item !== tier));

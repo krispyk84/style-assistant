@@ -10,6 +10,7 @@ export const upsertProfileSchema = z.object({
   hairColor: z.string().min(1),
   skinTone: z.string().min(1),
   summerBottomPreference: z.string().min(1),
+  temperatureUnit: z.string().min(1),
   notes: z.string().max(240).optional(),
   onboardingCompleted: z.boolean(),
 });

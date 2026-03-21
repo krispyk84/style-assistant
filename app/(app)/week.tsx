@@ -14,9 +14,11 @@ import { spacing, theme } from '@/constants/theme';
 import { buildTierHref } from '@/lib/look-route';
 import { getNextSevenDays, loadWeekPlan, removeWeekPlan, replaceWeekPlan } from '@/lib/week-plan-storage';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
+import { formatTemperatureRange } from '@/lib/temperature-format';
 import { outfitsService } from '@/services/outfits';
 import { loadNextSevenDayForecast, type WeekForecastDay } from '@/services/weather/current-weather-service';
 import type { WeekPlannedOutfit } from '@/types/style';
+import { useAppSession } from '@/hooks/use-app-session';
 
 export default function WeekScreen() {
   const [items, setItems] = useState<WeekPlannedOutfit[]>([]);
@@ -25,6 +27,7 @@ export default function WeekScreen() {
   const [forecastByDay, setForecastByDay] = useState<Record<string, WeekForecastDay>>({});
   const isFocused = useIsFocused();
   const { showToast } = useToast();
+  const { profile } = useAppSession();
 
   useEffect(() => {
     let isMounted = true;
@@ -120,9 +123,9 @@ export default function WeekScreen() {
                 <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
                   <AppText variant="sectionTitle">{day.dayLabel}</AppText>
                   {forecast ? (
-                    <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-                      <Ionicons color={theme.colors.subtleText} name={weatherIconName(forecast.weatherCode)} size={16} />
-                      <AppText tone="muted">{`${Math.round(forecast.highTempC)}° / ${Math.round(forecast.lowTempC)}°C`}</AppText>
+                      <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
+                        <Ionicons color={theme.colors.subtleText} name={weatherIconName(forecast.weatherCode)} size={16} />
+                      <AppText tone="muted">{formatTemperatureRange(forecast.highTempC, forecast.lowTempC, profile.temperatureUnit)}</AppText>
                     </View>
                   ) : null}
                 </View>
@@ -157,7 +160,7 @@ export default function WeekScreen() {
                     {forecast ? (
                       <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
                         <Ionicons color={theme.colors.subtleText} name={weatherIconName(forecast.weatherCode)} size={16} />
-                        <AppText tone="muted">{`${Math.round(forecast.highTempC)}° / ${Math.round(forecast.lowTempC)}°C`}</AppText>
+                        <AppText tone="muted">{formatTemperatureRange(forecast.highTempC, forecast.lowTempC, profile.temperatureUnit)}</AppText>
                       </View>
                     ) : null}
                   </View>
