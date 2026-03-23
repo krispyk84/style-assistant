@@ -5,7 +5,7 @@ import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 import type { WeatherContext, WeatherSeason } from '@/types/weather';
 import { LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
 
-type LookRouteParams = {
+export type LookRouteParams = {
   anchorItems?: string;
   anchorItemDescription?: string;
   vibeKeywords?: string;
@@ -284,34 +284,7 @@ export function parseLookRecommendation(
 export function buildLookResultsHref(requestId: string, input: CreateLookInput): Href {
   return {
     pathname: '/results/[requestId]',
-    params: {
-      requestId,
-      anchorItems: serializeAnchorItems(input.anchorItems),
-      anchorItemDescription: input.anchorItemDescription,
-      vibeKeywords: input.vibeKeywords,
-      photoPending: String(input.photoPending),
-      tiers: input.selectedTiers.join(','),
-      anchorImageUri: input.anchorImage?.uri,
-      anchorImageWidth: input.anchorImage?.width ? String(input.anchorImage.width) : undefined,
-      anchorImageHeight: input.anchorImage?.height ? String(input.anchorImage.height) : undefined,
-      anchorImageFileName: input.anchorImage?.fileName ?? undefined,
-      anchorImageMimeType: input.anchorImage?.mimeType ?? undefined,
-      uploadedAnchorImageId: input.uploadedAnchorImage?.id,
-      uploadedAnchorImageCategory: input.uploadedAnchorImage?.category,
-      uploadedAnchorImageStorageProvider: input.uploadedAnchorImage?.storageProvider,
-      uploadedAnchorImageStorageKey: input.uploadedAnchorImage?.storageKey,
-      uploadedAnchorImagePublicUrl: input.uploadedAnchorImage?.publicUrl,
-      uploadedAnchorImageOriginalFilename: input.uploadedAnchorImage?.originalFilename ?? undefined,
-      uploadedAnchorImageSizeBytes: input.uploadedAnchorImage?.sizeBytes ? String(input.uploadedAnchorImage.sizeBytes) : undefined,
-      weatherTemperatureC: input.weatherContext ? String(input.weatherContext.temperatureC) : undefined,
-      weatherApparentTemperatureC: input.weatherContext ? String(input.weatherContext.apparentTemperatureC) : undefined,
-      weatherCode: input.weatherContext ? String(input.weatherContext.weatherCode) : undefined,
-      weatherSeason: input.weatherContext?.season,
-      weatherSummary: input.weatherContext?.summary,
-      weatherStylingHint: input.weatherContext?.stylingHint,
-      weatherLocationLabel: input.weatherContext?.locationLabel ?? undefined,
-      weatherFetchedAt: input.weatherContext?.fetchedAt,
-    },
+    params: buildLookRouteParams(requestId, input),
   };
 }
 
@@ -350,37 +323,13 @@ export function buildTierHref(
   tier: LookTierSlug,
   requestId: string,
   input: CreateLookInput,
-  recommendation: LookRecommendation,
-  variantIndex: number
+  recommendation: LookRecommendation
 ): Href {
   return {
     pathname: '/tier/[tier]',
     params: {
       tier,
-      requestId,
-      anchorItems: serializeAnchorItems(input.anchorItems),
-      anchorItemDescription: input.anchorItemDescription,
-      photoPending: String(input.photoPending),
-      anchorImageUri: input.anchorImage?.uri,
-      anchorImageWidth: input.anchorImage?.width ? String(input.anchorImage.width) : undefined,
-      anchorImageHeight: input.anchorImage?.height ? String(input.anchorImage.height) : undefined,
-      anchorImageFileName: input.anchorImage?.fileName ?? undefined,
-      anchorImageMimeType: input.anchorImage?.mimeType ?? undefined,
-      uploadedAnchorImageId: input.uploadedAnchorImage?.id,
-      uploadedAnchorImageCategory: input.uploadedAnchorImage?.category,
-      uploadedAnchorImageStorageProvider: input.uploadedAnchorImage?.storageProvider,
-      uploadedAnchorImageStorageKey: input.uploadedAnchorImage?.storageKey,
-      uploadedAnchorImagePublicUrl: input.uploadedAnchorImage?.publicUrl,
-      uploadedAnchorImageOriginalFilename: input.uploadedAnchorImage?.originalFilename ?? undefined,
-      uploadedAnchorImageSizeBytes: input.uploadedAnchorImage?.sizeBytes ? String(input.uploadedAnchorImage.sizeBytes) : undefined,
-      weatherTemperatureC: input.weatherContext ? String(input.weatherContext.temperatureC) : undefined,
-      weatherApparentTemperatureC: input.weatherContext ? String(input.weatherContext.apparentTemperatureC) : undefined,
-      weatherCode: input.weatherContext ? String(input.weatherContext.weatherCode) : undefined,
-      weatherSeason: input.weatherContext?.season,
-      weatherSummary: input.weatherContext?.summary,
-      weatherStylingHint: input.weatherContext?.stylingHint,
-      weatherLocationLabel: input.weatherContext?.locationLabel ?? undefined,
-      weatherFetchedAt: input.weatherContext?.fetchedAt,
+      ...buildLookRouteParams(requestId, input),
       recommendationTitle: recommendation.title,
       recommendationAnchorItem: recommendation.anchorItem,
       recommendationKeyPieces: encodeList(recommendation.keyPieces),
@@ -394,23 +343,7 @@ export function buildTierHref(
       recommendationSketchImageUrl: recommendation.sketchImageUrl ?? undefined,
       recommendationSketchStorageKey: recommendation.sketchStorageKey ?? undefined,
       recommendationSketchMimeType: recommendation.sketchMimeType ?? undefined,
-      variantIndex: String(variantIndex),
     },
   };
 }
 
-export function normalizePickedImage(asset: {
-  uri: string;
-  width?: number;
-  height?: number;
-  fileName?: string | null;
-  mimeType?: string | null;
-}): LocalImageAsset {
-  return {
-    uri: asset.uri,
-    width: asset.width,
-    height: asset.height,
-    fileName: asset.fileName ?? null,
-    mimeType: asset.mimeType ?? null,
-  };
-}

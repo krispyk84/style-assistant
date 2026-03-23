@@ -343,7 +343,7 @@ function ActionPill({ label, onPress, disabled = false }: { label: string; onPre
       onPress={onPress}
       style={{
         alignItems: 'center',
-        backgroundColor: disabled ? theme.colors.card : '#F7F2EE',
+        backgroundColor: disabled ? theme.colors.card : theme.colors.subtleSurface,
         borderColor: theme.colors.border,
         borderRadius: 999,
         borderWidth: 1,

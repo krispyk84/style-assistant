@@ -4,6 +4,7 @@ export const theme = {
   colors: {
     background: '#FCFAF7',
     surface: '#FFFFFF',
+    subtleSurface: '#F7F2EE',
     card: '#F5EDE8',
     border: '#E8DED6',
     text: '#221C18',

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { spacing, theme } from '@/constants/theme';
 import { buildTierHref } from '@/lib/look-route';
+import { formatTierLabel } from '@/lib/outfit-utils';
 import type { SavedOutfit } from '@/types/style';
 import { AppText } from '@/components/ui/app-text';
 import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
@@ -20,8 +21,7 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek }: OutfitResult
     result.recommendation.tier,
     result.requestId,
     result.input,
-    result.recommendation,
-    0
+    result.recommendation
   );
 
   return (
@@ -105,13 +105,6 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek }: OutfitResult
   );
 }
 
-function formatTierLabel(tier: SavedOutfit['recommendation']['tier']) {
-  if (tier === 'smart-casual') {
-    return 'Smart Casual';
-  }
-
-  return tier.charAt(0).toUpperCase() + tier.slice(1);
-}
 
 function formatSavedAt(savedAt: string) {
   try {

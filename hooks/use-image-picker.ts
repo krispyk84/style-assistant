@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 
-import { normalizePickedImage } from '@/lib/look-route';
+import { normalizePickedImage } from '@/lib/media-utils';
 import type { LocalImageAsset } from '@/types/media';
 
 export function useImagePicker(initialImage: LocalImageAsset | null = null) {

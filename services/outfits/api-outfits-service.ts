@@ -55,9 +55,14 @@ function normalizeAnchorItems(response: GenerateOutfitsResponse): LookAnchorItem
   ].filter((item) => item.description.trim() || item.image || item.uploadedImage);
 }
 
+// The API may return legacy flat fields (anchorImageUrl/anchorImageId) alongside the
+// structured anchorItems array. We read them here for backwards-compat normalization.
+type LegacyOutfitInput = { anchorImageUrl?: string | null; anchorImageId?: string | null };
+
 function normalizeOutfitResponse(response: GenerateOutfitsResponse): GenerateOutfitsResponse {
-  const anchorImageUrl = (response as any)?.input?.anchorImageUrl as string | null | undefined;
-  const anchorImageId = (response as any)?.input?.anchorImageId as string | null | undefined;
+  const legacyInput = response.input as GenerateOutfitsResponse['input'] & LegacyOutfitInput;
+  const anchorImageUrl = legacyInput.anchorImageUrl;
+  const anchorImageId = legacyInput.anchorImageId;
   const anchorItems = normalizeAnchorItems(response);
 
   return {

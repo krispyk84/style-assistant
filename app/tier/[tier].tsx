@@ -11,148 +11,17 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { SectionHeader } from '@/components/ui/section-header';
 import { spacing, theme } from '@/constants/theme';
 import { getLookTierDefinition } from '@/lib/look-mock-data';
-import { parseLookInput, parseLookRecommendation } from '@/lib/look-route';
+import { parseLookInput, parseLookRecommendation, type LookRouteParams } from '@/lib/look-route';
 import type { LookRecommendation } from '@/types/look-request';
 import { outfitsService } from '@/services/outfits';
 
 export default function TierScreen() {
-  const params = useLocalSearchParams<{
-    tier: string;
-    requestId?: string;
-    anchorItems?: string;
-    anchorItemDescription?: string;
-    photoPending?: string;
-    anchorImageUri?: string;
-    anchorImageWidth?: string;
-    anchorImageHeight?: string;
-    anchorImageFileName?: string;
-    anchorImageMimeType?: string;
-    uploadedAnchorImageId?: string;
-    uploadedAnchorImageCategory?: string;
-    uploadedAnchorImageStorageProvider?: string;
-    uploadedAnchorImageStorageKey?: string;
-    uploadedAnchorImagePublicUrl?: string;
-    uploadedAnchorImageOriginalFilename?: string;
-    uploadedAnchorImageSizeBytes?: string;
-    weatherTemperatureC?: string;
-    weatherApparentTemperatureC?: string;
-    weatherCode?: string;
-    weatherSeason?: string;
-    weatherSummary?: string;
-    weatherStylingHint?: string;
-    weatherLocationLabel?: string;
-    weatherFetchedAt?: string;
-    recommendationTitle?: string;
-    recommendationAnchorItem?: string;
-    recommendationKeyPieces?: string;
-    recommendationShoes?: string;
-    recommendationAccessories?: string;
-    recommendationFitNotes?: string;
-    recommendationWhyItWorks?: string;
-    recommendationStylingDirection?: string;
-    recommendationDetailNotes?: string;
-    recommendationSketchStatus?: string;
-    recommendationSketchImageUrl?: string;
-    recommendationSketchStorageKey?: string;
-    recommendationSketchMimeType?: string;
-    variantIndex?: string;
-  }>();
+  const params = useLocalSearchParams<LookRouteParams & { tier: string; requestId?: string }>();
   const matchedTier = params.tier ? getLookTierDefinition(params.tier) : undefined;
-  const [liveRecommendation, setLiveRecommendation] = useState<LookRecommendation | null>(null);
-
-  const requestInput = useMemo(
-    () =>
-      parseLookInput({
-        anchorItemDescription: params.anchorItemDescription,
-        anchorItems: params.anchorItems,
-        photoPending: params.photoPending,
-        tiers: 'business,smart-casual,casual',
-        anchorImageUri: params.anchorImageUri,
-        anchorImageWidth: params.anchorImageWidth,
-        anchorImageHeight: params.anchorImageHeight,
-        anchorImageFileName: params.anchorImageFileName,
-        anchorImageMimeType: params.anchorImageMimeType,
-        uploadedAnchorImageId: params.uploadedAnchorImageId,
-        uploadedAnchorImageCategory: params.uploadedAnchorImageCategory,
-        uploadedAnchorImageStorageProvider: params.uploadedAnchorImageStorageProvider,
-        uploadedAnchorImageStorageKey: params.uploadedAnchorImageStorageKey,
-        uploadedAnchorImagePublicUrl: params.uploadedAnchorImagePublicUrl,
-        uploadedAnchorImageOriginalFilename: params.uploadedAnchorImageOriginalFilename,
-        uploadedAnchorImageSizeBytes: params.uploadedAnchorImageSizeBytes,
-        weatherTemperatureC: params.weatherTemperatureC,
-        weatherApparentTemperatureC: params.weatherApparentTemperatureC,
-        weatherCode: params.weatherCode,
-        weatherSeason: params.weatherSeason,
-        weatherSummary: params.weatherSummary,
-        weatherStylingHint: params.weatherStylingHint,
-        weatherLocationLabel: params.weatherLocationLabel,
-        weatherFetchedAt: params.weatherFetchedAt,
-      }),
-    [
-      params.anchorImageFileName,
-      params.anchorImageHeight,
-      params.anchorImageMimeType,
-      params.anchorImageUri,
-      params.anchorImageWidth,
-      params.anchorItems,
-      params.anchorItemDescription,
-      params.photoPending,
-      params.uploadedAnchorImageCategory,
-      params.uploadedAnchorImageId,
-      params.uploadedAnchorImageOriginalFilename,
-      params.uploadedAnchorImagePublicUrl,
-      params.uploadedAnchorImageSizeBytes,
-      params.uploadedAnchorImageStorageKey,
-      params.uploadedAnchorImageStorageProvider,
-      params.weatherApparentTemperatureC,
-      params.weatherCode,
-      params.weatherFetchedAt,
-      params.weatherLocationLabel,
-      params.weatherSeason,
-      params.weatherStylingHint,
-      params.weatherSummary,
-      params.weatherTemperatureC,
-    ]
-  );
-  const recommendation = useMemo(
-    () =>
-      parseLookRecommendation({
-        tier: params.tier,
-        recommendationTitle: params.recommendationTitle,
-        recommendationAnchorItem: params.recommendationAnchorItem,
-        recommendationKeyPieces: params.recommendationKeyPieces,
-        recommendationShoes: params.recommendationShoes,
-        recommendationAccessories: params.recommendationAccessories,
-        recommendationFitNotes: params.recommendationFitNotes,
-        recommendationWhyItWorks: params.recommendationWhyItWorks,
-        recommendationStylingDirection: params.recommendationStylingDirection,
-        recommendationDetailNotes: params.recommendationDetailNotes,
-        recommendationSketchStatus: params.recommendationSketchStatus,
-        recommendationSketchImageUrl: params.recommendationSketchImageUrl,
-        recommendationSketchStorageKey: params.recommendationSketchStorageKey,
-        recommendationSketchMimeType: params.recommendationSketchMimeType,
-      }),
-    [
-      params.recommendationAccessories,
-      params.recommendationAnchorItem,
-      params.recommendationDetailNotes,
-      params.recommendationFitNotes,
-      params.recommendationKeyPieces,
-      params.recommendationSketchImageUrl,
-      params.recommendationSketchMimeType,
-      params.recommendationSketchStatus,
-      params.recommendationSketchStorageKey,
-      params.recommendationShoes,
-      params.recommendationStylingDirection,
-      params.recommendationTitle,
-      params.recommendationWhyItWorks,
-      params.tier,
-    ]
-  );
-
-  useEffect(() => {
-    setLiveRecommendation(recommendation);
-  }, [recommendation]);
+  const requestInput = useMemo(() => parseLookInput(params), [params]);
+  const initialRecommendation = useMemo(() => parseLookRecommendation(params), [params]);
+  // liveRecommendation starts from URL params and is updated by the sketch-polling effect
+  const [liveRecommendation, setLiveRecommendation] = useState<LookRecommendation | null>(initialRecommendation);
 
   useEffect(() => {
     const requestId = params.requestId;

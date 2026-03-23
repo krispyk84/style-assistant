@@ -1,7 +1,8 @@
 import { View } from 'react-native';
 
 import { spacing, theme } from '@/constants/theme';
-import type { CreateLookInput, LookTierSlug } from '@/types/look-request';
+import { formatTierLabel } from '@/lib/outfit-utils';
+import type { CreateLookInput } from '@/types/look-request';
 import { AppText } from '@/components/ui/app-text';
 import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
 
@@ -56,10 +57,3 @@ export function LookRequestReviewCard({ input }: LookRequestReviewCardProps) {
   );
 }
 
-function formatTierLabel(tier: LookTierSlug) {
-  if (tier === 'smart-casual') {
-    return 'Smart Casual';
-  }
-
-  return tier.charAt(0).toUpperCase() + tier.slice(1);
-}

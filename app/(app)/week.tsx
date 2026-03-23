@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/toast-provider';
 import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
 import { spacing, theme } from '@/constants/theme';
 import { buildTierHref } from '@/lib/look-route';
+import { formatTierLabel, weatherIconName } from '@/lib/outfit-utils';
 import { getNextSevenDays, loadWeekPlan, removeWeekPlan, replaceWeekPlan } from '@/lib/week-plan-storage';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
 import { formatTemperatureRange } from '@/lib/temperature-format';
@@ -134,6 +135,10 @@ export default function WeekScreen() {
             );
           }
 
+          const savedId = buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier);
+          const isSaved = savedOutfitIds.includes(savedId);
+          const isSaving = savingId === savedId;
+
           return (
             <Link
               key={day.dayKey}
@@ -141,8 +146,7 @@ export default function WeekScreen() {
                 assignment.recommendation.tier,
                 assignment.requestId,
                 assignment.input,
-                assignment.recommendation,
-                0
+                assignment.recommendation
               )}
               asChild>
               <Pressable
@@ -183,16 +187,14 @@ export default function WeekScreen() {
                   />
                 ) : null}
                 <Pressable
-                  disabled={savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier))}
+                  disabled={isSaved}
                   onPress={(event) => {
                     event.stopPropagation();
                     void handleSave(assignment);
                   }}
                   style={{
                     alignItems: 'center',
-                    backgroundColor: savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier))
-                      ? theme.colors.border
-                      : theme.colors.card,
+                    backgroundColor: isSaved ? theme.colors.border : theme.colors.card,
                     borderColor: theme.colors.border,
                     borderRadius: 999,
                     borderWidth: 1,
@@ -204,15 +206,11 @@ export default function WeekScreen() {
                   }}>
                   <Ionicons
                     color={theme.colors.text}
-                    name={savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier)) ? 'bookmark' : 'bookmark-outline'}
+                    name={isSaved ? 'bookmark' : 'bookmark-outline'}
                     size={18}
                   />
                   <AppText>
-                    {savedOutfitIds.includes(buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier))
-                      ? 'Saved'
-                      : savingId === buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier)
-                        ? 'Saving...'
-                        : 'Save outfit'}
+                    {isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}
                   </AppText>
                 </Pressable>
                 <View style={{ gap: spacing.xs }}>
@@ -236,20 +234,3 @@ export default function WeekScreen() {
   );
 }
 
-function formatTierLabel(tier: WeekPlannedOutfit['recommendation']['tier']) {
-  if (tier === 'smart-casual') {
-    return 'Smart Casual';
-  }
-
-  return tier.charAt(0).toUpperCase() + tier.slice(1);
-}
-
-function weatherIconName(code: number): React.ComponentProps<typeof Ionicons>['name'] {
-  if (code === 0) return 'sunny-outline';
-  if ([1, 2, 3].includes(code)) return 'partly-sunny-outline';
-  if ([45, 48].includes(code)) return 'cloud-outline';
-  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 'rainy-outline';
-  if ([71, 73, 75, 77, 85, 86].includes(code)) return 'snow-outline';
-  if ([95, 96, 99].includes(code)) return 'thunderstorm-outline';
-  return 'cloud-outline';
-}

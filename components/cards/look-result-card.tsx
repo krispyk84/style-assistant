@@ -4,6 +4,7 @@ import { Animated, Easing, Pressable, View } from 'react-native';
 import { useEffect, useRef } from 'react';
 
 import { spacing, theme } from '@/constants/theme';
+import { formatTierLabel } from '@/lib/outfit-utils';
 import type { LookRecommendation } from '@/types/look-request';
 import { AppText } from '@/components/ui/app-text';
 import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
@@ -223,13 +224,6 @@ function AnimatedLoadingBar() {
   );
 }
 
-function formatTierLabel(tier: LookRecommendation['tier']) {
-  if (tier === 'smart-casual') {
-    return 'Smart Casual';
-  }
-
-  return tier.charAt(0).toUpperCase() + tier.slice(1);
-}
 
 function buildLabeledPieces(recommendation: LookRecommendation) {
   const usedLabels = new Set<string>();

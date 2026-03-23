@@ -14,39 +14,13 @@ import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
 import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
-import { buildTierHref, parseLookInput } from '@/lib/look-route';
+import { buildTierHref, parseLookInput, type LookRouteParams } from '@/lib/look-route';
 import type { GenerateOutfitsResponse } from '@/types/api';
 import { outfitsService } from '@/services/outfits';
 import type { LookTierSlug } from '@/types/look-request';
 
 export default function ResultDetailsScreen() {
-  const params = useLocalSearchParams<{
-    requestId: string;
-    anchorItems?: string;
-    anchorItemDescription?: string;
-    photoPending?: string;
-    tiers?: string;
-    anchorImageUri?: string;
-    anchorImageWidth?: string;
-    anchorImageHeight?: string;
-    anchorImageFileName?: string;
-    anchorImageMimeType?: string;
-    uploadedAnchorImageId?: string;
-    uploadedAnchorImageCategory?: string;
-    uploadedAnchorImageStorageProvider?: string;
-    uploadedAnchorImageStorageKey?: string;
-    uploadedAnchorImagePublicUrl?: string;
-    uploadedAnchorImageOriginalFilename?: string;
-    uploadedAnchorImageSizeBytes?: string;
-    weatherTemperatureC?: string;
-    weatherApparentTemperatureC?: string;
-    weatherCode?: string;
-    weatherSeason?: string;
-    weatherSummary?: string;
-    weatherStylingHint?: string;
-    weatherLocationLabel?: string;
-    weatherFetchedAt?: string;
-  }>();
+  const params = useLocalSearchParams<LookRouteParams & { requestId: string }>();
   const [response, setResponse] = useState<GenerateOutfitsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -55,101 +29,36 @@ export default function ResultDetailsScreen() {
   const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
   const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
   const { showToast } = useToast();
-  const parsedInput = useMemo(
-    () =>
-      parseLookInput({
-        anchorItemDescription: params.anchorItemDescription,
-        anchorItems: params.anchorItems,
-        photoPending: params.photoPending,
-        tiers: params.tiers,
-        anchorImageUri: params.anchorImageUri,
-        anchorImageWidth: params.anchorImageWidth,
-        anchorImageHeight: params.anchorImageHeight,
-        anchorImageFileName: params.anchorImageFileName,
-        anchorImageMimeType: params.anchorImageMimeType,
-        uploadedAnchorImageId: params.uploadedAnchorImageId,
-        uploadedAnchorImageCategory: params.uploadedAnchorImageCategory,
-        uploadedAnchorImageStorageProvider: params.uploadedAnchorImageStorageProvider,
-        uploadedAnchorImageStorageKey: params.uploadedAnchorImageStorageKey,
-        uploadedAnchorImagePublicUrl: params.uploadedAnchorImagePublicUrl,
-        uploadedAnchorImageOriginalFilename: params.uploadedAnchorImageOriginalFilename,
-        uploadedAnchorImageSizeBytes: params.uploadedAnchorImageSizeBytes,
-        weatherTemperatureC: params.weatherTemperatureC,
-        weatherApparentTemperatureC: params.weatherApparentTemperatureC,
-        weatherCode: params.weatherCode,
-        weatherSeason: params.weatherSeason,
-        weatherSummary: params.weatherSummary,
-        weatherStylingHint: params.weatherStylingHint,
-        weatherLocationLabel: params.weatherLocationLabel,
-        weatherFetchedAt: params.weatherFetchedAt,
-      }),
-    [
-      params.anchorImageFileName,
-      params.anchorImageHeight,
-      params.anchorImageMimeType,
-      params.anchorImageUri,
-      params.anchorImageWidth,
-      params.anchorItems,
-      params.anchorItemDescription,
-      params.photoPending,
-      params.tiers,
-      params.uploadedAnchorImageCategory,
-      params.uploadedAnchorImageId,
-      params.uploadedAnchorImageOriginalFilename,
-      params.uploadedAnchorImagePublicUrl,
-      params.uploadedAnchorImageSizeBytes,
-      params.uploadedAnchorImageStorageKey,
-      params.uploadedAnchorImageStorageProvider,
-      params.weatherApparentTemperatureC,
-      params.weatherCode,
-      params.weatherFetchedAt,
-      params.weatherLocationLabel,
-      params.weatherSeason,
-      params.weatherStylingHint,
-      params.weatherSummary,
-      params.weatherTemperatureC,
-    ]
-  );
+  const parsedInput = useMemo(() => parseLookInput(params), [params]);
 
-  useEffect(() => {
-    let isMounted = true;
+  async function fetchOutfits(requestId: string, input: typeof parsedInput) {
+    setIsLoading(true);
+    setErrorMessage(null);
 
-    async function loadResponse() {
-      if (!params.requestId) {
-        setIsLoading(false);
-        setErrorMessage('Missing request id.');
-        return;
-      }
+    const serviceResponse = input
+      ? await outfitsService.generateOutfits({ ...input, requestId })
+      : await outfitsService.getOutfitResult(requestId);
 
-      setIsLoading(true);
-      setErrorMessage(null);
-
-      const serviceResponse = parsedInput
-        ? await outfitsService.generateOutfits({
-            ...parsedInput,
-            requestId: params.requestId,
-          })
-        : await outfitsService.getOutfitResult(params.requestId);
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (!serviceResponse.success || !serviceResponse.data) {
-        setErrorMessage(serviceResponse.error?.message ?? 'Failed to load outfit results.');
-        setResponse(null);
-      } else {
-        setResponse(serviceResponse.data);
-      }
-
-      setIsLoading(false);
+    if (!serviceResponse.success || !serviceResponse.data) {
+      setErrorMessage(serviceResponse.error?.message ?? 'Failed to load outfit results.');
+      setResponse(null);
+    } else {
+      setResponse(serviceResponse.data);
     }
 
-    void loadResponse();
+    setIsLoading(false);
+  }
 
-    return () => {
-      isMounted = false;
-    };
+  useEffect(() => {
+    if (!params.requestId) {
+      setIsLoading(false);
+      setErrorMessage('Missing request id.');
+      return;
+    }
+
+    void fetchOutfits(params.requestId, parsedInput);
+  // fetchOutfits is stable within the effect — deps are the actual inputs
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.requestId, parsedInput]);
 
   useEffect(() => {
@@ -187,31 +96,6 @@ export default function ResultDetailsScreen() {
       isMounted = false;
     };
   }, [response?.requestId]);
-
-  async function retryLoad() {
-    if (!params.requestId) {
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorMessage(null);
-
-    const serviceResponse = parsedInput
-      ? await outfitsService.generateOutfits({
-          ...parsedInput,
-          requestId: params.requestId,
-        })
-      : await outfitsService.getOutfitResult(params.requestId);
-
-    if (!serviceResponse.success || !serviceResponse.data) {
-      setErrorMessage(serviceResponse.error?.message ?? 'Failed to load outfit results.');
-      setResponse(null);
-    } else {
-      setResponse(serviceResponse.data);
-    }
-
-    setIsLoading(false);
-  }
 
   async function handleRegenerate(tier: LookTierSlug) {
     if (!response) {
@@ -318,7 +202,11 @@ export default function ResultDetailsScreen() {
             actionLabel="Go to history"
             actionHref="/(app)/history"
           />
-          <PrimaryButton label="Retry" onPress={retryLoad} variant="secondary" />
+          <PrimaryButton
+            label="Retry"
+            onPress={() => params.requestId ? void fetchOutfits(params.requestId, parsedInput) : undefined}
+            variant="secondary"
+          />
         </View>
       </AppScreen>
     );
@@ -346,8 +234,7 @@ export default function ResultDetailsScreen() {
               recommendation.tier,
               response.requestId,
               response.input,
-              recommendation,
-              0
+              recommendation
             )}
           />
         ))}
