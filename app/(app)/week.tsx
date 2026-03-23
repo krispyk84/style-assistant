@@ -7,6 +7,7 @@ import { Link } from 'expo-router';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { EmptyState } from '@/components/ui/empty-state';
+import { LoadingState } from '@/components/ui/loading-state';
 import { SectionHeader } from '@/components/ui/section-header';
 import { useToast } from '@/components/ui/toast-provider';
 import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
@@ -26,6 +27,7 @@ export default function WeekScreen() {
   const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [forecastByDay, setForecastByDay] = useState<Record<string, WeekForecastDay>>({});
+  const [isLoadingWeek, setIsLoadingWeek] = useState(true);
   const isFocused = useIsFocused();
   const { showToast } = useToast();
   const { profile } = useAppSession();
@@ -34,6 +36,7 @@ export default function WeekScreen() {
     let isMounted = true;
 
     async function hydrate() {
+      setIsLoadingWeek(true);
       const [nextItems, savedOutfits, forecast] = await Promise.all([
         loadWeekPlan(),
         loadSavedOutfits(),
@@ -68,6 +71,7 @@ export default function WeekScreen() {
         setItems(refreshedItems);
         setSavedOutfitIds(savedOutfits.map((item) => item.id));
         setForecastByDay(Object.fromEntries(forecast.map((day) => [day.dayKey, day])));
+        setIsLoadingWeek(false);
       }
 
       await replaceWeekPlan(refreshedItems);
@@ -104,8 +108,12 @@ export default function WeekScreen() {
   return (
     <AppScreen scrollable>
       <View style={{ gap: spacing.lg }}>
-        <SectionHeader title="Week" subtitle="Plan your next 7 days of outfits." />
-        {days.map((day) => {
+        <SectionHeader title="Week" subtitle="Plan today and the next 7 days of outfits." />
+        {isLoadingWeek ? (
+          <LoadingState label="Loading your week..." />
+        ) : null}
+        {!isLoadingWeek
+          ? days.map((day) => {
           const assignment = items.find((item) => item.dayKey === day.dayKey);
           const forecast = forecastByDay[day.dayKey];
 
@@ -220,11 +228,12 @@ export default function WeekScreen() {
               </Pressable>
             </Link>
           );
-        })}
-        {!items.length ? (
+        })
+          : null}
+        {!isLoadingWeek && !items.length ? (
           <EmptyState
             title="No week planned yet"
-            message="Add outfits from the result page to assign them to the next 7 days."
+            message="Add outfits from the result page to assign them to today and the next 7 days."
             actionLabel="Create a look"
             actionHref="/(app)/create-look"
           />
@@ -233,4 +242,3 @@ export default function WeekScreen() {
     </AppScreen>
   );
 }
-

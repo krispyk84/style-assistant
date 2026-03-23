@@ -43,7 +43,7 @@ export function getNextSevenDays() {
   const baseDate = new Date();
   const days = [];
 
-  for (let offset = 1; offset <= 7; offset += 1) {
+  for (let offset = 0; offset <= 7; offset += 1) {
     const date = new Date(baseDate);
     date.setDate(baseDate.getDate() + offset);
 

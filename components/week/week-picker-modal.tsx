@@ -139,7 +139,7 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
             </View>
           ) : (
             <>
-              <SectionHeader title="Add to week" subtitle="Choose one of the next 7 days." />
+              <SectionHeader title="Add to week" subtitle="Choose today or one of the next 7 days." />
               {days.map((day) => {
                 const existingAssignment = assignedDays.find((item) => item.dayKey === day.dayKey);
                 const isAssigned = Boolean(existingAssignment);
@@ -189,4 +189,3 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
     </Modal>
   );
 }
-

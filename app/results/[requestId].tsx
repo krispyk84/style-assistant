@@ -21,6 +21,8 @@ import type { LookTierSlug } from '@/types/look-request';
 
 export default function ResultDetailsScreen() {
   const params = useLocalSearchParams<LookRouteParams & { requestId: string }>();
+  const routeKey = JSON.stringify(params);
+  const stableParams = useMemo(() => JSON.parse(routeKey) as LookRouteParams & { requestId: string }, [routeKey]);
   const [response, setResponse] = useState<GenerateOutfitsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export default function ResultDetailsScreen() {
   const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
   const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
   const { showToast } = useToast();
-  const parsedInput = useMemo(() => parseLookInput(params), [params]);
+  const parsedInput = useMemo(() => parseLookInput(stableParams), [stableParams]);
 
   async function fetchOutfits(requestId: string, input: typeof parsedInput) {
     setIsLoading(true);
@@ -50,16 +52,16 @@ export default function ResultDetailsScreen() {
   }
 
   useEffect(() => {
-    if (!params.requestId) {
+    if (!stableParams.requestId) {
       setIsLoading(false);
       setErrorMessage('Missing request id.');
       return;
     }
 
-    void fetchOutfits(params.requestId, parsedInput);
+    void fetchOutfits(stableParams.requestId, parsedInput);
   // fetchOutfits is stable within the effect — deps are the actual inputs
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.requestId, parsedInput]);
+  }, [stableParams.requestId, parsedInput]);
 
   useEffect(() => {
     if (!response?.requestId || !response.recommendations.some((item) => item.sketchStatus === 'pending')) {
@@ -204,7 +206,7 @@ export default function ResultDetailsScreen() {
           />
           <PrimaryButton
             label="Retry"
-            onPress={() => params.requestId ? void fetchOutfits(params.requestId, parsedInput) : undefined}
+            onPress={() => stableParams.requestId ? void fetchOutfits(stableParams.requestId, parsedInput) : undefined}
             variant="secondary"
           />
         </View>

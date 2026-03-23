@@ -17,15 +17,20 @@ import { outfitsService } from '@/services/outfits';
 
 export default function TierScreen() {
   const params = useLocalSearchParams<LookRouteParams & { tier: string; requestId?: string }>();
-  const matchedTier = params.tier ? getLookTierDefinition(params.tier) : undefined;
-  const requestInput = useMemo(() => parseLookInput(params), [params]);
-  const initialRecommendation = useMemo(() => parseLookRecommendation(params), [params]);
+  const routeKey = JSON.stringify(params);
+  const stableParams = useMemo(
+    () => JSON.parse(routeKey) as LookRouteParams & { tier: string; requestId?: string },
+    [routeKey]
+  );
+  const matchedTier = stableParams.tier ? getLookTierDefinition(stableParams.tier) : undefined;
+  const requestInput = useMemo(() => parseLookInput(stableParams), [stableParams]);
+  const initialRecommendation = useMemo(() => parseLookRecommendation(stableParams), [stableParams]);
   // liveRecommendation starts from URL params and is updated by the sketch-polling effect
   const [liveRecommendation, setLiveRecommendation] = useState<LookRecommendation | null>(initialRecommendation);
 
   useEffect(() => {
-    const requestId = params.requestId;
-    const tier = params.tier;
+    const requestId = stableParams.requestId;
+    const tier = stableParams.tier;
 
     if (!requestId || !tier || liveRecommendation?.sketchStatus !== 'pending') {
       return;
@@ -45,7 +50,7 @@ export default function TierScreen() {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [liveRecommendation?.sketchStatus, params.requestId, params.tier]);
+  }, [liveRecommendation?.sketchStatus, stableParams.requestId, stableParams.tier]);
 
   if (!matchedTier || !liveRecommendation) {
     return (
@@ -78,7 +83,7 @@ export default function TierScreen() {
               href={{
                 pathname: '/check-piece',
                 params: {
-                  requestId: params.requestId,
+                  requestId: stableParams.requestId,
                   tier: liveRecommendation.tier,
                   outfitTitle: liveRecommendation.title,
                   anchorItemDescription: requestInput?.anchorItemDescription,
@@ -107,7 +112,7 @@ export default function TierScreen() {
               router.push({
                 pathname: '/selfie-review',
                 params: {
-                  requestId: params.requestId,
+                  requestId: stableParams.requestId,
                   tier: liveRecommendation.tier,
                   outfitTitle: liveRecommendation.title,
                   anchorItemDescription: requestInput?.anchorItemDescription,

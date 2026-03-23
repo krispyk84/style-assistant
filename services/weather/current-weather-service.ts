@@ -160,5 +160,5 @@ export async function loadNextSevenDayForecast(): Promise<WeekForecastDay[]> {
       highTempC: daily.temperature_2m_max[index],
       lowTempC: daily.temperature_2m_min[index],
     }))
-    .slice(1, 8);
+    .slice(0, 8);
 }
