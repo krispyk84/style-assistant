@@ -36,8 +36,13 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    const nextProfile = response.data?.profile ?? defaultProfile;
+    const backendProfile = response.data?.profile ?? defaultProfile;
     const nextOnboardingCompleted = response.data?.onboardingCompleted ?? false;
+
+    // 'name' is frontend-only — the backend does not persist it.
+    // Read it from the local cache so backend refreshes never clear it.
+    const storedSession = await loadStoredSession();
+    const nextProfile = { ...backendProfile, name: storedSession.profile?.name ?? '' };
 
     setErrorMessage(null);
     setProfile(nextProfile);

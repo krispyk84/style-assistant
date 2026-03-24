@@ -1,6 +1,7 @@
 import type { Profile } from '@/types/profile';
 
 export const defaultProfile: Profile = {
+  name: '',
   gender: 'man',
   heightCm: '183',
   weightKg: '79',

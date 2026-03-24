@@ -181,6 +181,18 @@ export function ProfileForm({
 
   return (
     <View style={{ gap: spacing.xl }}>
+      <FormField label="First name" hint="Used to personalise your home screen greeting.">
+        <TextInput
+          autoCapitalize="words"
+          autoCorrect={false}
+          onChangeText={(value) => updateField('name', value)}
+          placeholder="Your name"
+          placeholderTextColor={theme.colors.subtleText}
+          style={inputStyle}
+          value={profile.name}
+        />
+      </FormField>
+
       <FormField label="Gender" hint="Used to tailor fit and style guidance.">
         <PickerField value={profile.gender} onPress={() => setPickerField('gender')} />
       </FormField>

@@ -9,6 +9,21 @@ const emptySession: PersistedSession = {
   profile: null,
 };
 
+function normalizeSession(raw: PersistedSession): PersistedSession {
+  if (!raw.profile) {
+    return raw;
+  }
+
+  return {
+    ...raw,
+    profile: {
+      ...raw.profile,
+      // Migrate profiles stored before 'name' was added
+      name: raw.profile.name ?? '',
+    },
+  };
+}
+
 export async function loadSession(): Promise<PersistedSession> {
   const rawValue = await AsyncStorage.getItem(STORAGE_KEY);
 
@@ -17,7 +32,7 @@ export async function loadSession(): Promise<PersistedSession> {
   }
 
   try {
-    return JSON.parse(rawValue) as PersistedSession;
+    return normalizeSession(JSON.parse(rawValue) as PersistedSession);
   } catch {
     return emptySession;
   }

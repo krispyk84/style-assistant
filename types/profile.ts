@@ -17,6 +17,7 @@ export type SummerBottomPreference = (typeof SUMMER_BOTTOM_OPTIONS)[number];
 export type TemperatureUnit = (typeof TEMPERATURE_UNIT_OPTIONS)[number];
 
 export type Profile = {
+  name: string;
   gender: Gender;
   heightCm: string;
   weightKg: string;
