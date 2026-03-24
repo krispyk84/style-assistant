@@ -8,7 +8,7 @@ import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { SectionHeader } from '@/components/ui/section-header';
+import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing, theme } from '@/constants/theme';
 import { getLookTierDefinition } from '@/lib/look-mock-data';
 import { parseLookInput, parseLookRecommendation, type LookRouteParams } from '@/lib/look-route';
@@ -54,7 +54,7 @@ export default function TierScreen() {
 
   if (!matchedTier || !liveRecommendation) {
     return (
-      <AppScreen topInset={false}>
+      <AppScreen>
         <ErrorState
           title="Tier not found"
           message="Open tier details from a generated look so the route carries the selected recommendation."
@@ -68,9 +68,13 @@ export default function TierScreen() {
   const piecesToCheck = buildPiecesToCheck(liveRecommendation);
 
   return (
-    <AppScreen scrollable topInset={false}>
-      <View style={{ gap: spacing.lg }}>
-        <SectionHeader title={matchedTier.label} subtitle={matchedTier.shortDescription} />
+    <AppScreen scrollable>
+      <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
+        <ScreenHeader title={matchedTier.label} showBack />
+        <View style={{ gap: spacing.xs }}>
+          <AppText variant="heroSmall">{matchedTier.label}</AppText>
+          <AppText tone="muted">{matchedTier.shortDescription}</AppText>
+        </View>
         <LookTierDetailCard definition={matchedTier} recommendation={liveRecommendation} />
         <View style={{ gap: spacing.md }}>
           <AppText variant="sectionTitle">Check recommended pieces</AppText>

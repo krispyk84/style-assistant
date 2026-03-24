@@ -5,10 +5,11 @@ import { View } from 'react-native';
 import { LookResultCard } from '@/components/cards/look-result-card';
 import { LookRequestReviewCard } from '@/components/cards/look-request-review-card';
 import { AppScreen } from '@/components/ui/app-screen';
+import { AppText } from '@/components/ui/app-text';
 import { ErrorState } from '@/components/ui/error-state';
 import { LoadingState, extendedFashionLoadingMessages } from '@/components/ui/loading-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { SectionHeader } from '@/components/ui/section-header';
+import { ScreenHeader } from '@/components/ui/screen-header';
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
@@ -185,7 +186,7 @@ export default function ResultDetailsScreen() {
 
   if (isLoading) {
     return (
-      <AppScreen topInset={false}>
+      <AppScreen>
         <LoadingState
           label="Generating outfit options..."
           messages={extendedFashionLoadingMessages}
@@ -196,7 +197,7 @@ export default function ResultDetailsScreen() {
 
   if (!response) {
     return (
-      <AppScreen topInset={false}>
+      <AppScreen>
         <View style={{ gap: spacing.md }}>
           <ErrorState
             title="Result not found"
@@ -215,12 +216,13 @@ export default function ResultDetailsScreen() {
   }
 
   return (
-    <AppScreen scrollable topInset={false}>
-      <View style={{ gap: spacing.lg, marginTop: -spacing.sm }}>
-        <SectionHeader
-          title="Outfit results"
-          subtitle="Styling directions built from the same anchor item."
-        />
+    <AppScreen scrollable>
+      <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
+        <ScreenHeader title="Outfit Results" showBack />
+        <View style={{ gap: spacing.xs }}>
+          <AppText variant="heroSmall">Your Looks</AppText>
+          <AppText tone="muted">Styling directions built from the same anchor item.</AppText>
+        </View>
         <LookRequestReviewCard input={response.input} />
         {response.recommendations.map((recommendation) => (
           <LookResultCard

@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { Link } from 'expo-router';
-import { ImageBackground, Pressable, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Pressable, View } from 'react-native';
 
 import { WeatherCard } from '@/components/cards/weather-card';
 import { AppScreen } from '@/components/ui/app-screen';
@@ -8,11 +10,10 @@ import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
 import { useAppSession } from '@/hooks/use-app-session';
 import { useCurrentWeather } from '@/hooks/use-current-weather';
+import { loadSavedOutfits } from '@/lib/saved-outfits-storage';
 
-// To show a background photo, drop an image file into assets/images/
-// and uncomment + point the line below at it:
-// const heroImage = require('../../assets/images/home-hero.jpg');
-const heroImage: Parameters<typeof ImageBackground>[0]['source'] | null = null;
+const CAROUSEL_INTERVAL_MS = 10000;
+const FADE_DURATION_MS = 600;
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -25,6 +26,44 @@ export default function HomeScreen() {
   const { weather, isLoading, errorMessage } = useCurrentWeather();
   const { profile } = useAppSession();
   const firstName = profile.name.trim() || 'there';
+
+  const [carouselImages, setCarouselImages] = useState<string[]>([]);
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    async function loadImages() {
+      const saved = await loadSavedOutfits();
+      const urls = saved
+        .map((s) => s.recommendation.sketchImageUrl)
+        .filter((url): url is string => Boolean(url));
+      setCarouselImages(urls);
+    }
+    void loadImages();
+  }, []);
+
+  useEffect(() => {
+    if (carouselImages.length <= 1) return;
+
+    const interval = setInterval(() => {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: FADE_DURATION_MS,
+        useNativeDriver: true,
+      }).start(() => {
+        setCarouselIndex((i) => (i + 1) % carouselImages.length);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: FADE_DURATION_MS,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, CAROUSEL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [carouselImages, fadeAnim]);
+
+  const currentImageUrl = carouselImages[carouselIndex] ?? null;
 
   return (
     <AppScreen scrollable>
@@ -63,18 +102,55 @@ export default function HomeScreen() {
         {/* Hero card */}
         <Link href="/(app)/create-look" asChild>
           <Pressable style={{ borderRadius: 24, overflow: 'hidden' }}>
-            {heroImage ? (
-              <ImageBackground
-                source={heroImage}
-                style={{ minHeight: 320 }}
-                imageStyle={{ borderRadius: 24 }}>
-                <HeroCardContent />
-              </ImageBackground>
-            ) : (
-              <View style={{ backgroundColor: '#2A1F14', minHeight: 320 }}>
-                <HeroCardContent />
-              </View>
-            )}
+            <View style={{ minHeight: 320 }}>
+              {/* Dark base */}
+              <View
+                style={{
+                  backgroundColor: '#2A1F14',
+                  bottom: 0,
+                  left: 0,
+                  position: 'absolute',
+                  right: 0,
+                  top: 0,
+                }}
+              />
+
+              {/* Carousel image */}
+              {currentImageUrl ? (
+                <Animated.View
+                  style={{
+                    bottom: 0,
+                    left: 0,
+                    opacity: fadeAnim,
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                  }}>
+                  <Image
+                    contentFit="cover"
+                    source={{ uri: currentImageUrl }}
+                    style={{ height: '100%', width: '100%' }}
+                  />
+                </Animated.View>
+              ) : null}
+
+              {/* Dark gradient overlay for readability */}
+              <View
+                style={{
+                  backgroundColor: currentImageUrl
+                    ? 'rgba(18, 12, 6, 0.62)'
+                    : 'rgba(18, 12, 6, 0.38)',
+                  bottom: 0,
+                  left: 0,
+                  position: 'absolute',
+                  right: 0,
+                  top: 0,
+                }}
+              />
+
+              {/* Content */}
+              <HeroCardContent />
+            </View>
           </Pressable>
         </Link>
 
@@ -119,11 +195,9 @@ function HeroCardContent() {
       style={{
         flex: 1,
         justifyContent: 'flex-end',
+        minHeight: 320,
         padding: spacing.lg,
         gap: spacing.md,
-        // Subtle dark gradient at bottom via a semi-transparent overlay
-        backgroundColor: 'rgba(18, 12, 6, 0.38)',
-        minHeight: 320,
       }}>
       <View style={{ gap: spacing.xs }}>
         <AppText variant="eyebrow" style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: 2 }}>

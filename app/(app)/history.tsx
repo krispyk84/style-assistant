@@ -5,12 +5,12 @@ import { useIsFocused } from '@react-navigation/native';
 import { OutfitResultCard } from '@/components/cards/outfit-result-card';
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { AppScreen } from '@/components/ui/app-screen';
+import { AppText } from '@/components/ui/app-text';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { LoadingState } from '@/components/ui/loading-state';
-import { SectionHeader } from '@/components/ui/section-header';
 import { useToast } from '@/components/ui/toast-provider';
-import { spacing } from '@/constants/theme';
+import { spacing, theme } from '@/constants/theme';
 import { deleteSavedOutfit, loadSavedOutfits, replaceSavedOutfits } from '@/lib/saved-outfits-storage';
 import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
 import { outfitsService } from '@/services/outfits';
@@ -131,11 +131,14 @@ export default function HistoryScreen() {
 
   return (
     <AppScreen scrollable>
-      <View style={{ gap: spacing.lg }}>
-        <SectionHeader
-          title="Favorites"
-          subtitle="Saved outfits you can return to whenever you want to revisit a recommendation."
-        />
+      <View style={{ gap: spacing.xl }}>
+        <View style={{ gap: spacing.xs }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 2 }}>
+            The Atelier
+          </AppText>
+          <AppText variant="heroSmall">Favourites</AppText>
+          <AppText tone="muted">Saved outfits you can return to whenever you want.</AppText>
+        </View>
         {isLoading ? (
           <LoadingState label="Loading saved outfits..." />
         ) : errorMessage ? (

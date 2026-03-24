@@ -5,7 +5,6 @@ import { View } from 'react-native';
 import { ProfileForm } from '@/components/forms/profile-form';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
-import { SectionHeader } from '@/components/ui/section-header';
 import { spacing, theme } from '@/constants/theme';
 import { useAppSession } from '@/hooks/use-app-session';
 
@@ -17,8 +16,14 @@ export default function SettingsScreen() {
 
   return (
     <AppScreen scrollable>
-      <View style={{ gap: spacing.lg }}>
-        <SectionHeader title="Settings" subtitle="Profile and app details." />
+      <View style={{ gap: spacing.xl }}>
+        <View style={{ gap: spacing.xs }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 2 }}>
+            The Atelier
+          </AppText>
+          <AppText variant="heroSmall">Settings</AppText>
+          <AppText tone="muted">Profile and app details.</AppText>
+        </View>
         <View
           style={{
             backgroundColor: theme.colors.surface,

@@ -6,7 +6,7 @@ import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { SectionHeader } from '@/components/ui/section-header';
+import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing } from '@/constants/theme';
 import { buildLookResultsHref, parseLookInput } from '@/lib/look-route';
 
@@ -35,7 +35,7 @@ export default function ReviewRequestScreen() {
 
   if (!input) {
     return (
-      <AppScreen topInset={false}>
+      <AppScreen>
         <ErrorState
           title="Request details missing"
           message="Start from Create a look so the review step has an anchor item and tier selections."
@@ -53,22 +53,23 @@ export default function ReviewRequestScreen() {
   const requestId = params.requestId;
 
   return (
-    <AppScreen scrollable topInset={false}>
-      <View style={{ gap: spacing.xl }}>
-        <SectionHeader
-          title="Review request"
-          subtitle="Confirm the prompt before generating outfit recommendations."
-        />
+    <AppScreen scrollable>
+      <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
+        <ScreenHeader title="Confirm Brief" showBack />
+
+        <View style={{ gap: spacing.xs }}>
+          <AppText variant="heroSmall">Ready to generate?</AppText>
+          <AppText tone="muted">
+            We've gathered your wardrobe anchors and aesthetic preferences. Review your brief below.
+          </AppText>
+        </View>
+
         <LookRequestReviewCard input={input} />
-        <AppText tone="muted">
-          The backend will use your anchor item, image, and profile context to generate the selected styling tiers.
-        </AppText>
+
         <View style={{ gap: spacing.sm }}>
           <PrimaryButton
-            label="Generate looks"
-            onPress={() =>
-              router.push(buildLookResultsHref(requestId, input))
-            }
+            label="Generate Outfit Recommendations"
+            onPress={() => router.push(buildLookResultsHref(requestId, input))}
           />
           <PrimaryButton label="Edit request" onPress={() => router.back()} variant="secondary" />
         </View>
