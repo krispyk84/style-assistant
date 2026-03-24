@@ -125,12 +125,14 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
     });
 
     if (response.success && response.data) {
-      const nextProfile = response.data.profile ?? defaultProfile;
+      // Backend does not persist 'name' — preserve it from the submitted profile
+      const backendProfile = response.data.profile ?? defaultProfile;
+      const mergedProfile = { ...backendProfile, name: nextProfile.name };
       const nextOnboardingCompleted = response.data.onboardingCompleted;
 
-      setProfile(nextProfile);
+      setProfile(mergedProfile);
       setHasCompletedOnboarding(nextOnboardingCompleted);
-      await saveStoredProfile(nextProfile, nextOnboardingCompleted);
+      await saveStoredProfile(mergedProfile, nextOnboardingCompleted);
       setIsSaving(false);
       return true;
     } else {
