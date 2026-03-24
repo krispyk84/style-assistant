@@ -5,11 +5,11 @@ import { View } from 'react-native';
 import { MockAnalysisCard } from '@/components/cards/mock-analysis-card';
 import { ImagePickerField } from '@/components/forms/image-picker-field';
 import { AppScreen } from '@/components/ui/app-screen';
-import { EmptyState } from '@/components/ui/empty-state';
+import { AppText } from '@/components/ui/app-text';
 import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { SectionHeader } from '@/components/ui/section-header';
-import { spacing } from '@/constants/theme';
+import { ScreenHeader } from '@/components/ui/screen-header';
+import { spacing, theme } from '@/constants/theme';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import type { CompatibilityCheckResponse } from '@/types/api';
 import { compatibilityService } from '@/services/compatibility';
@@ -33,8 +33,7 @@ export default function CheckPieceScreen() {
     pickFromLibrary,
     takePhoto,
     removeImage,
-  } =
-    useUploadedImage('candidate-piece');
+  } = useUploadedImage('candidate-piece');
   const [analysis, setAnalysis] = useState<CompatibilityCheckResponse | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -67,11 +66,20 @@ export default function CheckPieceScreen() {
   }
 
   return (
-    <AppScreen scrollable topInset={false}>
-      <View style={{ gap: spacing.lg, marginTop: -spacing.sm }}>
-        <SectionHeader title={params.pieceName ?? 'Check piece'} />
+    <AppScreen scrollable>
+      <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
+        <ScreenHeader title="Check Piece" showBack />
+
+        <View style={{ gap: spacing.xs }}>
+          <AppText variant="heroSmall" numberOfLines={3}>
+            {params.pieceName ?? 'Check Piece'}
+          </AppText>
+          <AppText tone="muted">
+            Upload a photo to check whether this piece works with your selected outfit.
+          </AppText>
+        </View>
+
         <ImagePickerField
-          label="Piece image"
           image={image}
           isPicking={isPicking || isUploading}
           error={error}
@@ -93,6 +101,7 @@ export default function CheckPieceScreen() {
             setAnalysisError(null);
           }}
         />
+
         {image && uploadedImage ? (
           <PrimaryButton
             label={isAnalyzing ? 'Analyzing...' : 'Check this piece'}
@@ -100,15 +109,19 @@ export default function CheckPieceScreen() {
             disabled={isAnalyzing}
           />
         ) : null}
-        {analysisError ? <ErrorState title="Analysis unavailable" message={analysisError} /> : null}
+
         {analysisError ? (
-          <PrimaryButton
-            label={isAnalyzing ? 'Analyzing...' : 'Retry analysis'}
-            onPress={runAnalysis}
-            disabled={isAnalyzing || !image || !uploadedImage}
-            variant="secondary"
-          />
+          <>
+            <ErrorState title="Analysis unavailable" message={analysisError} />
+            <PrimaryButton
+              label={isAnalyzing ? 'Analyzing...' : 'Retry analysis'}
+              onPress={runAnalysis}
+              disabled={isAnalyzing || !image || !uploadedImage}
+              variant="secondary"
+            />
+          </>
         ) : null}
+
         {analysis ? (
           <>
             <MockAnalysisCard
@@ -132,12 +145,7 @@ export default function CheckPieceScreen() {
               />
             ) : null}
           </>
-            ) : (
-          <EmptyState
-            title="No piece selected"
-            message="Add a photo of the piece you want to check."
-          />
-        )}
+        ) : null}
       </View>
     </AppScreen>
   );

@@ -82,18 +82,10 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
               </View>
 
               {/* Description */}
-              <View style={{ flex: 1, gap: 2 }}>
-                <AppText variant="sectionTitle" numberOfLines={1}>
+              <View style={{ flex: 1 }}>
+                <AppText variant="sectionTitle" numberOfLines={2}>
                   {description ?? 'Anchor item'}
                 </AppText>
-                {description ? (
-                  <AppText
-                    tone="muted"
-                    numberOfLines={2}
-                    style={{ fontStyle: 'italic', fontSize: 13, lineHeight: 18 }}>
-                    "{description}"
-                  </AppText>
-                ) : null}
               </View>
 
               <Ionicons color={theme.colors.accent} name="checkmark-circle-outline" size={22} />

@@ -69,11 +69,6 @@ export default function HomeScreen() {
     <AppScreen scrollable>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
 
-        {/* Brand mark */}
-        <View style={{ alignItems: 'center', paddingTop: spacing.sm }}>
-          <Ionicons color={theme.colors.text} name="flash" size={22} />
-        </View>
-
         {/* Greeting */}
         <View style={{ gap: spacing.sm }}>
           <View
@@ -180,7 +175,7 @@ export default function HomeScreen() {
         <View style={{ alignItems: 'center', gap: spacing.sm, paddingTop: spacing.sm }}>
           <View style={{ width: 1, height: 40, backgroundColor: theme.colors.border }} />
           <AppText variant="eyebrow" tone="subtle" style={{ letterSpacing: 2 }}>
-            Est. 2024
+            Est. 2026
           </AppText>
         </View>
 
