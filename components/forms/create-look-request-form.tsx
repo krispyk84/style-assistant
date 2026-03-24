@@ -11,14 +11,15 @@ import { loadWeatherContext } from '@/lib/weather-storage';
 import type { CreateLookInput, LookAnchorItem, LookTierSlug } from '@/types/look-request';
 import { LOOK_TIER_OPTIONS } from '@/types/look-request';
 import { AppText } from '@/components/ui/app-text';
-import { FormField } from '@/components/ui/form-field';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
 
-const tierLabels: Record<LookTierSlug, string> = {
-  business: 'Business',
-  'smart-casual': 'Smart Casual',
-  casual: 'Casual',
+const VIBE_SUGGESTIONS = ['Old Money', 'Resort', 'Minimalist', 'European Summer', 'Streetwear', 'Coastal'];
+
+const tierConfig: Record<LookTierSlug, { label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }> = {
+  business: { label: 'Business', icon: 'briefcase-outline' },
+  'smart-casual': { label: 'Smart\nCasual', icon: 'sparkles-outline' },
+  casual: { label: 'Casual', icon: 'cafe-outline' },
 };
 
 type CreateLookRequestFormProps = {
@@ -93,6 +94,19 @@ export function CreateLookRequestForm({
     setAnchorItems((current) => current.filter((item) => item.id !== itemId));
   }
 
+  function toggleVibeKeyword(keyword: string) {
+    setVibeKeywords((current) => {
+      const parts = current.split(',').map((k) => k.trim()).filter(Boolean);
+      const idx = parts.findIndex((k) => k.toLowerCase() === keyword.toLowerCase());
+      if (idx >= 0) {
+        parts.splice(idx, 1);
+      } else {
+        parts.push(keyword);
+      }
+      return parts.join(', ');
+    });
+  }
+
   async function handleContinue() {
     if (!populatedAnchorItems.length) {
       setAnchorError('Add an image, a description, or both before continuing.');
@@ -129,87 +143,167 @@ export function CreateLookRequestForm({
 
   return (
     <View style={{ gap: spacing.xl }}>
-      <FormField error={anchorError ?? undefined} label="Anchor items">
-        <View style={{ gap: spacing.md }}>
-          {anchorItems.map((item, index) => (
-            <AnchorItemCard
-              key={item.id}
-              item={item}
-              removable={index > 0}
-              onChange={updateAnchorItem}
-              onRemove={() => removeAnchorItem(item.id)}
-            />
-          ))}
-          <Pressable
-            disabled={anchorItems.length >= 5}
-            onPress={addAnchorItem}
-            style={[
-              addItemRowStyle,
-              { opacity: anchorItems.length >= 5 ? 0.5 : 1 },
-            ]}>
-            <Ionicons color={theme.colors.text} name="add-outline" size={18} />
-            <AppText>{anchorItems.length >= 5 ? 'Maximum of 5 items reached' : 'Add an item'}</AppText>
-          </Pressable>
-        </View>
-      </FormField>
 
-      <FormField label="Vibe Keywords">
+      {/* Wardrobe Anchors */}
+      <View style={{ gap: spacing.md }}>
+        <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Wardrobe Anchors</AppText>
+          <AppText variant="eyebrow" tone="subtle">{anchorItems.length}/5 Items</AppText>
+        </View>
+
+        {anchorItems.map((item, index) => (
+          <AnchorItemCard
+            key={item.id}
+            item={item}
+            isPrimary={index === 0}
+            removable={index > 0}
+            onChange={updateAnchorItem}
+            onRemove={() => removeAnchorItem(item.id)}
+          />
+        ))}
+
+        {anchorError ? (
+          <AppText style={{ color: theme.colors.danger }}>{anchorError}</AppText>
+        ) : null}
+
+        <Pressable
+          disabled={anchorItems.length >= 5}
+          onPress={addAnchorItem}
+          style={{
+            alignItems: 'center',
+            borderColor: theme.colors.border,
+            borderRadius: 999,
+            borderStyle: 'dashed',
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.xs,
+            justifyContent: 'center',
+            opacity: anchorItems.length >= 5 ? 0.5 : 1,
+            paddingVertical: spacing.md,
+          }}>
+          <Ionicons color={theme.colors.mutedText} name="add" size={16} />
+          <AppText tone="muted">
+            {anchorItems.length >= 5 ? 'Maximum of 5 items reached' : 'Add Item'}
+          </AppText>
+        </Pressable>
+      </View>
+
+      {/* Atmospheric Context */}
+      <View style={{ gap: spacing.md }}>
+        <View style={{ gap: spacing.xs }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Atmospheric Context</AppText>
+          <AppText tone="muted">Keywords that define the aesthetic vibe.</AppText>
+        </View>
         <TextInput
+          multiline
           autoCapitalize="words"
           onChangeText={setVibeKeywords}
-          placeholder='Optional vibe keywords, e.g. "Old Money" or "Resort"'
+          placeholder="Describe the aesthetic..."
           placeholderTextColor={theme.colors.subtleText}
-          style={inputStyle}
+          style={{
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            borderRadius: 18,
+            borderWidth: 1,
+            color: theme.colors.text,
+            fontFamily: theme.fonts.sans,
+            fontSize: 16,
+            minHeight: 100,
+            paddingHorizontal: spacing.md,
+            paddingTop: spacing.md,
+            textAlignVertical: 'top',
+          }}
           value={vibeKeywords}
         />
-      </FormField>
-
-      <FormField
-        label="Outfit tiers"
-        error={tierError ?? undefined}>
-        <View style={{ gap: spacing.sm }}>
-          {LOOK_TIER_OPTIONS.map((tier) => {
-            const isSelected = selectedTiers.includes(tier);
-
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
+          {VIBE_SUGGESTIONS.map((keyword) => {
+            const isSelected = vibeKeywords.split(',').map((k) => k.trim().toLowerCase()).includes(keyword.toLowerCase());
             return (
               <Pressable
-                key={tier}
-                onPress={() => toggleTier(tier)}
-                style={[
-                  tierRowStyle,
-                  {
-                    borderColor: isSelected ? theme.colors.accent : theme.colors.border,
-                  },
-                ]}>
-                <View style={{ gap: spacing.xs, flex: 1 }}>
-                  <AppText variant="sectionTitle">{tierLabels[tier]}</AppText>
-                  <AppText tone="muted">
-                    {tier === 'business'
-                      ? 'Sharper and more structured.'
-                      : tier === 'smart-casual'
-                        ? 'Balanced and dinner-ready.'
-                        : 'Relaxed, clean, and off-duty.'}
-                  </AppText>
-                </View>
-                {isSelected ? <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} /> : <View style={{ width: 22 }} />}
+                key={keyword}
+                onPress={() => toggleVibeKeyword(keyword)}
+                style={{
+                  backgroundColor: isSelected ? theme.colors.accent : theme.colors.surface,
+                  borderColor: isSelected ? theme.colors.accent : theme.colors.border,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.xs,
+                }}>
+                <AppText style={{ color: isSelected ? '#FFFFFF' : theme.colors.text }}>{keyword}</AppText>
               </Pressable>
             );
           })}
         </View>
-      </FormField>
+      </View>
 
-      <PrimaryButton disabled={!hasAnyInput || isUploading} label={isUploading ? 'Uploading image...' : 'Review request'} onPress={() => void handleContinue()} />
+      {/* Occasion Formality */}
+      <View style={{ gap: spacing.md }}>
+        <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Occasion Formality</AppText>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {LOOK_TIER_OPTIONS.map((tier) => {
+            const isSelected = selectedTiers.includes(tier);
+            const config = tierConfig[tier];
+            return (
+              <Pressable
+                key={tier}
+                onPress={() => toggleTier(tier)}
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: isSelected ? theme.colors.accent : theme.colors.surface,
+                  borderColor: isSelected ? theme.colors.accent : theme.colors.border,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  flex: 1,
+                  gap: spacing.sm,
+                  padding: spacing.md,
+                }}>
+                {isSelected ? (
+                  <View style={{ position: 'absolute', right: spacing.sm, top: spacing.sm }}>
+                    <Ionicons color="#FFFFFF" name="checkmark-circle" size={16} />
+                  </View>
+                ) : null}
+                <Ionicons
+                  color={isSelected ? '#FFFFFF' : theme.colors.text}
+                  name={config.icon}
+                  size={24}
+                />
+                <AppText
+                  variant="eyebrow"
+                  style={{
+                    color: isSelected ? '#FFFFFF' : theme.colors.text,
+                    letterSpacing: 1.2,
+                    textAlign: 'center',
+                  }}>
+                  {config.label}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </View>
+        {tierError ? (
+          <AppText style={{ color: theme.colors.danger }}>{tierError}</AppText>
+        ) : null}
+      </View>
+
+      <PrimaryButton
+        disabled={!hasAnyInput || isUploading}
+        label={isUploading ? 'Uploading image...' : 'Review Request'}
+        onPress={() => void handleContinue()}
+      />
     </View>
   );
 }
 
 function AnchorItemCard({
   item,
+  isPrimary,
   removable,
   onChange,
   onRemove,
 }: {
   item: LookAnchorItem;
+  isPrimary: boolean;
   removable: boolean;
   onChange: (item: LookAnchorItem) => void;
   onRemove: () => void;
@@ -244,114 +338,148 @@ function AnchorItemCard({
         borderColor: theme.colors.border,
         borderRadius: 24,
         borderWidth: 1,
-        gap: spacing.md,
-        padding: spacing.lg,
+        overflow: 'hidden',
       }}>
-      <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-        <AppText variant="sectionTitle">Anchor item</AppText>
-        {removable ? (
-          <Pressable hitSlop={8} onPress={async () => {
-            if (image || uploadedImage) {
-              await removeImage();
-            }
-            onRemove();
+
+      {/* Badge row */}
+      <View
+        style={{
+          alignItems: 'center',
+          flexDirection: 'row',
+          gap: spacing.xs,
+          padding: spacing.md,
+          paddingBottom: 0,
+        }}>
+        <View
+          style={{
+            borderColor: theme.colors.accent,
+            borderRadius: 999,
+            borderWidth: 1,
+            paddingHorizontal: spacing.sm,
+            paddingVertical: 3,
           }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.accent, letterSpacing: 1.4 }}>
+            {isPrimary ? 'Primary Anchor' : 'Anchor Item'}
+          </AppText>
+        </View>
+        {isPrimary ? (
+          <View
+            style={{
+              borderColor: theme.colors.text,
+              borderRadius: 999,
+              borderWidth: 1,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: 3,
+            }}>
+            <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>Fixed</AppText>
+          </View>
+        ) : (
+          <Pressable
+            hitSlop={8}
+            onPress={async () => {
+              if (image || uploadedImage) {
+                await removeImage();
+              }
+              onRemove();
+            }}
+            style={{ marginLeft: 'auto' }}>
             <Ionicons color={theme.colors.subtleText} name="close" size={20} />
           </Pressable>
-        ) : null}
+        )}
       </View>
 
-      <View style={{ gap: spacing.sm }}>
+      {/* Content */}
+      <View style={{ gap: spacing.md, padding: spacing.md }}>
+
+        {/* Image */}
         {image ? (
-          <View style={{ gap: spacing.sm }}>
-            <View
-              style={{
-                backgroundColor: theme.colors.card,
-                borderRadius: 20,
-                overflow: 'hidden',
-              }}>
-              <ImagePreview uri={image.uri} />
-            </View>
-            <AppText tone="muted">
-              {image.fileName || 'Selected image'} {image.width && image.height ? `• ${image.width}x${image.height}` : ''}
-            </AppText>
+          <View style={{ borderRadius: 16, overflow: 'hidden' }}>
+            <Image
+              contentFit="cover"
+              source={{ uri: image.uri }}
+              style={{ aspectRatio: 4 / 3, width: '100%' }}
+            />
           </View>
         ) : null}
+
         {error ? <AppText style={{ color: theme.colors.danger }}>{error}</AppText> : null}
-        {isUploading ? <AppText tone="muted">{`Uploading ${Math.round(uploadProgress * 100)}%`}</AppText> : null}
-        {!isUploading && uploadedImage ? <AppText tone="muted">{uploadSuccessMessage ?? 'Upload complete.'}</AppText> : null}
+        {isUploading ? (
+          <AppText tone="muted">{`Uploading ${Math.round(uploadProgress * 100)}%`}</AppText>
+        ) : null}
+        {!isUploading && uploadedImage ? (
+          <AppText tone="muted">{uploadSuccessMessage ?? 'Upload complete.'}</AppText>
+        ) : null}
+
+        {/* Photo buttons */}
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <ActionPill label={isPicking ? 'Opening...' : image ? 'Replace' : 'Select photo'} onPress={pickFromLibrary} />
-          <ActionPill label={isPicking ? 'Opening camera...' : 'Take photo'} onPress={takePhoto} />
-          {image ? <ActionPill label="Remove" onPress={() => void removeImage()} /> : null}
+          <ActionPill
+            icon="image-outline"
+            label={isPicking ? 'Opening...' : 'Library'}
+            onPress={pickFromLibrary}
+          />
+          <ActionPill
+            icon="camera-outline"
+            label={isPicking ? 'Opening...' : 'Camera'}
+            onPress={takePhoto}
+          />
+        </View>
+
+        {/* Description */}
+        <View style={{ gap: spacing.xs }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>
+            Item Description
+          </AppText>
+          <TextInput
+            onChangeText={setDescription}
+            placeholder="Describe the item..."
+            placeholderTextColor={theme.colors.subtleText}
+            style={{
+              backgroundColor: theme.colors.subtleSurface,
+              borderRadius: 14,
+              color: theme.colors.text,
+              fontFamily: theme.fonts.sans,
+              fontSize: 16,
+              minHeight: 48,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm,
+            }}
+            value={description}
+          />
         </View>
       </View>
-
-      <TextInput
-        multiline
-        numberOfLines={4}
-        onChangeText={setDescription}
-        placeholder="Add a description"
-        placeholderTextColor={theme.colors.subtleText}
-        style={[inputStyle, { minHeight: 120, paddingTop: spacing.md, textAlignVertical: 'top' }]}
-        value={description}
-      />
     </View>
   );
 }
 
-function ImagePreview({ uri }: { uri: string }) {
-  return (
-    <Image source={{ uri }} style={{ aspectRatio: 4 / 5, width: '100%' }} contentFit="cover" />
-  );
-}
-
-const inputStyle = {
-  backgroundColor: theme.colors.surface,
-  borderColor: theme.colors.border,
-  borderRadius: 18,
-  borderWidth: 1,
-  color: theme.colors.text,
-  fontFamily: theme.fonts.sans,
-  fontSize: 16,
-  minHeight: 54,
-  paddingHorizontal: spacing.md,
-} as const;
-
-const tierRowStyle = {
-  alignItems: 'center',
-  backgroundColor: theme.colors.surface,
-  borderRadius: 22,
-  borderWidth: 1,
-  flexDirection: 'row',
-  gap: spacing.md,
-  paddingHorizontal: spacing.md,
-  paddingVertical: spacing.md,
-} as const;
-
-const addItemRowStyle = {
-  alignItems: 'center',
-  alignSelf: 'flex-start',
-  flexDirection: 'row',
-  gap: spacing.xs,
-} as const;
-
-function ActionPill({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
+function ActionPill({
+  label,
+  icon,
+  onPress,
+  disabled = false,
+}: {
+  label: string;
+  icon?: React.ComponentProps<typeof Ionicons>['name'];
+  onPress: () => void;
+  disabled?: boolean;
+}) {
   return (
     <Pressable
       disabled={disabled}
       onPress={onPress}
       style={{
         alignItems: 'center',
-        backgroundColor: disabled ? theme.colors.card : theme.colors.subtleSurface,
+        backgroundColor: theme.colors.subtleSurface,
         borderColor: theme.colors.border,
         borderRadius: 999,
         borderWidth: 1,
+        flexDirection: 'row',
+        gap: spacing.xs,
         justifyContent: 'center',
         minHeight: 44,
         opacity: disabled ? 0.5 : 1,
         paddingHorizontal: spacing.md,
       }}>
+      {icon ? <Ionicons color={theme.colors.text} name={icon} size={16} /> : null}
       <AppText>{label}</AppText>
     </Pressable>
   );
