@@ -7,7 +7,7 @@ import { AppText } from '@/components/ui/app-text';
 import { FormField } from '@/components/ui/form-field';
 
 type ImagePickerFieldProps = {
-  label: string;
+  label?: string;
   hint?: string;
   image: LocalImageAsset | null;
   isPicking?: boolean;

@@ -4,14 +4,17 @@ import { View } from 'react-native';
 
 import { spacing, theme } from '@/constants/theme';
 import { formatTierLabel } from '@/lib/outfit-utils';
-import type { CreateLookInput } from '@/types/look-request';
+import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
 import { AppText } from '@/components/ui/app-text';
 
 type LookRequestReviewCardProps = {
   input: CreateLookInput;
+  hideInfoBox?: boolean;
+  recommendations?: LookRecommendation[];
 };
 
-export function LookRequestReviewCard({ input }: LookRequestReviewCardProps) {
+export function LookRequestReviewCard({ input, hideInfoBox = false, recommendations }: LookRequestReviewCardProps) {
+  const aiAnchorDescription = recommendations?.[0]?.anchorItem ?? null;
   const vibeChips = input.vibeKeywords
     ? input.vibeKeywords.split(',').map((k) => k.trim()).filter(Boolean)
     : [];
@@ -42,7 +45,7 @@ export function LookRequestReviewCard({ input }: LookRequestReviewCardProps) {
 
         {input.anchorItems.map((item) => {
           const previewUri = item.image?.uri ?? item.uploadedImage?.publicUrl ?? null;
-          const description = item.description.trim();
+          const description = item.description.trim() || aiAnchorDescription || null;
 
           return (
             <View
@@ -81,7 +84,7 @@ export function LookRequestReviewCard({ input }: LookRequestReviewCardProps) {
               {/* Description */}
               <View style={{ flex: 1, gap: 2 }}>
                 <AppText variant="sectionTitle" numberOfLines={1}>
-                  {description || 'No description'}
+                  {description ?? 'Anchor item'}
                 </AppText>
                 {description ? (
                   <AppText
@@ -167,30 +170,31 @@ export function LookRequestReviewCard({ input }: LookRequestReviewCardProps) {
                 }}
               />
               <AppText variant="sectionTitle" style={{ flex: 1 }}>{formatTierLabel(tier)}</AppText>
-              <Ionicons color={theme.colors.subtleText} name="chevron-forward" size={16} />
             </View>
           ))}
         </View>
 
-        {/* Info box */}
-        <View
-          style={{
-            backgroundColor: theme.colors.subtleSurface,
-            borderRadius: 16,
-            flexDirection: 'row',
-            gap: spacing.sm,
-            padding: spacing.md,
-          }}>
-          <Ionicons
-            color={theme.colors.mutedText}
-            name="information-circle-outline"
-            size={18}
-            style={{ marginTop: 1 }}
-          />
-          <AppText tone="muted" style={{ flex: 1, fontSize: 13, lineHeight: 20 }}>
-            Our digital stylist will now analyze these pieces and preferences to curate three distinct outfit options for your selected tier.
-          </AppText>
-        </View>
+        {/* Info box — shown on review/confirm page, hidden on results page */}
+        {!hideInfoBox ? (
+          <View
+            style={{
+              backgroundColor: theme.colors.subtleSurface,
+              borderRadius: 16,
+              flexDirection: 'row',
+              gap: spacing.sm,
+              padding: spacing.md,
+            }}>
+            <Ionicons
+              color={theme.colors.mutedText}
+              name="information-circle-outline"
+              size={18}
+              style={{ marginTop: 1 }}
+            />
+            <AppText tone="muted" style={{ flex: 1, fontSize: 13, lineHeight: 20 }}>
+              Our digital stylist will now analyze these pieces and preferences to curate three distinct outfit options for your selected tier.
+            </AppText>
+          </View>
+        ) : null}
       </View>
     </View>
   );

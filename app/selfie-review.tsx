@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
@@ -6,10 +7,10 @@ import { MockAnalysisCard } from '@/components/cards/mock-analysis-card';
 import { ImagePickerField } from '@/components/forms/image-picker-field';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
-import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { SectionHeader } from '@/components/ui/section-header';
+import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
+import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing, theme } from '@/constants/theme';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import { selfieReviewService } from '@/services/selfie-review';
@@ -21,6 +22,7 @@ export default function SelfieReviewScreen() {
     tier?: string;
     outfitTitle?: string;
     anchorItemDescription?: string;
+    sketchImageUrl?: string;
   }>();
   const {
     image,
@@ -33,11 +35,12 @@ export default function SelfieReviewScreen() {
     pickFromLibrary,
     takePhoto,
     removeImage,
-  } =
-    useUploadedImage('selfie');
+  } = useUploadedImage('selfie');
   const [analysis, setAnalysis] = useState<SelfieReviewResponse | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  const sketchImageUrl = params.sketchImageUrl || null;
 
   async function runReview() {
     if (!image) {
@@ -66,32 +69,44 @@ export default function SelfieReviewScreen() {
   }
 
   return (
-    <AppScreen scrollable topInset={false}>
-      <View style={{ gap: spacing.xl }}>
-        <SectionHeader
-          title="Selfie review"
-          subtitle={
-            params.outfitTitle
-              ? `Check whether your final outfit matches the tone and essence of the selected ${params.tier?.replaceAll('-', ' ')} recommendation.`
-              : 'Upload a clear outfit photo to review how well you executed the selected recommendation.'
-          }
-        />
-        {params.outfitTitle ? (
-          <View style={{ gap: spacing.xs }}>
-            <AppText variant="sectionTitle">Target outfit</AppText>
-            <AppText tone="muted">
-              {params.outfitTitle}
-              {params.anchorItemDescription ? ` • anchored by ${params.anchorItemDescription}` : ''}
+    <AppScreen scrollable>
+      <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
+        <ScreenHeader title="Selfie Review" showBack />
+
+        <View style={{ gap: spacing.xs }}>
+          <AppText variant="heroSmall">Check Your Outfit</AppText>
+          <AppText tone="muted">
+            {params.outfitTitle
+              ? `See how your look matches the ${params.tier?.replaceAll('-', ' ')} recommendation.`
+              : 'Upload a clear outfit photo to review your execution.'}
+          </AppText>
+        </View>
+
+        {/* Target outfit sketch */}
+        {sketchImageUrl ? (
+          <View style={{ gap: spacing.sm }}>
+            <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+              Target Outfit
             </AppText>
+            <RemoteImagePanel
+              uri={sketchImageUrl}
+              aspectRatio={4 / 5}
+              minHeight={280}
+              fallbackTitle="Sketch unavailable"
+              fallbackMessage="The outfit sketch could not be displayed."
+            />
+          </View>
+        ) : params.outfitTitle ? (
+          <View style={{ gap: spacing.xs }}>
+            <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+              Target Outfit
+            </AppText>
+            <AppText tone="muted">{params.outfitTitle}</AppText>
           </View>
         ) : null}
+
+        {/* Image picker — no label */}
         <ImagePickerField
-          label="Selfie image"
-          hint={
-            params.outfitTitle
-              ? 'Upload a selfie wearing your version of the recommended outfit.'
-              : 'Choose a clear full-body or upper-body image from your library.'
-          }
           image={image}
           isPicking={isPicking || isUploading}
           error={error}
@@ -113,44 +128,31 @@ export default function SelfieReviewScreen() {
             setAnalysisError(null);
           }}
         />
-        <View
-          style={{
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
-            borderRadius: 28,
-            borderWidth: 1,
-            gap: spacing.sm,
-            padding: spacing.lg,
-          }}>
-          <AppText variant="sectionTitle">Review behavior</AppText>
-          <AppText tone="muted">
-            The image is uploaded first, then the backend judges whether your final outfit still captures the original recommendation.
-          </AppText>
-          {image && uploadedImage ? (
-            <PrimaryButton
-              label={isAnalyzing ? 'Reviewing...' : 'Review this outfit'}
-              onPress={runReview}
-              disabled={isAnalyzing}
-            />
-          ) : null}
-        </View>
-        {analysisError ? <ErrorState title="Review unavailable" message={analysisError} /> : null}
-        {analysisError ? (
+
+        {/* Submit button — shown once image is uploaded */}
+        {image && uploadedImage ? (
           <PrimaryButton
-            label={isAnalyzing ? 'Reviewing...' : 'Retry review'}
+            label={isAnalyzing ? 'Reviewing...' : 'Review this outfit'}
             onPress={runReview}
-            disabled={isAnalyzing || !image || !uploadedImage}
-            variant="secondary"
+            disabled={isAnalyzing}
           />
         ) : null}
+
+        {analysisError ? (
+          <>
+            <ErrorState title="Review unavailable" message={analysisError} />
+            <PrimaryButton
+              label={isAnalyzing ? 'Reviewing...' : 'Retry review'}
+              onPress={runReview}
+              disabled={isAnalyzing || !image || !uploadedImage}
+              variant="secondary"
+            />
+          </>
+        ) : null}
+
         {analysis ? (
           <MockAnalysisCard title="Selfie styling review" response={analysis} />
-        ) : (
-          <EmptyState
-            title="No selfie selected"
-            message="Choose a photo from your library to review how well your final outfit matches the selected recommendation."
-          />
-        )}
+        ) : null}
       </View>
     </AppScreen>
   );

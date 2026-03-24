@@ -187,10 +187,12 @@ export default function ResultDetailsScreen() {
   if (isLoading) {
     return (
       <AppScreen>
-        <LoadingState
-          label="Generating outfit options..."
-          messages={extendedFashionLoadingMessages}
-        />
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <LoadingState
+            label="Generating outfit options..."
+            messages={extendedFashionLoadingMessages}
+          />
+        </View>
       </AppScreen>
     );
   }
@@ -223,7 +225,11 @@ export default function ResultDetailsScreen() {
           <AppText variant="heroSmall">Your Looks</AppText>
           <AppText tone="muted">Styling directions built from the same anchor item.</AppText>
         </View>
-        <LookRequestReviewCard input={response.input} />
+        <LookRequestReviewCard
+          input={response.input}
+          hideInfoBox
+          recommendations={response.recommendations}
+        />
         {response.recommendations.map((recommendation) => (
           <LookResultCard
             key={`${recommendation.tier}-${recommendation.title}`}

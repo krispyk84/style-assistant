@@ -120,6 +120,7 @@ export default function TierScreen() {
                   tier: liveRecommendation.tier,
                   outfitTitle: liveRecommendation.title,
                   anchorItemDescription: requestInput?.anchorItemDescription,
+                  sketchImageUrl: liveRecommendation.sketchImageUrl ?? '',
                 },
               })
             }
