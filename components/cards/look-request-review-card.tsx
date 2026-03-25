@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, View } from 'react-native';
 
+import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
+import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
 import { formatTierLabel } from '@/lib/outfit-utils';
-import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
-import { AppText } from '@/components/ui/app-text';
+import type { LookAnchorItem, CreateLookInput, LookRecommendation } from '@/types/look-request';
 
 type LookRequestReviewCardProps = {
   input: CreateLookInput;
@@ -18,6 +20,7 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
   const vibeChips = input.vibeKeywords
     ? input.vibeKeywords.split(',').map((k) => k.trim()).filter(Boolean)
     : [];
+  const [closetItem, setClosetItem] = useState<LookAnchorItem | null>(null);
 
   return (
     <View
@@ -88,7 +91,9 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
                 </AppText>
               </View>
 
-              <Ionicons color={theme.colors.accent} name="checkmark-circle-outline" size={22} />
+              <Pressable hitSlop={8} onPress={() => setClosetItem(item)}>
+                <Ionicons color={theme.colors.accent} name="bag-add-outline" size={22} />
+              </Pressable>
             </View>
           );
         })}
@@ -189,5 +194,13 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
         ) : null}
       </View>
     </View>
+
+    <SaveToClosetModal
+      visible={closetItem !== null}
+      onClose={() => setClosetItem(null)}
+      onSaved={() => setClosetItem(null)}
+      uploadedImage={closetItem?.uploadedImage ?? undefined}
+      description={closetItem?.description ?? undefined}
+    />
   );
 }

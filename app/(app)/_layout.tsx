@@ -71,6 +71,13 @@ export default function AppTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="closet"
+        options={{
+          title: 'Closet',
+          tabBarIcon: ({ color }) => <Ionicons color={color} name="shirt-outline" size={TAB_ICON_SIZE} />,
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',

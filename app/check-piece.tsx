@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { MockAnalysisCard } from '@/components/cards/mock-analysis-card';
+import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
 import { ImagePickerField } from '@/components/forms/image-picker-field';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
@@ -37,6 +38,7 @@ export default function CheckPieceScreen() {
   const [analysis, setAnalysis] = useState<CompatibilityCheckResponse | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [closetModalVisible, setClosetModalVisible] = useState(false);
 
   async function runAnalysis() {
     if (!image) {
@@ -103,11 +105,19 @@ export default function CheckPieceScreen() {
         />
 
         {image && uploadedImage ? (
-          <PrimaryButton
-            label={isAnalyzing ? 'Analyzing...' : 'Check this piece'}
-            onPress={runAnalysis}
-            disabled={isAnalyzing}
-          />
+          <View style={{ gap: spacing.sm }}>
+            <PrimaryButton
+              label={isAnalyzing ? 'Analyzing...' : 'Check this piece'}
+              onPress={runAnalysis}
+              disabled={isAnalyzing}
+            />
+            <PrimaryButton
+              label="Save to Closet"
+              onPress={() => setClosetModalVisible(true)}
+              variant="secondary"
+              disabled={isAnalyzing}
+            />
+          </View>
         ) : null}
 
         {analysisError ? (
@@ -147,6 +157,14 @@ export default function CheckPieceScreen() {
           </>
         ) : null}
       </View>
+
+      <SaveToClosetModal
+        visible={closetModalVisible}
+        onClose={() => setClosetModalVisible(false)}
+        onSaved={() => setClosetModalVisible(false)}
+        uploadedImage={uploadedImage ?? undefined}
+        description={params.pieceName}
+      />
     </AppScreen>
   );
 }

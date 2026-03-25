@@ -1,3 +1,4 @@
+import type { ClosetItem } from '@/types/closet';
 import type { CreateLookInput, LookRequestResponse } from '@/types/look-request';
 import type { LocalImageAsset, UploadedImageAsset, UploadedImageCategory } from '@/types/media';
 import type { PersistedSession, Profile } from '@/types/profile';
@@ -76,3 +77,27 @@ export type DeleteUploadResponse = {
 };
 
 export type SelfieReviewResponse = AnalysisResponse;
+
+export type AnalyzeClosetItemRequest = {
+  uploadedImageId?: string;
+  uploadedImageUrl?: string;
+  description?: string;
+};
+
+export type AnalyzeClosetItemResponse = {
+  title: string;
+  category: string;
+};
+
+export type SaveClosetItemRequest = {
+  title: string;
+  brand: string;
+  size: string;
+  category: string;
+  uploadedImageId?: string;
+  uploadedImageUrl?: string;
+};
+
+export type GetClosetItemsResponse = {
+  items: ClosetItem[];
+};
