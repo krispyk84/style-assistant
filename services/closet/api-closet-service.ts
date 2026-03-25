@@ -79,14 +79,10 @@ export const apiClosetService: ClosetService = {
   },
 
   async generateItemSketch(request: GenerateClosetSketchRequest): Promise<ApiResponse<GenerateClosetSketchResponse>> {
-    const response = await createApiClient().request<GenerateClosetSketchResponse>('/closet/items/sketch-preview', {
+    return createApiClient().request<GenerateClosetSketchResponse>('/closet/items/sketch-preview', {
       method: 'POST',
       body: request,
     });
-    if (!response.success) {
-      return mockClosetService.generateItemSketch(request);
-    }
-    return response;
   },
 
   async getItemSketch(jobId: string): Promise<ApiResponse<GetClosetSketchResponse>> {

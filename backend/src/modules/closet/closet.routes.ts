@@ -1,0 +1,92 @@
+import { Router } from 'express';
+
+import { sendSuccess } from '../../lib/api-response.js';
+import { asyncHandler } from '../../lib/async-handler.js';
+import { HttpError } from '../../lib/http-error.js';
+import { parseWithSchema } from '../../lib/validation.js';
+import { closetService } from './closet.service.js';
+import {
+  analyzeClosetItemSchema,
+  generateClosetSketchSchema,
+  saveClosetItemSchema,
+  updateClosetItemSchema,
+} from './closet.validation.js';
+
+export const closetRouter = Router();
+
+closetRouter.post(
+  '/closet/items/analyze',
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(analyzeClosetItemSchema, request.body);
+    const result = await closetService.analyzeItem(payload);
+    return sendSuccess(response, result);
+  })
+);
+
+// Must be before /closet/items/:id to avoid "sketch-preview" being treated as an id
+closetRouter.post(
+  '/closet/items/sketch-preview',
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(generateClosetSketchSchema, request.body);
+    const result = await closetService.generateItemSketch(payload);
+    return sendSuccess(response, result, 201);
+  })
+);
+
+closetRouter.get(
+  '/closet/items/sketch-preview/:jobId',
+  asyncHandler(async (request, response) => {
+    const jobId = Array.isArray(request.params.jobId) ? request.params.jobId[0] : request.params.jobId;
+    if (!jobId) throw new HttpError(400, 'INVALID_REQUEST', 'Job ID is required.');
+    const result = await closetService.getItemSketch(jobId);
+    return sendSuccess(response, result);
+  })
+);
+
+closetRouter.post(
+  '/closet/items',
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(saveClosetItemSchema, request.body);
+    const result = await closetService.saveItem(payload);
+    return sendSuccess(response, result, 201);
+  })
+);
+
+closetRouter.get(
+  '/closet/items',
+  asyncHandler(async (_request, response) => {
+    const result = await closetService.getItems();
+    return sendSuccess(response, result);
+  })
+);
+
+closetRouter.get(
+  '/closet/items/:id',
+  asyncHandler(async (request, response) => {
+    const id = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+    if (!id) throw new HttpError(400, 'INVALID_REQUEST', 'Item ID is required.');
+    const result = await closetService.getItem(id);
+    return sendSuccess(response, result);
+  })
+);
+
+closetRouter.patch(
+  '/closet/items/:id',
+  asyncHandler(async (request, response) => {
+    const id = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+    if (!id) throw new HttpError(400, 'INVALID_REQUEST', 'Item ID is required.');
+    const payload = parseWithSchema(updateClosetItemSchema, request.body);
+    const result = await closetService.updateItem(id, payload);
+    return sendSuccess(response, result);
+  })
+);
+
+closetRouter.delete(
+  '/closet/items/:id',
+  asyncHandler(async (request, response) => {
+    const id = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+    if (!id) throw new HttpError(400, 'INVALID_REQUEST', 'Item ID is required.');
+    const result = await closetService.deleteItem(id);
+    return sendSuccess(response, result);
+  })
+);

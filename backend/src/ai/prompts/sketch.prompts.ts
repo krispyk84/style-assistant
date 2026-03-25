@@ -1,5 +1,17 @@
 import type { TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 
+export function buildClosetItemSketchPrompt(input: { itemDescription: string }) {
+  return [
+    'Create a menswear editorial fashion illustration of a single garment on a clean presentation.',
+    'Visual style: luxury menswear sketch, hand-rendered marker and watercolor wash, confident ink outlines, refined retail lookbook presentation.',
+    'Show only this one piece — do not add other garments, people, or accessories.',
+    'Do not add any words, logos, watermarks, UI chrome, or marketing copy.',
+    'Favor a soft neutral or white background with premium menswear presentation.',
+    `Garment: ${input.itemDescription}`,
+    'Compose this as a polished portrait-oriented single-piece menswear sketch suitable for a premium wardrobe cataloguing app.',
+  ].join('\n');
+}
+
 function formatList(items: string[]) {
   return items.length ? items.map((item) => `- ${item}`).join('\n') : '- none';
 }

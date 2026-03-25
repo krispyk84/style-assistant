@@ -163,6 +163,34 @@ model UploadedImage {
   selfieReviews         SelfieReview[]         @relation("SelfieImage")
 }
 
+model ClosetItem {
+  id               String   @id @default(cuid())
+  title            String
+  brand            String   @default("")
+  size             String   @default("")
+  category         String   @default("Clothing")
+  uploadedImageUrl String?
+  sketchImageUrl   String?
+  sketchStorageKey String?
+  sketchMimeType   String?
+  sketchImageData  Bytes?
+  sketchStatus     String   @default("failed")
+  savedAt          DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model ClosetSketchJob {
+  id               String   @id @default(cuid())
+  status           String   @default("pending")
+  sketchImageUrl   String?
+  sketchStorageKey String?
+  sketchMimeType   String?
+  sketchImageData  Bytes?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
 model StyleGuideDocument {
   id                  String   @id @default(cuid())
   name                String

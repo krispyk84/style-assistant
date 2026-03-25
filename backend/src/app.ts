@@ -8,6 +8,7 @@ import { storageConfig } from './config/storage.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { requestLogger } from './middleware/request-logger.js';
+import { closetRouter } from './modules/closet/closet.routes.js';
 import { compatibilityRouter } from './modules/compatibility/compatibility.routes.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { outfitsRouter } from './modules/outfits/outfits.routes.js';
@@ -46,6 +47,7 @@ export function createApp() {
   const apiRouter = express.Router();
   apiRouter.use(profileRouter);
   apiRouter.use(outfitsRouter);
+  apiRouter.use(closetRouter);
   apiRouter.use(compatibilityRouter);
   apiRouter.use(selfieReviewRouter);
   apiRouter.use(uploadsRouter);
