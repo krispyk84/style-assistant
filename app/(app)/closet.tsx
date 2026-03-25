@@ -368,8 +368,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
         <Pressable
           onPress={() => { Keyboard.dismiss(); onClose(); }}
           style={{ backgroundColor: 'rgba(24, 18, 14, 0.52)', flex: 1, justifyContent: 'flex-end' }}>
-          <Pressable
-            onPress={() => undefined}
+          <View
             style={{
               backgroundColor: '#FFFDFC',
               borderTopLeftRadius: 28,
@@ -397,7 +396,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
               <View
                 onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
                 style={{
-                  aspectRatio: 3 / 4,
+                  height: 200,
                   backgroundColor: theme.colors.card,
                   borderRadius: 20,
                   overflow: 'hidden',
@@ -499,7 +498,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                 </View>
               )}
             </ScrollView>
-          </Pressable>
+          </View>
         </Pressable>
       </KeyboardAvoidingView>
     </Modal>

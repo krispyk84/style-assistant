@@ -96,6 +96,7 @@ export type SaveClosetItemRequest = {
   category: string;
   uploadedImageId?: string;
   uploadedImageUrl?: string;
+  sketchImageUrl?: string;
 };
 
 export type GetClosetItemsResponse = {
@@ -108,4 +109,18 @@ export type UpdateClosetItemRequest = {
   brand: string;
   size: string;
   category: string;
+};
+
+export type GenerateClosetSketchRequest = {
+  uploadedImageId?: string;
+  uploadedImageUrl?: string;
+};
+
+export type GenerateClosetSketchResponse = {
+  jobId: string;
+};
+
+export type GetClosetSketchResponse = {
+  sketchStatus: 'pending' | 'ready' | 'failed';
+  sketchImageUrl: string | null;
 };

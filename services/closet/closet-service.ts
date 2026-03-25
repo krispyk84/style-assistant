@@ -1,7 +1,10 @@
 import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
+  GenerateClosetSketchRequest,
+  GenerateClosetSketchResponse,
   GetClosetItemsResponse,
+  GetClosetSketchResponse,
   SaveClosetItemRequest,
   UpdateClosetItemRequest,
 } from '@/types/api';
@@ -15,4 +18,6 @@ export type ClosetService = {
   getItem: (id: string) => Promise<ApiResponse<ClosetItem>>;
   updateItem: (request: UpdateClosetItemRequest) => Promise<ApiResponse<ClosetItem>>;
   deleteItem: (id: string) => Promise<ApiResponse<{ deleted: boolean }>>;
+  generateItemSketch: (request: GenerateClosetSketchRequest) => Promise<ApiResponse<GenerateClosetSketchResponse>>;
+  getItemSketch: (jobId: string) => Promise<ApiResponse<GetClosetSketchResponse>>;
 };

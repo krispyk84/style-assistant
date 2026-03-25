@@ -2,7 +2,10 @@ import { deleteClosetItem, loadClosetItems, saveClosetItem, updateClosetItem } f
 import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
+  GenerateClosetSketchRequest,
+  GenerateClosetSketchResponse,
   GetClosetItemsResponse,
+  GetClosetSketchResponse,
   SaveClosetItemRequest,
   UpdateClosetItemRequest,
 } from '@/types/api';
@@ -113,5 +116,21 @@ export const mockClosetService: ClosetService = {
   async deleteItem(id: string): Promise<ApiResponse<{ deleted: boolean }>> {
     await deleteClosetItem(id);
     return { success: true, data: { deleted: true }, error: null };
+  },
+
+  async generateItemSketch(_request: GenerateClosetSketchRequest): Promise<ApiResponse<GenerateClosetSketchResponse>> {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'MOCK_UNAVAILABLE', message: 'Sketch generation requires the live API.' },
+    };
+  },
+
+  async getItemSketch(_jobId: string): Promise<ApiResponse<GetClosetSketchResponse>> {
+    return {
+      success: true,
+      data: { sketchStatus: 'failed', sketchImageUrl: null },
+      error: null,
+    };
   },
 };
