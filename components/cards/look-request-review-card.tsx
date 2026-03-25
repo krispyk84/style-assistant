@@ -23,6 +23,7 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
   const [closetItem, setClosetItem] = useState<LookAnchorItem | null>(null);
 
   return (
+    <>
     <View
       style={{
         backgroundColor: theme.colors.surface,
@@ -202,5 +203,6 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
       uploadedImage={closetItem?.uploadedImage ?? undefined}
       description={closetItem?.description ?? undefined}
     />
+    </>
   );
 }
