@@ -163,7 +163,6 @@ export default function CheckPieceScreen() {
         onClose={() => setClosetModalVisible(false)}
         onSaved={() => setClosetModalVisible(false)}
         uploadedImage={uploadedImage ?? undefined}
-        description={params.pieceName}
       />
     </AppScreen>
   );

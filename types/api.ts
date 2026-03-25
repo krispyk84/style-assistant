@@ -101,3 +101,11 @@ export type SaveClosetItemRequest = {
 export type GetClosetItemsResponse = {
   items: ClosetItem[];
 };
+
+export type UpdateClosetItemRequest = {
+  id: string;
+  title: string;
+  brand: string;
+  size: string;
+  category: string;
+};

@@ -1,9 +1,10 @@
-import { loadClosetItems, saveClosetItem } from '@/lib/closet-storage';
+import { deleteClosetItem, loadClosetItems, saveClosetItem, updateClosetItem } from '@/lib/closet-storage';
 import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
   GetClosetItemsResponse,
   SaveClosetItemRequest,
+  UpdateClosetItemRequest,
 } from '@/types/api';
 import type { ApiResponse } from '@/types/api';
 import type { ClosetItem } from '@/types/closet';
@@ -96,5 +97,21 @@ export const mockClosetService: ClosetService = {
       return { success: false, data: null, error: { code: 'NOT_FOUND', message: 'Item not found.' } };
     }
     return { success: true, data: item, error: null };
+  },
+
+  async updateItem(request: UpdateClosetItemRequest): Promise<ApiResponse<ClosetItem>> {
+    const items = await loadClosetItems();
+    const existing = items.find((i) => i.id === request.id);
+    if (!existing) {
+      return { success: false, data: null, error: { code: 'NOT_FOUND', message: 'Item not found.' } };
+    }
+    const updated: ClosetItem = { ...existing, title: request.title, brand: request.brand, size: request.size, category: request.category };
+    await updateClosetItem(updated);
+    return { success: true, data: updated, error: null };
+  },
+
+  async deleteItem(id: string): Promise<ApiResponse<{ deleted: boolean }>> {
+    await deleteClosetItem(id);
+    return { success: true, data: { deleted: true }, error: null };
   },
 };

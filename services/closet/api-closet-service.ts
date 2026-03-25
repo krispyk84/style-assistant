@@ -1,10 +1,11 @@
 import { createApiClient } from '@/lib/api/api-client';
-import { saveClosetItem, updateClosetItem } from '@/lib/closet-storage';
+import { deleteClosetItem, saveClosetItem, updateClosetItem } from '@/lib/closet-storage';
 import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
   GetClosetItemsResponse,
   SaveClosetItemRequest,
+  UpdateClosetItemRequest,
 } from '@/types/api';
 import type { ApiResponse } from '@/types/api';
 import type { ClosetItem } from '@/types/closet';
@@ -49,5 +50,28 @@ export const apiClosetService: ClosetService = {
       await updateClosetItem(response.data);
     }
     return response;
+  },
+
+  async updateItem(request: UpdateClosetItemRequest): Promise<ApiResponse<ClosetItem>> {
+    const response = await createApiClient().request<ClosetItem>(`/closet/items/${request.id}`, {
+      method: 'PATCH',
+      body: request,
+    });
+    if (response.success && response.data) {
+      await updateClosetItem(response.data);
+      return response;
+    }
+    return mockClosetService.updateItem(request);
+  },
+
+  async deleteItem(id: string): Promise<ApiResponse<{ deleted: boolean }>> {
+    const response = await createApiClient().request<{ deleted: boolean }>(`/closet/items/${id}`, {
+      method: 'DELETE',
+    });
+    if (response.success) {
+      await deleteClosetItem(id);
+      return response;
+    }
+    return mockClosetService.deleteItem(id);
   },
 };

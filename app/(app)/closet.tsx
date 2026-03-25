@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Pressable, ScrollView, View } from 'react-native';
+import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
@@ -18,6 +18,7 @@ export default function ClosetScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState<ClosetItem | null>(null);
   const translateX = useRef(new Animated.Value(-140)).current;
 
   const loadItems = useCallback(async () => {
@@ -37,11 +38,7 @@ export default function ClosetScreen() {
     if (!isLoading) return;
     const animation = Animated.loop(
       Animated.sequence([
-        Animated.timing(translateX, {
-          toValue: 220,
-          duration: 1400,
-          useNativeDriver: true,
-        }),
+        Animated.timing(translateX, { toValue: 220, duration: 1400, useNativeDriver: true }),
         Animated.timing(translateX, { toValue: -140, duration: 0, useNativeDriver: true }),
       ])
     );
@@ -65,11 +62,20 @@ export default function ClosetScreen() {
     return () => clearInterval(interval);
   }, [items]);
 
+  function handleItemSaved(updated: ClosetItem) {
+    setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+    setEditingItem(null);
+  }
+
+  function handleItemDeleted(id: string) {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    setEditingItem(null);
+  }
+
   const categories = buildCategories(items);
   const displayItems = selectedCategory
     ? items.filter((item) => item.category === selectedCategory)
     : items;
-
   const activeLabel = selectedCategory ?? 'All Items';
 
   return (
@@ -142,9 +148,9 @@ export default function ClosetScreen() {
         {/* Grid or Sectioned list */}
         {!isLoading ? (
           selectedCategory ? (
-            <ClosetGrid items={displayItems} />
+            <ClosetGrid items={displayItems} onPressItem={setEditingItem} />
           ) : (
-            <SectionedCloset items={items} />
+            <SectionedCloset items={items} onPressItem={setEditingItem} />
           )
         ) : null}
 
@@ -171,24 +177,27 @@ export default function ClosetScreen() {
         ) : null}
       </View>
 
-      {/* Category filter modal */}
       <CategoryFilterModal
         visible={filterModalVisible}
         categories={categories}
         selected={selectedCategory}
-        onSelect={(cat) => {
-          setSelectedCategory(cat);
-          setFilterModalVisible(false);
-        }}
+        onSelect={(cat) => { setSelectedCategory(cat); setFilterModalVisible(false); }}
         onClose={() => setFilterModalVisible(false)}
+      />
+
+      <ClosetItemEditModal
+        item={editingItem}
+        onClose={() => setEditingItem(null)}
+        onSaved={handleItemSaved}
+        onDeleted={handleItemDeleted}
       />
     </AppScreen>
   );
 }
 
-// ── Grid component ──────────────────────────────────────────────────────────
+// ── Grid ─────────────────────────────────────────────────────────────────────
 
-function ClosetGrid({ items }: { items: ClosetItem[] }) {
+function ClosetGrid({ items, onPressItem }: { items: ClosetItem[]; onPressItem: (item: ClosetItem) => void }) {
   if (items.length === 0) {
     return (
       <AppText tone="muted" style={{ textAlign: 'center', paddingVertical: spacing.lg }}>
@@ -207,9 +216,8 @@ function ClosetGrid({ items }: { items: ClosetItem[] }) {
       {rows.map((row, rowIndex) => (
         <View key={rowIndex} style={{ flexDirection: 'row', gap: spacing.sm }}>
           {row.map((item) => (
-            <ClosetGridItem key={item.id} item={item} />
+            <ClosetGridItem key={item.id} item={item} onPress={() => onPressItem(item)} />
           ))}
-          {/* Fill empty cells */}
           {row.length < COLUMN_COUNT
             ? Array.from({ length: COLUMN_COUNT - row.length }).map((_, i) => (
                 <View key={`empty-${i}`} style={{ flex: 1 }} />
@@ -221,13 +229,13 @@ function ClosetGrid({ items }: { items: ClosetItem[] }) {
   );
 }
 
-function ClosetGridItem({ item }: { item: ClosetItem }) {
+function ClosetGridItem({ item, onPress }: { item: ClosetItem; onPress: () => void }) {
   const [cellWidth, setCellWidth] = useState(0);
   const hasBoth = Boolean(item.sketchImageUrl) && Boolean(item.uploadedImageUrl);
   const primaryUri = item.sketchImageUrl ?? item.uploadedImageUrl ?? null;
 
   return (
-    <View style={{ flex: 1, gap: spacing.xs }}>
+    <Pressable style={{ flex: 1, gap: spacing.xs }} onPress={onPress}>
       <View
         onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
         style={{
@@ -246,61 +254,37 @@ function ClosetGridItem({ item }: { item: ClosetItem }) {
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             style={{ width: cellWidth, flex: 1 }}>
-            <Image
-              contentFit="cover"
-              source={{ uri: item.sketchImageUrl! }}
-              style={{ width: cellWidth, flex: 1 }}
-            />
-            <Image
-              contentFit="cover"
-              source={{ uri: item.uploadedImageUrl! }}
-              style={{ width: cellWidth, flex: 1 }}
-            />
+            <Image contentFit="cover" source={{ uri: item.sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
+            <Image contentFit="cover" source={{ uri: item.uploadedImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
           </ScrollView>
         ) : primaryUri ? (
-          <Image
-            contentFit="cover"
-            source={{ uri: primaryUri }}
-            style={{ height: '100%', width: '100%' }}
-          />
+          <Image contentFit="cover" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
         ) : item.sketchStatus === 'pending' ? (
           <Ionicons color={theme.colors.subtleText} name="time-outline" size={22} />
         ) : (
           <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={22} />
         )}
 
-        {/* Swipe indicator dots */}
         {hasBoth ? (
-          <View
-            style={{
-              bottom: 6,
-              flexDirection: 'row',
-              gap: 4,
-              position: 'absolute',
-              alignSelf: 'center',
-            }}>
-            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 999, height: 5, width: 5, opacity: 0.9 }} />
-            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 999, height: 5, width: 5, opacity: 0.45 }} />
+          <View style={{ bottom: 6, flexDirection: 'row', gap: 4, position: 'absolute', alignSelf: 'center' }}>
+            <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 5, width: 5, opacity: 0.9 }} />
+            <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 5, width: 5, opacity: 0.45 }} />
           </View>
         ) : null}
       </View>
-      <AppText
-        style={{ fontSize: 11, fontFamily: theme.fonts.sansMedium, letterSpacing: 0.2 }}
-        numberOfLines={2}>
+      <AppText style={{ fontSize: 11, fontFamily: theme.fonts.sansMedium, letterSpacing: 0.2 }} numberOfLines={2}>
         {item.title}
       </AppText>
       {item.brand ? (
-        <AppText tone="muted" style={{ fontSize: 10 }} numberOfLines={1}>
-          {item.brand}
-        </AppText>
+        <AppText tone="muted" style={{ fontSize: 10 }} numberOfLines={1}>{item.brand}</AppText>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
-// ── Sectioned (All) view ────────────────────────────────────────────────────
+// ── Sectioned view ────────────────────────────────────────────────────────────
 
-function SectionedCloset({ items }: { items: ClosetItem[] }) {
+function SectionedCloset({ items, onPressItem }: { items: ClosetItem[]; onPressItem: (item: ClosetItem) => void }) {
   const grouped = groupByCategory(items);
   const sortedCategories = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 
@@ -311,14 +295,218 @@ function SectionedCloset({ items }: { items: ClosetItem[] }) {
           <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
             {category}
           </AppText>
-          <ClosetGrid items={grouped[category]!} />
+          <ClosetGrid items={grouped[category]!} onPressItem={onPressItem} />
         </View>
       ))}
     </View>
   );
 }
 
-// ── Category filter modal ────────────────────────────────────────────────────
+// ── Edit modal ────────────────────────────────────────────────────────────────
+
+type ClosetItemEditModalProps = {
+  item: ClosetItem | null;
+  onClose: () => void;
+  onSaved: (item: ClosetItem) => void;
+  onDeleted: (id: string) => void;
+};
+
+function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEditModalProps) {
+  const [title, setTitle] = useState('');
+  const [category, setCategory] = useState('');
+  const [brand, setBrand] = useState('');
+  const [size, setSize] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [cellWidth, setCellWidth] = useState(0);
+
+  useEffect(() => {
+    if (!item) return;
+    setTitle(item.title);
+    setCategory(item.category);
+    setBrand(item.brand);
+    setSize(item.size);
+    setError(null);
+    setConfirmDelete(false);
+  }, [item]);
+
+  async function handleSave() {
+    if (!item || !title.trim()) return;
+    setIsSaving(true);
+    setError(null);
+    const response = await closetService.updateItem({
+      id: item.id,
+      title: title.trim(),
+      brand: brand.trim(),
+      size: size.trim(),
+      category: category.trim() || 'Clothing',
+    });
+    setIsSaving(false);
+    if (response.success && response.data) {
+      onSaved(response.data);
+    } else {
+      setError(response.error?.message ?? 'Failed to save changes.');
+    }
+  }
+
+  async function handleDelete() {
+    if (!item) return;
+    setIsDeleting(true);
+    await closetService.deleteItem(item.id);
+    setIsDeleting(false);
+    onDeleted(item.id);
+  }
+
+  const hasBoth = Boolean(item?.sketchImageUrl) && Boolean(item?.uploadedImageUrl);
+  const primaryUri = item?.sketchImageUrl ?? item?.uploadedImageUrl ?? null;
+
+  return (
+    <Modal animationType="slide" transparent visible={item !== null} onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <Pressable
+          onPress={() => { Keyboard.dismiss(); onClose(); }}
+          style={{ backgroundColor: 'rgba(24, 18, 14, 0.52)', flex: 1, justifyContent: 'flex-end' }}>
+          <Pressable
+            onPress={() => undefined}
+            style={{
+              backgroundColor: '#FFFDFC',
+              borderTopLeftRadius: 28,
+              borderTopRightRadius: 28,
+              maxHeight: '92%',
+              overflow: 'hidden',
+            }}>
+            <ScrollView
+              bounces={false}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg }}>
+
+              {/* Header */}
+              <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+                <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+                  Edit Item
+                </AppText>
+                <Pressable hitSlop={8} onPress={onClose}>
+                  <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+                </Pressable>
+              </View>
+
+              {/* Item image — sketch first, swipe for photo */}
+              <View
+                onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
+                style={{
+                  aspectRatio: 3 / 4,
+                  backgroundColor: theme.colors.card,
+                  borderRadius: 20,
+                  overflow: 'hidden',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                {hasBoth && cellWidth > 0 ? (
+                  <>
+                    <ScrollView
+                      horizontal
+                      pagingEnabled
+                      showsHorizontalScrollIndicator={false}
+                      style={{ width: cellWidth, flex: 1 }}>
+                      <Image contentFit="cover" source={{ uri: item!.sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
+                      <Image contentFit="cover" source={{ uri: item!.uploadedImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
+                    </ScrollView>
+                    <View style={{ bottom: 10, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center' }}>
+                      <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.9 }} />
+                      <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.45 }} />
+                    </View>
+                  </>
+                ) : primaryUri ? (
+                  <Image contentFit="cover" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
+                ) : item?.sketchStatus === 'pending' ? (
+                  <View style={{ alignItems: 'center', gap: spacing.sm }}>
+                    <Ionicons color={theme.colors.subtleText} name="time-outline" size={32} />
+                    <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>Sketch generating...</AppText>
+                  </View>
+                ) : (
+                  <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
+                )}
+              </View>
+
+              {confirmDelete ? (
+                <View style={{ gap: spacing.md }}>
+                  <View
+                    style={{
+                      backgroundColor: '#FDF2F0',
+                      borderColor: '#D26A5C',
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      gap: spacing.xs,
+                      padding: spacing.md,
+                    }}>
+                    <AppText variant="sectionTitle" style={{ color: '#C95F4A' }}>Remove from closet?</AppText>
+                    <AppText tone="muted" style={{ fontSize: 13 }}>
+                      This will permanently delete "{item?.title}" from your wardrobe.
+                    </AppText>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                    <PrimaryButton label="Cancel" onPress={() => setConfirmDelete(false)} variant="secondary" style={{ flex: 1 }} />
+                    <PrimaryButton
+                      label={isDeleting ? 'Removing...' : 'Remove'}
+                      onPress={() => void handleDelete()}
+                      disabled={isDeleting}
+                      style={{ flex: 1, backgroundColor: '#C95F4A' }}
+                    />
+                  </View>
+                </View>
+              ) : (
+                <View style={{ gap: spacing.md }}>
+                  {/* Title */}
+                  <View style={{ gap: spacing.xs }}>
+                    <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Title</AppText>
+                    <TextInput value={title} onChangeText={setTitle} returnKeyType="next" style={inputStyle} />
+                  </View>
+
+                  {/* Category */}
+                  <View style={{ gap: spacing.xs }}>
+                    <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Category</AppText>
+                    <TextInput value={category} onChangeText={setCategory} returnKeyType="next" style={inputStyle} />
+                  </View>
+
+                  {/* Brand + Size */}
+                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                    <View style={{ flex: 1, gap: spacing.xs }}>
+                      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Brand</AppText>
+                      <TextInput value={brand} onChangeText={setBrand} returnKeyType="next" style={inputStyle} />
+                    </View>
+                    <View style={{ flex: 1, gap: spacing.xs }}>
+                      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Size</AppText>
+                      <TextInput value={size} onChangeText={setSize} returnKeyType="done" onSubmitEditing={Keyboard.dismiss} style={inputStyle} />
+                    </View>
+                  </View>
+
+                  {error ? <AppText style={{ color: '#D26A5C', fontSize: 13 }}>{error}</AppText> : null}
+
+                  <PrimaryButton
+                    label={isSaving ? 'Saving...' : 'Save Changes'}
+                    onPress={() => void handleSave()}
+                    disabled={isSaving || !title.trim()}
+                  />
+                  <PrimaryButton
+                    label="Remove from Closet"
+                    onPress={() => setConfirmDelete(true)}
+                    variant="secondary"
+                    style={{ borderColor: '#D26A5C' }}
+                  />
+                </View>
+              )}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ── Category filter modal ─────────────────────────────────────────────────────
 
 type CategoryEntry = { label: string; count: number };
 
@@ -356,13 +544,8 @@ function CategoryFilterModal({ visible, categories, selected, onSelect, onClose 
             Filter by Category
           </AppText>
 
-          {/* All option */}
-          <Pressable
-            onPress={() => onSelect(null)}
-            style={[filterRowStyle, !selected ? filterRowActiveStyle : null]}>
-            <AppText variant="sectionTitle" style={!selected ? { color: theme.colors.accent } : undefined}>
-              All Items
-            </AppText>
+          <Pressable onPress={() => onSelect(null)} style={[filterRowStyle, !selected ? filterRowActiveStyle : null]}>
+            <AppText variant="sectionTitle" style={!selected ? { color: theme.colors.accent } : undefined}>All Items</AppText>
             <AppText tone="muted">{categories.reduce((sum, c) => sum + c.count, 0)}</AppText>
           </Pressable>
 
@@ -371,9 +554,7 @@ function CategoryFilterModal({ visible, categories, selected, onSelect, onClose 
               key={cat.label}
               onPress={() => onSelect(cat.label)}
               style={[filterRowStyle, selected === cat.label ? filterRowActiveStyle : null]}>
-              <AppText
-                variant="sectionTitle"
-                style={selected === cat.label ? { color: theme.colors.accent } : undefined}>
+              <AppText variant="sectionTitle" style={selected === cat.label ? { color: theme.colors.accent } : undefined}>
                 {cat.label}
               </AppText>
               <AppText tone="muted">{cat.count}</AppText>
@@ -387,15 +568,13 @@ function CategoryFilterModal({ visible, categories, selected, onSelect, onClose 
   );
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function groupByCategory(items: ClosetItem[]): Record<string, ClosetItem[]> {
   const groups: Record<string, ClosetItem[]> = {};
   for (const item of items) {
     const cat = item.category || 'Other';
-    if (!groups[cat]) {
-      groups[cat] = [];
-    }
+    if (!groups[cat]) groups[cat] = [];
     groups[cat]!.push(item);
   }
   return groups;
@@ -425,6 +604,17 @@ const filterRowStyle = {
   paddingHorizontal: spacing.lg,
 } as const;
 
-const filterRowActiveStyle = {
-  borderColor: theme.colors.accent,
+const filterRowActiveStyle = { borderColor: theme.colors.accent } as const;
+
+const inputStyle = {
+  backgroundColor: theme.colors.surface,
+  borderColor: theme.colors.border,
+  borderRadius: 14,
+  borderWidth: 1,
+  color: theme.colors.text,
+  fontFamily: theme.fonts.sans,
+  fontSize: 15,
+  minHeight: 48,
+  paddingHorizontal: spacing.md,
+  paddingVertical: spacing.sm,
 } as const;
