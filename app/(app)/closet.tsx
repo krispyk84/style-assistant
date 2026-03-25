@@ -189,12 +189,14 @@ export default function ClosetScreen() {
         onClose={() => setFilterModalVisible(false)}
       />
 
-      <ClosetItemEditModal
-        item={editingItem}
-        onClose={() => setEditingItem(null)}
-        onSaved={handleItemSaved}
-        onDeleted={handleItemDeleted}
-      />
+      {editingItem !== null ? (
+        <ClosetItemEditModal
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSaved={handleItemSaved}
+          onDeleted={handleItemDeleted}
+        />
+      ) : null}
     </AppScreen>
   );
 }
@@ -409,9 +411,8 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                 </Pressable>
               </View>
 
-              {/* Item image — sketch first, swipe for photo; tap to expand */}
-              <Pressable
-                onPress={() => { if (primaryUri) setLightboxUri(primaryUri); }}
+              {/* Item image — sketch first, swipe for photo; tap expand icon to fullscreen */}
+              <View
                 onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
                 style={{
                   height: 200,
@@ -437,7 +438,9 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                     </View>
                   </>
                 ) : primaryUri ? (
-                  <Image contentFit="cover" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
+                  <Pressable onPress={() => setLightboxUri(primaryUri)} style={{ height: '100%', width: '100%' }}>
+                    <Image contentFit="cover" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
+                  </Pressable>
                 ) : item?.sketchStatus === 'pending' ? (
                   <View style={{ alignItems: 'center', gap: spacing.sm }}>
                     <Ionicons color={theme.colors.subtleText} name="time-outline" size={32} />
@@ -447,11 +450,14 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                   <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
                 )}
                 {primaryUri ? (
-                  <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, padding: 5 }}>
+                  <Pressable
+                    onPress={() => setLightboxUri(primaryUri)}
+                    hitSlop={8}
+                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, padding: 5 }}>
                     <Ionicons color="#FFF" name="expand-outline" size={14} />
-                  </View>
+                  </Pressable>
                 ) : null}
-              </Pressable>
+              </View>
 
               {confirmDelete ? (
                 <View style={{ gap: spacing.md }}>
