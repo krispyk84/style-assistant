@@ -122,7 +122,7 @@ export const mockClosetService: ClosetService = {
     return {
       success: false,
       data: null,
-      error: { code: 'MOCK_UNAVAILABLE', message: 'Sketch generation requires the live API.' },
+      error: { code: 'UNAVAILABLE', message: 'Sketch generation is not available right now.' },
     };
   },
 
