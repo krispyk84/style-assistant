@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { Keyboard, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 
@@ -123,6 +124,23 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                 <Ionicons color={theme.colors.mutedText} name="close" size={22} />
               </Pressable>
             </View>
+
+            {/* Item image preview */}
+            {uploadedImage?.publicUrl ? (
+              <View
+                style={{
+                  borderRadius: 18,
+                  overflow: 'hidden',
+                  aspectRatio: 1,
+                  backgroundColor: theme.colors.card,
+                }}>
+                <Image
+                  contentFit="cover"
+                  source={{ uri: uploadedImage.publicUrl }}
+                  style={{ height: '100%', width: '100%' }}
+                />
+              </View>
+            ) : null}
 
             {isAnalyzing ? (
               <LoadingState
