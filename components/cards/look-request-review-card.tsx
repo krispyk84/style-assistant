@@ -20,7 +20,8 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
   const vibeChips = input.vibeKeywords
     ? input.vibeKeywords.split(',').map((k) => k.trim()).filter(Boolean)
     : [];
-  const [closetItem, setClosetItem] = useState<LookAnchorItem | null>(null);
+  type ClosetTarget = { uploadedImage: LookAnchorItem['uploadedImage']; description: string };
+  const [closetTarget, setClosetTarget] = useState<ClosetTarget | null>(null);
 
   return (
     <>
@@ -92,9 +93,13 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
                 </AppText>
               </View>
 
-              <Pressable hitSlop={8} onPress={() => setClosetItem(item)}>
-                <Ionicons color={theme.colors.accent} name="bag-add-outline" size={22} />
-              </Pressable>
+              {hideInfoBox ? (
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => setClosetTarget({ uploadedImage: item.uploadedImage, description: description ?? item.description })}>
+                  <Ionicons color={theme.colors.accent} name="archive-outline" size={22} />
+                </Pressable>
+              ) : null}
             </View>
           );
         })}
@@ -197,11 +202,11 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
     </View>
 
     <SaveToClosetModal
-      visible={closetItem !== null}
-      onClose={() => setClosetItem(null)}
-      onSaved={() => setClosetItem(null)}
-      uploadedImage={closetItem?.uploadedImage ?? undefined}
-      description={closetItem?.description ?? undefined}
+      visible={closetTarget !== null}
+      onClose={() => setClosetTarget(null)}
+      onSaved={() => setClosetTarget(null)}
+      uploadedImage={closetTarget?.uploadedImage ?? undefined}
+      description={closetTarget?.description}
     />
     </>
   );

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Pressable, View } from 'react-native';
+import { Animated, Modal, Pressable, ScrollView, View } from 'react-native';
 
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
@@ -222,11 +222,14 @@ function ClosetGrid({ items }: { items: ClosetItem[] }) {
 }
 
 function ClosetGridItem({ item }: { item: ClosetItem }) {
-  const imageUri = item.sketchImageUrl ?? item.uploadedImageUrl ?? null;
+  const [cellWidth, setCellWidth] = useState(0);
+  const hasBoth = Boolean(item.sketchImageUrl) && Boolean(item.uploadedImageUrl);
+  const primaryUri = item.sketchImageUrl ?? item.uploadedImageUrl ?? null;
 
   return (
     <View style={{ flex: 1, gap: spacing.xs }}>
       <View
+        onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
         style={{
           aspectRatio: 3 / 4,
           backgroundColor: theme.colors.card,
@@ -237,10 +240,27 @@ function ClosetGridItem({ item }: { item: ClosetItem }) {
           alignItems: 'center',
           justifyContent: 'center',
         }}>
-        {imageUri ? (
+        {hasBoth && cellWidth > 0 ? (
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            style={{ width: cellWidth, flex: 1 }}>
+            <Image
+              contentFit="cover"
+              source={{ uri: item.sketchImageUrl! }}
+              style={{ width: cellWidth, flex: 1 }}
+            />
+            <Image
+              contentFit="cover"
+              source={{ uri: item.uploadedImageUrl! }}
+              style={{ width: cellWidth, flex: 1 }}
+            />
+          </ScrollView>
+        ) : primaryUri ? (
           <Image
             contentFit="cover"
-            source={{ uri: imageUri }}
+            source={{ uri: primaryUri }}
             style={{ height: '100%', width: '100%' }}
           />
         ) : item.sketchStatus === 'pending' ? (
@@ -248,6 +268,21 @@ function ClosetGridItem({ item }: { item: ClosetItem }) {
         ) : (
           <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={22} />
         )}
+
+        {/* Swipe indicator dots */}
+        {hasBoth ? (
+          <View
+            style={{
+              bottom: 6,
+              flexDirection: 'row',
+              gap: 4,
+              position: 'absolute',
+              alignSelf: 'center',
+            }}>
+            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 999, height: 5, width: 5, opacity: 0.9 }} />
+            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 999, height: 5, width: 5, opacity: 0.45 }} />
+          </View>
+        ) : null}
       </View>
       <AppText
         style={{ fontSize: 11, fontFamily: theme.fonts.sansMedium, letterSpacing: 0.2 }}

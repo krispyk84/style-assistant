@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
-import { Keyboard, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/ui/app-text';
 import { LoadingState } from '@/components/ui/loading-state';
@@ -87,143 +87,154 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
 
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
-      <Pressable
-        onPress={() => {
-          Keyboard.dismiss();
-          onClose();
-        }}
-        style={{
-          alignItems: 'center',
-          backgroundColor: 'rgba(24, 18, 14, 0.52)',
-          flex: 1,
-          justifyContent: 'center',
-          padding: spacing.lg,
-        }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}>
         <Pressable
-          onPress={() => undefined}
+          onPress={() => {
+            Keyboard.dismiss();
+            onClose();
+          }}
           style={{
-            backgroundColor: '#FFFDFC',
-            borderRadius: 28,
-            maxWidth: 420,
-            width: '100%',
-            overflow: 'hidden',
+            alignItems: 'center',
+            backgroundColor: 'rgba(24, 18, 14, 0.52)',
+            flex: 1,
+            justifyContent: 'center',
+            padding: spacing.lg,
           }}>
-          <ScrollView
-            bounces={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg }}>
-            {/* Header */}
-            <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-                <Ionicons color={theme.colors.accent} name="bag-add-outline" size={18} />
-                <AppText variant="eyebrow" style={{ letterSpacing: 1.8, color: theme.colors.mutedText }}>
-                  Save to Closet
-                </AppText>
+          <Pressable
+            onPress={() => undefined}
+            style={{
+              backgroundColor: '#FFFDFC',
+              borderRadius: 28,
+              maxWidth: 420,
+              width: '100%',
+              overflow: 'hidden',
+              maxHeight: '92%',
+            }}>
+            <ScrollView
+              bounces={false}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg }}>
+              {/* Header */}
+              <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+                <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+                  <Ionicons color={theme.colors.accent} name="archive-outline" size={18} />
+                  <AppText variant="eyebrow" style={{ letterSpacing: 1.8, color: theme.colors.mutedText }}>
+                    Save to Closet
+                  </AppText>
+                </View>
+                <Pressable hitSlop={8} onPress={onClose}>
+                  <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+                </Pressable>
               </View>
-              <Pressable hitSlop={8} onPress={onClose}>
-                <Ionicons color={theme.colors.mutedText} name="close" size={22} />
-              </Pressable>
-            </View>
 
-            {/* Item image preview */}
-            {uploadedImage?.publicUrl ? (
-              <View
-                style={{
-                  borderRadius: 18,
-                  overflow: 'hidden',
-                  aspectRatio: 1,
-                  backgroundColor: theme.colors.card,
-                }}>
-                <Image
-                  contentFit="cover"
-                  source={{ uri: uploadedImage.publicUrl }}
-                  style={{ height: '100%', width: '100%' }}
+              {/* Item image preview */}
+              {uploadedImage?.publicUrl ? (
+                <View
+                  style={{
+                    borderRadius: 18,
+                    overflow: 'hidden',
+                    aspectRatio: 1,
+                    backgroundColor: theme.colors.card,
+                  }}>
+                  <Image
+                    contentFit="cover"
+                    source={{ uri: uploadedImage.publicUrl }}
+                    style={{ height: '100%', width: '100%' }}
+                  />
+                </View>
+              ) : null}
+
+              {isAnalyzing ? (
+                <LoadingState
+                  label="Identifying piece..."
+                  messages={[
+                    'Identifying your piece.',
+                    'Checking the fabric situation.',
+                    'Cataloguing with intention.',
+                  ]}
                 />
-              </View>
-            ) : null}
-
-            {isAnalyzing ? (
-              <LoadingState
-                label="Identifying piece..."
-                messages={[
-                  'Identifying your piece.',
-                  'Checking the fabric situation.',
-                  'Cataloguing with intention.',
-                ]}
-              />
-            ) : (
-              <View style={{ gap: spacing.md }}>
-                {/* Title */}
-                <View style={{ gap: spacing.xs }}>
-                  <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>
-                    Title
-                  </AppText>
-                  <TextInput
-                    value={title}
-                    onChangeText={setTitle}
-                    placeholder="e.g. Navy Slim Trousers"
-                    placeholderTextColor={theme.colors.subtleText}
-                    style={inputStyle}
-                  />
-                </View>
-
-                {/* Category */}
-                <View style={{ gap: spacing.xs }}>
-                  <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>
-                    Category
-                  </AppText>
-                  <TextInput
-                    value={category}
-                    onChangeText={setCategory}
-                    placeholder="e.g. Trousers"
-                    placeholderTextColor={theme.colors.subtleText}
-                    style={inputStyle}
-                  />
-                </View>
-
-                {/* Brand + Size row */}
-                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                  <View style={{ flex: 1, gap: spacing.xs }}>
+              ) : (
+                <View style={{ gap: spacing.md }}>
+                  {/* Title */}
+                  <View style={{ gap: spacing.xs }}>
                     <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>
-                      Brand
+                      Title
                     </AppText>
                     <TextInput
-                      value={brand}
-                      onChangeText={setBrand}
-                      placeholder="e.g. COS"
+                      value={title}
+                      onChangeText={setTitle}
+                      placeholder="e.g. Navy Slim Trousers"
                       placeholderTextColor={theme.colors.subtleText}
+                      returnKeyType="next"
                       style={inputStyle}
                     />
                   </View>
-                  <View style={{ flex: 1, gap: spacing.xs }}>
+
+                  {/* Category */}
+                  <View style={{ gap: spacing.xs }}>
                     <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>
-                      Size
+                      Category
                     </AppText>
                     <TextInput
-                      value={size}
-                      onChangeText={setSize}
-                      placeholder="e.g. M / 32"
+                      value={category}
+                      onChangeText={setCategory}
+                      placeholder="e.g. Trousers"
                       placeholderTextColor={theme.colors.subtleText}
+                      returnKeyType="next"
                       style={inputStyle}
                     />
                   </View>
+
+                  {/* Brand + Size row */}
+                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                    <View style={{ flex: 1, gap: spacing.xs }}>
+                      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>
+                        Brand
+                      </AppText>
+                      <TextInput
+                        value={brand}
+                        onChangeText={setBrand}
+                        placeholder="e.g. COS"
+                        placeholderTextColor={theme.colors.subtleText}
+                        returnKeyType="next"
+                        style={inputStyle}
+                      />
+                    </View>
+                    <View style={{ flex: 1, gap: spacing.xs }}>
+                      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>
+                        Size
+                      </AppText>
+                      <TextInput
+                        value={size}
+                        onChangeText={setSize}
+                        placeholder="e.g. M / 32"
+                        placeholderTextColor={theme.colors.subtleText}
+                        returnKeyType="done"
+                        onSubmitEditing={Keyboard.dismiss}
+                        style={inputStyle}
+                      />
+                    </View>
+                  </View>
+
+                  {saveError ? (
+                    <AppText style={{ color: '#D26A5C', fontSize: 13 }}>{saveError}</AppText>
+                  ) : null}
+
+                  <PrimaryButton
+                    label={isSaving ? 'Saving...' : 'Save to Closet'}
+                    onPress={() => void handleSave()}
+                    disabled={isSaving || !title.trim()}
+                  />
+                  <PrimaryButton label="Cancel" onPress={onClose} variant="secondary" />
                 </View>
-
-                {saveError ? (
-                  <AppText style={{ color: '#D26A5C', fontSize: 13 }}>{saveError}</AppText>
-                ) : null}
-
-                <PrimaryButton
-                  label={isSaving ? 'Saving...' : 'Save to Closet'}
-                  onPress={() => void handleSave()}
-                  disabled={isSaving || !title.trim()}
-                />
-                <PrimaryButton label="Cancel" onPress={onClose} variant="secondary" />
-              </View>
-            )}
-          </ScrollView>
+              )}
+            </ScrollView>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

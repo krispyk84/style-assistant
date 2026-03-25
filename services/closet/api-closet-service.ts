@@ -30,8 +30,9 @@ export const apiClosetService: ClosetService = {
     });
     if (response.success && response.data) {
       await saveClosetItem(response.data);
+      return response;
     }
-    return response;
+    return mockClosetService.saveItem(request);
   },
 
   async getItems(): Promise<ApiResponse<GetClosetItemsResponse>> {
