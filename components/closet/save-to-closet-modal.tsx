@@ -154,8 +154,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <Pressable
-          onPress={() => { Keyboard.dismiss(); onClose(); }}
+        <View
           style={{
             alignItems: 'center',
             backgroundColor: 'rgba(24, 18, 14, 0.52)',
@@ -322,7 +321,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
               )}
             </ScrollView>
           </View>
-        </Pressable>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );

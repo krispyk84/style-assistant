@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 
@@ -29,9 +30,12 @@ export default function ClosetScreen() {
     setIsLoading(false);
   }, []);
 
-  useEffect(() => {
-    void loadItems();
-  }, [loadItems]);
+  useFocusEffect(
+    useCallback(() => {
+      setIsLoading(true);
+      void loadItems();
+    }, [loadItems])
+  );
 
   // Loading bar animation
   useEffect(() => {
@@ -321,6 +325,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cellWidth, setCellWidth] = useState(0);
+  const [lightboxUri, setLightboxUri] = useState<string | null>(null);
 
   useEffect(() => {
     if (!item) return;
@@ -363,10 +368,22 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
   const primaryUri = item?.sketchImageUrl ?? item?.uploadedImageUrl ?? null;
 
   return (
-    <Modal animationType="slide" transparent visible={item !== null} onRequestClose={onClose}>
+    <>
+      {lightboxUri ? (
+        <Modal animationType="fade" transparent visible onRequestClose={() => setLightboxUri(null)}>
+          <Pressable
+            onPress={() => setLightboxUri(null)}
+            style={{ backgroundColor: 'rgba(0,0,0,0.92)', flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Image contentFit="contain" source={{ uri: lightboxUri }} style={{ width: '100%', height: '100%' }} />
+            <View style={{ position: 'absolute', top: 56, right: 20 }}>
+              <Ionicons color="#FFF" name="close" size={28} />
+            </View>
+          </Pressable>
+        </Modal>
+      ) : null}
+      <Modal animationType="slide" transparent visible={item !== null} onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <Pressable
-          onPress={() => { Keyboard.dismiss(); onClose(); }}
+        <View
           style={{ backgroundColor: 'rgba(24, 18, 14, 0.52)', flex: 1, justifyContent: 'flex-end' }}>
           <View
             style={{
@@ -392,8 +409,9 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                 </Pressable>
               </View>
 
-              {/* Item image — sketch first, swipe for photo */}
-              <View
+              {/* Item image — sketch first, swipe for photo; tap to expand */}
+              <Pressable
+                onPress={() => { if (primaryUri) setLightboxUri(primaryUri); }}
                 onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
                 style={{
                   height: 200,
@@ -428,7 +446,12 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                 ) : (
                   <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
                 )}
-              </View>
+                {primaryUri ? (
+                  <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, padding: 5 }}>
+                    <Ionicons color="#FFF" name="expand-outline" size={14} />
+                  </View>
+                ) : null}
+              </Pressable>
 
               {confirmDelete ? (
                 <View style={{ gap: spacing.md }}>
@@ -499,9 +522,10 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
               )}
             </ScrollView>
           </View>
-        </Pressable>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
+    </>
   );
 }
 
