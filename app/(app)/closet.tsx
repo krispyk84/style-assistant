@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 
@@ -278,12 +278,14 @@ function ClosetGridItem({ item, onPress }: { item: ClosetItem; onPress: () => vo
           </View>
         ) : null}
       </View>
-      <AppText style={{ fontSize: 11, fontFamily: theme.fonts.sansMedium, letterSpacing: 0.2 }} numberOfLines={2}>
-        {item.title}
-      </AppText>
-      {item.brand ? (
-        <AppText tone="muted" style={{ fontSize: 10 }} numberOfLines={1}>{item.brand}</AppText>
-      ) : null}
+      <View style={{ gap: 2 }}>
+        <AppText style={{ fontSize: 11, fontFamily: theme.fonts.sansMedium, letterSpacing: 0.2 }} numberOfLines={2}>
+          {item.title}
+        </AppText>
+        {item.brand ? (
+          <AppText tone="muted" style={{ fontSize: 10 }} numberOfLines={1}>{item.brand}</AppText>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -318,6 +320,8 @@ type ClosetItemEditModalProps = {
 };
 
 function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEditModalProps) {
+  const router = useRouter();
+  const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [brand, setBrand] = useState('');
@@ -327,7 +331,6 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cellWidth, setCellWidth] = useState(0);
-  const [lightboxUri, setLightboxUri] = useState<string | null>(null);
 
   useEffect(() => {
     if (!item) return;
@@ -335,6 +338,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
     setCategory(item.category);
     setBrand(item.brand);
     setSize(item.size);
+    setIsEditing(false);
     setError(null);
     setConfirmDelete(false);
   }, [item]);
@@ -352,6 +356,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
     });
     setIsSaving(false);
     if (response.success && response.data) {
+      setIsEditing(false);
       onSaved(response.data);
     } else {
       setError(response.error?.message ?? 'Failed to save changes.');
@@ -366,27 +371,27 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
     onDeleted(item.id);
   }
 
+  function handleAnchorToOutfit() {
+    if (!item) return;
+    onClose();
+    const anchorImageUrl = item.sketchImageUrl ?? item.uploadedImageUrl ?? '';
+    router.push({
+      pathname: '/(app)/create-look',
+      params: {
+        closetItemId: item.id,
+        closetItemTitle: item.title,
+        closetItemImageUrl: anchorImageUrl,
+      },
+    });
+  }
+
   const hasBoth = Boolean(item?.sketchImageUrl) && Boolean(item?.uploadedImageUrl);
   const primaryUri = item?.sketchImageUrl ?? item?.uploadedImageUrl ?? null;
 
   return (
-    <>
-      {lightboxUri ? (
-        <Modal animationType="fade" transparent visible onRequestClose={() => setLightboxUri(null)}>
-          <Pressable
-            onPress={() => setLightboxUri(null)}
-            style={{ backgroundColor: 'rgba(0,0,0,0.92)', flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Image contentFit="contain" source={{ uri: lightboxUri }} style={{ width: '100%', height: '100%' }} />
-            <View style={{ position: 'absolute', top: 56, right: 20 }}>
-              <Ionicons color="#FFF" name="close" size={28} />
-            </View>
-          </Pressable>
-        </Modal>
-      ) : null}
-      <Modal animationType="slide" transparent visible={item !== null} onRequestClose={onClose}>
+    <Modal animationType="slide" transparent visible={item !== null} onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View
-          style={{ backgroundColor: 'rgba(24, 18, 14, 0.52)', flex: 1, justifyContent: 'flex-end' }}>
+        <View style={{ backgroundColor: 'rgba(24, 18, 14, 0.52)', flex: 1, justifyContent: 'flex-end' }}>
           <View
             style={{
               backgroundColor: '#FFFDFC',
@@ -404,64 +409,85 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
               {/* Header */}
               <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
                 <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
-                  Edit Item
+                  {isEditing ? 'Edit Item' : 'View Item'}
                 </AppText>
-                <Pressable hitSlop={8} onPress={onClose}>
-                  <Ionicons color={theme.colors.mutedText} name="close" size={22} />
-                </Pressable>
-              </View>
-
-              {/* Item image — sketch first, swipe for photo; expand button outside overflow:hidden */}
-              <View onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}>
-                <View
-                  style={{
-                    height: 280,
-                    backgroundColor: theme.colors.card,
-                    borderRadius: 20,
-                    overflow: 'hidden',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                  {hasBoth && cellWidth > 0 ? (
+                <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md }}>
+                  {!isEditing ? (
                     <>
-                      <ScrollView
-                        horizontal
-                        pagingEnabled
-                        showsHorizontalScrollIndicator={false}
-                        style={{ width: cellWidth, flex: 1 }}>
-                        <Image contentFit="contain" source={{ uri: item!.sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-                        <Image contentFit="cover" source={{ uri: item!.uploadedImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-                      </ScrollView>
-                      <View style={{ bottom: 10, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center' }}>
-                        <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.9 }} />
-                        <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.45 }} />
-                      </View>
+                      <Pressable hitSlop={8} onPress={() => setIsEditing(true)}>
+                        <Ionicons color={theme.colors.mutedText} name="pencil-outline" size={20} />
+                      </Pressable>
+                      <Pressable hitSlop={8} onPress={() => setConfirmDelete(true)}>
+                        <Ionicons color="#D26A5C" name="trash-outline" size={20} />
+                      </Pressable>
                     </>
-                  ) : primaryUri ? (
-                    <Pressable onPress={() => setLightboxUri(primaryUri)} style={{ height: '100%', width: '100%' }}>
-                      <Image contentFit="contain" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
-                    </Pressable>
-                  ) : item?.sketchStatus === 'pending' ? (
-                    <View style={{ alignItems: 'center', gap: spacing.sm }}>
-                      <Ionicons color={theme.colors.subtleText} name="time-outline" size={32} />
-                      <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>Sketch generating...</AppText>
-                    </View>
-                  ) : (
-                    <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
-                  )}
-                </View>
-
-                {/* Expand button sits OUTSIDE overflow:hidden so it receives touches freely */}
-                {primaryUri ? (
-                  <Pressable
-                    onPress={() => setLightboxUri(primaryUri)}
-                    hitSlop={12}
-                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 999, padding: 7 }}>
-                    <Ionicons color="#FFF" name="expand-outline" size={16} />
+                  ) : null}
+                  <Pressable hitSlop={8} onPress={isEditing ? () => { setIsEditing(false); setError(null); } : onClose}>
+                    <Ionicons color={theme.colors.mutedText} name="close" size={22} />
                   </Pressable>
-                ) : null}
+                </View>
               </View>
 
+              {/* Anchor to Outfit button */}
+              {!isEditing && !confirmDelete ? (
+                <Pressable
+                  onPress={handleAnchorToOutfit}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: theme.colors.accent,
+                    borderRadius: 999,
+                    flexDirection: 'row',
+                    gap: spacing.sm,
+                    justifyContent: 'center',
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.sm,
+                  }}>
+                  <Ionicons color="#FFF" name="shirt-outline" size={16} />
+                  <AppText variant="eyebrow" style={{ color: '#FFF', letterSpacing: 1.4 }}>
+                    Anchor to Outfit
+                  </AppText>
+                </Pressable>
+              ) : null}
+
+              {/* Item image */}
+              <View
+                onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
+                style={{
+                  height: 280,
+                  backgroundColor: theme.colors.card,
+                  borderRadius: 20,
+                  overflow: 'hidden',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                {hasBoth && cellWidth > 0 ? (
+                  <>
+                    <ScrollView
+                      horizontal
+                      pagingEnabled
+                      showsHorizontalScrollIndicator={false}
+                      style={{ width: cellWidth, flex: 1 }}>
+                      <Image contentFit="contain" source={{ uri: item!.sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
+                      <Image contentFit="contain" source={{ uri: item!.uploadedImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
+                    </ScrollView>
+                    <View style={{ bottom: 10, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center' }}>
+                      <View style={{ backgroundColor: theme.colors.accent, borderRadius: 999, height: 6, width: 6, opacity: 0.9 }} />
+                      <View style={{ backgroundColor: theme.colors.accent, borderRadius: 999, height: 6, width: 6, opacity: 0.45 }} />
+                    </View>
+                  </>
+                ) : primaryUri ? (
+                  <Image contentFit="contain" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
+                ) : item?.sketchStatus === 'pending' ? (
+                  <View style={{ alignItems: 'center', gap: spacing.sm }}>
+                    <Ionicons color={theme.colors.subtleText} name="time-outline" size={32} />
+                    <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>Sketch generating...</AppText>
+                  </View>
+                ) : (
+                  <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
+                )}
+              </View>
+
+              {/* Delete confirmation */}
               {confirmDelete ? (
                 <View style={{ gap: spacing.md }}>
                   <View
@@ -488,21 +514,18 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                     />
                   </View>
                 </View>
-              ) : (
+
+              ) : isEditing ? (
+                /* Edit mode — text inputs */
                 <View style={{ gap: spacing.md }}>
-                  {/* Title */}
                   <View style={{ gap: spacing.xs }}>
                     <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Title</AppText>
                     <TextInput value={title} onChangeText={setTitle} returnKeyType="next" style={inputStyle} />
                   </View>
-
-                  {/* Category */}
                   <View style={{ gap: spacing.xs }}>
                     <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Category</AppText>
                     <TextInput value={category} onChangeText={setCategory} returnKeyType="next" style={inputStyle} />
                   </View>
-
-                  {/* Brand + Size */}
                   <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                     <View style={{ flex: 1, gap: spacing.xs }}>
                       <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Brand</AppText>
@@ -513,20 +536,23 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                       <TextInput value={size} onChangeText={setSize} returnKeyType="done" onSubmitEditing={Keyboard.dismiss} style={inputStyle} />
                     </View>
                   </View>
-
                   {error ? <AppText style={{ color: '#D26A5C', fontSize: 13 }}>{error}</AppText> : null}
-
                   <PrimaryButton
                     label={isSaving ? 'Saving...' : 'Save Changes'}
                     onPress={() => void handleSave()}
                     disabled={isSaving || !title.trim()}
                   />
-                  <PrimaryButton
-                    label="Remove from Closet"
-                    onPress={() => setConfirmDelete(true)}
-                    variant="secondary"
-                    style={{ borderColor: '#D26A5C' }}
-                  />
+                </View>
+
+              ) : (
+                /* View mode — plain labels */
+                <View style={{ gap: spacing.md }}>
+                  <LabelRow label="Title" value={item?.title} />
+                  <LabelRow label="Category" value={item?.category} />
+                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                    <View style={{ flex: 1 }}><LabelRow label="Brand" value={item?.brand || '—'} /></View>
+                    <View style={{ flex: 1 }}><LabelRow label="Size" value={item?.size || '—'} /></View>
+                  </View>
                 </View>
               )}
             </ScrollView>
@@ -534,7 +560,15 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
         </View>
       </KeyboardAvoidingView>
     </Modal>
-    </>
+  );
+}
+
+function LabelRow({ label, value }: { label: string; value?: string }) {
+  return (
+    <View style={{ gap: 4 }}>
+      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>{label}</AppText>
+      <AppText style={{ fontSize: 15, color: theme.colors.text, fontFamily: theme.fonts.sans }}>{value ?? '—'}</AppText>
+    </View>
   );
 }
 

@@ -1,12 +1,31 @@
+import { useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 
 import { CreateLookRequestForm } from '@/components/forms/create-look-request-form';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { ScreenHeader } from '@/components/ui/screen-header';
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
 
 export default function CreateLookScreen() {
+  const { closetItemId, closetItemTitle, closetItemImageUrl } = useLocalSearchParams<{
+    closetItemId?: string;
+    closetItemTitle?: string;
+    closetItemImageUrl?: string;
+  }>();
+
+  const anchorItems =
+    closetItemId && closetItemTitle && closetItemImageUrl
+      ? [
+          {
+            id: closetItemId,
+            description: closetItemTitle,
+            image: { uri: closetItemImageUrl },
+            uploadedImage: null,
+          },
+        ]
+      : [];
+
   return (
     <AppScreen scrollable>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
@@ -21,8 +40,8 @@ export default function CreateLookScreen() {
 
         <CreateLookRequestForm
           initialValue={{
-            anchorItems: [],
-            anchorItemDescription: '',
+            anchorItems,
+            anchorItemDescription: closetItemTitle ?? '',
             vibeKeywords: '',
             anchorImage: null,
             uploadedAnchorImage: null,
