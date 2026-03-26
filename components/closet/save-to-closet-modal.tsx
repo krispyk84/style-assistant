@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Animated, Easing, Keyboard, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/ui/app-text';
 import { LoadingState } from '@/components/ui/loading-state';
@@ -27,6 +27,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     isUploading: isUploadingImage,
     pickFromLibrary,
     takePhoto: capturePhoto,
+    removeImage,
   } = useUploadedImage('anchor-item');
 
   const effectiveUploadedImage = uploadedImage ?? hookUploadedImage;
@@ -120,6 +121,27 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     return () => clearInterval(interval);
   }, [sketchJobId]);
 
+  // Reset all state + picked image (for reuse after save, or explicit clear)
+  function handleReset() {
+    removeImage();
+    setTitle('');
+    setBrand('');
+    setSize('');
+    setCategory('');
+    setSaveError(null);
+    setSketchImageUrl(null);
+    setSketchJobId(null);
+    setSketchError(null);
+    setIsGeneratingSketch(false);
+    setIsAnalyzing(false);
+  }
+
+  // Clear picked image when modal closes so next open starts fresh
+  useEffect(() => {
+    if (!visible) handleReset();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
   async function handleGenerateSketch() {
     if (!effectiveUploadedImage?.publicUrl) return;
     setSketchError(null);
@@ -167,7 +189,6 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
 
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View
           style={{
             alignItems: 'center',
@@ -186,10 +207,11 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
               maxHeight: '92%',
             }}>
             <ScrollView
+              automaticallyAdjustKeyboardInsets
               bounces={false}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingBottom: spacing.xl * 3 }}>
+              contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingBottom: 320 }}>
 
               {/* Header */}
               <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -207,6 +229,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
               {/* Image area */}
               {displayImageUri ? (
                 <View style={{ gap: spacing.sm }}>
+                  <View style={{ position: 'relative' }}>
                   <View
                     onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
                     style={{
@@ -235,6 +258,25 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                     ) : (
                       <Image contentFit="cover" source={{ uri: displayImageUri }} style={{ height: '100%', width: '100%' }} />
                     )}
+                  </View>
+                  {!uploadedImage ? (
+                    <Pressable
+                      hitSlop={8}
+                      onPress={handleReset}
+                      style={{
+                        alignItems: 'center',
+                        backgroundColor: 'rgba(0,0,0,0.55)',
+                        borderRadius: 999,
+                        height: 32,
+                        justifyContent: 'center',
+                        position: 'absolute',
+                        right: 8,
+                        top: 8,
+                        width: 32,
+                      }}>
+                      <Ionicons color="#FFF" name="trash-outline" size={15} />
+                    </Pressable>
+                  ) : null}
                   </View>
 
                   {/* Sketch generation */}
@@ -397,7 +439,6 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
             </ScrollView>
           </View>
         </View>
-      </KeyboardAvoidingView>
     </Modal>
   );
 }
