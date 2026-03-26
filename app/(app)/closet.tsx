@@ -404,7 +404,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
               bounces={false}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg }}>
+              contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingBottom: spacing.xl * 2 }}>
 
               {/* Header */}
               <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -422,9 +422,15 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                       </Pressable>
                     </>
                   ) : null}
-                  <Pressable hitSlop={8} onPress={isEditing ? () => { setIsEditing(false); setError(null); } : onClose}>
-                    <Ionicons color={theme.colors.mutedText} name="close" size={22} />
-                  </Pressable>
+                  {isEditing ? (
+                    <Pressable hitSlop={8} onPress={() => { setIsEditing(false); setError(null); }}>
+                      <AppText style={{ color: theme.colors.mutedText, fontSize: 15, fontFamily: theme.fonts.sans }}>Cancel</AppText>
+                    </Pressable>
+                  ) : (
+                    <Pressable hitSlop={8} onPress={onClose}>
+                      <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+                    </Pressable>
+                  )}
                 </View>
               </View>
 

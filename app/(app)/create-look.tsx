@@ -20,8 +20,15 @@ export default function CreateLookScreen() {
           {
             id: closetItemId,
             description: closetItemTitle,
-            image: { uri: closetItemImageUrl },
-            uploadedImage: null,
+            image: null,
+            uploadedImage: {
+              id: closetItemId,
+              category: 'anchor-item' as const,
+              storageProvider: 'remote',
+              storageKey: closetItemImageUrl,
+              publicUrl: closetItemImageUrl,
+              createdAt: new Date().toISOString(),
+            },
           },
         ]
       : [];
