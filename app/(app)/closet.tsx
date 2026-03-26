@@ -432,14 +432,23 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                       <Image contentFit="cover" source={{ uri: item!.sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
                       <Image contentFit="cover" source={{ uri: item!.uploadedImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
                     </ScrollView>
-                    <View style={{ bottom: 10, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center' }}>
+                    <View style={{ bottom: 10, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center', zIndex: 1 }}>
                       <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.9 }} />
                       <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.45 }} />
                     </View>
+                    <Pressable
+                      onPress={() => setLightboxUri(item!.sketchImageUrl!)}
+                      hitSlop={8}
+                      style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, padding: 5, zIndex: 2 }}>
+                      <Ionicons color="#FFF" name="expand-outline" size={14} />
+                    </Pressable>
                   </>
                 ) : primaryUri ? (
                   <Pressable onPress={() => setLightboxUri(primaryUri)} style={{ height: '100%', width: '100%' }}>
                     <Image contentFit="cover" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
+                    <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, padding: 5 }}>
+                      <Ionicons color="#FFF" name="expand-outline" size={14} />
+                    </View>
                   </Pressable>
                 ) : item?.sketchStatus === 'pending' ? (
                   <View style={{ alignItems: 'center', gap: spacing.sm }}>
@@ -449,14 +458,6 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                 ) : (
                   <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
                 )}
-                {primaryUri ? (
-                  <Pressable
-                    onPress={() => setLightboxUri(primaryUri)}
-                    hitSlop={8}
-                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, padding: 5 }}>
-                    <Ionicons color="#FFF" name="expand-outline" size={14} />
-                  </Pressable>
-                ) : null}
               </View>
 
               {confirmDelete ? (

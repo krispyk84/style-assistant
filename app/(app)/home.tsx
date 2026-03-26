@@ -37,7 +37,9 @@ export default function HomeScreen() {
       const urls = saved
         .map((s) => s.recommendation.sketchImageUrl)
         .filter((url): url is string => Boolean(url));
-      setCarouselImages(urls);
+      // Shuffle so a different outfit leads each session
+      const shuffled = [...urls].sort(() => Math.random() - 0.5);
+      setCarouselImages(shuffled);
     }
     void loadImages();
   }, []);
