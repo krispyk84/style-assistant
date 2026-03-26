@@ -111,12 +111,13 @@ export const apiOutfitsService: OutfitsService = {
         requestId: request.requestId,
         anchorItems: request.anchorItems.map((item) => ({
           description: item.description,
-          imageId: item.uploadedImage?.id,
+          // Closet-ref items are URL-only references, not DB uploads — skip imageId to avoid FK violations
+          imageId: item.uploadedImage?.storageProvider === 'closet-ref' ? undefined : item.uploadedImage?.id,
           imageUrl: item.uploadedImage?.publicUrl,
         })),
         anchorItemDescription: request.anchorItemDescription,
         vibeKeywords: request.vibeKeywords?.trim() || undefined,
-        anchorImageId: request.uploadedAnchorImage?.id,
+        anchorImageId: request.uploadedAnchorImage?.storageProvider === 'closet-ref' ? undefined : request.uploadedAnchorImage?.id,
         anchorImageUrl: request.uploadedAnchorImage?.publicUrl,
         photoPending: request.photoPending,
         selectedTiers: request.selectedTiers,

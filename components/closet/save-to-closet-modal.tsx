@@ -7,6 +7,7 @@ import { AppText } from '@/components/ui/app-text';
 import { LoadingState } from '@/components/ui/loading-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
+import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import { closetService } from '@/services/closet';
 import type { UploadedImageAsset } from '@/types/media';
 
@@ -19,6 +20,18 @@ type SaveToClosetModalProps = {
 };
 
 export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, description }: SaveToClosetModalProps) {
+  const {
+    image: pickedImage,
+    uploadedImage: hookUploadedImage,
+    isPicking,
+    isUploading: isUploadingImage,
+    pickFromLibrary,
+    takePhoto: capturePhoto,
+  } = useUploadedImage('anchor-item');
+
+  const effectiveUploadedImage = uploadedImage ?? hookUploadedImage;
+  const displayImageUri = pickedImage?.uri ?? effectiveUploadedImage?.publicUrl ?? null;
+
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [title, setTitle] = useState('');
@@ -49,13 +62,15 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     setSketchError(null);
     setIsGeneratingSketch(false);
 
+    if (!effectiveUploadedImage) return;
+
     let isMounted = true;
     setIsAnalyzing(true);
 
     void closetService
       .analyzeItem({
-        uploadedImageId: uploadedImage?.id,
-        uploadedImageUrl: uploadedImage?.publicUrl,
+        uploadedImageId: effectiveUploadedImage.id,
+        uploadedImageUrl: effectiveUploadedImage.publicUrl,
         description: description ?? '',
       })
       .then((response) => {
@@ -68,7 +83,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
       });
 
     return () => { isMounted = false; };
-  }, [visible, uploadedImage, description]);
+  }, [visible, effectiveUploadedImage?.id, description]);
 
   // Sketch loading bar animation
   useEffect(() => {
@@ -106,18 +121,17 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
   }, [sketchJobId]);
 
   async function handleGenerateSketch() {
-    if (!uploadedImage?.publicUrl) return;
+    if (!effectiveUploadedImage?.publicUrl) return;
     setSketchError(null);
     setIsGeneratingSketch(true);
 
     const response = await closetService.generateItemSketch({
-      uploadedImageId: uploadedImage.id,
-      uploadedImageUrl: uploadedImage.publicUrl,
+      uploadedImageId: effectiveUploadedImage.id,
+      uploadedImageUrl: effectiveUploadedImage.publicUrl,
     });
 
     if (response.success && response.data) {
       setSketchJobId(response.data.jobId);
-      // keep isGeneratingSketch = true, poll will set it false when done
     } else {
       setSketchError(response.error?.message ?? 'Sketch generation is not available right now.');
       setIsGeneratingSketch(false);
@@ -134,8 +148,8 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
       brand: brand.trim(),
       size: size.trim(),
       category: category.trim() || 'Clothing',
-      uploadedImageId: uploadedImage?.id,
-      uploadedImageUrl: uploadedImage?.publicUrl,
+      uploadedImageId: effectiveUploadedImage?.id,
+      uploadedImageUrl: effectiveUploadedImage?.publicUrl,
       sketchImageUrl: sketchImageUrl ?? undefined,
     });
 
@@ -149,7 +163,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     }
   }
 
-  const hasBothImages = Boolean(sketchImageUrl) && Boolean(uploadedImage?.publicUrl);
+  const hasBothImages = Boolean(sketchImageUrl) && Boolean(displayImageUri);
 
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
@@ -175,7 +189,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
               bounces={false}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg }}>
+              contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingBottom: spacing.xl * 3 }}>
 
               {/* Header */}
               <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -190,8 +204,8 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                 </Pressable>
               </View>
 
-              {/* Image area — swipeable when sketch available, photo only otherwise */}
-              {uploadedImage?.publicUrl ? (
+              {/* Image area */}
+              {displayImageUri ? (
                 <View style={{ gap: spacing.sm }}>
                   <View
                     onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
@@ -211,7 +225,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                           showsHorizontalScrollIndicator={false}
                           style={{ width: cellWidth, flex: 1 }}>
                           <Image contentFit="cover" source={{ uri: sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-                          <Image contentFit="cover" source={{ uri: uploadedImage.publicUrl }} style={{ width: cellWidth, flex: 1 }} />
+                          <Image contentFit="cover" source={{ uri: displayImageUri }} style={{ width: cellWidth, flex: 1 }} />
                         </ScrollView>
                         <View style={{ bottom: 8, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center' }}>
                           <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.9 }} />
@@ -219,7 +233,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                         </View>
                       </>
                     ) : (
-                      <Image contentFit="cover" source={{ uri: uploadedImage.publicUrl }} style={{ height: '100%', width: '100%' }} />
+                      <Image contentFit="cover" source={{ uri: displayImageUri }} style={{ height: '100%', width: '100%' }} />
                     )}
                   </View>
 
@@ -278,6 +292,67 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                   {sketchError ? (
                     <AppText style={{ color: '#D26A5C', fontSize: 12 }}>{sketchError}</AppText>
                   ) : null}
+                </View>
+              ) : !uploadedImage ? (
+                /* No pre-supplied image — let user pick one */
+                <View style={{ gap: spacing.sm }}>
+                  {isUploadingImage ? (
+                    <View
+                      style={{
+                        backgroundColor: theme.colors.surface,
+                        borderColor: theme.colors.border,
+                        borderRadius: 16,
+                        borderWidth: 1,
+                        padding: spacing.md,
+                        gap: spacing.sm,
+                        alignItems: 'center',
+                      }}>
+                      <AppText tone="muted" style={{ fontSize: 13 }}>Uploading photo...</AppText>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                      <Pressable
+                        disabled={isPicking}
+                        onPress={() => void pickFromLibrary()}
+                        style={{
+                          alignItems: 'center',
+                          backgroundColor: theme.colors.subtleSurface,
+                          borderColor: theme.colors.border,
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          flex: 1,
+                          flexDirection: 'row',
+                          gap: spacing.xs,
+                          justifyContent: 'center',
+                          minHeight: 48,
+                          opacity: isPicking ? 0.5 : 1,
+                          paddingHorizontal: spacing.md,
+                        }}>
+                        <Ionicons color={theme.colors.text} name="image-outline" size={16} />
+                        <AppText>{isPicking ? 'Opening...' : 'Library'}</AppText>
+                      </Pressable>
+                      <Pressable
+                        disabled={isPicking}
+                        onPress={() => void capturePhoto()}
+                        style={{
+                          alignItems: 'center',
+                          backgroundColor: theme.colors.subtleSurface,
+                          borderColor: theme.colors.border,
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          flex: 1,
+                          flexDirection: 'row',
+                          gap: spacing.xs,
+                          justifyContent: 'center',
+                          minHeight: 48,
+                          opacity: isPicking ? 0.5 : 1,
+                          paddingHorizontal: spacing.md,
+                        }}>
+                        <Ionicons color={theme.colors.text} name="camera-outline" size={16} />
+                        <AppText>{isPicking ? 'Opening...' : 'Camera'}</AppText>
+                      </Pressable>
+                    </View>
+                  )}
                 </View>
               ) : null}
 

@@ -6,6 +6,7 @@ import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, S
 
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
+import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
 import { closetService } from '@/services/closet';
@@ -20,6 +21,7 @@ export default function ClosetScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<ClosetItem | null>(null);
+  const [addModalVisible, setAddModalVisible] = useState(false);
   const translateX = useRef(new Animated.Value(-140)).current;
 
   const loadItems = useCallback(async () => {
@@ -86,12 +88,27 @@ export default function ClosetScreen() {
     <AppScreen scrollable>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         {/* Header */}
-        <View style={{ gap: spacing.sm }}>
-          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
-            The Atelier
-          </AppText>
-          <AppText variant="heroSmall">My Closet</AppText>
-          <AppText tone="muted">Your catalogued wardrobe pieces.</AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <View style={{ gap: spacing.sm, flex: 1 }}>
+            <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+              The Atelier
+            </AppText>
+            <AppText variant="heroSmall">My Closet</AppText>
+            <AppText tone="muted">Your catalogued wardrobe pieces.</AppText>
+          </View>
+          <Pressable
+            hitSlop={8}
+            onPress={() => setAddModalVisible(true)}
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.colors.accent,
+              borderRadius: 999,
+              height: 40,
+              justifyContent: 'center',
+              width: 40,
+            }}>
+            <Ionicons color="#FFF" name="add" size={22} />
+          </Pressable>
         </View>
 
         {/* Loading bar */}
@@ -180,6 +197,15 @@ export default function ClosetScreen() {
           </View>
         ) : null}
       </View>
+
+      <SaveToClosetModal
+        visible={addModalVisible}
+        onClose={() => setAddModalVisible(false)}
+        onSaved={() => {
+          setAddModalVisible(false);
+          void loadItems();
+        }}
+      />
 
       <CategoryFilterModal
         visible={filterModalVisible}

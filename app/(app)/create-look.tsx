@@ -24,7 +24,7 @@ export default function CreateLookScreen() {
             uploadedImage: {
               id: closetItemId,
               category: 'anchor-item' as const,
-              storageProvider: 'remote',
+              storageProvider: 'closet-ref',
               storageKey: closetItemImageUrl,
               publicUrl: closetItemImageUrl,
               createdAt: new Date().toISOString(),
