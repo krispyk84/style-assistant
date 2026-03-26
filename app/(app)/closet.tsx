@@ -411,53 +411,55 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                 </Pressable>
               </View>
 
-              {/* Item image — sketch first, swipe for photo; tap expand icon to fullscreen */}
-              <View
-                onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
-                style={{
-                  height: 200,
-                  backgroundColor: theme.colors.card,
-                  borderRadius: 20,
-                  overflow: 'hidden',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                {hasBoth && cellWidth > 0 ? (
-                  <>
-                    <ScrollView
-                      horizontal
-                      pagingEnabled
-                      showsHorizontalScrollIndicator={false}
-                      style={{ width: cellWidth, flex: 1 }}>
-                      <Image contentFit="cover" source={{ uri: item!.sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-                      <Image contentFit="cover" source={{ uri: item!.uploadedImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-                    </ScrollView>
-                    <View style={{ bottom: 10, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center', zIndex: 1 }}>
-                      <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.9 }} />
-                      <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.45 }} />
-                    </View>
-                    <Pressable
-                      onPress={() => setLightboxUri(item!.sketchImageUrl!)}
-                      hitSlop={8}
-                      style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, padding: 5, zIndex: 2 }}>
-                      <Ionicons color="#FFF" name="expand-outline" size={14} />
+              {/* Item image — sketch first, swipe for photo; expand button outside overflow:hidden */}
+              <View onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}>
+                <View
+                  style={{
+                    height: 280,
+                    backgroundColor: theme.colors.card,
+                    borderRadius: 20,
+                    overflow: 'hidden',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                  {hasBoth && cellWidth > 0 ? (
+                    <>
+                      <ScrollView
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        style={{ width: cellWidth, flex: 1 }}>
+                        <Image contentFit="contain" source={{ uri: item!.sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
+                        <Image contentFit="cover" source={{ uri: item!.uploadedImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
+                      </ScrollView>
+                      <View style={{ bottom: 10, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center' }}>
+                        <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.9 }} />
+                        <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.45 }} />
+                      </View>
+                    </>
+                  ) : primaryUri ? (
+                    <Pressable onPress={() => setLightboxUri(primaryUri)} style={{ height: '100%', width: '100%' }}>
+                      <Image contentFit="contain" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
                     </Pressable>
-                  </>
-                ) : primaryUri ? (
-                  <Pressable onPress={() => setLightboxUri(primaryUri)} style={{ height: '100%', width: '100%' }}>
-                    <Image contentFit="cover" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
-                    <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, padding: 5 }}>
-                      <Ionicons color="#FFF" name="expand-outline" size={14} />
+                  ) : item?.sketchStatus === 'pending' ? (
+                    <View style={{ alignItems: 'center', gap: spacing.sm }}>
+                      <Ionicons color={theme.colors.subtleText} name="time-outline" size={32} />
+                      <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>Sketch generating...</AppText>
                     </View>
+                  ) : (
+                    <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
+                  )}
+                </View>
+
+                {/* Expand button sits OUTSIDE overflow:hidden so it receives touches freely */}
+                {primaryUri ? (
+                  <Pressable
+                    onPress={() => setLightboxUri(primaryUri)}
+                    hitSlop={12}
+                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 999, padding: 7 }}>
+                    <Ionicons color="#FFF" name="expand-outline" size={16} />
                   </Pressable>
-                ) : item?.sketchStatus === 'pending' ? (
-                  <View style={{ alignItems: 'center', gap: spacing.sm }}>
-                    <Ionicons color={theme.colors.subtleText} name="time-outline" size={32} />
-                    <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>Sketch generating...</AppText>
-                  </View>
-                ) : (
-                  <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
-                )}
+                ) : null}
               </View>
 
               {confirmDelete ? (
