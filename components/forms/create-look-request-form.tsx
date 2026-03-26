@@ -320,7 +320,7 @@ function AnchorItemCard({
     pickFromLibrary,
     takePhoto,
     removeImage,
-  } = useUploadedImage('anchor-item', item.image);
+  } = useUploadedImage('anchor-item', item.image, item.uploadedImage);
 
   useEffect(() => {
     onChange({
@@ -397,6 +397,14 @@ function AnchorItemCard({
             <Image
               contentFit="cover"
               source={{ uri: image.uri }}
+              style={{ aspectRatio: 4 / 3, width: '100%' }}
+            />
+          </View>
+        ) : uploadedImage ? (
+          <View style={{ borderRadius: 16, overflow: 'hidden' }}>
+            <Image
+              contentFit="contain"
+              source={{ uri: uploadedImage.publicUrl }}
               style={{ aspectRatio: 4 / 3, width: '100%' }}
             />
           </View>

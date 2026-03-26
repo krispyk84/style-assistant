@@ -434,27 +434,6 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                 </View>
               </View>
 
-              {/* Anchor to Outfit button */}
-              {!isEditing && !confirmDelete ? (
-                <Pressable
-                  onPress={handleAnchorToOutfit}
-                  style={{
-                    alignItems: 'center',
-                    backgroundColor: theme.colors.accent,
-                    borderRadius: 999,
-                    flexDirection: 'row',
-                    gap: spacing.sm,
-                    justifyContent: 'center',
-                    paddingHorizontal: spacing.md,
-                    paddingVertical: spacing.sm,
-                  }}>
-                  <Ionicons color="#FFF" name="shirt-outline" size={16} />
-                  <AppText variant="eyebrow" style={{ color: '#FFF', letterSpacing: 1.4 }}>
-                    Anchor to Outfit
-                  </AppText>
-                </Pressable>
-              ) : null}
-
               {/* Item image */}
               <View
                 onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
@@ -492,6 +471,27 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                   <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
                 )}
               </View>
+
+              {/* Anchor to Outfit button */}
+              {!isEditing && !confirmDelete ? (
+                <Pressable
+                  onPress={handleAnchorToOutfit}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: theme.colors.accent,
+                    borderRadius: 999,
+                    flexDirection: 'row',
+                    gap: spacing.sm,
+                    justifyContent: 'center',
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.sm,
+                  }}>
+                  <Ionicons color="#FFF" name="shirt-outline" size={16} />
+                  <AppText variant="eyebrow" style={{ color: '#FFF', letterSpacing: 1.4 }}>
+                    Anchor to Outfit
+                  </AppText>
+                </Pressable>
+              ) : null}
 
               {/* Delete confirmation */}
               {confirmDelete ? (

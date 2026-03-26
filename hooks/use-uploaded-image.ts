@@ -4,9 +4,9 @@ import { useImagePicker } from '@/hooks/use-image-picker';
 import { uploadsService } from '@/services/uploads';
 import type { LocalImageAsset, UploadedImageAsset, UploadedImageCategory } from '@/types/media';
 
-export function useUploadedImage(category: UploadedImageCategory, initialImage: LocalImageAsset | null = null) {
+export function useUploadedImage(category: UploadedImageCategory, initialImage: LocalImageAsset | null = null, initialUploadedImage: UploadedImageAsset | null = null) {
   const { image, isPicking, error: pickerError, pickFromLibrary, takePhoto, removeImage, setImage } = useImagePicker(initialImage);
-  const [uploadedImage, setUploadedImage] = useState<UploadedImageAsset | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<UploadedImageAsset | null>(initialUploadedImage);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
