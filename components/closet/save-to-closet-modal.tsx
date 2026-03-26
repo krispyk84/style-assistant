@@ -28,6 +28,8 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     pickFromLibrary,
     takePhoto: capturePhoto,
     removeImage,
+    setImage,
+    setUploadedImage: setHookUploadedImage,
   } = useUploadedImage('anchor-item');
 
   const effectiveUploadedImage = uploadedImage ?? hookUploadedImage;
@@ -136,9 +138,23 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     setIsAnalyzing(false);
   }
 
-  // Clear picked image when modal closes so next open starts fresh
+  // Clear local image state when modal closes WITHOUT deleting from server
+  // (handleReset via trash icon does the server delete for explicit removals)
   useEffect(() => {
-    if (!visible) handleReset();
+    if (!visible) {
+      setImage(null);
+      setHookUploadedImage(null);
+      setTitle('');
+      setBrand('');
+      setSize('');
+      setCategory('');
+      setSaveError(null);
+      setSketchImageUrl(null);
+      setSketchJobId(null);
+      setSketchError(null);
+      setIsGeneratingSketch(false);
+      setIsAnalyzing(false);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
