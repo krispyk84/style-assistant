@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 import { logger } from '../../config/logger.js';
+import { storageConfig } from '../../config/storage.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildClosetItemSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
-import { storageProvider } from '../../storage/index.js';
 import { closetRepository } from './closet.repository.js';
 
 const garmentDescriptionSchema = z.object({
@@ -49,17 +49,16 @@ async function runSketchGeneration(jobId: string, imageUrl: string) {
       outputFormat: 'jpeg',
     });
 
-    const storedFile = await storageProvider.storeGeneratedFile({
-      category: 'closet-sketch',
-      fileExtension: '.jpg',
-      mimeType: generatedImage.mimeType,
-      data: generatedImage.data,
-    });
+    // Store image data in DB only (not on the ephemeral filesystem) so sketches
+    // survive server restarts. The /media/closet-sketch/:filename handler serves
+    // directly from this DB record.
+    const storageKey = `closet-sketch/${jobId}.jpg`;
+    const sketchImageUrl = `${storageConfig.publicBaseUrl}/media/${storageKey}`;
 
     await closetRepository.updateSketchJob(jobId, {
       status: 'ready',
-      sketchImageUrl: storedFile.publicUrl,
-      sketchStorageKey: storedFile.storageKey,
+      sketchImageUrl,
+      sketchStorageKey: storageKey,
       sketchMimeType: generatedImage.mimeType,
       sketchImageData: generatedImage.data,
     });

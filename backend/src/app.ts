@@ -2,8 +2,10 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import path from 'node:path';
+import { promises as fs } from 'node:fs';
 
 import { env } from './config/env.js';
+import { prisma } from './db/prisma.js';
 import { storageConfig } from './config/storage.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { notFoundHandler } from './middleware/not-found.js';
@@ -32,6 +34,29 @@ export function createApp() {
   );
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
+  // Closet sketch images are stored in the DB (not on the ephemeral filesystem)
+  // so they survive server restarts. Serve them directly from sketchImageData.
+  // Falls back to the filesystem for legacy sketches that were stored there.
+  app.get('/media/closet-sketch/:filename', async (req, res, next) => {
+    const filename = req.params.filename as string;
+    const filePath = path.join(storageConfig.localDirectory, 'closet-sketch', filename);
+    try {
+      await fs.access(filePath);
+      next(); // file exists on disk, let express.static handle it below
+      return;
+    } catch {
+      // Not on filesystem — serve from DB
+      const storageKey = `closet-sketch/${filename}`;
+      const job = await prisma.closetSketchJob.findFirst({ where: { sketchStorageKey: storageKey } });
+      if (!job?.sketchImageData) { res.status(404).end(); return; }
+      res.setHeader('Content-Type', job.sketchMimeType ?? 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.send(job.sketchImageData);
+    }
+  });
+
   app.use(
     '/media',
     express.static(storageConfig.localDirectory, {
