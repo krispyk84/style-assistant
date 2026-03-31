@@ -9,16 +9,15 @@ type GenerateImageInput = {
   outputFormat?: 'png' | 'jpeg' | 'webp';
 };
 
-function parseSize(size: string | undefined): { width: number; height: number } {
-  if (!size || size === 'auto') return { width: 1024, height: 1536 };
-  const [w, h] = size.split('x').map(Number);
-  return { width: w ?? 1024, height: h ?? 1536 };
+function sizeToAspectRatio(size: string | undefined): string {
+  if (!size || size === 'auto' || size === '1024x1536') return 'ASPECT_2_3';
+  if (size === '1024x1024') return 'ASPECT_1_1';
+  if (size === '1536x1024') return 'ASPECT_3_2';
+  return 'ASPECT_2_3';
 }
 
-function qualityToSteps(quality: string | undefined): number {
-  if (quality === 'low') return 20;
-  if (quality === 'high') return 35;
-  return 28; // medium / default
+function qualityToModel(quality: string | undefined): string {
+  return quality === 'low' ? 'V_2_TURBO' : 'V_2';
 }
 
 export const falClient = {
@@ -27,11 +26,7 @@ export const falClient = {
     const timeout = setTimeout(() => controller.abort(), env.OPENAI_TIMEOUT_MS);
 
     try {
-      const imageSize = parseSize(input.size);
-      const numSteps = qualityToSteps(input.quality);
-      const outputFormat = input.outputFormat ?? 'jpeg';
-
-      const response = await fetch('https://fal.run/fal-ai/flux/dev', {
+      const response = await fetch('https://fal.run/fal-ai/ideogram/v2', {
         method: 'POST',
         signal: controller.signal,
         headers: {
@@ -40,12 +35,11 @@ export const falClient = {
         },
         body: JSON.stringify({
           prompt: input.prompt,
-          image_size: imageSize,
-          num_images: 1,
-          output_format: outputFormat,
-          num_inference_steps: numSteps,
-          guidance_scale: 3.5,
-          enable_safety_checker: false,
+          aspect_ratio: sizeToAspectRatio(input.size),
+          model: qualityToModel(input.quality),
+          style_type: 'ILLUSTRATION',
+          magic_prompt_option: 'OFF',
+          negative_prompt: 'photorealistic, photograph, 3D render, CGI, text, watermark, logo, busy background',
         }),
       });
 
@@ -55,22 +49,22 @@ export const falClient = {
         logger.error(
           {
             statusCode: response.status,
-            error: payload?.detail ?? payload?.error ?? 'Unknown fal.ai error',
+            error: payload?.detail ?? payload?.error ?? 'Unknown Ideogram error',
           },
-          'fal.ai image generation failed'
+          'Ideogram v2 image generation failed'
         );
         throw new HttpError(502, 'FAL_IMAGE_FAILED', 'The AI provider could not generate the sketch.');
       }
 
       const imageUrl = payload?.images?.[0]?.url;
-      const contentType = payload?.images?.[0]?.content_type ?? `image/${outputFormat}`;
+      const contentType = payload?.images?.[0]?.content_type ?? 'image/jpeg';
 
       if (typeof imageUrl !== 'string' || !imageUrl) {
-        logger.error({ payload }, 'fal.ai image generation response did not include image URL');
+        logger.error({ payload }, 'Ideogram v2 response did not include image URL');
         throw new HttpError(502, 'FAL_IMAGE_INVALID', 'The AI provider returned an invalid sketch response.');
       }
 
-      // Download the image from the returned URL
+      // Download the image from the returned CDN URL
       const imageResponse = await fetch(imageUrl, { signal: controller.signal });
       if (!imageResponse.ok) {
         throw new HttpError(502, 'FAL_IMAGE_DOWNLOAD_FAILED', 'Could not download the generated sketch image.');
@@ -85,11 +79,11 @@ export const falClient = {
       if (error instanceof HttpError) throw error;
 
       if (error instanceof Error && error.name === 'AbortError') {
-        logger.error('fal.ai image request timed out');
+        logger.error('Ideogram v2 image request timed out');
         throw new HttpError(504, 'FAL_IMAGE_TIMEOUT', 'The AI provider timed out while generating the sketch.');
       }
 
-      logger.error({ error }, 'Unexpected fal.ai image generation failure');
+      logger.error({ error }, 'Unexpected Ideogram v2 image generation failure');
       throw new HttpError(502, 'FAL_IMAGE_UNAVAILABLE', 'The AI provider is currently unavailable for sketches.');
     } finally {
       clearTimeout(timeout);
