@@ -10,6 +10,7 @@ type AppSessionValue = {
   appInstanceKey: number;
   hasCompletedOnboarding: boolean;
   isHydrated: boolean;
+  isReconnecting: boolean;
   isSaving: boolean;
   profile: Profile;
   errorMessage: string | null;
@@ -17,7 +18,8 @@ type AppSessionValue = {
 };
 
 const AppSessionContext = createContext<AppSessionValue | null>(null);
-const APP_RELAUNCH_RESET_MS = 1000 * 30;
+const APP_RELAUNCH_RESET_MS = 1000 * 60 * 60 * 24; // 24 hours
+const STALE_THRESHOLD_MS = 1000 * 60 * 10; // 10 min — server may have spun down
 
 export function AppSessionProvider({ children }: PropsWithChildren) {
   const [profile, setProfile] = useState(defaultProfile);
@@ -26,6 +28,7 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [appInstanceKey, setAppInstanceKey] = useState(0);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const lastBackgroundedAtRef = useRef<number | null>(null);
 
   async function refreshSessionFromBackend() {
@@ -104,9 +107,17 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
       }
 
       const lastBackgroundedAt = lastBackgroundedAtRef.current;
-      const shouldRestartApp = lastBackgroundedAt ? Date.now() - lastBackgroundedAt > APP_RELAUNCH_RESET_MS : false;
+      const elapsed = lastBackgroundedAt ? Date.now() - lastBackgroundedAt : 0;
+      const isStale = elapsed > STALE_THRESHOLD_MS;
+      const shouldRestartApp = elapsed > APP_RELAUNCH_RESET_MS;
 
-      void refreshSessionFromBackend().catch(() => undefined);
+      if (isStale) {
+        setIsReconnecting(true);
+      }
+
+      void refreshSessionFromBackend()
+        .catch(() => undefined)
+        .finally(() => setIsReconnecting(false));
 
       if (shouldRestartApp) {
         setAppInstanceKey((current) => current + 1);
@@ -149,6 +160,7 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
         appInstanceKey,
         hasCompletedOnboarding,
         isHydrated,
+        isReconnecting,
         isSaving,
         profile,
         errorMessage,

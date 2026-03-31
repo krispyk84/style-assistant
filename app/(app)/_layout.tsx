@@ -1,14 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
 
 import { BrandSplash } from '@/components/ui/brand-splash';
+import { AppText } from '@/components/ui/app-text';
 import { theme } from '@/constants/theme';
 import { useAppSession } from '@/hooks/use-app-session';
 
 const TAB_ICON_SIZE = 22;
 
 export default function AppTabsLayout() {
-  const { hasCompletedOnboarding, isHydrated } = useAppSession();
+  const { hasCompletedOnboarding, isHydrated, isReconnecting } = useAppSession();
 
   if (!isHydrated) {
     return (
@@ -27,6 +29,7 @@ export default function AppTabsLayout() {
   }
 
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -98,5 +101,23 @@ export default function AppTabsLayout() {
         }}
       />
     </Tabs>
+    {isReconnecting ? (
+      <View
+        style={{
+          alignItems: 'center',
+          backgroundColor: theme.colors.background,
+          bottom: 0,
+          gap: 16,
+          justifyContent: 'center',
+          left: 0,
+          position: 'absolute',
+          right: 0,
+          top: 0,
+        }}>
+        <ActivityIndicator color={theme.colors.accent} size="large" />
+        <AppText tone="muted" style={{ fontSize: 14 }}>Reconnecting to Vesture...</AppText>
+      </View>
+    ) : null}
+    </View>
   );
 }

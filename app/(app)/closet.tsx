@@ -399,16 +399,17 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
 
   function handleAnchorToOutfit() {
     if (!item) return;
-    onClose();
+    const id = item.id;
+    const title = item.title;
     const anchorImageUrl = item.sketchImageUrl ?? item.uploadedImageUrl ?? '';
-    router.push({
-      pathname: '/(app)/create-look',
-      params: {
-        closetItemId: item.id,
-        closetItemTitle: item.title,
-        closetItemImageUrl: anchorImageUrl,
-      },
-    });
+    onClose();
+    // Defer navigation until after the modal close state update has flushed
+    setTimeout(() => {
+      router.push({
+        pathname: '/(app)/create-look',
+        params: { closetItemId: id, closetItemTitle: title, closetItemImageUrl: anchorImageUrl },
+      });
+    }, 50);
   }
 
   const hasBoth = Boolean(item?.sketchImageUrl) && Boolean(item?.uploadedImageUrl);
