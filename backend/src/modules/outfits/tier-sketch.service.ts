@@ -1,6 +1,6 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
-import { openAiClient } from '../../ai/openai-client.js';
+import { falClient } from '../../ai/fal-client.js';
 import { buildTierSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
 import type { OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 import { storageProvider } from '../../storage/index.js';
@@ -16,7 +16,7 @@ function formatTierLabel(tier: OutfitTierSlug) {
 
 async function generateSingleTierSketch(requestId: string, anchorItemDescription: string, recommendation: TierRecommendationDto) {
   try {
-    const generatedImage = await openAiClient.generateImage({
+    const generatedImage = await falClient.generateImage({
       prompt: buildTierSketchPrompt({
         tierLabel: formatTierLabel(recommendation.tier),
         anchorItemDescription,
