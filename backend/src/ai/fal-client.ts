@@ -10,10 +10,10 @@ type GenerateImageInput = {
 };
 
 function sizeToAspectRatio(size: string | undefined): string {
-  if (!size || size === 'auto' || size === '1024x1536') return 'ASPECT_2_3';
-  if (size === '1024x1024') return 'ASPECT_1_1';
-  if (size === '1536x1024') return 'ASPECT_3_2';
-  return 'ASPECT_2_3';
+  if (!size || size === 'auto' || size === '1024x1536') return '2:3';
+  if (size === '1024x1024') return '1:1';
+  if (size === '1536x1024') return '3:2';
+  return '2:3';
 }
 
 function qualityToModel(quality: string | undefined): string {
