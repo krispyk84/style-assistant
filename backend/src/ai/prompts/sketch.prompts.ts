@@ -2,13 +2,14 @@ import type { TierRecommendationDto } from '../../contracts/outfits.contracts.js
 
 export function buildClosetItemSketchPrompt(input: { itemDescription: string }) {
   return [
-    'Editorial menswear fashion illustration, watercolor and ink, hand-rendered, luxury lookbook style.',
-    'Single garment displayed on a clean soft cream white background.',
-    'Light and airy watercolor washes, delicate ink outlines, soft neutral tones.',
-    'No figure, no mannequin, no text, no logos, no watermarks.',
-    `Garment: ${input.itemDescription}.`,
-    'Portrait orientation, full garment visible, premium wardrobe catalogue presentation.',
-  ].join(' ');
+    'Create a menswear editorial fashion illustration of a single garment on a clean presentation.',
+    'Visual style: luxury menswear sketch, hand-rendered marker and watercolor wash, confident ink outlines, refined retail lookbook presentation.',
+    'Show only this one piece — do not add other garments, people, or accessories.',
+    'Do not add any words, logos, watermarks, UI chrome, or marketing copy.',
+    'Favor a soft neutral or white background with premium menswear presentation.',
+    `Garment: ${input.itemDescription}`,
+    'Compose this as a polished portrait-oriented single-piece menswear sketch suitable for a premium wardrobe cataloguing app.',
+  ].join('\n');
 }
 
 function formatList(items: string[]) {
@@ -21,18 +22,25 @@ export function buildTierSketchPrompt(input: {
   recommendation: TierRecommendationDto;
 }) {
   return [
-    'Editorial menswear fashion illustration, watercolor and ink, hand-rendered, luxury lookbook style.',
-    'Full-length headless mannequin showing the complete outfit from shoulders to shoes, soft cream white background, light and airy.',
-    'Accessories neatly arranged alongside the figure.',
-    'Delicate watercolor washes, visible paper texture, confident ink outlines, soft warm neutral tones.',
-    'No faces, no text, no logos, no watermarks.',
-    `Tier: ${input.tierLabel}.`,
-    `Anchor item: ${input.anchorItemDescription}.`,
-    `Outfit: ${input.recommendation.title}.`,
-    `Key pieces: ${input.recommendation.keyPieces.join(', ')}.`,
-    `Shoes: ${input.recommendation.shoes.join(', ')}.`,
-    `Accessories: ${input.recommendation.accessories.join(', ')}.`,
-    `Palette: ${input.recommendation.stylingDirection}.`,
-    'Portrait orientation, full figure visible head to toe, premium styling app presentation.',
-  ].join(' ');
+    'Create a menswear editorial fashion illustration of a single outfit on a mannequin or laid-out presentation board.',
+    'Visual style: luxury menswear sketch, hand-rendered marker and watercolor wash, confident ink outlines, refined retail lookbook presentation.',
+    'Do not add any words, logos, sale text, watermarks, UI chrome, or marketing copy.',
+    'Show the full outfit clearly and keep the garments true to the styling details below.',
+    'Favor soft neutral backgrounds and premium menswear presentation.',
+    `Tier: ${input.tierLabel}`,
+    `Anchor item: ${input.anchorItemDescription}`,
+    `Outfit title: ${input.recommendation.title}`,
+    `Anchor piece rendering: ${input.recommendation.anchorItem}`,
+    'Key pieces:',
+    formatList(input.recommendation.keyPieces),
+    'Shoes:',
+    formatList(input.recommendation.shoes),
+    'Accessories:',
+    formatList(input.recommendation.accessories),
+    'Fit notes:',
+    formatList(input.recommendation.fitNotes),
+    `Palette and mood: ${input.recommendation.stylingDirection}`,
+    `Why it works: ${input.recommendation.whyItWorks}`,
+    'Compose this as a polished portrait-oriented menswear sketch suitable for a premium styling assistant app.',
+  ].join('\n');
 }

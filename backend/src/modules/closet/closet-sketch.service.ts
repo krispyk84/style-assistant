@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import { logger } from '../../config/logger.js';
 import { storageConfig } from '../../config/storage.js';
-import { falClient } from '../../ai/fal-client.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildClosetItemSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
 import { closetRepository } from './closet.repository.js';
@@ -43,7 +42,7 @@ async function runSketchGeneration(jobId: string, imageUrl: string) {
   try {
     const itemDescription = await describeGarmentFromImage(imageUrl);
 
-    const generatedImage = await falClient.generateImage({
+    const generatedImage = await openAiClient.generateImage({
       prompt: buildClosetItemSketchPrompt({ itemDescription }),
       size: '1024x1536',
       quality: 'medium',
