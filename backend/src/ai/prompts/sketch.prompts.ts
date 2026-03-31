@@ -2,12 +2,12 @@ import type { TierRecommendationDto } from '../../contracts/outfits.contracts.js
 
 export function buildClosetItemSketchPrompt(input: { itemDescription: string }) {
   return [
-    'Editorial menswear fashion illustration, watercolor wash and ink, hand-rendered, luxury lookbook style.',
-    'Single garment displayed on a clean neutral or white background, no figure or mannequin.',
-    'Loose expressive brushwork, visible paper texture, confident ink outlines, soft colour washes.',
-    'No text, no logos, no watermarks, no other garments or accessories.',
-    `Garment: ${input.itemDescription}`,
-    'Portrait orientation. Premium wardrobe catalogue presentation.',
+    'Editorial menswear fashion illustration, watercolor and ink, hand-rendered, luxury lookbook style.',
+    'Single garment displayed on a clean soft cream white background.',
+    'Light and airy watercolor washes, delicate ink outlines, soft neutral tones.',
+    'No figure, no mannequin, no text, no logos, no watermarks.',
+    `Garment: ${input.itemDescription}.`,
+    'Portrait orientation, full garment visible, premium wardrobe catalogue presentation.',
   ].join(' ');
 }
 
@@ -22,9 +22,10 @@ export function buildTierSketchPrompt(input: {
 }) {
   return [
     'Editorial menswear fashion illustration, watercolor and ink, hand-rendered, luxury lookbook style.',
-    'Full outfit on a headless mannequin or laid flat, soft neutral background.',
-    'Loose expressive brushwork, visible paper texture, confident ink outlines, warm tones.',
-    'No text, no logos, no watermarks, no faces.',
+    'Full-length headless mannequin showing the complete outfit from shoulders to shoes, soft cream white background, light and airy.',
+    'Accessories neatly arranged alongside the figure.',
+    'Delicate watercolor washes, visible paper texture, confident ink outlines, soft warm neutral tones.',
+    'No faces, no text, no logos, no watermarks.',
     `Tier: ${input.tierLabel}.`,
     `Anchor item: ${input.anchorItemDescription}.`,
     `Outfit: ${input.recommendation.title}.`,
@@ -32,6 +33,6 @@ export function buildTierSketchPrompt(input: {
     `Shoes: ${input.recommendation.shoes.join(', ')}.`,
     `Accessories: ${input.recommendation.accessories.join(', ')}.`,
     `Palette: ${input.recommendation.stylingDirection}.`,
-    'Portrait orientation. Premium styling app presentation.',
+    'Portrait orientation, full figure visible head to toe, premium styling app presentation.',
   ].join(' ');
 }
