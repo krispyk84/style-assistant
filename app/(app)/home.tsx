@@ -65,6 +65,7 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [carouselImages, fadeAnim]);
 
+  const hasRealImages = carouselImages.length > 0;
   const currentImageUrl = carouselImages[carouselIndex] ?? null;
 
   return (
@@ -113,8 +114,17 @@ export default function HomeScreen() {
                 }}
               />
 
-              {/* Carousel image */}
-              {currentImageUrl ? (
+              {/* Default placeholder image — shown only when no saved outfits */}
+              {!hasRealImages ? (
+                <Image
+                  contentFit="cover"
+                  source={require('../../assets/images/defaultoutfit.png')}
+                  style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, height: '100%', width: '100%' }}
+                />
+              ) : null}
+
+              {/* Carousel image — shown only when real saved outfits exist */}
+              {hasRealImages && currentImageUrl ? (
                 <Animated.View
                   style={{
                     bottom: 0,
@@ -135,9 +145,7 @@ export default function HomeScreen() {
               {/* Dark gradient overlay for readability */}
               <View
                 style={{
-                  backgroundColor: currentImageUrl
-                    ? 'rgba(18, 12, 6, 0.62)'
-                    : 'rgba(18, 12, 6, 0.38)',
+                  backgroundColor: 'rgba(18, 12, 6, 0.62)',
                   bottom: 0,
                   left: 0,
                   position: 'absolute',

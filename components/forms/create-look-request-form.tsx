@@ -193,14 +193,29 @@ export function CreateLookRequestForm({
       {/* Style Keywords — collapsible */}
       <View style={{ gap: spacing.md }}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isKeywordsExpanded }}
+          accessibilityLabel={isKeywordsExpanded ? 'Collapse Style Keywords' : 'Expand Style Keywords'}
           onPress={() => setIsKeywordsExpanded((v) => !v)}
           style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
           <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Style Keywords</AppText>
-          <Ionicons
-            color={theme.colors.mutedText}
-            name={isKeywordsExpanded ? 'chevron-up' : 'chevron-down'}
-            size={16}
-          />
+          <View
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+              borderRadius: 999,
+              borderWidth: 1,
+              height: 28,
+              justifyContent: 'center',
+              width: 28,
+            }}>
+            <Ionicons
+              color={theme.colors.text}
+              name={isKeywordsExpanded ? 'chevron-up' : 'chevron-down'}
+              size={14}
+            />
+          </View>
         </Pressable>
         {isKeywordsExpanded ? (
           <View style={{ gap: spacing.md }}>
