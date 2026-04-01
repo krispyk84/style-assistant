@@ -46,6 +46,7 @@ export default function CreateLookScreen() {
         </View>
 
         <CreateLookRequestForm
+          key={closetItemId ?? 'no-anchor'}
           initialValue={{
             anchorItems,
             anchorItemDescription: closetItemTitle ?? '',

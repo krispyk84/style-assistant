@@ -5,7 +5,7 @@ import { uploadsService } from '@/services/uploads';
 import type { LocalImageAsset, UploadedImageAsset, UploadedImageCategory } from '@/types/media';
 
 export function useUploadedImage(category: UploadedImageCategory, initialImage: LocalImageAsset | null = null, initialUploadedImage: UploadedImageAsset | null = null) {
-  const { image, isPicking, error: pickerError, pickFromLibrary, takePhoto, removeImage, setImage } = useImagePicker(initialImage);
+  const { image, isPicking, isPickingLibrary, isPickingCamera, error: pickerError, pickFromLibrary, takePhoto, removeImage, setImage } = useImagePicker(initialImage);
   const [uploadedImage, setUploadedImage] = useState<UploadedImageAsset | null>(initialUploadedImage);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -80,6 +80,8 @@ export function useUploadedImage(category: UploadedImageCategory, initialImage: 
     image,
     uploadedImage,
     isPicking,
+    isPickingLibrary,
+    isPickingCamera,
     isUploading,
     uploadProgress,
     error: uploadError ?? pickerError,

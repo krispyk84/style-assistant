@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
@@ -358,6 +358,32 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
   const [error, setError] = useState<string | null>(null);
   const [cellWidth, setCellWidth] = useState(0);
 
+  // Separate animation channels: backdrop fades, sheet slides
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const sheetTranslateY = useRef(new Animated.Value(800)).current;
+
+  // Animate in on mount
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(backdropOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.timing(sheetTranslateY, {
+        toValue: 0,
+        duration: 300,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Animate out then call onClose so the parent unmounts us
+  function dismissAndClose() {
+    Animated.parallel([
+      Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+      Animated.timing(sheetTranslateY, { toValue: 800, duration: 240, useNativeDriver: true }),
+    ]).start(() => onClose());
+  }
+
   useEffect(() => {
     if (!item) return;
     setTitle(item.title);
@@ -416,17 +442,31 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
   const primaryUri = item?.sketchImageUrl ?? item?.uploadedImageUrl ?? null;
 
   return (
-    <Modal animationType="slide" transparent visible={item !== null} onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={{ backgroundColor: 'rgba(24, 18, 14, 0.52)', flex: 1, justifyContent: 'flex-end' }}>
-          <View
-            style={{
-              backgroundColor: '#FFFDFC',
-              borderTopLeftRadius: 28,
-              borderTopRightRadius: 28,
-              maxHeight: '92%',
-              overflow: 'hidden',
-            }}>
+    <Modal animationType="none" transparent visible onRequestClose={dismissAndClose}>
+      {/* Backdrop: absolute fill, only opacity animates — never slides */}
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          backgroundColor: 'rgba(24, 18, 14, 0.52)',
+          bottom: 0,
+          left: 0,
+          opacity: backdropOpacity,
+          position: 'absolute',
+          right: 0,
+          top: 0,
+        }}
+      />
+      {/* Sheet: only translateY animates */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <Animated.View
+          style={{
+            backgroundColor: '#FFFDFC',
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+            maxHeight: '92%',
+            overflow: 'hidden',
+            transform: [{ translateY: sheetTranslateY }],
+          }}>
             <ScrollView
               bounces={false}
               keyboardShouldPersistTaps="handled"
@@ -454,7 +494,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                       <AppText style={{ color: theme.colors.mutedText, fontSize: 15, fontFamily: theme.fonts.sans }}>Cancel</AppText>
                     </Pressable>
                   ) : (
-                    <Pressable hitSlop={8} onPress={onClose}>
+                    <Pressable hitSlop={8} onPress={dismissAndClose}>
                       <Ionicons color={theme.colors.mutedText} name="close" size={22} />
                     </Pressable>
                   )}
@@ -589,9 +629,8 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                 </View>
               )}
             </ScrollView>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+          </Animated.View>
+        </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -19,18 +19,23 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
     };
   };
   const [image, setImage] = useState<LocalImageAsset | null>(initialImage);
-  const [isPicking, setIsPicking] = useState(false);
+  // Track which specific action is in progress so buttons have independent state
+  const [pickingSource, setPickingSource] = useState<'library' | 'camera' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const isPicking = pickingSource !== null;
+  const isPickingLibrary = pickingSource === 'library';
+  const isPickingCamera = pickingSource === 'camera';
+
   async function pickFromLibrary() {
-    setIsPicking(true);
+    setPickingSource('library');
     setError(null);
 
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
       setError('Photo library access is required to choose an image.');
-      setIsPicking(false);
+      setPickingSource(null);
       return null;
     }
 
@@ -44,16 +49,16 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
     if (!result.canceled && result.assets[0]) {
       const normalized = normalizePickedImage(result.assets[0]);
       setImage(normalized);
-      setIsPicking(false);
+      setPickingSource(null);
       return normalized;
     }
 
-    setIsPicking(false);
+    setPickingSource(null);
     return null;
   }
 
   async function takePhoto() {
-    setIsPicking(true);
+    setPickingSource('camera');
     setError(null);
 
     try {
@@ -61,7 +66,7 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
 
       if (!permission.granted) {
         setError('Camera access is required to take a photo.');
-        setIsPicking(false);
+        setPickingSource(null);
         return null;
       }
 
@@ -75,14 +80,14 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
       if (!result.canceled && result.assets[0]) {
         const normalized = normalizePickedImage(result.assets[0]);
         setImage(normalized);
-        setIsPicking(false);
+        setPickingSource(null);
         return normalized;
       }
     } catch (cameraError) {
       setError(cameraError instanceof Error ? cameraError.message : 'Unable to open the camera.');
     }
 
-    setIsPicking(false);
+    setPickingSource(null);
     return null;
   }
 
@@ -93,6 +98,8 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
   return {
     image,
     isPicking,
+    isPickingLibrary,
+    isPickingCamera,
     error,
     pickFromLibrary,
     takePhoto,

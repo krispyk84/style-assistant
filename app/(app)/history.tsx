@@ -40,8 +40,15 @@ export default function HistoryScreen() {
         setErrorMessage(null);
         setIsLoading(false);
 
+        // Only hydrate outfits whose sketch was still pending at save time.
+        // Never replace outfit content (title, keyPieces, etc.) — saved outfits
+        // are immutable snapshots and must not reflect later regenerations.
         const hydratedSavedOutfits = await Promise.all(
           savedOutfits.map(async (savedOutfit) => {
+            if (savedOutfit.recommendation.sketchStatus !== 'pending') {
+              return savedOutfit;
+            }
+
             const response = await outfitsService.getOutfitResult(savedOutfit.requestId);
 
             if (!response.success || !response.data) {
@@ -52,15 +59,15 @@ export default function HistoryScreen() {
               (item) => item.tier === savedOutfit.recommendation.tier
             );
 
-            if (!liveRecommendation) {
+            if (!liveRecommendation || liveRecommendation.sketchStatus !== 'ready') {
               return savedOutfit;
             }
 
             return {
               ...savedOutfit,
-              input: response.data.input,
               recommendation: {
-                ...liveRecommendation,
+                ...savedOutfit.recommendation,
+                sketchStatus: liveRecommendation.sketchStatus,
                 sketchImageUrl: liveRecommendation.sketchImageUrl,
               },
             };

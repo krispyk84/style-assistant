@@ -32,6 +32,45 @@ export function LookResultCard({
 }: LookResultCardProps) {
   const labeledPieces = buildLabeledPieces(recommendation);
 
+  if (isRegenerating) {
+    return (
+      <View
+        style={{
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.border,
+          borderRadius: 28,
+          borderWidth: 1,
+          gap: spacing.lg,
+          padding: spacing.lg,
+        }}>
+        <View style={{ gap: spacing.xs }}>
+          <AppText variant="title">{formatTierLabel(recommendation.tier)}</AppText>
+        </View>
+        <View
+          style={{
+            alignItems: 'center',
+            backgroundColor: theme.colors.card,
+            borderColor: theme.colors.border,
+            borderRadius: 22,
+            borderWidth: 1,
+            justifyContent: 'center',
+            minHeight: 280,
+            padding: spacing.lg,
+          }}>
+          <AnimatedLoadingBar />
+          <View style={{ gap: spacing.xs }}>
+            <AppText variant="sectionTitle" style={{ textAlign: 'center' }}>
+              Generating new outfit...
+            </AppText>
+            <AppText tone="muted" style={{ textAlign: 'center' }}>
+              Your new look will appear here in a moment.
+            </AppText>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View
       style={{

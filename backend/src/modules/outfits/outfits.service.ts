@@ -135,6 +135,13 @@ export const outfitsService = {
       anchorItems.map(async (item) => (item.imageId ? uploadsRepository.findById(item.imageId) : null))
     );
     const primaryUploadedAnchorImage = uploadedAnchorImages.find(Boolean) ?? null;
+
+    // When vibe keywords are provided they take precedence over the profile's saved
+    // fitPreference and stylePreference for this request. This affects both the
+    // style-guide retrieval query (so the fetched guidance reflects the vibe) and
+    // the prompt (via formatProfileContext — see outfits.prompts.ts).
+    const vibeKeywords = input.vibeKeywords?.trim() || null;
+
     const styleGuideContext = await styleGuideService.retrieveGuidance({
       task: 'outfit-generation',
       query: [
@@ -142,8 +149,10 @@ export const outfitsService = {
         ...anchorItems.map((item, index) => `anchor item ${index + 1}: ${item.description.trim() || 'image-led reference'}`),
         `requested tiers: ${selectedTiers.join(', ')}`,
         input.weatherContext ? `season: ${input.weatherContext.season}` : null,
-        profile?.stylePreference ? `user style preference: ${profile.stylePreference}` : null,
-        profile?.fitPreference ? `user fit preference: ${profile.fitPreference}` : null,
+        // Vibe keywords override saved style/fit for retrieval — only one set is used
+        vibeKeywords ? `style direction: ${vibeKeywords}` : null,
+        !vibeKeywords && profile?.stylePreference ? `user style preference: ${profile.stylePreference}` : null,
+        !vibeKeywords && profile?.fitPreference ? `user fit preference: ${profile.fitPreference}` : null,
         profile?.summerBottomPreference ? `summer bottoms preference: ${profile.summerBottomPreference}` : null,
       ]
         .filter(Boolean)

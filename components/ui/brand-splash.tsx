@@ -34,27 +34,30 @@ export function BrandSplash({ subtitle, messages }: BrandSplashProps) {
         justifyContent: 'center',
         paddingHorizontal: spacing.xl,
       }}>
-      <View
+      {/* Logo centered on its own — text is out of flow so it cannot shift the logo */}
+      <Image
+        source={require('../../logo.png')}
         style={{
-          alignItems: 'center',
-          gap: spacing.lg,
+          height: 220,
+          maxWidth: 220,
+          resizeMode: 'contain',
           width: '100%',
-        }}>
-        <Image
-          source={require('../../logo.png')}
+        }}
+      />
+      {activeSubtitle ? (
+        <View
           style={{
-            height: 220,
-            maxWidth: 220,
-            resizeMode: 'contain',
-            width: '100%',
-          }}
-        />
-        {activeSubtitle ? (
+            alignItems: 'center',
+            bottom: spacing.xl * 2,
+            left: spacing.xl,
+            position: 'absolute',
+            right: spacing.xl,
+          }}>
           <AppText tone="muted" style={{ maxWidth: 260, textAlign: 'center' }}>
             {activeSubtitle}
           </AppText>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
     </View>
   );
 }

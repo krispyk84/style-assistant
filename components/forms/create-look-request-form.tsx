@@ -312,7 +312,8 @@ function AnchorItemCard({
   const {
     image,
     uploadedImage,
-    isPicking,
+    isPickingLibrary,
+    isPickingCamera,
     isUploading,
     uploadProgress,
     error,
@@ -422,12 +423,12 @@ function AnchorItemCard({
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <ActionPill
             icon="image-outline"
-            label={isPicking ? 'Opening...' : 'Library'}
+            label={isPickingLibrary ? 'Opening...' : 'Library'}
             onPress={pickFromLibrary}
           />
           <ActionPill
             icon="camera-outline"
-            label={isPicking ? 'Opening...' : 'Camera'}
+            label={isPickingCamera ? 'Opening...' : 'Camera'}
             onPress={takePhoto}
           />
         </View>

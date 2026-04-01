@@ -31,8 +31,11 @@ export function buildGenerateOutfitsUserPrompt(
         },
       ];
 
+  // When vibe keywords are provided they override the profile's saved fit/style for this request
+  const vibeOverride = input.vibeKeywords?.trim() || null;
+
   return [
-    formatProfileContext(profile),
+    formatProfileContext(profile, vibeOverride),
     styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
     'Styling request:',
     ...anchorItems.map(
@@ -73,8 +76,11 @@ export function buildRegenerateTierUserPrompt(input: {
 }) {
   const previousTier = input.existing.recommendations.find((item) => item.tier === input.tier);
 
+  // Apply the same vibe override that was used when the original request was generated
+  const vibeOverride = input.existing.input.vibeKeywords?.trim() || null;
+
   return [
-    formatProfileContext(input.profile),
+    formatProfileContext(input.profile, vibeOverride),
     input.styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
     'Original styling request:',
     ...(input.existing.input.anchorItems?.length
