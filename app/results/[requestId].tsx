@@ -131,6 +131,7 @@ export default function ResultDetailsScreen() {
     } else {
       const latestResponse = await outfitsService.getOutfitResult(response.requestId);
       setResponse(latestResponse.success && latestResponse.data ? latestResponse.data : serviceResponse.data);
+      setSavedOutfitIds((current) => current.filter((id) => id !== buildSavedOutfitId(response.requestId, tier)));
     }
 
     setRegeneratingTiers((current) => current.filter((item) => item !== tier));

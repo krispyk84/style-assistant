@@ -8,10 +8,11 @@ import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing } from '@/constants/theme';
 
 export default function CreateLookScreen() {
-  const { closetItemId, closetItemTitle, closetItemImageUrl } = useLocalSearchParams<{
+  const { closetItemId, closetItemTitle, closetItemImageUrl, fresh } = useLocalSearchParams<{
     closetItemId?: string;
     closetItemTitle?: string;
     closetItemImageUrl?: string;
+    fresh?: string;
   }>();
 
   const anchorItems =
@@ -46,7 +47,7 @@ export default function CreateLookScreen() {
         </View>
 
         <CreateLookRequestForm
-          key={closetItemId ?? 'no-anchor'}
+          key={closetItemId ? `anchor-${closetItemId}` : `fresh-${fresh ?? 'default'}`}
           initialValue={{
             anchorItems,
             anchorItemDescription: closetItemTitle ?? '',

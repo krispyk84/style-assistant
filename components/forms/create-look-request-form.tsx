@@ -67,6 +67,8 @@ export function CreateLookRequestForm({
   const [anchorItems, setAnchorItems] = useState<LookAnchorItem[]>(() => buildInitialAnchorItems(initialValue));
   const [vibeKeywords, setVibeKeywords] = useState(initialValue.vibeKeywords ?? '');
   const [selectedTiers, setSelectedTiers] = useState<LookTierSlug[]>(initialValue.selectedTiers);
+  // Auto-expand if the form was initialised with pre-filled keywords (e.g. anchor flows)
+  const [isKeywordsExpanded, setIsKeywordsExpanded] = useState(() => !!(initialValue.vibeKeywords?.trim()));
   const [anchorError, setAnchorError] = useState<string | null>(null);
   const [tierError, setTierError] = useState<string | null>(null);
   const populatedAnchorItems = anchorItems.filter((item) => item.description.trim() || item.image || item.uploadedImage);
@@ -188,53 +190,64 @@ export function CreateLookRequestForm({
         </Pressable>
       </View>
 
-      {/* Atmospheric Context */}
+      {/* Style Keywords — collapsible */}
       <View style={{ gap: spacing.md }}>
-        <View style={{ gap: spacing.xs }}>
-          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Atmospheric Context</AppText>
-          <AppText tone="muted">Keywords that define the aesthetic vibe.</AppText>
-        </View>
-        <TextInput
-          multiline
-          autoCapitalize="words"
-          onChangeText={setVibeKeywords}
-          placeholder="Describe the aesthetic..."
-          placeholderTextColor={theme.colors.subtleText}
-          style={{
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
-            borderRadius: 18,
-            borderWidth: 1,
-            color: theme.colors.text,
-            fontFamily: theme.fonts.sans,
-            fontSize: 16,
-            minHeight: 100,
-            paddingHorizontal: spacing.md,
-            paddingTop: spacing.md,
-            textAlignVertical: 'top',
-          }}
-          value={vibeKeywords}
-        />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
-          {VIBE_SUGGESTIONS.map((keyword) => {
-            const isSelected = vibeKeywords.split(',').map((k) => k.trim().toLowerCase()).includes(keyword.toLowerCase());
-            return (
-              <Pressable
-                key={keyword}
-                onPress={() => toggleVibeKeyword(keyword)}
-                style={{
-                  backgroundColor: isSelected ? theme.colors.accent : theme.colors.surface,
-                  borderColor: isSelected ? theme.colors.accent : theme.colors.border,
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  paddingHorizontal: spacing.md,
-                  paddingVertical: spacing.xs,
-                }}>
-                <AppText style={{ color: isSelected ? '#FFFFFF' : theme.colors.text }}>{keyword}</AppText>
-              </Pressable>
-            );
-          })}
-        </View>
+        <Pressable
+          onPress={() => setIsKeywordsExpanded((v) => !v)}
+          style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Style Keywords</AppText>
+          <Ionicons
+            color={theme.colors.mutedText}
+            name={isKeywordsExpanded ? 'chevron-up' : 'chevron-down'}
+            size={16}
+          />
+        </Pressable>
+        {isKeywordsExpanded ? (
+          <View style={{ gap: spacing.md }}>
+            <AppText tone="muted">Keywords that define the aesthetic vibe.</AppText>
+            <TextInput
+              multiline
+              autoCapitalize="words"
+              onChangeText={setVibeKeywords}
+              placeholder="Describe the aesthetic..."
+              placeholderTextColor={theme.colors.subtleText}
+              style={{
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+                borderRadius: 18,
+                borderWidth: 1,
+                color: theme.colors.text,
+                fontFamily: theme.fonts.sans,
+                fontSize: 16,
+                minHeight: 100,
+                paddingHorizontal: spacing.md,
+                paddingTop: spacing.md,
+                textAlignVertical: 'top',
+              }}
+              value={vibeKeywords}
+            />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
+              {VIBE_SUGGESTIONS.map((keyword) => {
+                const isSelected = vibeKeywords.split(',').map((k) => k.trim().toLowerCase()).includes(keyword.toLowerCase());
+                return (
+                  <Pressable
+                    key={keyword}
+                    onPress={() => toggleVibeKeyword(keyword)}
+                    style={{
+                      backgroundColor: isSelected ? theme.colors.accent : theme.colors.surface,
+                      borderColor: isSelected ? theme.colors.accent : theme.colors.border,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      paddingHorizontal: spacing.md,
+                      paddingVertical: spacing.xs,
+                    }}>
+                    <AppText style={{ color: isSelected ? '#FFFFFF' : theme.colors.text }}>{keyword}</AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
       </View>
 
       {/* Occasion Formality */}

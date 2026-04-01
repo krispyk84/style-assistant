@@ -92,12 +92,6 @@ export async function loadSavedOutfits(): Promise<SavedOutfit[]> {
 export async function saveSavedOutfit(input: CreateLookInput, recommendation: LookRecommendation, requestId: string) {
   const savedOutfits = await loadSavedOutfits();
   const id = buildSavedOutfitId(requestId, recommendation.tier);
-  const existing = savedOutfits.find((item) => item.id === id);
-
-  if (existing) {
-    return existing;
-  }
-
   const nextSavedOutfit: SavedOutfit = {
     id,
     requestId,
@@ -112,7 +106,7 @@ export async function saveSavedOutfit(input: CreateLookInput, recommendation: Lo
     },
   };
 
-  const nextSavedOutfits = [nextSavedOutfit, ...savedOutfits];
+  const nextSavedOutfits = [nextSavedOutfit, ...savedOutfits.filter((item) => item.id !== id)];
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
   return normalizeSavedOutfit(nextSavedOutfit);
 }

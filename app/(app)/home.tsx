@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, View } from 'react-native';
 
@@ -97,8 +97,9 @@ export default function HomeScreen() {
         </View>
 
         {/* Hero card */}
-        <Link href="/(app)/create-look" asChild>
-          <Pressable style={{ borderRadius: 24, overflow: 'hidden' }}>
+        <Pressable
+          onPress={() => router.push({ pathname: '/(app)/create-look', params: { fresh: String(Date.now()) } })}
+          style={{ borderRadius: 24, overflow: 'hidden' }}>
             <View style={{ minHeight: 320 }}>
               {/* Dark base */}
               <View
@@ -149,7 +150,6 @@ export default function HomeScreen() {
               <HeroCardContent />
             </View>
           </Pressable>
-        </Link>
 
         {/* Powered by */}
         <View style={{ alignItems: 'center' }}>
