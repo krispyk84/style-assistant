@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
-import { Pressable, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 
@@ -13,6 +13,8 @@ import { LOOK_TIER_OPTIONS } from '@/types/look-request';
 import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
+import { closetService } from '@/services/closet';
+import type { ClosetItem } from '@/types/closet';
 
 const VIBE_SUGGESTIONS = ['Old Money', 'Resort', 'Minimalist', 'European Summer', 'Streetwear', 'Coastal'];
 
@@ -71,6 +73,16 @@ export function CreateLookRequestForm({
   const [isKeywordsExpanded, setIsKeywordsExpanded] = useState(() => !!(initialValue.vibeKeywords?.trim()));
   const [anchorError, setAnchorError] = useState<string | null>(null);
   const [tierError, setTierError] = useState<string | null>(null);
+  const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
+  const [closetPickerVisible, setClosetPickerVisible] = useState(false);
+  const closetPickerTargetId = useRef<string | null>(null);
+
+  useEffect(() => {
+    void closetService.getItems().then((r) => {
+      if (r.success && r.data) setClosetItems(r.data.items);
+    });
+  }, []);
+
   const populatedAnchorItems = anchorItems.filter((item) => item.description.trim() || item.image || item.uploadedImage);
   const hasAnyInput = populatedAnchorItems.length > 0;
   const isUploading = anchorItems.some((item) => item.uploadedImage === null && item.image !== null);
@@ -94,6 +106,37 @@ export function CreateLookRequestForm({
 
   function removeAnchorItem(itemId: string) {
     setAnchorItems((current) => current.filter((item) => item.id !== itemId));
+  }
+
+  function handlePickFromCloset(anchorItemId: string) {
+    closetPickerTargetId.current = anchorItemId;
+    setClosetPickerVisible(true);
+  }
+
+  function handleClosetItemSelected(closetItem: ClosetItem) {
+    const imageUrl = closetItem.sketchImageUrl ?? closetItem.uploadedImageUrl ?? '';
+    setAnchorItems((current) =>
+      current.map((item) => {
+        if (item.id !== closetPickerTargetId.current) return item;
+        return {
+          id: `closet-${closetItem.id}-${Date.now()}`,
+          description: closetItem.title,
+          image: null,
+          uploadedImage: imageUrl
+            ? {
+                id: closetItem.id,
+                category: 'anchor-item' as const,
+                storageProvider: 'closet-ref',
+                storageKey: imageUrl,
+                publicUrl: imageUrl,
+                createdAt: new Date().toISOString(),
+              }
+            : null,
+        };
+      })
+    );
+    closetPickerTargetId.current = null;
+    setClosetPickerVisible(false);
   }
 
   function toggleVibeKeyword(keyword: string) {
@@ -161,6 +204,7 @@ export function CreateLookRequestForm({
             removable={index > 0}
             onChange={updateAnchorItem}
             onRemove={() => removeAnchorItem(item.id)}
+            onPickFromCloset={closetItems.length > 0 ? () => handlePickFromCloset(item.id) : undefined}
           />
         ))}
 
@@ -189,6 +233,13 @@ export function CreateLookRequestForm({
           </AppText>
         </Pressable>
       </View>
+
+      <ClosetPickerModal
+        visible={closetPickerVisible}
+        items={closetItems}
+        onSelect={handleClosetItemSelected}
+        onClose={() => { closetPickerTargetId.current = null; setClosetPickerVisible(false); }}
+      />
 
       {/* Style Keywords — collapsible */}
       <View style={{ gap: spacing.md }}>
@@ -329,12 +380,14 @@ function AnchorItemCard({
   removable,
   onChange,
   onRemove,
+  onPickFromCloset,
 }: {
   item: LookAnchorItem;
   isPrimary: boolean;
   removable: boolean;
   onChange: (item: LookAnchorItem) => void;
   onRemove: () => void;
+  onPickFromCloset?: () => void;
 }) {
   const [description, setDescription] = useState(item.description);
   const {
@@ -448,7 +501,7 @@ function AnchorItemCard({
         ) : null}
 
         {/* Photo buttons */}
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
           <ActionPill
             icon="image-outline"
             label={isPickingLibrary ? 'Opening...' : 'Library'}
@@ -459,6 +512,13 @@ function AnchorItemCard({
             label={isPickingCamera ? 'Opening...' : 'Camera'}
             onPress={takePhoto}
           />
+          {onPickFromCloset ? (
+            <ActionPill
+              icon="shirt-outline"
+              label="Closet"
+              onPress={onPickFromCloset}
+            />
+          ) : null}
         </View>
 
         {/* Description */}
@@ -487,6 +547,145 @@ function AnchorItemCard({
     </View>
   );
 }
+
+// ── Closet picker modal ──────────────────────────────────────────────────────
+
+function ClosetPickerModal({
+  visible,
+  items,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  items: ClosetItem[];
+  onSelect: (item: ClosetItem) => void;
+  onClose: () => void;
+}) {
+  const { height: screenHeight } = useWindowDimensions();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const categories = [...new Set(items.map((i) => i.category))].sort();
+  const displayItems = selectedCategory ? items.filter((i) => i.category === selectedCategory) : items;
+
+  const rows: ClosetItem[][] = [];
+  for (let i = 0; i < displayItems.length; i += 3) rows.push(displayItems.slice(i, i + 3));
+
+  return (
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(24,18,14,0.4)' }}>
+        <View
+          style={{
+            backgroundColor: '#FFFDFC',
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+            maxHeight: screenHeight * 0.82,
+            overflow: 'hidden',
+          }}>
+          {/* Header */}
+          <View
+            style={{
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              padding: spacing.lg,
+              paddingBottom: spacing.md,
+            }}>
+            <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+              Select from Closet
+            </AppText>
+            <Pressable hitSlop={8} onPress={onClose}>
+              <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+            </Pressable>
+          </View>
+
+          {/* Category filter pills */}
+          {categories.length > 1 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: spacing.xs, paddingHorizontal: spacing.lg, paddingBottom: spacing.md }}>
+              <Pressable
+                onPress={() => setSelectedCategory(null)}
+                style={[closetPickerPillStyle, !selectedCategory ? closetPickerPillActiveStyle : null]}>
+                <AppText style={{ fontSize: 12, color: !selectedCategory ? '#FFF' : theme.colors.text }}>All</AppText>
+              </Pressable>
+              {categories.map((cat) => (
+                <Pressable
+                  key={cat}
+                  onPress={() => setSelectedCategory(cat)}
+                  style={[closetPickerPillStyle, selectedCategory === cat ? closetPickerPillActiveStyle : null]}>
+                  <AppText style={{ fontSize: 12, color: selectedCategory === cat ? '#FFF' : theme.colors.text }}>{cat}</AppText>
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : null}
+
+          {/* Item grid */}
+          <ScrollView
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ gap: spacing.sm, padding: spacing.lg }}>
+            {rows.map((row, rowIdx) => (
+              <View key={rowIdx} style={{ flexDirection: 'row', gap: spacing.sm }}>
+                {row.map((item) => (
+                  <Pressable key={item.id} onPress={() => onSelect(item)} style={{ flex: 1, gap: spacing.xs }}>
+                    <View
+                      style={{
+                        aspectRatio: 3 / 4,
+                        backgroundColor: theme.colors.card,
+                        borderColor: theme.colors.border,
+                        borderRadius: 16,
+                        borderWidth: 1,
+                        overflow: 'hidden',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                      {item.sketchImageUrl ?? item.uploadedImageUrl ? (
+                        <Image
+                          contentFit="cover"
+                          source={{ uri: (item.sketchImageUrl ?? item.uploadedImageUrl)! }}
+                          style={{ height: '100%', width: '100%' }}
+                        />
+                      ) : (
+                        <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={22} />
+                      )}
+                    </View>
+                    <AppText
+                      numberOfLines={2}
+                      style={{ fontSize: 11, fontFamily: theme.fonts.sansMedium, letterSpacing: 0.2 }}>
+                      {item.title}
+                    </AppText>
+                  </Pressable>
+                ))}
+                {row.length < 3
+                  ? Array.from({ length: 3 - row.length }).map((_, i) => (
+                      <View key={`empty-${i}`} style={{ flex: 1 }} />
+                    ))
+                  : null}
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const closetPickerPillStyle = {
+  backgroundColor: theme.colors.surface,
+  borderColor: theme.colors.border,
+  borderRadius: 999,
+  borderWidth: 1,
+  paddingHorizontal: spacing.md,
+  paddingVertical: spacing.xs,
+} as const;
+
+const closetPickerPillActiveStyle = {
+  backgroundColor: theme.colors.accent,
+  borderColor: theme.colors.accent,
+} as const;
+
+// ── Action pill ───────────────────────────────────────────────────────────────
 
 function ActionPill({
   label,

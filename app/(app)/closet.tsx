@@ -658,6 +658,18 @@ type CategoryFilterModalProps = {
 
 function CategoryFilterModal({ visible, categories, selected, onSelect, onClose }: CategoryFilterModalProps) {
   const { height: screenHeight } = useWindowDimensions();
+  const scrollRef = useRef<ScrollView>(null);
+  const itemYOffsets = useRef<number[]>([]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const timeout = setTimeout(() => {
+      const idx = selected === null ? 0 : (categories.findIndex((c) => c.label === selected) + 1);
+      const y = itemYOffsets.current[idx] ?? 0;
+      scrollRef.current?.scrollTo({ y: Math.max(0, y - spacing.sm), animated: false });
+    }, 50);
+    return () => clearTimeout(timeout);
+  }, [visible, selected, categories]);
 
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
@@ -689,19 +701,24 @@ function CategoryFilterModal({ visible, categories, selected, onSelect, onClose 
 
           {/* Scrollable category list — capped so it never overflows the screen */}
           <ScrollView
+            ref={scrollRef}
             bounces={false}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             style={{ maxHeight: screenHeight * 0.52 }}
             contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}>
-            <Pressable onPress={() => onSelect(null)} style={[filterRowStyle, !selected ? filterRowActiveStyle : null]}>
+            <Pressable
+              onLayout={(e) => { itemYOffsets.current[0] = e.nativeEvent.layout.y; }}
+              onPress={() => onSelect(null)}
+              style={[filterRowStyle, !selected ? filterRowActiveStyle : null]}>
               <AppText variant="sectionTitle" style={!selected ? { color: theme.colors.accent } : undefined}>All Items</AppText>
               <AppText tone="muted">{categories.reduce((sum, c) => sum + c.count, 0)}</AppText>
             </Pressable>
 
-            {categories.map((cat) => (
+            {categories.map((cat, idx) => (
               <Pressable
                 key={cat.label}
+                onLayout={(e) => { itemYOffsets.current[idx + 1] = e.nativeEvent.layout.y; }}
                 onPress={() => onSelect(cat.label)}
                 style={[filterRowStyle, selected === cat.label ? filterRowActiveStyle : null]}>
                 <AppText variant="sectionTitle" style={selected === cat.label ? { color: theme.colors.accent } : undefined}>
