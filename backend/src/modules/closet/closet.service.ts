@@ -6,6 +6,7 @@ import { closetRepository } from './closet.repository.js';
 import { closetSketchService } from './closet-sketch.service.js';
 import type {
   AnalyzeClosetItemPayload,
+  ClosetMatchPayload,
   GenerateClosetSketchPayload,
   SaveClosetItemPayload,
   UpdateClosetItemPayload,
@@ -14,6 +15,15 @@ import type {
 const analyzeResponseSchema = z.object({
   title: z.string(),
   category: z.string(),
+});
+
+const matchResponseSchema = z.object({
+  matches: z.array(
+    z.object({
+      suggestionIndex: z.number(),
+      matchedItemId: z.string().nullable(),
+    })
+  ),
 });
 
 function mapItem(item: {
@@ -129,5 +139,72 @@ export const closetService = {
     const result = await closetSketchService.getSketchJobStatus(jobId);
     if (!result) throw new HttpError(404, 'NOT_FOUND', 'Sketch job not found.');
     return result;
+  },
+
+  async matchItems(payload: ClosetMatchPayload) {
+    if (!payload.items.length) {
+      return { matches: payload.suggestions.map((suggestion, i) => ({ suggestionIndex: i, suggestion, matchedItemId: null })) };
+    }
+
+    const itemList = payload.items
+      .map((item) => `  - id: "${item.id}", title: "${item.title}", category: "${item.category}"${item.brand ? `, brand: "${item.brand}"` : ''}`)
+      .join('\n');
+
+    const suggestionList = payload.suggestions
+      .map((s, i) => `  ${i}: "${s}"`)
+      .join('\n');
+
+    const result = await openAiClient.createStructuredResponse({
+      schema: matchResponseSchema,
+      jsonSchema: {
+        name: 'closet_match_result',
+        description: 'Matches outfit suggestions to the user\'s owned closet items',
+        schema: {
+          type: 'object',
+          properties: {
+            matches: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  suggestionIndex: { type: 'number', description: 'Index of the suggestion (0-based)' },
+                  matchedItemId: { type: ['string', 'null'], description: 'The id of the matching closet item, or null if no good match' },
+                },
+                required: ['suggestionIndex', 'matchedItemId'],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ['matches'],
+          additionalProperties: false,
+        },
+      },
+      instructions: `You are a menswear stylist helping a user identify which items they already own that closely match outfit recommendations.
+
+For each outfit suggestion, determine whether any of the user's closet items is a CLOSE match. A close match means:
+1. SAME garment type (e.g., both are crewneck t-shirts, or both are chino trousers — not just the same broad category)
+2. SIMILAR or COMPATIBLE color (white and black are NOT a match; white and off-white are)
+3. COMPATIBLE formality level (a dress shirt is NOT a match for a casual t-shirt)
+
+Be strict. Only return a matchedItemId when you are confident the user could actually substitute their item for the suggestion. Return null when:
+- The garment types differ (even if in the same category)
+- The colors are clearly different
+- The formality levels are mismatched
+- No item exists in their closet for that garment type at all`,
+      userContent: [
+        {
+          type: 'input_text',
+          text: `OUTFIT SUGGESTIONS (by index):\n${suggestionList}\n\nUSER'S CLOSET ITEMS:\n${itemList}\n\nReturn one match entry per suggestion index (0 through ${payload.suggestions.length - 1}).`,
+        },
+      ],
+    });
+
+    return {
+      matches: result.matches.map((m) => ({
+        suggestionIndex: m.suggestionIndex,
+        suggestion: payload.suggestions[m.suggestionIndex] ?? '',
+        matchedItemId: m.matchedItemId,
+      })),
+    };
   },
 };

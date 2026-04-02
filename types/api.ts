@@ -124,3 +124,12 @@ export type GetClosetSketchResponse = {
   sketchStatus: 'pending' | 'ready' | 'failed';
   sketchImageUrl: string | null;
 };
+
+export type ClosetMatchRequest = {
+  suggestions: string[];
+  items: { id: string; title: string; category: string; brand?: string }[];
+};
+
+export type ClosetMatchResponse = {
+  matches: { suggestionIndex: number; suggestion: string; matchedItemId: string | null }[];
+};

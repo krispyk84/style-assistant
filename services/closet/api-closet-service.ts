@@ -3,6 +3,8 @@ import { deleteClosetItem, saveClosetItem, updateClosetItem } from '@/lib/closet
 import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
+  ClosetMatchRequest,
+  ClosetMatchResponse,
   GenerateClosetSketchRequest,
   GenerateClosetSketchResponse,
   GetClosetItemsResponse,
@@ -87,5 +89,12 @@ export const apiClosetService: ClosetService = {
 
   async getItemSketch(jobId: string): Promise<ApiResponse<GetClosetSketchResponse>> {
     return createApiClient().request<GetClosetSketchResponse>(`/closet/items/sketch-preview/${jobId}`);
+  },
+
+  async matchItems(request: ClosetMatchRequest): Promise<ApiResponse<ClosetMatchResponse>> {
+    return createApiClient().request<ClosetMatchResponse>('/closet/match', {
+      method: 'POST',
+      body: request,
+    });
   },
 };

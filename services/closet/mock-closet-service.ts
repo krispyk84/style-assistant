@@ -2,6 +2,8 @@ import { deleteClosetItem, loadClosetItems, saveClosetItem, updateClosetItem } f
 import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
+  ClosetMatchRequest,
+  ClosetMatchResponse,
   GenerateClosetSketchRequest,
   GenerateClosetSketchResponse,
   GetClosetItemsResponse,
@@ -130,6 +132,20 @@ export const mockClosetService: ClosetService = {
     return {
       success: true,
       data: { sketchStatus: 'failed', sketchImageUrl: null },
+      error: null,
+    };
+  },
+
+  async matchItems(request: ClosetMatchRequest): Promise<ApiResponse<ClosetMatchResponse>> {
+    return {
+      success: true,
+      data: {
+        matches: request.suggestions.map((suggestion, i) => ({
+          suggestionIndex: i,
+          suggestion,
+          matchedItemId: null,
+        })),
+      },
       error: null,
     };
   },

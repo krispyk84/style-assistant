@@ -7,12 +7,22 @@ import { parseWithSchema } from '../../lib/validation.js';
 import { closetService } from './closet.service.js';
 import {
   analyzeClosetItemSchema,
+  closetMatchSchema,
   generateClosetSketchSchema,
   saveClosetItemSchema,
   updateClosetItemSchema,
 } from './closet.validation.js';
 
 export const closetRouter = Router();
+
+closetRouter.post(
+  '/closet/match',
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(closetMatchSchema, request.body);
+    const result = await closetService.matchItems(payload);
+    return sendSuccess(response, result);
+  })
+);
 
 closetRouter.post(
   '/closet/items/analyze',

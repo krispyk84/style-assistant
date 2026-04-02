@@ -21,8 +21,10 @@ type LookResultCardProps = {
   isSaving?: boolean;
   onSave?: () => void;
   onAddToWeek?: () => void;
-  /** Closet items to match against each piece suggestion. Default: empty array (no matches). */
+  /** Closet items — used as fallback matching when matchMap is not yet populated. */
   closetItems?: ClosetItem[];
+  /** Pre-computed LLM matches: suggestion string → ClosetItem or null. When provided, takes precedence over local scoring. */
+  matchMap?: Record<string, ClosetItem | null>;
 };
 
 export function LookResultCard({
@@ -35,13 +37,14 @@ export function LookResultCard({
   onSave,
   onAddToWeek,
   closetItems = [],
+  matchMap,
 }: LookResultCardProps) {
   // Must be declared before any early return to satisfy hooks rules
   const [matchedItem, setMatchedItem] = useState<ClosetItem | null>(null);
 
   const labeledPieces = useMemo(
-    () => buildLabeledPieces(recommendation, closetItems),
-    [recommendation, closetItems]
+    () => buildLabeledPieces(recommendation, closetItems, matchMap),
+    [recommendation, closetItems, matchMap]
   );
   const hasAnyMatch = labeledPieces.some((p) => p.matchedClosetItem !== null);
 
@@ -209,20 +212,37 @@ type LabeledPiece = {
   matchedClosetItem: ClosetItem | null;
 };
 
-function buildLabeledPieces(recommendation: LookRecommendation, closetItems: ClosetItem[]): LabeledPiece[] {
+function resolveMatch(
+  suggestion: string,
+  closetItems: ClosetItem[],
+  matchMap?: Record<string, ClosetItem | null>
+): ClosetItem | null {
+  // If matchMap has an entry (including null), trust the LLM result
+  if (matchMap && Object.prototype.hasOwnProperty.call(matchMap, suggestion)) {
+    return matchMap[suggestion] ?? null;
+  }
+  // Fall back to local scoring while the LLM result is still loading
+  return findBestClosetMatch(suggestion, closetItems);
+}
+
+function buildLabeledPieces(
+  recommendation: LookRecommendation,
+  closetItems: ClosetItem[],
+  matchMap?: Record<string, ClosetItem | null>
+): LabeledPiece[] {
   const usedLabels = new Set<string>();
 
   const pieces: LabeledPiece[] = recommendation.keyPieces.map((piece, index) => ({
     label: uniqueLabel(labelForKeyPiece(piece, index), usedLabels),
     value: piece,
-    matchedClosetItem: findBestClosetMatch(piece, closetItems),
+    matchedClosetItem: resolveMatch(piece, closetItems, matchMap),
   }));
 
   recommendation.shoes.forEach((shoe, index) => {
     pieces.push({
       label: uniqueLabel(index === 0 ? 'Shoes' : `Shoe ${index + 1}`, usedLabels),
       value: shoe,
-      matchedClosetItem: findBestClosetMatch(shoe, closetItems),
+      matchedClosetItem: resolveMatch(shoe, closetItems, matchMap),
     });
   });
 
@@ -230,7 +250,7 @@ function buildLabeledPieces(recommendation: LookRecommendation, closetItems: Clo
     pieces.push({
       label: uniqueLabel(`Accessory ${index + 1}`, usedLabels),
       value: accessory,
-      matchedClosetItem: findBestClosetMatch(accessory, closetItems),
+      matchedClosetItem: resolveMatch(accessory, closetItems, matchMap),
     });
   });
 

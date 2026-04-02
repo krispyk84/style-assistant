@@ -33,6 +33,8 @@ export default function ResultDetailsScreen() {
   const [regeneratingTiers, setRegeneratingTiers] = useState<LookTierSlug[]>([]);
   const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
   const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
+  // suggestion string → matched ClosetItem (null = no match, undefined = not yet resolved)
+  const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null>>({});
   const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
   const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
   const { showToast } = useToast();
@@ -92,6 +94,43 @@ export default function ResultDetailsScreen() {
       }
     });
   }, []);
+
+  // Once both outfit response and closet items are ready, run LLM-based matching
+  useEffect(() => {
+    if (!response || !closetItems.length) return;
+
+    const suggestions = response.recommendations.flatMap((r) => [
+      ...r.keyPieces,
+      ...r.shoes,
+      ...r.accessories,
+    ]);
+    const uniqueSuggestions = [...new Set(suggestions)];
+    if (!uniqueSuggestions.length) return;
+
+    void closetService
+      .matchItems({
+        suggestions: uniqueSuggestions,
+        items: closetItems.map((item) => ({
+          id: item.id,
+          title: item.title,
+          category: item.category,
+          brand: item.brand || undefined,
+        })),
+      })
+      .then((matchResponse) => {
+        if (!matchResponse.success || !matchResponse.data) return;
+        const resolved: Record<string, ClosetItem | null> = {};
+        for (const match of matchResponse.data.matches) {
+          const item = match.matchedItemId
+            ? (closetItems.find((c) => c.id === match.matchedItemId) ?? null)
+            : null;
+          resolved[match.suggestion] = item;
+        }
+        setMatchMap(resolved);
+      });
+  // Re-run if the response changes (e.g. after regeneration) or closet items reload
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [response?.requestId, closetItems]);
 
   useEffect(() => {
     let isMounted = true;
@@ -255,6 +294,7 @@ export default function ResultDetailsScreen() {
             onSave={() => void handleSave(recommendation.tier)}
             onAddToWeek={() => setWeekPickerTier(recommendation.tier)}
             closetItems={closetItems}
+            matchMap={matchMap}
             detailHref={buildTierHref(
               recommendation.tier,
               response.requestId,
