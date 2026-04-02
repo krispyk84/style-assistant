@@ -248,27 +248,50 @@ export const closetService = {
           additionalProperties: false,
         },
       },
-      instructions: `You are a practical wardrobe assistant. For each outfit suggestion, find the best matching item the user already owns.
+      instructions: `You are a wardrobe matching assistant. For each outfit suggestion, follow these steps in exact order.
 
 ${matchingVocabulary}
 
-MATCHING RULES — apply in this order:
+━━━ STEP 1 — CATEGORY GATE (hard, no exceptions) ━━━
+Identify which CATEGORY GROUP the outfit suggestion belongs to.
+Keep only closet items that belong to the SAME CATEGORY GROUP.
+Use the item's category field as the primary signal; fall back to the item's title only if the category is generic.
+If ZERO items pass this gate → return null immediately. Do not proceed. Do not find the "nearest" item across groups.
 
-1. CATEGORY first (hard filter): Identify which CATEGORY GROUP the suggestion belongs to. Only consider closet items in the same CATEGORY GROUP. If no closet item is in the same group, return null. Use the category field on the item as the primary signal; fall back to the item title if the category is vague.
+Each group is distinct. POLO ≠ TEE. SNEAKERS ≠ LOAFERS. WATCH ≠ anything else. Crossing groups is never acceptable.
 
-2. COLOR second (prefer, not require): Among category-compatible items, prefer ones in the same COLOR FAMILY as the suggestion. Extract the color from the suggestion text and find its COLOR FAMILY. If the item's title or category includes a color in the same family, it is a good match. If the color families differ but the category is right, it can still be a valid match — just lower priority.
+━━━ STEP 2 — COLOR GATE (required when suggestion has a detectable color) ━━━
+Extract the dominant color word(s) from the suggestion text and find their COLOR FAMILY.
+From the same-category candidates, keep only items whose title contains a color in the SAME COLOR FAMILY.
+Items with no color mentioned in their title: keep them as neutral candidates.
 
-3. Pick the BEST match: When multiple items qualify, pick the one with the closest category AND closest color family. One strong signal (same sub-type) beats two weak ones.
+Color families are distinct — do not match across them:
+  - NAVY ≠ BLUE (midnight navy and light blue are different; do not match them)
+  - WHITE ≠ STONE (cream and beige are close, but white and khaki are not)
+  - GREY ≠ BROWN
+  - BLACK ≠ NAVY
+Within a family, all variations are equivalent:
+  - GREY: grey, light grey, charcoal, graphite, slate, heather grey, ash → all match each other
+  - STONE: stone, taupe, khaki, beige, sand, oatmeal, tan, camel → all match each other
+  - NAVY: navy, midnight blue, dark blue, ink blue → all match each other
 
-4. BIAS TOWARD MATCHING: If an item is in the right CATEGORY GROUP and approximately the right color, return it. "Close enough" is the standard. Examples of correct matches:
-   - "tailored grey trousers" → "Grey Slim-Fit Chinos" ✓ (both TROUSERS, both GREY)
-   - "stone chino trousers" → "Beige Khaki Trousers" ✓ (both TROUSERS, both STONE)
-   - "light blue Oxford shirt" → "Blue OCBD" ✓ (both DRESS_SHIRT, both BLUE)
-   - "white crewneck tee" → "White Cotton T-Shirt" ✓ (both TEE, both WHITE)
+If the suggestion has NO detectable color word → skip the color gate entirely, proceed with all same-category candidates.
+If every same-category candidate fails the color gate → return null.
 
-5. Return null ONLY when no closet item belongs to the same CATEGORY GROUP as the suggestion, or all same-category items are in clearly incompatible color families with no plausible overlap.
+━━━ STEP 3 — SELECT BEST ━━━
+Among items that passed both gates, pick the single best match:
+  - prefer the closest garment sub-type (e.g. "trousers" item for a "trousers" suggestion over a "chinos" item)
+  - then prefer the closest color within the family
+Return that item's id.
 
-DO NOT return null just because descriptor words differ. "Slim-fit" vs "tailored", "chino" vs "trouser", "stone" vs "khaki", "grey" vs "charcoal" — these are all compatible. The goal is useful wardrobe matching, not exact label matching.`,
+━━━ WHAT SHOULD AND SHOULD NOT MATCH ━━━
+✓ "tailored grey trousers" → "Grey Slim-Fit Chinos"  (TROUSERS + GREY)
+✓ "stone chino trousers"  → "Beige Khaki Trousers"   (TROUSERS + STONE)
+✓ "light blue dress shirt" → "Light Blue OCBD"        (DRESS_SHIRT + BLUE)
+✓ "white crewneck tee"    → "White Cotton T-Shirt"    (TEE + WHITE)
+✗ "light blue dress shirt" → "Navy Button-Up"          ✗ BLUE ≠ NAVY
+✗ "white polo"            → "White T-Shirt"            ✗ POLO ≠ TEE
+✗ "classic dress watch"   → any trouser/shirt/shoe     ✗ wrong category entirely`,
       userContent: [
         {
           type: 'input_text',
