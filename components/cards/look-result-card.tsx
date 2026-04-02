@@ -1,11 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Href, Link } from 'expo-router';
 import { Animated, Easing, Pressable, View } from 'react-native';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { spacing, theme } from '@/constants/theme';
 import { formatTierLabel } from '@/lib/outfit-utils';
+import { findBestClosetMatch } from '@/lib/closet-match';
+import { ClosetItemSheet } from '@/components/closet/closet-item-sheet';
 import type { LookRecommendation } from '@/types/look-request';
+import type { ClosetItem } from '@/types/closet';
 import { AppText } from '@/components/ui/app-text';
 import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
 
@@ -18,6 +21,8 @@ type LookResultCardProps = {
   isSaving?: boolean;
   onSave?: () => void;
   onAddToWeek?: () => void;
+  /** Closet items to match against each piece suggestion. Default: empty array (no matches). */
+  closetItems?: ClosetItem[];
 };
 
 export function LookResultCard({
@@ -29,8 +34,16 @@ export function LookResultCard({
   isSaving = false,
   onSave,
   onAddToWeek,
+  closetItems = [],
 }: LookResultCardProps) {
-  const labeledPieces = buildLabeledPieces(recommendation);
+  // Must be declared before any early return to satisfy hooks rules
+  const [matchedItem, setMatchedItem] = useState<ClosetItem | null>(null);
+
+  const labeledPieces = useMemo(
+    () => buildLabeledPieces(recommendation, closetItems),
+    [recommendation, closetItems]
+  );
+  const hasAnyMatch = labeledPieces.some((p) => p.matchedClosetItem !== null);
 
   if (isRegenerating) {
     return (
@@ -94,9 +107,7 @@ export function LookResultCard({
           onPress={onSave}
           style={[
             actionButtonStyle,
-            {
-              backgroundColor: isSaved ? theme.colors.border : theme.colors.card,
-            },
+            { backgroundColor: isSaved ? theme.colors.border : theme.colors.card },
           ]}>
           <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
             <Ionicons
@@ -115,18 +126,43 @@ export function LookResultCard({
         </Pressable>
       </View>
 
+      {/* Pieces list with optional closet-match legend + inline checkmarks */}
       <View style={{ gap: spacing.sm }}>
+        {hasAnyMatch ? (
+          <View
+            style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, paddingBottom: spacing.xs }}>
+            <Ionicons color={theme.colors.accent} name="checkmark-circle-outline" size={13} />
+            <AppText tone="muted" style={{ fontSize: 12 }}>
+              You already own a similar piece
+            </AppText>
+          </View>
+        ) : null}
+
         {labeledPieces.map((piece) => (
           <View
             key={`${piece.label}-${piece.value}`}
             style={{
+              alignItems: 'flex-start',
               borderBottomColor: theme.colors.border,
               borderBottomWidth: 1,
+              flexDirection: 'row',
               gap: spacing.xs,
               paddingBottom: spacing.sm,
             }}>
-            <AppText variant="sectionTitle">{piece.label}</AppText>
-            <AppText tone="muted">{piece.value}</AppText>
+            <View style={{ flex: 1, gap: spacing.xs }}>
+              <AppText variant="sectionTitle">{piece.label}</AppText>
+              <AppText tone="muted">{piece.value}</AppText>
+            </View>
+            {piece.matchedClosetItem ? (
+              <Pressable
+                accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view.`}
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => setMatchedItem(piece.matchedClosetItem!)}
+                style={{ paddingTop: 2 }}>
+                <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} />
+              </Pressable>
+            ) : null}
           </View>
         ))}
       </View>
@@ -139,8 +175,16 @@ export function LookResultCard({
       </View>
 
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-        <Pressable disabled={isRegenerating} onPress={onRegenerate} style={[actionButtonStyle, { backgroundColor: theme.colors.text, opacity: isRegenerating ? 0.7 : 1 }]}>
-          <AppText style={{ color: theme.colors.background }}>{isRegenerating ? 'Regenerating...' : 'Regenerate'}</AppText>
+        <Pressable
+          disabled={isRegenerating}
+          onPress={onRegenerate}
+          style={[
+            actionButtonStyle,
+            { backgroundColor: theme.colors.text, opacity: isRegenerating ? 0.7 : 1 },
+          ]}>
+          <AppText style={{ color: theme.colors.background }}>
+            {isRegenerating ? 'Regenerating...' : 'Regenerate'}
+          </AppText>
         </Pressable>
         <Link href={detailHref} asChild>
           <Pressable style={actionButtonStyle}>
@@ -148,9 +192,82 @@ export function LookResultCard({
           </Pressable>
         </Link>
       </View>
+
+      {/* Bottom sheet shown when user taps a checkmark */}
+      {matchedItem ? (
+        <ClosetItemSheet item={matchedItem} onClose={() => setMatchedItem(null)} />
+      ) : null}
     </View>
   );
 }
+
+// ── Piece list construction ────────────────────────────────────────────────────
+
+type LabeledPiece = {
+  label: string;
+  value: string;
+  matchedClosetItem: ClosetItem | null;
+};
+
+function buildLabeledPieces(recommendation: LookRecommendation, closetItems: ClosetItem[]): LabeledPiece[] {
+  const usedLabels = new Set<string>();
+
+  const pieces: LabeledPiece[] = recommendation.keyPieces.map((piece, index) => ({
+    label: uniqueLabel(labelForKeyPiece(piece, index), usedLabels),
+    value: piece,
+    matchedClosetItem: findBestClosetMatch(piece, closetItems),
+  }));
+
+  recommendation.shoes.forEach((shoe, index) => {
+    pieces.push({
+      label: uniqueLabel(index === 0 ? 'Shoes' : `Shoe ${index + 1}`, usedLabels),
+      value: shoe,
+      matchedClosetItem: findBestClosetMatch(shoe, closetItems),
+    });
+  });
+
+  recommendation.accessories.forEach((accessory, index) => {
+    pieces.push({
+      label: uniqueLabel(`Accessory ${index + 1}`, usedLabels),
+      value: accessory,
+      matchedClosetItem: findBestClosetMatch(accessory, closetItems),
+    });
+  });
+
+  return pieces;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function uniqueLabel(baseLabel: string, usedLabels: Set<string>): string {
+  if (!usedLabels.has(baseLabel)) {
+    usedLabels.add(baseLabel);
+    return baseLabel;
+  }
+
+  let counter = 2;
+  let nextLabel = `${baseLabel} ${counter}`;
+  while (usedLabels.has(nextLabel)) {
+    counter += 1;
+    nextLabel = `${baseLabel} ${counter}`;
+  }
+
+  usedLabels.add(nextLabel);
+  return nextLabel;
+}
+
+function labelForKeyPiece(piece: string, index: number): string {
+  const normalized = piece.toLowerCase();
+
+  if (/(suit|blazer|jacket|coat|topcoat|overshirt|chore)/.test(normalized)) return 'Outerwear';
+  if (/(shirt|tee|t-shirt|polo|crewneck|sweater|knit|cardigan|hoodie)/.test(normalized)) return 'Top';
+  if (/(trouser|pant|pants|jean|denim)/.test(normalized)) return 'Pants';
+  if (/(shorts)/.test(normalized)) return 'Shorts';
+
+  return index === 0 ? 'Piece 1' : `Piece ${index + 1}`;
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
 function TierSketch({ recommendation }: { recommendation: LookRecommendation }) {
   if (recommendation.sketchStatus === 'ready' && recommendation.sketchImageUrl) {
@@ -261,70 +378,6 @@ function AnimatedLoadingBar() {
       />
     </View>
   );
-}
-
-
-function buildLabeledPieces(recommendation: LookRecommendation) {
-  const usedLabels = new Set<string>();
-  const pieces = recommendation.keyPieces.map((piece, index) => ({
-    label: uniqueLabel(labelForKeyPiece(piece, index), usedLabels),
-    value: piece,
-  }));
-
-  recommendation.shoes.forEach((shoe, index) => {
-    pieces.push({
-      label: uniqueLabel(index === 0 ? 'Shoes' : `Shoe ${index + 1}`, usedLabels),
-      value: shoe,
-    });
-  });
-
-  recommendation.accessories.forEach((accessory, index) => {
-    pieces.push({
-      label: uniqueLabel(`Accessory ${index + 1}`, usedLabels),
-      value: accessory,
-    });
-  });
-
-  return pieces;
-}
-
-function uniqueLabel(baseLabel: string, usedLabels: Set<string>) {
-  if (!usedLabels.has(baseLabel)) {
-    usedLabels.add(baseLabel);
-    return baseLabel;
-  }
-
-  let counter = 2;
-  let nextLabel = `${baseLabel} ${counter}`;
-  while (usedLabels.has(nextLabel)) {
-    counter += 1;
-    nextLabel = `${baseLabel} ${counter}`;
-  }
-
-  usedLabels.add(nextLabel);
-  return nextLabel;
-}
-
-function labelForKeyPiece(piece: string, index: number) {
-  const normalized = piece.toLowerCase();
-
-  if (/(suit|blazer|jacket|coat|topcoat|overshirt|chore)/.test(normalized)) {
-    return 'Outerwear';
-  }
-
-  if (/(shirt|tee|t-shirt|polo|crewneck|sweater|knit|cardigan|hoodie)/.test(normalized)) {
-    return 'Top';
-  }
-
-  if (/(trouser|pant|pants|jean|denim)/.test(normalized)) {
-    return 'Pants';
-  }
-
-  if (/(shorts)/.test(normalized)) {
-    return 'Shorts';
-  }
-
-  return index === 0 ? 'Piece 1' : `Piece ${index + 1}`;
 }
 
 function CardSection({ title, items }: { title: string; items: string[] }) {

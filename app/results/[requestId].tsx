@@ -2,6 +2,9 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 
+import { closetService } from '@/services/closet';
+import type { ClosetItem } from '@/types/closet';
+
 import { LookResultCard } from '@/components/cards/look-result-card';
 import { LookRequestReviewCard } from '@/components/cards/look-request-review-card';
 import { AppScreen } from '@/components/ui/app-screen';
@@ -29,6 +32,7 @@ export default function ResultDetailsScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [regeneratingTiers, setRegeneratingTiers] = useState<LookTierSlug[]>([]);
   const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
+  const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
   const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
   const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
   const { showToast } = useToast();
@@ -79,6 +83,15 @@ export default function ResultDetailsScreen() {
 
     return () => clearInterval(interval);
   }, [response]);
+
+  // Load closet items once on mount so matching runs against current wardrobe
+  useEffect(() => {
+    void closetService.getItems().then((response) => {
+      if (response.success && response.data) {
+        setClosetItems(response.data.items);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -241,6 +254,7 @@ export default function ResultDetailsScreen() {
             isSaving={savingTier === recommendation.tier}
             onSave={() => void handleSave(recommendation.tier)}
             onAddToWeek={() => setWeekPickerTier(recommendation.tier)}
+            closetItems={closetItems}
             detailHref={buildTierHref(
               recommendation.tier,
               response.requestId,
