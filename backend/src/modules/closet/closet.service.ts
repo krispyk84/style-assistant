@@ -93,6 +93,47 @@ function buildMatchingVocabulary(): string {
   return `CATEGORY GROUPS (items in the same group are category-compatible):\n${categoryText}\n\nCOLOR FAMILIES (colors in the same family are color-compatible):\n${colorText}`;
 }
 
+// ── Sensitivity-driven color rules ────────────────────────────────────────────
+// Converts a 0-100 slider value into specific color-tolerance instructions
+// injected into the LLM prompt. Category matching is always strict regardless
+// of sensitivity; only color/shade tolerance changes.
+
+type SensitivityTier = 'LOW' | 'MEDIUM' | 'HIGH';
+
+function sensitivityTier(value: number): SensitivityTier {
+  if (value >= 67) return 'HIGH';
+  if (value >= 34) return 'MEDIUM';
+  return 'LOW';
+}
+
+function buildSensitivityInstructions(tier: SensitivityTier): string {
+  if (tier === 'HIGH') {
+    return `COLOR GATE — HIGH sensitivity (precise):
+Items must be in the same COLOR FAMILY. Additionally, require similar tone/shade within the family:
+  - Light blues (sky blue, powder blue, light blue) should match light blues, not dark blues (royal blue, cobalt)
+  - Light greys (heather grey, silver, ash) should match light greys, not charcoal or graphite
+  - Dark navy should match dark navy or midnight blue, not general blue
+  - The STONE family can remain broad (stone, taupe, khaki, beige are all similar enough)
+If the best same-category item has a noticeably different shade within the family, return null.
+Only match when confident about BOTH category AND color shade.`;
+  }
+
+  if (tier === 'MEDIUM') {
+    return `COLOR GATE — MEDIUM sensitivity (balanced):
+Items must be in the same COLOR FAMILY.
+Within a family, all shades are compatible — light grey and charcoal are both GREY; stone and taupe are both STONE.
+NAVY and BLUE are different families — do not match them.
+If no same-category item is in the same COLOR FAMILY, return null.`;
+  }
+
+  // LOW
+  return `COLOR GATE — LOW sensitivity (forgiving):
+Items must be in broadly the same color area. The families are intentionally broad — accept any shade variation within a family.
+If the item has no color mentioned in its title, accept it as a neutral candidate (pass the color gate).
+Be generous: if the color is in the general direction of the suggestion (e.g., both are warm neutrals, or both are cool blues), prefer matching over returning null.
+Only return null when the colors are clearly on opposite ends of the spectrum (e.g., black vs white, navy vs orange).`;
+}
+
 function mapItem(item: {
   id: string;
   title: string;
@@ -222,6 +263,8 @@ export const closetService = {
       .join('\n');
 
     const matchingVocabulary = buildMatchingVocabulary();
+    const tier = sensitivityTier(payload.sensitivity ?? 50);
+    const colorInstructions = buildSensitivityInstructions(tier);
 
     const result = await openAiClient.createStructuredResponse({
       schema: matchResponseSchema,
@@ -260,23 +303,15 @@ If ZERO items pass this gate → return null immediately. Do not proceed. Do not
 
 Each group is distinct. POLO ≠ TEE. SNEAKERS ≠ LOAFERS. WATCH ≠ anything else. Crossing groups is never acceptable.
 
-━━━ STEP 2 — COLOR GATE (required when suggestion has a detectable color) ━━━
+━━━ STEP 2 — COLOR GATE ━━━
 Extract the dominant color word(s) from the suggestion text and find their COLOR FAMILY.
-From the same-category candidates, keep only items whose title contains a color in the SAME COLOR FAMILY.
-Items with no color mentioned in their title: keep them as neutral candidates.
+From the same-category candidates, keep only items whose title contains a color in the matching COLOR FAMILY.
+Items with no color mentioned in their title: keep them as neutral candidates (they pass this gate).
 
-Color families are distinct — do not match across them:
-  - NAVY ≠ BLUE (midnight navy and light blue are different; do not match them)
-  - WHITE ≠ STONE (cream and beige are close, but white and khaki are not)
-  - GREY ≠ BROWN
-  - BLACK ≠ NAVY
-Within a family, all variations are equivalent:
-  - GREY: grey, light grey, charcoal, graphite, slate, heather grey, ash → all match each other
-  - STONE: stone, taupe, khaki, beige, sand, oatmeal, tan, camel → all match each other
-  - NAVY: navy, midnight blue, dark blue, ink blue → all match each other
-
-If the suggestion has NO detectable color word → skip the color gate entirely, proceed with all same-category candidates.
+If the suggestion has NO detectable color word → skip the color gate, proceed with all same-category candidates.
 If every same-category candidate fails the color gate → return null.
+
+${colorInstructions}
 
 ━━━ STEP 3 — SELECT BEST ━━━
 Among items that passed both gates, pick the single best match:

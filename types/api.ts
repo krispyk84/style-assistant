@@ -128,6 +128,8 @@ export type GetClosetSketchResponse = {
 export type ClosetMatchRequest = {
   suggestions: string[];
   items: { id: string; title: string; category: string; brand?: string }[];
+  /** 0 = most forgiving, 100 = most precise. Default: 50. */
+  sensitivity?: number;
 };
 
 export type ClosetMatchResponse = {

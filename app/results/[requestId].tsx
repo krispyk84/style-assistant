@@ -16,6 +16,7 @@ import { ScreenHeader } from '@/components/ui/screen-header';
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
+import { loadAppSettings } from '@/lib/app-settings-storage';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
 import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
 import { buildTierHref, parseLookInput, type LookRouteParams } from '@/lib/look-route';
@@ -107,8 +108,9 @@ export default function ResultDetailsScreen() {
     const uniqueSuggestions = [...new Set(suggestions)];
     if (!uniqueSuggestions.length) return;
 
-    void closetService
-      .matchItems({
+    void (async () => {
+      const { closetMatchSensitivity } = await loadAppSettings();
+      return closetService.matchItems({
         suggestions: uniqueSuggestions,
         items: closetItems.map((item) => ({
           id: item.id,
@@ -116,7 +118,9 @@ export default function ResultDetailsScreen() {
           category: item.category,
           brand: item.brand || undefined,
         })),
-      })
+        sensitivity: closetMatchSensitivity,
+      });
+    })()
       .then((matchResponse) => {
         if (!matchResponse.success || !matchResponse.data) return;
         const resolved: Record<string, ClosetItem | null> = {};

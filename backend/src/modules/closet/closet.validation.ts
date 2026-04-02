@@ -40,6 +40,8 @@ export const closetMatchSchema = z.object({
       })
     )
     .max(100),
+  /** 0 = most forgiving, 100 = most precise. Default: 50. */
+  sensitivity: z.number().min(0).max(100).optional(),
 });
 
 export type AnalyzeClosetItemPayload = z.infer<typeof analyzeClosetItemSchema>;

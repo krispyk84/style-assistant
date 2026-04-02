@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
@@ -657,6 +657,8 @@ type CategoryFilterModalProps = {
 };
 
 function CategoryFilterModal({ visible, categories, selected, onSelect, onClose }: CategoryFilterModalProps) {
+  const { height: screenHeight } = useWindowDimensions();
+
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
       <Pressable
@@ -668,38 +670,52 @@ function CategoryFilterModal({ visible, categories, selected, onSelect, onClose 
           justifyContent: 'center',
           padding: spacing.lg,
         }}>
+        {/* Stop taps on the card from closing the modal */}
         <Pressable
           onPress={() => undefined}
           style={{
             backgroundColor: '#FFFDFC',
             borderRadius: 28,
-            gap: spacing.md,
             maxWidth: 420,
-            padding: spacing.lg,
+            overflow: 'hidden',
             width: '100%',
           }}>
-          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
-            Filter by Category
-          </AppText>
+          {/* Fixed header */}
+          <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm }}>
+            <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+              Filter by Category
+            </AppText>
+          </View>
 
-          <Pressable onPress={() => onSelect(null)} style={[filterRowStyle, !selected ? filterRowActiveStyle : null]}>
-            <AppText variant="sectionTitle" style={!selected ? { color: theme.colors.accent } : undefined}>All Items</AppText>
-            <AppText tone="muted">{categories.reduce((sum, c) => sum + c.count, 0)}</AppText>
-          </Pressable>
-
-          {categories.map((cat) => (
-            <Pressable
-              key={cat.label}
-              onPress={() => onSelect(cat.label)}
-              style={[filterRowStyle, selected === cat.label ? filterRowActiveStyle : null]}>
-              <AppText variant="sectionTitle" style={selected === cat.label ? { color: theme.colors.accent } : undefined}>
-                {cat.label}
-              </AppText>
-              <AppText tone="muted">{cat.count}</AppText>
+          {/* Scrollable category list — capped so it never overflows the screen */}
+          <ScrollView
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            style={{ maxHeight: screenHeight * 0.52 }}
+            contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}>
+            <Pressable onPress={() => onSelect(null)} style={[filterRowStyle, !selected ? filterRowActiveStyle : null]}>
+              <AppText variant="sectionTitle" style={!selected ? { color: theme.colors.accent } : undefined}>All Items</AppText>
+              <AppText tone="muted">{categories.reduce((sum, c) => sum + c.count, 0)}</AppText>
             </Pressable>
-          ))}
 
-          <PrimaryButton label="Cancel" onPress={onClose} variant="secondary" />
+            {categories.map((cat) => (
+              <Pressable
+                key={cat.label}
+                onPress={() => onSelect(cat.label)}
+                style={[filterRowStyle, selected === cat.label ? filterRowActiveStyle : null]}>
+                <AppText variant="sectionTitle" style={selected === cat.label ? { color: theme.colors.accent } : undefined}>
+                  {cat.label}
+                </AppText>
+                <AppText tone="muted">{cat.count}</AppText>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          {/* Fixed footer */}
+          <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.lg }}>
+            <PrimaryButton label="Cancel" onPress={onClose} variant="secondary" />
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
