@@ -26,6 +26,73 @@ const matchResponseSchema = z.object({
   ),
 });
 
+// ── Category compatibility groups ─────────────────────────────────────────────
+// Items in the same group are category-compatible for matching purposes.
+// Keep groups broad enough for wardrobe matching, but distinct enough to
+// avoid cross-type false positives (sneakers vs dress shoes, trousers vs shorts).
+
+const MATCH_CATEGORY_GROUPS: Record<string, string[]> = {
+  TROUSERS:     ['trouser', 'trousers', 'chino', 'chinos', 'slack', 'slacks', 'dress pants', 'dress pant', 'tailored pant', 'wool trouser', 'gabardine', 'khaki pant', 'khakis'],
+  JEANS:        ['jean', 'jeans', 'denim', 'denim trouser'],
+  SHORTS:       ['short', 'shorts', 'chino short', 'bermuda'],
+  DRESS_SHIRT:  ['dress shirt', 'oxford shirt', 'ocbd', 'button-down', 'button down', 'button-up', 'spread collar', 'french cuff', 'poplin shirt', 'formal shirt', 'chambray shirt'],
+  CASUAL_SHIRT: ['casual shirt', 'linen shirt', 'camp collar', 'resort shirt'],
+  POLO:         ['polo', 'polo shirt'],
+  TEE:          ['t-shirt', 'tee', 'crewneck tee', 'v-neck tee', 'long sleeve tee', 'long-sleeve t-shirt', 'graphic tee'],
+  KNITWEAR:     ['sweater', 'knit', 'crewneck sweater', 'merino', 'cashmere', 'jumper', 'pullover', 'knitwear'],
+  CARDIGAN:     ['cardigan'],
+  HOODIE:       ['hoodie', 'sweatshirt', 'zip-up hoodie', 'fleece'],
+  BLAZER:       ['blazer', 'sport coat', 'sports jacket', 'suit jacket'],
+  JACKET:       ['jacket', 'chore coat', 'chore jacket', 'overshirt jacket', 'shacket', 'trucker jacket', 'harrington', 'field jacket', 'bomber jacket'],
+  COAT:         ['coat', 'topcoat', 'overcoat', 'trench coat', 'raincoat', 'mac'],
+  SUIT:         ['suit'],
+  SNEAKERS:     ['sneaker', 'sneakers', 'trainer', 'trainers', 'runner', 'runners', 'court shoe', 'canvas shoe', 'plimsoll'],
+  LOAFERS:      ['loafer', 'loafers', 'penny loafer', 'slip-on', 'moccasin'],
+  BOOTS:        ['boot', 'boots', 'chelsea boot', 'chukka boot', 'desert boot', 'ankle boot'],
+  DRESS_SHOES:  ['dress shoe', 'dress shoes', 'oxford shoe', 'derby shoe', 'brogue', 'monk strap', 'cap-toe'],
+  BELT:         ['belt'],
+  BAG:          ['bag', 'tote', 'briefcase', 'backpack', 'satchel'],
+  WATCH:        ['watch'],
+  SCARF:        ['scarf'],
+  HAT:          ['hat', 'cap', 'beanie', 'bucket hat'],
+  TIE:          ['tie', 'necktie', 'pocket square'],
+  SOCKS:        ['sock', 'socks'],
+};
+
+// ── Broad color families ───────────────────────────────────────────────────────
+// Intentionally broad — practical wardrobe matching, not exact taxonomy.
+// Any two colors in the same family are considered color-compatible.
+
+const MATCH_COLOR_FAMILIES: Record<string, string[]> = {
+  WHITE:    ['white', 'off-white', 'cream', 'ivory', 'ecru', 'chalk', 'optical white'],
+  STONE:    ['stone', 'taupe', 'khaki', 'beige', 'sand', 'oatmeal', 'wheat', 'tan', 'linen', 'putty', 'camel', 'biscuit', 'light neutral', 'natural', 'parchment', 'greige'],
+  GREY:     ['grey', 'gray', 'light grey', 'light gray', 'mid grey', 'mid gray', 'charcoal', 'graphite', 'slate', 'silver', 'heather', 'ash', 'heather grey', 'marl', 'steel', 'stainless', 'gunmetal'],
+  BLACK:    ['black', 'jet', 'onyx', 'ebony', 'jet black'],
+  NAVY:     ['navy', 'midnight blue', 'dark blue', 'ink blue', 'naval'],
+  BLUE:     ['blue', 'light blue', 'cobalt', 'royal blue', 'sky blue', 'powder blue', 'cornflower', 'cerulean', 'electric blue'],
+  BROWN:    ['brown', 'chocolate', 'cognac', 'tobacco', 'walnut', 'chestnut', 'caramel', 'mahogany', 'mocha', 'coffee', 'dark tan', 'whiskey'],
+  OLIVE:    ['olive', 'army green', 'military green', 'moss', 'khaki green', 'dark olive'],
+  GREEN:    ['green', 'forest green', 'sage', 'emerald', 'bottle green', 'hunter green', 'pine', 'sage green'],
+  BURGUNDY: ['burgundy', 'wine', 'bordeaux', 'oxblood', 'garnet', 'claret', 'merlot'],
+  RED:      ['red', 'crimson', 'scarlet', 'tomato'],
+  PINK:     ['pink', 'blush', 'rose', 'dusty pink', 'mauve', 'salmon'],
+  YELLOW:   ['yellow', 'mustard', 'amber', 'gold', 'ochre'],
+  PURPLE:   ['purple', 'violet', 'lavender', 'lilac', 'plum'],
+  RUST:     ['rust', 'terra cotta', 'terracotta', 'sienna', 'burnt orange'],
+};
+
+function buildMatchingVocabulary(): string {
+  const categoryText = Object.entries(MATCH_CATEGORY_GROUPS)
+    .map(([group, terms]) => `  ${group}: ${terms.join(', ')}`)
+    .join('\n');
+
+  const colorText = Object.entries(MATCH_COLOR_FAMILIES)
+    .map(([family, terms]) => `  ${family}: ${terms.join(', ')}`)
+    .join('\n');
+
+  return `CATEGORY GROUPS (items in the same group are category-compatible):\n${categoryText}\n\nCOLOR FAMILIES (colors in the same family are color-compatible):\n${colorText}`;
+}
+
 function mapItem(item: {
   id: string;
   title: string;
@@ -154,6 +221,8 @@ export const closetService = {
       .map((s, i) => `  ${i}: "${s}"`)
       .join('\n');
 
+    const matchingVocabulary = buildMatchingVocabulary();
+
     const result = await openAiClient.createStructuredResponse({
       schema: matchResponseSchema,
       jsonSchema: {
@@ -168,7 +237,7 @@ export const closetService = {
                 type: 'object',
                 properties: {
                   suggestionIndex: { type: 'number', description: 'Index of the suggestion (0-based)' },
-                  matchedItemId: { type: ['string', 'null'], description: 'The id of the matching closet item, or null if no good match' },
+                  matchedItemId: { type: ['string', 'null'], description: 'The id of the best matching closet item, or null if no item is in the same category group' },
                 },
                 required: ['suggestionIndex', 'matchedItemId'],
                 additionalProperties: false,
@@ -179,22 +248,31 @@ export const closetService = {
           additionalProperties: false,
         },
       },
-      instructions: `You are a menswear stylist helping a user identify which items they already own that closely match outfit recommendations.
+      instructions: `You are a practical wardrobe assistant. For each outfit suggestion, find the best matching item the user already owns.
 
-For each outfit suggestion, determine whether any of the user's closet items is a CLOSE match. A close match means:
-1. SAME garment type (e.g., both are crewneck t-shirts, or both are chino trousers — not just the same broad category)
-2. SIMILAR or COMPATIBLE color (white and black are NOT a match; white and off-white are)
-3. COMPATIBLE formality level (a dress shirt is NOT a match for a casual t-shirt)
+${matchingVocabulary}
 
-Be strict. Only return a matchedItemId when you are confident the user could actually substitute their item for the suggestion. Return null when:
-- The garment types differ (even if in the same category)
-- The colors are clearly different
-- The formality levels are mismatched
-- No item exists in their closet for that garment type at all`,
+MATCHING RULES — apply in this order:
+
+1. CATEGORY first (hard filter): Identify which CATEGORY GROUP the suggestion belongs to. Only consider closet items in the same CATEGORY GROUP. If no closet item is in the same group, return null. Use the category field on the item as the primary signal; fall back to the item title if the category is vague.
+
+2. COLOR second (prefer, not require): Among category-compatible items, prefer ones in the same COLOR FAMILY as the suggestion. Extract the color from the suggestion text and find its COLOR FAMILY. If the item's title or category includes a color in the same family, it is a good match. If the color families differ but the category is right, it can still be a valid match — just lower priority.
+
+3. Pick the BEST match: When multiple items qualify, pick the one with the closest category AND closest color family. One strong signal (same sub-type) beats two weak ones.
+
+4. BIAS TOWARD MATCHING: If an item is in the right CATEGORY GROUP and approximately the right color, return it. "Close enough" is the standard. Examples of correct matches:
+   - "tailored grey trousers" → "Grey Slim-Fit Chinos" ✓ (both TROUSERS, both GREY)
+   - "stone chino trousers" → "Beige Khaki Trousers" ✓ (both TROUSERS, both STONE)
+   - "light blue Oxford shirt" → "Blue OCBD" ✓ (both DRESS_SHIRT, both BLUE)
+   - "white crewneck tee" → "White Cotton T-Shirt" ✓ (both TEE, both WHITE)
+
+5. Return null ONLY when no closet item belongs to the same CATEGORY GROUP as the suggestion, or all same-category items are in clearly incompatible color families with no plausible overlap.
+
+DO NOT return null just because descriptor words differ. "Slim-fit" vs "tailored", "chino" vs "trouser", "stone" vs "khaki", "grey" vs "charcoal" — these are all compatible. The goal is useful wardrobe matching, not exact label matching.`,
       userContent: [
         {
           type: 'input_text',
-          text: `OUTFIT SUGGESTIONS (by index):\n${suggestionList}\n\nUSER'S CLOSET ITEMS:\n${itemList}\n\nReturn one match entry per suggestion index (0 through ${payload.suggestions.length - 1}).`,
+          text: `OUTFIT SUGGESTIONS (by index):\n${suggestionList}\n\nUSER'S CLOSET ITEMS:\n${itemList}\n\nReturn one match entry per suggestion index (0 through ${payload.suggestions.length - 1}). For each suggestion, pick the best available match using the rules above.`,
         },
       ],
     });

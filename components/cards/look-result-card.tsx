@@ -217,11 +217,16 @@ function resolveMatch(
   closetItems: ClosetItem[],
   matchMap?: Record<string, ClosetItem | null>
 ): ClosetItem | null {
-  // If matchMap has an entry (including null), trust the LLM result
   if (matchMap && Object.prototype.hasOwnProperty.call(matchMap, suggestion)) {
-    return matchMap[suggestion] ?? null;
+    const llmResult = matchMap[suggestion] ?? null;
+    // LLM returned a match — trust it
+    if (llmResult) return llmResult;
+    // LLM returned null — run local scoring as a safety net.
+    // Local scoring is more conservative (higher threshold) so a local hit
+    // here is almost certainly a genuine match the LLM missed.
+    return findBestClosetMatch(suggestion, closetItems);
   }
-  // Fall back to local scoring while the LLM result is still loading
+  // matchMap not yet populated — fall back to local scoring while LLM loads
   return findBestClosetMatch(suggestion, closetItems);
 }
 
