@@ -8,9 +8,10 @@ const GARMENT_GROUPS: Record<string, readonly string[]> = {
   trousers:     ['trouser', 'chino', 'slack', 'cord', 'gabardine'],
   denim:        ['jean', 'denim'],
   shorts:       ['short'],
-  shirt:        ['shirt', 'oxford', 'button-down', 'button down', 'chambray', 'flannel'],
+  // 'oxford shirt' not 'oxford' — prevents "cap-toe oxfords" (shoes) matching shirt group
+  shirt:        ['shirt', 'oxford shirt', 'button-down', 'button down', 'chambray', 'flannel', 'dress shirt', 'spread collar', 'french cuff'],
   polo:         ['polo'],
-  tee:          ['tee', 't-shirt', 'tshirt'],
+  tee:          ['tee', 't-shirt', 'tshirt', 'long sleeve'],
   knitwear:     ['sweater', 'knit', 'crewneck', 'merino', 'cashmere', 'jumper', 'pullover'],
   cardigan:     ['cardigan'],
   hoodie:       ['hoodie', 'sweatshirt'],
@@ -21,7 +22,8 @@ const GARMENT_GROUPS: Record<string, readonly string[]> = {
   sneakers:     ['sneaker', 'trainer', 'runner', 'canvas shoe', 'court shoe', 'plimsoll'],
   loafers:      ['loafer', 'penny loafer', 'moccasin', 'slip-on'],
   boots:        ['boot', 'chelsea', 'chukka', 'desert boot'],
-  formal_shoes: ['oxford shoe', 'derby shoe', 'brogue', 'monk strap'],
+  // Added 'oxford', 'oxfords', 'cap-toe' to correctly classify dress shoes
+  formal_shoes: ['oxford shoe', 'derby shoe', 'brogue', 'monk strap', 'oxford', 'oxfords', 'cap-toe', 'cap toe', 'dress shoe'],
   belt:         ['belt'],
   bag:          ['bag', 'tote', 'briefcase', 'backpack', 'satchel'],
   watch:        ['watch'],
@@ -45,6 +47,7 @@ const CATEGORY_TO_GROUP: Record<string, string> = {
   Blazer:          'blazer',
   'Sports Jacket': 'blazer',
   Jacket:          'jacket',
+  Overshirt:       'jacket',  // Added: prevents title fallback finding "shirt" keyword
   Coat:            'coat',
   Suit:            'suit',
   Shoes:           'formal_shoes',
@@ -63,10 +66,15 @@ const CATEGORY_TO_GROUP: Record<string, string> = {
 // Groups that are meaningfully related — allow partial category credit.
 const RELATED_GROUP_SETS: ReadonlyArray<ReadonlySet<string>> = [
   new Set(['blazer', 'jacket', 'coat']),
-  new Set(['shirt', 'polo', 'tee']),
+  // shirt and polo are related; tee is NOT related to dress shirt — excluded intentionally
+  new Set(['shirt', 'polo']),
   new Set(['trousers', 'denim', 'shorts']),
   new Set(['sneakers', 'loafers', 'boots', 'formal_shoes']),
 ];
+
+// Accessory categories where an exact group match alone is sufficient to show a
+// checkmark — color/keyword signals are often absent for these narrow categories.
+const SOLO_GROUP_SUFFICIENT = new Set(['watch', 'belt', 'scarf', 'hat', 'tie', 'socks']);
 
 // ── Color families ─────────────────────────────────────────────────────────────
 
@@ -74,7 +82,8 @@ const COLOR_FAMILIES: Record<string, readonly string[]> = {
   white:    ['white', 'cream', 'ivory', 'ecru', 'off-white', 'chalk', 'bone', 'milk', 'optical white'],
   stone:    ['stone', 'khaki', 'beige', 'sand', 'tan', 'oatmeal', 'wheat', 'natural', 'linen', 'taupe', 'putty', 'parchment'],
   camel:    ['camel', 'caramel', 'biscuit'],
-  grey:     ['grey', 'gray', 'silver', 'heather', 'slate', 'ash', 'charcoal', 'graphite', 'marl'],
+  // Added metallic tones: steel, stainless, gunmetal (common in watch descriptions)
+  grey:     ['grey', 'gray', 'silver', 'heather', 'slate', 'ash', 'charcoal', 'graphite', 'marl', 'steel', 'stainless', 'gunmetal'],
   black:    ['black', 'onyx', 'jet', 'ebony'],
   navy:     ['navy', 'midnight blue', 'ink blue', 'naval'],
   blue:     ['blue', 'cobalt', 'royal blue', 'sky blue', 'powder blue', 'cerulean', 'electric blue', 'light blue'],
@@ -101,6 +110,23 @@ const SCORE_KEYWORD_MAX   = 20;
 // A match must reach this score to show a checkmark.
 // Requires at minimum: exact group + color, or exact group + 2 keyword hits.
 const CONFIDENCE_THRESHOLD = 60;
+
+// ── Formality guard ────────────────────────────────────────────────────────────
+// Prevents a dress-shirt suggestion from matching a t-shirt or casual top item
+// within the same 'shirt' group, and vice-versa.
+
+const DRESS_SHIRT_SIGNALS = ['dress shirt', 'spread collar', 'french cuff', 'french cuffs', 'spread-collar', 'oxford shirt', 'formal shirt'];
+const TEE_SIGNALS         = ['tee', 't-shirt', 'tshirt', 'long sleeve', 'long-sleeve'];
+
+function isDressShirtText(text: string): boolean {
+  const norm = text.toLowerCase();
+  return DRESS_SHIRT_SIGNALS.some((s) => norm.includes(s));
+}
+
+function isTeeText(text: string): boolean {
+  const norm = text.toLowerCase();
+  return TEE_SIGNALS.some((s) => norm.includes(s));
+}
 
 // ── Text utilities ─────────────────────────────────────────────────────────────
 
@@ -166,7 +192,20 @@ function scoreMatch(suggestion: string, item: ClosetItem): number {
 
   if (suggGroup && itemGroup) {
     if (suggGroup === itemGroup) {
+      // Formality guard: dress shirt suggestion must not match a tee item (and vice versa)
+      if (suggGroup === 'shirt' || suggGroup === 'tee') {
+        const suggIsDress = isDressShirtText(suggestion);
+        const itemIsDress = isDressShirtText(item.title);
+        const suggIsTee   = isTeeText(suggestion);
+        const itemIsTee   = isTeeText(item.title);
+        if ((suggIsDress && itemIsTee) || (suggIsTee && itemIsDress)) return 0;
+      }
       groupScore = SCORE_GROUP_EXACT;
+
+      // Accessories with narrow, unambiguous categories pass on group match alone
+      if (SOLO_GROUP_SUFFICIENT.has(suggGroup)) {
+        return SCORE_GROUP_EXACT; // already above threshold (50 < 60… so let color/keyword run normally)
+      }
     } else if (isRelatedGroup(suggGroup, itemGroup)) {
       groupScore = SCORE_GROUP_RELATED;
     } else {
@@ -191,6 +230,12 @@ function scoreMatch(suggestion: string, item: ClosetItem): number {
   const overlapCount = [...suggWords].filter((w) => itemWords.has(w)).length;
   const keywordScore = Math.min(SCORE_KEYWORD_MAX, overlapCount * SCORE_KEYWORD_EACH);
 
+  // For narrow accessory categories, an exact group match alone is sufficient —
+  // color/keyword signals are rarely present in watch/belt/hat suggestions.
+  if (suggGroup && itemGroup && suggGroup === itemGroup && SOLO_GROUP_SUFFICIENT.has(suggGroup)) {
+    return SCORE_GROUP_EXACT + colorScore + keywordScore;
+  }
+
   return groupScore + colorScore + keywordScore;
 }
 
@@ -206,6 +251,12 @@ function scoreMatch(suggestion: string, item: ClosetItem): number {
  *    5 — one side has no detectable garment type (neutral credit)
  *   35 — at least one shared color family
  *  +5 per shared significant word, capped at 20
+ *
+ * Special rules:
+ *   - Dress-shirt suggestions never match tee/long-sleeve items (formality guard)
+ *   - Narrow accessory groups (watch, belt, hat, scarf, tie, socks) use a lower
+ *     effective threshold: exact group match alone is sufficient to show a match
+ *     (threshold overridden to SCORE_GROUP_EXACT for these groups)
  */
 export function findBestClosetMatch(suggestion: string, items: ClosetItem[]): ClosetItem | null {
   if (!items.length || !suggestion.trim()) return null;
@@ -221,5 +272,10 @@ export function findBestClosetMatch(suggestion: string, items: ClosetItem[]): Cl
     }
   }
 
-  return bestScore >= CONFIDENCE_THRESHOLD ? bestItem : null;
+  // For solo-sufficient accessory groups, lower the threshold to exact-group score
+  const suggGroup = extractGarmentGroup(suggestion);
+  const effectiveThreshold =
+    suggGroup && SOLO_GROUP_SUFFICIENT.has(suggGroup) ? SCORE_GROUP_EXACT : CONFIDENCE_THRESHOLD;
+
+  return bestScore >= effectiveThreshold ? bestItem : null;
 }
