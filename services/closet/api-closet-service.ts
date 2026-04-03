@@ -19,14 +19,10 @@ import type { ClosetService } from '@/services/closet/closet-service';
 
 export const apiClosetService: ClosetService = {
   async analyzeItem(request: AnalyzeClosetItemRequest): Promise<ApiResponse<AnalyzeClosetItemResponse>> {
-    const response = await createApiClient().request<AnalyzeClosetItemResponse>('/closet/items/analyze', {
+    return createApiClient().request<AnalyzeClosetItemResponse>('/closet/items/analyze', {
       method: 'POST',
       body: request,
     });
-    if (!response.success) {
-      return mockClosetService.analyzeItem(request);
-    }
-    return response;
   },
 
   async saveItem(request: SaveClosetItemRequest): Promise<ApiResponse<ClosetItem>> {

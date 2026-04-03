@@ -10,7 +10,18 @@ const garmentDescriptionSchema = z.object({
   description: z.string(),
 });
 
+async function fetchImageAsDataUrl(imageUrl: string): Promise<string> {
+  const res = await fetch(imageUrl);
+  if (!res.ok) throw new Error(`Image fetch failed with status ${res.status}`);
+  const contentType = res.headers.get('content-type') ?? 'image/jpeg';
+  const mimeType = contentType.split(';')[0]?.trim() ?? 'image/jpeg';
+  const buffer = await res.arrayBuffer();
+  return `data:${mimeType};base64,${Buffer.from(buffer).toString('base64')}`;
+}
+
 async function describeGarmentFromImage(imageUrl: string): Promise<string> {
+  const dataUrl = await fetchImageAsDataUrl(imageUrl);
+
   const result = await openAiClient.createStructuredResponse({
     schema: garmentDescriptionSchema,
     jsonSchema: {
@@ -30,7 +41,7 @@ async function describeGarmentFromImage(imageUrl: string): Promise<string> {
     },
     instructions: 'You are a menswear expert. Describe the garment shown in the image concisely and accurately.',
     userContent: [
-      { type: 'input_image', image_url: imageUrl, detail: 'high' },
+      { type: 'input_image', image_url: dataUrl, detail: 'high' },
       { type: 'input_text', text: 'Describe this garment in detail: colour, fabric, style, and key visual features.' },
     ],
   });

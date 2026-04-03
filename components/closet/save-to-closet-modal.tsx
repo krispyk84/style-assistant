@@ -8,6 +8,7 @@ import { LoadingState } from '@/components/ui/loading-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
+import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
 import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
@@ -68,13 +69,21 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
   // Derived: queueTotal - imageQueue.length (safe when queueTotal > 0).
   const currentQueueIndex = queueTotal > 0 ? queueTotal - imageQueue.length : 0;
 
-  // Reset state when modal opens
+  // Pre-fill size from last-used when modal opens
+  useEffect(() => {
+    if (!visible) return;
+    void loadAppSettings().then((settings) => {
+      if (settings.lastUsedSize) setSize(settings.lastUsedSize);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  // Reset state when modal opens or when the active image changes (queue advance)
   useEffect(() => {
     if (!visible) return;
 
     setTitle('');
     setBrand('');
-    setSize('');
     setCategory('');
     setSaveError(null);
     setSketchImageUrl(null);
@@ -100,6 +109,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
         if (response.success && response.data) {
           setTitle(response.data.title);
           setCategory(response.data.category);
+          if (response.data.brand) setBrand(response.data.brand);
         }
         setIsAnalyzing(false);
       });
@@ -165,6 +175,13 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
+  // Persist last-used size after a successful save so future opens pre-fill it
+  async function persistLastUsedSize(savedSize: string) {
+    if (!savedSize.trim()) return;
+    const settings = await loadAppSettings();
+    await saveAppSettings({ ...settings, lastUsedSize: savedSize.trim() });
+  }
+
   // Reset all state + delete picked upload (explicit user-initiated photo removal).
   function handleReset() {
     removeImage();
@@ -222,6 +239,8 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
       setSaveError(response.error?.message ?? 'Failed to save item to closet.');
       return;
     }
+
+    void persistLastUsedSize(size);
 
     // Notify the parent about the saved item (triggers loadItems / scroll logic).
     onSaved(response.data);

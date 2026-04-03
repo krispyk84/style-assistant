@@ -87,6 +87,7 @@ export type AnalyzeClosetItemRequest = {
 export type AnalyzeClosetItemResponse = {
   title: string;
   category: string;
+  brand?: string;
 };
 
 export type SaveClosetItemRequest = {

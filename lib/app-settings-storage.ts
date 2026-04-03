@@ -5,6 +5,8 @@ const STORAGE_KEY = 'style-assistant/app-settings';
 export type AppSettings = {
   /** 0 = most forgiving (broad color families), 100 = most precise (exact shade match). Default: 50. */
   closetMatchSensitivity: number;
+  /** Last size entered when saving a closet item — used to pre-fill the Size field. */
+  lastUsedSize?: string;
 };
 
 const DEFAULT_SETTINGS: AppSettings = {

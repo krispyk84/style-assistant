@@ -15,6 +15,7 @@ import type {
 const analyzeResponseSchema = z.object({
   title: z.string(),
   category: z.string(),
+  brand: z.string(),
 });
 
 const matchResponseSchema = z.object({
@@ -158,37 +159,48 @@ function mapItem(item: {
   };
 }
 
+async function fetchImageAsDataUrl(imageUrl: string): Promise<string> {
+  const res = await fetch(imageUrl);
+  if (!res.ok) throw new Error(`Image fetch failed with status ${res.status}`);
+  const contentType = res.headers.get('content-type') ?? 'image/jpeg';
+  const mimeType = contentType.split(';')[0]?.trim() ?? 'image/jpeg';
+  const buffer = await res.arrayBuffer();
+  return `data:${mimeType};base64,${Buffer.from(buffer).toString('base64')}`;
+}
+
 export const closetService = {
   async analyzeItem(payload: AnalyzeClosetItemPayload) {
     const userContent: Array<{ type: 'input_image'; image_url: string; detail?: 'high' } | { type: 'input_text'; text: string }> = [];
 
     if (payload.uploadedImageUrl) {
-      userContent.push({ type: 'input_image', image_url: payload.uploadedImageUrl, detail: 'high' });
+      const dataUrl = await fetchImageAsDataUrl(payload.uploadedImageUrl);
+      userContent.push({ type: 'input_image', image_url: dataUrl, detail: 'high' });
     }
 
     userContent.push({
       type: 'input_text',
       text: payload.uploadedImageUrl
-        ? 'Identify this garment. Return a concise product-style title (e.g. "Chocolate Brown Corduroy Blazer") and the most specific category from: Suit, Blazer, Sports Jacket, Coat, Shirt, Polo, Knitwear, Cardigan, Hoodie, Trousers, Denim, Shorts, Shoes, Sneakers, Loafers, Boots, Belt, Bag, Watch, Scarf, Hat, Tie, Socks, Clothing.'
-        : `Identify this garment from the description: "${payload.description ?? ''}". Return a concise product-style title and a specific category.`,
+        ? 'Identify this garment. Return: (1) a concise product-style title e.g. "Chocolate Brown Corduroy Blazer"; (2) the most specific category from: Suit, Blazer, Sports Jacket, Coat, Shirt, Polo, Knitwear, Cardigan, Hoodie, Trousers, Denim, Shorts, Shoes, Sneakers, Loafers, Boots, Belt, Bag, Watch, Scarf, Hat, Tie, Socks, Clothing; (3) the brand name only if clearly identifiable from a visible logo, embroidery, label, or printed text — return an empty string if not detectable.'
+        : `Identify this garment from the description: "${payload.description ?? ''}". Return a concise product-style title, a specific category, and the brand if apparent — otherwise empty string.`,
     });
 
     const result = await openAiClient.createStructuredResponse({
       schema: analyzeResponseSchema,
       jsonSchema: {
         name: 'closet_item_analysis',
-        description: 'Identifies a garment title and category',
+        description: 'Identifies a garment title, category, and brand',
         schema: {
           type: 'object',
           properties: {
             title: { type: 'string', description: 'Concise product-style title, e.g. "Chocolate Brown Corduroy Blazer"' },
             category: { type: 'string', description: 'Single category name from the standard list' },
+            brand: { type: 'string', description: 'Brand name if clearly identifiable from logos, tags, or visible text; empty string if not detectable' },
           },
-          required: ['title', 'category'],
+          required: ['title', 'category', 'brand'],
           additionalProperties: false,
         },
       },
-      instructions: 'You are a menswear expert cataloguing a wardrobe. Identify garments accurately and concisely.',
+      instructions: 'You are a menswear expert cataloguing a wardrobe. Identify garments accurately and concisely. Only return a brand if you can see it clearly on the garment — from logos, embroidery, labels, or printed text. Never guess a brand.',
       userContent,
     });
 
