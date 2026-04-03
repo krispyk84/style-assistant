@@ -1,8 +1,28 @@
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 
 import { normalizePickedImage } from '@/lib/media-utils';
 import type { LocalImageAsset } from '@/types/media';
+
+async function ensureJpeg(asset: LocalImageAsset): Promise<LocalImageAsset> {
+  const mimeType = (asset.mimeType ?? '').toLowerCase();
+  if (mimeType === 'image/jpeg' || mimeType === 'image/jpg' || mimeType === 'image/png' || mimeType === 'image/webp') {
+    return asset;
+  }
+  const result = await ImageManipulator.manipulateAsync(
+    asset.uri,
+    [],
+    { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG },
+  );
+  return {
+    uri: result.uri,
+    width: result.width,
+    height: result.height,
+    fileName: asset.fileName ? asset.fileName.replace(/\.[^.]+$/, '.jpg') : null,
+    mimeType: 'image/jpeg',
+  };
+}
 
 export function useImagePicker(initialImage: LocalImageAsset | null = null) {
   const cameraImagePicker = ImagePicker as typeof ImagePicker & {
@@ -47,7 +67,7 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
     });
 
     if (!result.canceled && result.assets[0]) {
-      const normalized = normalizePickedImage(result.assets[0]);
+      const normalized = await ensureJpeg(normalizePickedImage(result.assets[0]));
       setImage(normalized);
       setPickingSource(null);
       return normalized;
@@ -84,7 +104,7 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
     setPickingSource(null);
 
     if (!result.canceled && result.assets.length > 0) {
-      return result.assets.map(normalizePickedImage);
+      return await Promise.all(result.assets.map(a => ensureJpeg(normalizePickedImage(a))));
     }
     return [];
   }
