@@ -1,3 +1,6 @@
+import { promises as fsPromises } from 'node:fs';
+import path from 'node:path';
+
 import { z } from 'zod';
 
 import { logger } from '../../config/logger.js';
@@ -10,17 +13,30 @@ const garmentDescriptionSchema = z.object({
   description: z.string(),
 });
 
-async function fetchImageAsDataUrl(imageUrl: string): Promise<string> {
+async function imageUrlToDataUrl(imageUrl: string): Promise<string> {
+  // Prefer reading directly from disk — faster and avoids self-HTTP requests on Render.
+  const mediaPrefix = `${storageConfig.publicBaseUrl}/media/`;
+  if (imageUrl.startsWith(mediaPrefix)) {
+    const storageKey = imageUrl.slice(mediaPrefix.length);
+    const filePath = path.join(storageConfig.localDirectory, storageKey);
+    try {
+      const buffer = await fsPromises.readFile(filePath);
+      const ext = path.extname(storageKey).toLowerCase().replace('.', '');
+      const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      return `data:${mimeType};base64,${buffer.toString('base64')}`;
+    } catch {
+      // File not on disk — fall through to HTTP fetch
+    }
+  }
   const res = await fetch(imageUrl);
-  if (!res.ok) throw new Error(`Image fetch failed with status ${res.status}`);
+  if (!res.ok) throw new Error(`Image fetch failed with HTTP ${res.status}`);
   const contentType = res.headers.get('content-type') ?? 'image/jpeg';
   const mimeType = contentType.split(';')[0]?.trim() ?? 'image/jpeg';
-  const buffer = await res.arrayBuffer();
-  return `data:${mimeType};base64,${Buffer.from(buffer).toString('base64')}`;
+  return `data:${mimeType};base64,${Buffer.from(await res.arrayBuffer()).toString('base64')}`;
 }
 
 async function describeGarmentFromImage(imageUrl: string): Promise<string> {
-  const dataUrl = await fetchImageAsDataUrl(imageUrl);
+  const dataUrl = await imageUrlToDataUrl(imageUrl);
 
   const result = await openAiClient.createStructuredResponse({
     schema: garmentDescriptionSchema,

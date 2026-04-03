@@ -1,6 +1,10 @@
+import { promises as fsPromises } from 'node:fs';
+import path from 'node:path';
+
 import { z } from 'zod';
 
 import { openAiClient } from '../../ai/openai-client.js';
+import { storageConfig } from '../../config/storage.js';
 import { HttpError } from '../../lib/http-error.js';
 import { closetRepository } from './closet.repository.js';
 import { closetSketchService } from './closet-sketch.service.js';
@@ -159,13 +163,26 @@ function mapItem(item: {
   };
 }
 
-async function fetchImageAsDataUrl(imageUrl: string): Promise<string> {
+async function imageUrlToDataUrl(imageUrl: string): Promise<string> {
+  // Prefer reading directly from disk — faster and avoids self-HTTP requests on Render.
+  const mediaPrefix = `${storageConfig.publicBaseUrl}/media/`;
+  if (imageUrl.startsWith(mediaPrefix)) {
+    const storageKey = imageUrl.slice(mediaPrefix.length);
+    const filePath = path.join(storageConfig.localDirectory, storageKey);
+    try {
+      const buffer = await fsPromises.readFile(filePath);
+      const ext = path.extname(storageKey).toLowerCase().replace('.', '');
+      const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      return `data:${mimeType};base64,${buffer.toString('base64')}`;
+    } catch {
+      // File not on disk — fall through to HTTP fetch
+    }
+  }
   const res = await fetch(imageUrl);
-  if (!res.ok) throw new Error(`Image fetch failed with status ${res.status}`);
+  if (!res.ok) throw new Error(`Image fetch failed with HTTP ${res.status}`);
   const contentType = res.headers.get('content-type') ?? 'image/jpeg';
   const mimeType = contentType.split(';')[0]?.trim() ?? 'image/jpeg';
-  const buffer = await res.arrayBuffer();
-  return `data:${mimeType};base64,${Buffer.from(buffer).toString('base64')}`;
+  return `data:${mimeType};base64,${Buffer.from(await res.arrayBuffer()).toString('base64')}`;
 }
 
 export const closetService = {
@@ -173,7 +190,7 @@ export const closetService = {
     const userContent: Array<{ type: 'input_image'; image_url: string; detail?: 'high' } | { type: 'input_text'; text: string }> = [];
 
     if (payload.uploadedImageUrl) {
-      const dataUrl = await fetchImageAsDataUrl(payload.uploadedImageUrl);
+      const dataUrl = await imageUrlToDataUrl(payload.uploadedImageUrl);
       userContent.push({ type: 'input_image', image_url: dataUrl, detail: 'high' });
     }
 
