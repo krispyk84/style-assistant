@@ -9,12 +9,14 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import { closetService } from '@/services/closet';
-import type { UploadedImageAsset } from '@/types/media';
+import type { ClosetItem } from '@/types/closet';
+import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 
 type SaveToClosetModalProps = {
   visible: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  /** Called once per successfully saved item — passes the persisted ClosetItem. */
+  onSaved: (item: ClosetItem) => void;
   uploadedImage?: UploadedImageAsset | null;
   description?: string;
 };
@@ -24,10 +26,13 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     image: pickedImage,
     uploadedImage: hookUploadedImage,
     isPicking,
+    isPickingLibrary,
+    isPickingCamera,
     isUploading: isUploadingImage,
-    pickFromLibrary,
+    pickMultipleFromLibrary,
     takePhoto: capturePhoto,
     removeImage,
+    uploadImage,
     setImage,
     setUploadedImage: setHookUploadedImage,
   } = useUploadedImage('anchor-item');
@@ -51,6 +56,18 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
   const [cellWidth, setCellWidth] = useState(0);
   const sketchTranslateX = useRef(new Animated.Value(-140)).current;
 
+  // ── Multi-select queue ──────────────────────────────────────────────────────
+  // imageQueue: remaining assets waiting to be processed (does not include the
+  // one currently shown in the modal).
+  const [imageQueue, setImageQueue] = useState<LocalImageAsset[]>([]);
+  // queueTotal: total number of images selected in this batch (0 = single pick,
+  // no progress indicator shown).
+  const [queueTotal, setQueueTotal] = useState(0);
+
+  // 1-based index of the item currently being edited.
+  // Derived: queueTotal - imageQueue.length (safe when queueTotal > 0).
+  const currentQueueIndex = queueTotal > 0 ? queueTotal - imageQueue.length : 0;
+
   // Reset state when modal opens
   useEffect(() => {
     if (!visible) return;
@@ -64,6 +81,8 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     setSketchJobId(null);
     setSketchError(null);
     setIsGeneratingSketch(false);
+    setImageQueue([]);
+    setQueueTotal(0);
 
     if (!effectiveUploadedImage) return;
 
@@ -86,6 +105,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
       });
 
     return () => { isMounted = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, effectiveUploadedImage?.id, description]);
 
   // Sketch loading bar animation
@@ -123,23 +143,8 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     return () => clearInterval(interval);
   }, [sketchJobId]);
 
-  // Reset all state + picked image (for reuse after save, or explicit clear)
-  function handleReset() {
-    removeImage();
-    setTitle('');
-    setBrand('');
-    setSize('');
-    setCategory('');
-    setSaveError(null);
-    setSketchImageUrl(null);
-    setSketchJobId(null);
-    setSketchError(null);
-    setIsGeneratingSketch(false);
-    setIsAnalyzing(false);
-  }
-
-  // Clear local image state when modal closes WITHOUT deleting from server
-  // (handleReset via trash icon does the server delete for explicit removals)
+  // Clear all local state when modal is dismissed (without server-side deletes —
+  // the explicit trash button handles those separately via removeImage()).
   useEffect(() => {
     if (!visible) {
       setImage(null);
@@ -154,9 +159,29 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
       setSketchError(null);
       setIsGeneratingSketch(false);
       setIsAnalyzing(false);
+      setImageQueue([]);
+      setQueueTotal(0);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  // Reset all state + delete picked upload (explicit user-initiated photo removal).
+  function handleReset() {
+    removeImage();
+    setTitle('');
+    setBrand('');
+    setSize('');
+    setCategory('');
+    setSaveError(null);
+    setSketchImageUrl(null);
+    setSketchJobId(null);
+    setSketchError(null);
+    setIsGeneratingSketch(false);
+    setIsAnalyzing(false);
+    // If in a queue batch, clear the remaining queue too.
+    setImageQueue([]);
+    setQueueTotal(0);
+  }
 
   async function handleGenerateSketch() {
     if (!effectiveUploadedImage?.publicUrl) return;
@@ -193,18 +218,67 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
 
     setIsSaving(false);
 
-    if (response.success) {
-      onSaved();
-      onClose();
-    } else {
+    if (!response.success || !response.data) {
       setSaveError(response.error?.message ?? 'Failed to save item to closet.');
+      return;
+    }
+
+    // Notify the parent about the saved item (triggers loadItems / scroll logic).
+    onSaved(response.data);
+
+    if (imageQueue.length > 0) {
+      // ── Advance to next item in the batch ───────────────────────────────────
+      const nextAsset = imageQueue[0]!;
+      setImageQueue((q) => q.slice(1));
+
+      // Reset form & sketch state for the next item. We deliberately skip
+      // server-side upload deletion (the previous item is already saved).
+      setHookUploadedImage(null);
+      setSaveError(null);
+      setSketchImageUrl(null);
+      setSketchJobId(null);
+      setSketchError(null);
+      setIsGeneratingSketch(false);
+      setIsAnalyzing(false);
+
+      // Set the next local image, then upload it.
+      // uploadImage will internally clean up the previous upload record and
+      // then trigger a new upload; when the upload settles, effectiveUploadedImage
+      // changes which fires the analysis useEffect automatically.
+      setImage(nextAsset);
+      await uploadImage(nextAsset);
+    } else {
+      // ── Last item (or single pick) — close the modal ────────────────────────
+      setQueueTotal(0);
+      onClose();
+    }
+  }
+
+  /**
+   * Cancel/close: clears any remaining queue and dismisses the modal.
+   * Already-saved items from earlier in the batch are unaffected.
+   */
+  function handleClose() {
+    setImageQueue([]);
+    setQueueTotal(0);
+    onClose();
+  }
+
+  // ── Library multi-select handler ────────────────────────────────────────────
+  async function handlePickFromLibrary() {
+    const assets = await pickMultipleFromLibrary();
+    if (assets.length > 1) {
+      // Queue assets 2..n; asset 1 is already being uploaded by the hook.
+      setImageQueue(assets.slice(1));
+      setQueueTotal(assets.length);
     }
   }
 
   const hasBothImages = Boolean(sketchImageUrl) && Boolean(displayImageUri);
+  const isInQueue = queueTotal > 1;
 
   return (
-    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+    <Modal animationType="fade" transparent visible={visible} onRequestClose={handleClose}>
         <View
           style={{
             alignItems: 'center',
@@ -234,10 +308,10 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                 <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
                   <Ionicons color={theme.colors.accent} name="archive-outline" size={18} />
                   <AppText variant="eyebrow" style={{ letterSpacing: 1.8, color: theme.colors.mutedText }}>
-                    Save to Closet
+                    {isInQueue ? `Item ${currentQueueIndex} of ${queueTotal}` : 'Save to Closet'}
                   </AppText>
                 </View>
-                <Pressable hitSlop={8} onPress={onClose}>
+                <Pressable hitSlop={8} onPress={handleClose}>
                   <Ionicons color={theme.colors.mutedText} name="close" size={22} />
                 </Pressable>
               </View>
@@ -369,9 +443,10 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                     </View>
                   ) : (
                     <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                      {/* Library — multi-select, independent opening state */}
                       <Pressable
                         disabled={isPicking}
-                        onPress={() => void pickFromLibrary()}
+                        onPress={() => void handlePickFromLibrary()}
                         style={{
                           alignItems: 'center',
                           backgroundColor: theme.colors.subtleSurface,
@@ -387,8 +462,10 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                           paddingHorizontal: spacing.md,
                         }}>
                         <Ionicons color={theme.colors.text} name="image-outline" size={16} />
-                        <AppText>{isPicking ? 'Opening...' : 'Library'}</AppText>
+                        <AppText>{isPickingLibrary ? 'Opening...' : 'Library'}</AppText>
                       </Pressable>
+
+                      {/* Camera — single-select with editing, independent opening state */}
                       <Pressable
                         disabled={isPicking}
                         onPress={() => void capturePhoto()}
@@ -407,7 +484,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                           paddingHorizontal: spacing.md,
                         }}>
                         <Ionicons color={theme.colors.text} name="camera-outline" size={16} />
-                        <AppText>{isPicking ? 'Opening...' : 'Camera'}</AppText>
+                        <AppText>{isPickingCamera ? 'Opening...' : 'Camera'}</AppText>
                       </Pressable>
                     </View>
                   )}
@@ -449,7 +526,11 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                     onPress={() => void handleSave()}
                     disabled={isSaving || !title.trim()}
                   />
-                  <PrimaryButton label="Cancel" onPress={onClose} variant="secondary" />
+                  <PrimaryButton
+                    label={isInQueue ? 'Cancel Remaining' : 'Cancel'}
+                    onPress={handleClose}
+                    variant="secondary"
+                  />
                 </View>
               )}
             </ScrollView>

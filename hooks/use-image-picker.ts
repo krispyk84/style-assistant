@@ -57,6 +57,38 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
     return null;
   }
 
+  /**
+   * Multi-select library picker — up to 10 images, no editing crop.
+   * Returns all selected images without setting internal single-image state.
+   */
+  async function pickMultipleFromLibrary(): Promise<LocalImageAsset[]> {
+    setPickingSource('library');
+    setError(null);
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      setError('Photo library access is required to choose images.');
+      setPickingSource(null);
+      return [];
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsMultipleSelection: true,
+      allowsEditing: false,   // mutually exclusive with allowsMultipleSelection on iOS
+      mediaTypes: ['images'],
+      quality: 0.9,
+      selectionLimit: 10,
+    });
+
+    setPickingSource(null);
+
+    if (!result.canceled && result.assets.length > 0) {
+      return result.assets.map(normalizePickedImage);
+    }
+    return [];
+  }
+
   async function takePhoto() {
     setPickingSource('camera');
     setError(null);
@@ -102,6 +134,7 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
     isPickingCamera,
     error,
     pickFromLibrary,
+    pickMultipleFromLibrary,
     takePhoto,
     removeImage,
     replaceImage: pickFromLibrary,

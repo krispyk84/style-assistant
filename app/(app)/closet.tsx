@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, findNodeHandle, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
@@ -23,6 +23,11 @@ export default function ClosetScreen() {
   const [editingItem, setEditingItem] = useState<ClosetItem | null>(null);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const translateX = useRef(new Animated.Value(-140)).current;
+
+  // ── Scroll-to-new-item ──────────────────────────────────────────────────────
+  const closetScrollRef = useRef<ScrollView>(null);
+  const newItemViewRef = useRef<View>(null);
+  const [pendingScrollItemId, setPendingScrollItemId] = useState<string | null>(null);
 
   const loadItems = useCallback(async () => {
     const response = await closetService.getItems();
@@ -68,6 +73,38 @@ export default function ClosetScreen() {
     return () => clearInterval(interval);
   }, [items]);
 
+  // After items reload, scroll to the newly added item if one is pending.
+  // We wait 150 ms so React has committed the layout before we measure.
+  useEffect(() => {
+    if (!pendingScrollItemId) return;
+
+    const timeout = setTimeout(() => {
+      const itemView = newItemViewRef.current;
+      const scrollView = closetScrollRef.current;
+      if (!itemView || !scrollView) {
+        setPendingScrollItemId(null);
+        return;
+      }
+
+      const scrollNode = findNodeHandle(scrollView);
+      if (!scrollNode) {
+        setPendingScrollItemId(null);
+        return;
+      }
+
+      itemView.measureLayout(
+        scrollNode as unknown as React.ElementRef<typeof View>,
+        (_, y) => {
+          scrollView.scrollTo({ y: Math.max(0, y - spacing.xl), animated: true });
+          setPendingScrollItemId(null);
+        },
+        () => { setPendingScrollItemId(null); },
+      );
+    }, 150);
+
+    return () => clearTimeout(timeout);
+  }, [items, pendingScrollItemId]);
+
   function handleItemSaved(updated: ClosetItem) {
     setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
     setEditingItem(null);
@@ -78,6 +115,22 @@ export default function ClosetScreen() {
     setEditingItem(null);
   }
 
+  /**
+   * Called once per successfully saved item from the add modal.
+   * Handles filter-reset and schedules scroll-to-item.
+   */
+  function handleNewItemSaved(savedItem: ClosetItem) {
+    // If the current filter would hide the new item, reset to All so it's visible.
+    setSelectedCategory((current) => {
+      if (current !== null && savedItem.category !== current) return null;
+      return current;
+    });
+    // Mark this item for scroll-to after the list reloads.
+    setPendingScrollItemId(savedItem.id);
+    // Reload the list (state update batched with the above).
+    void loadItems();
+  }
+
   const categories = buildCategories(items);
   const displayItems = selectedCategory
     ? items.filter((item) => item.category === selectedCategory)
@@ -85,7 +138,7 @@ export default function ClosetScreen() {
   const activeLabel = selectedCategory ?? 'All Items';
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable scrollRef={closetScrollRef}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -169,9 +222,19 @@ export default function ClosetScreen() {
         {/* Grid or Sectioned list */}
         {!isLoading ? (
           selectedCategory ? (
-            <ClosetGrid items={displayItems} onPressItem={setEditingItem} />
+            <ClosetGrid
+              items={displayItems}
+              onPressItem={setEditingItem}
+              targetItemId={pendingScrollItemId}
+              targetItemRef={newItemViewRef}
+            />
           ) : (
-            <SectionedCloset items={items} onPressItem={setEditingItem} />
+            <SectionedCloset
+              items={items}
+              onPressItem={setEditingItem}
+              targetItemId={pendingScrollItemId}
+              targetItemRef={newItemViewRef}
+            />
           )
         ) : null}
 
@@ -201,9 +264,10 @@ export default function ClosetScreen() {
       <SaveToClosetModal
         visible={addModalVisible}
         onClose={() => setAddModalVisible(false)}
-        onSaved={() => {
-          setAddModalVisible(false);
-          void loadItems();
+        onSaved={(savedItem) => {
+          // The modal manages its own close lifecycle (single or batch).
+          // We only handle data concerns here: reload + scroll.
+          handleNewItemSaved(savedItem);
         }}
       />
 
@@ -229,7 +293,17 @@ export default function ClosetScreen() {
 
 // ── Grid ─────────────────────────────────────────────────────────────────────
 
-function ClosetGrid({ items, onPressItem }: { items: ClosetItem[]; onPressItem: (item: ClosetItem) => void }) {
+function ClosetGrid({
+  items,
+  onPressItem,
+  targetItemId,
+  targetItemRef,
+}: {
+  items: ClosetItem[];
+  onPressItem: (item: ClosetItem) => void;
+  targetItemId?: string | null;
+  targetItemRef?: React.RefObject<View>;
+}) {
   if (items.length === 0) {
     return (
       <AppText tone="muted" style={{ textAlign: 'center', paddingVertical: spacing.lg }}>
@@ -248,7 +322,12 @@ function ClosetGrid({ items, onPressItem }: { items: ClosetItem[]; onPressItem: 
       {rows.map((row, rowIndex) => (
         <View key={rowIndex} style={{ flexDirection: 'row', gap: spacing.sm }}>
           {row.map((item) => (
-            <ClosetGridItem key={item.id} item={item} onPress={() => onPressItem(item)} />
+            <ClosetGridItem
+              key={item.id}
+              item={item}
+              onPress={() => onPressItem(item)}
+              scrollTargetRef={item.id === targetItemId ? targetItemRef : undefined}
+            />
           ))}
           {row.length < COLUMN_COUNT
             ? Array.from({ length: COLUMN_COUNT - row.length }).map((_, i) => (
@@ -261,64 +340,85 @@ function ClosetGrid({ items, onPressItem }: { items: ClosetItem[]; onPressItem: 
   );
 }
 
-function ClosetGridItem({ item, onPress }: { item: ClosetItem; onPress: () => void }) {
+function ClosetGridItem({
+  item,
+  onPress,
+  scrollTargetRef,
+}: {
+  item: ClosetItem;
+  onPress: () => void;
+  scrollTargetRef?: React.RefObject<View>;
+}) {
   const [cellWidth, setCellWidth] = useState(0);
   const hasBoth = Boolean(item.sketchImageUrl) && Boolean(item.uploadedImageUrl);
   const primaryUri = item.sketchImageUrl ?? item.uploadedImageUrl ?? null;
 
   return (
-    <Pressable style={{ flex: 1, gap: spacing.xs }} onPress={onPress}>
-      <View
-        onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
-        style={{
-          aspectRatio: 3 / 4,
-          backgroundColor: theme.colors.card,
-          borderColor: theme.colors.border,
-          borderRadius: 16,
-          borderWidth: 1,
-          overflow: 'hidden',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-        {hasBoth && cellWidth > 0 ? (
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            style={{ width: cellWidth, flex: 1 }}>
-            <Image contentFit="cover" source={{ uri: item.sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-            <Image contentFit="cover" source={{ uri: item.uploadedImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-          </ScrollView>
-        ) : primaryUri ? (
-          <Image contentFit="cover" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
-        ) : item.sketchStatus === 'pending' ? (
-          <Ionicons color={theme.colors.subtleText} name="time-outline" size={22} />
-        ) : (
-          <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={22} />
-        )}
+    // The wrapping View receives the scroll-target ref so measureLayout can find it.
+    <View ref={scrollTargetRef} style={{ flex: 1 }}>
+      <Pressable style={{ flex: 1, gap: spacing.xs }} onPress={onPress}>
+        <View
+          onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
+          style={{
+            aspectRatio: 3 / 4,
+            backgroundColor: theme.colors.card,
+            borderColor: theme.colors.border,
+            borderRadius: 16,
+            borderWidth: 1,
+            overflow: 'hidden',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          {hasBoth && cellWidth > 0 ? (
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              style={{ width: cellWidth, flex: 1 }}>
+              <Image contentFit="cover" source={{ uri: item.sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
+              <Image contentFit="cover" source={{ uri: item.uploadedImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
+            </ScrollView>
+          ) : primaryUri ? (
+            <Image contentFit="cover" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
+          ) : item.sketchStatus === 'pending' ? (
+            <Ionicons color={theme.colors.subtleText} name="time-outline" size={22} />
+          ) : (
+            <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={22} />
+          )}
 
-        {hasBoth ? (
-          <View style={{ bottom: 6, flexDirection: 'row', gap: 4, position: 'absolute', alignSelf: 'center' }}>
-            <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 5, width: 5, opacity: 0.9 }} />
-            <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 5, width: 5, opacity: 0.45 }} />
-          </View>
-        ) : null}
-      </View>
-      <View style={{ gap: 2 }}>
-        <AppText style={{ fontSize: 11, fontFamily: theme.fonts.sansMedium, letterSpacing: 0.2 }} numberOfLines={2}>
-          {item.title}
-        </AppText>
-        {item.brand ? (
-          <AppText tone="muted" style={{ fontSize: 10 }} numberOfLines={1}>{item.brand}</AppText>
-        ) : null}
-      </View>
-    </Pressable>
+          {hasBoth ? (
+            <View style={{ bottom: 6, flexDirection: 'row', gap: 4, position: 'absolute', alignSelf: 'center' }}>
+              <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 5, width: 5, opacity: 0.9 }} />
+              <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 5, width: 5, opacity: 0.45 }} />
+            </View>
+          ) : null}
+        </View>
+        <View style={{ gap: 2 }}>
+          <AppText style={{ fontSize: 11, fontFamily: theme.fonts.sansMedium, letterSpacing: 0.2 }} numberOfLines={2}>
+            {item.title}
+          </AppText>
+          {item.brand ? (
+            <AppText tone="muted" style={{ fontSize: 10 }} numberOfLines={1}>{item.brand}</AppText>
+          ) : null}
+        </View>
+      </Pressable>
+    </View>
   );
 }
 
 // ── Sectioned view ────────────────────────────────────────────────────────────
 
-function SectionedCloset({ items, onPressItem }: { items: ClosetItem[]; onPressItem: (item: ClosetItem) => void }) {
+function SectionedCloset({
+  items,
+  onPressItem,
+  targetItemId,
+  targetItemRef,
+}: {
+  items: ClosetItem[];
+  onPressItem: (item: ClosetItem) => void;
+  targetItemId?: string | null;
+  targetItemRef?: React.RefObject<View>;
+}) {
   const grouped = groupByCategory(items);
   const sortedCategories = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 
@@ -329,7 +429,12 @@ function SectionedCloset({ items, onPressItem }: { items: ClosetItem[]; onPressI
           <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
             {category}
           </AppText>
-          <ClosetGrid items={grouped[category]!} onPressItem={onPressItem} />
+          <ClosetGrid
+            items={grouped[category]!}
+            onPressItem={onPressItem}
+            targetItemId={targetItemId}
+            targetItemRef={targetItemRef}
+          />
         </View>
       ))}
     </View>

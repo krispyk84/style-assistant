@@ -161,7 +161,7 @@ export default function CheckPieceScreen() {
       <SaveToClosetModal
         visible={closetModalVisible}
         onClose={() => setClosetModalVisible(false)}
-        onSaved={() => setClosetModalVisible(false)}
+        onSaved={(_item) => setClosetModalVisible(false)}
         uploadedImage={uploadedImage ?? undefined}
       />
     </AppScreen>

@@ -204,7 +204,7 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
     <SaveToClosetModal
       visible={closetTarget !== null}
       onClose={() => setClosetTarget(null)}
-      onSaved={() => setClosetTarget(null)}
+      onSaved={(_item) => setClosetTarget(null)}
       uploadedImage={closetTarget?.uploadedImage ?? undefined}
       description={closetTarget?.description}
     />
