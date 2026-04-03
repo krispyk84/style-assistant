@@ -1,0 +1,29 @@
+name: Deploy to Render
+
+# Triggers on every push to main — this is the sole deploy trigger.
+# Render's "Auto-Deploy" should be DISABLED in the dashboard so deploys
+# only happen through this workflow (one controlled path).
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Trigger Render deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render deploy hook
+        # RENDER_DEPLOY_HOOK_URL must be added as a GitHub Actions secret:
+        # GitHub repo → Settings → Secrets and variables → Actions → New secret
+        # Name:  RENDER_DEPLOY_HOOK_URL
+        # Value: the deploy hook URL from Render dashboard
+        #        (Render → style-assistant-api → Settings → Deploy Hook)
+        #
+        # --fail-with-body  → non-zero exit if Render returns an HTTP error
+        # --silent          → suppress progress output
+        # --show-error      → still print errors even with --silent
+        run: |
+          curl --fail-with-body --silent --show-error \
+            "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
