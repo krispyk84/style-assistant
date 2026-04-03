@@ -4,10 +4,11 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
-    "ios": "expo start --ios",
+    "ios": "expo run:ios",
     "lint": "expo lint",
     "bump": "node scripts/bump-patch.js",
-    "deploy": "/opt/homebrew/bin/eas build --profile preview --platform ios --non-interactive"
+    "deploy": "xcodebuild -workspace ios/Vesture.xcworkspace -scheme Vesture -configuration Debug -destination 'id=00008140-000C6D860082201C' -allowProvisioningUpdates && xcrun devicectl device install app --device 00008140-000C6D860082201C \"$(find ~/style-assistant/ios/build -name '*.app' -path '*/Debug-iphoneos/*' | head -1 || find '/Users/karimhamasni/Library/Developer/Xcode/DerivedData/Vesture-epsljxzhgwulsegeepfelevddpqx/Build/Products/Debug-iphoneos' -name '*.app' | head -1)\"",
+    "android": "expo run:android"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
