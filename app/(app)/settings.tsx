@@ -9,7 +9,7 @@ import { spacing, theme } from '@/constants/theme';
 import { useAppSession } from '@/hooks/use-app-session';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
 
-const appVersion = Constants.expoConfig?.version ?? Constants.manifest2?.extra?.expoClient?.version ?? '1.0.0';
+const appVersion = Constants.expoConfig?.version ?? '0.0.1';
 
 export default function SettingsScreen() {
   const { isSaving, profile, saveProfile } = useAppSession();

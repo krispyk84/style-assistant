@@ -74,9 +74,21 @@ export default function ClosetScreen() {
   }, [items]);
 
   // After items reload, scroll to the newly added item if one is pending.
-  // We wait 150 ms so React has committed the layout before we measure.
+  //
+  // We gate on two conditions before starting the 150 ms layout-commit wait:
+  //   1. The pending item is actually present in `items` (i.e. loadItems() has
+  //      completed and the new item is in the array).  Without this guard the
+  //      timeout fires before the list has updated, the ref is null, and
+  //      setPendingScrollItemId(null) gets called — meaning when items finally
+  //      reloads the effect won't re-run because pendingScrollItemId is gone.
+  //   2. The 150 ms gives React time to commit the layout for the newly rendered
+  //      row so measureLayout returns a valid Y offset.
   useEffect(() => {
     if (!pendingScrollItemId) return;
+
+    // Guard: only proceed once the item exists in the loaded list.
+    const itemIsLoaded = items.some((i) => i.id === pendingScrollItemId);
+    if (!itemIsLoaded) return;
 
     const timeout = setTimeout(() => {
       const itemView = newItemViewRef.current;
@@ -117,14 +129,14 @@ export default function ClosetScreen() {
 
   /**
    * Called once per successfully saved item from the add modal.
-   * Handles filter-reset and schedules scroll-to-item.
+   * Always resets to "All Items" so the new item is visible regardless of which
+   * category filter was active, then schedules a scroll-to once the list reloads.
    */
   function handleNewItemSaved(savedItem: ClosetItem) {
-    // If the current filter would hide the new item, reset to All so it's visible.
-    setSelectedCategory((current) => {
-      if (current !== null && savedItem.category !== current) return null;
-      return current;
-    });
+    // Always clear the category filter so the SectionedCloset ("All") view is
+    // shown — this ensures the new item is visible and the ref tree matches
+    // before we attempt to scroll.
+    setSelectedCategory(null);
     // Mark this item for scroll-to after the list reloads.
     setPendingScrollItemId(savedItem.id);
     // Reload the list (state update batched with the above).

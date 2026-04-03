@@ -5,7 +5,9 @@
   "scripts": {
     "start": "expo start",
     "ios": "expo start --ios",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "bump": "node scripts/bump-patch.js",
+    "deploy": "node scripts/bump-patch.js && eas build --profile production --platform ios --non-interactive"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

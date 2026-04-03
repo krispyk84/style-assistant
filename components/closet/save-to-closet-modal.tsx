@@ -78,7 +78,11 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  // Reset state when modal opens or when the active image changes (queue advance)
+  // Reset form state when modal opens or when the active image changes (queue advance).
+  // NOTE: imageQueue / queueTotal are intentionally NOT reset here — they are managed
+  // by handlePickFromLibrary, handleSave (queue advance), handleClose, and the
+  // !visible cleanup effect below. Resetting them here would wipe the queue every
+  // time the uploaded image ID changes (i.e. on every queue advance).
   useEffect(() => {
     if (!visible) return;
 
@@ -90,8 +94,6 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     setSketchJobId(null);
     setSketchError(null);
     setIsGeneratingSketch(false);
-    setImageQueue([]);
-    setQueueTotal(0);
 
     if (!effectiveUploadedImage) return;
 
