@@ -1,4 +1,4 @@
-import type { ClosetItem } from '@/types/closet';
+import type { ClosetItem, ClosetItemFitStatus } from '@/types/closet';
 import type { CreateLookInput, LookRequestResponse } from '@/types/look-request';
 import type { LocalImageAsset, UploadedImageAsset, UploadedImageCategory } from '@/types/media';
 import type { PersistedSession, Profile } from '@/types/profile';
@@ -98,7 +98,7 @@ export type SaveClosetItemRequest = {
   uploadedImageId?: string;
   uploadedImageUrl?: string;
   sketchImageUrl?: string;
-  fitStatus?: string;
+  fitStatus?: ClosetItemFitStatus;
 };
 
 export type GetClosetItemsResponse = {
@@ -111,7 +111,7 @@ export type UpdateClosetItemRequest = {
   brand: string;
   size: string;
   category: string;
-  fitStatus?: string;
+  fitStatus?: ClosetItemFitStatus;
 };
 
 export type GenerateClosetSketchRequest = {

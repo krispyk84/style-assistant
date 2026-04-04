@@ -11,6 +11,7 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
 import { incrementClosetItemCounter } from '@/lib/closet-storage';
 import { closetService } from '@/services/closet';
+import { FitStatusPicker } from '@/components/closet/fit-status-picker';
 import type { ClosetItem, ClosetItemFitStatus } from '@/types/closet';
 import { CLOSET_FIT_STATUS_OPTIONS } from '@/types/closet';
 
@@ -476,7 +477,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
   const [category, setCategory] = useState('');
   const [brand, setBrand] = useState('');
   const [size, setSize] = useState('');
-  const [fitStatus, setFitStatus] = useState<ClosetItemFitStatus | undefined>(undefined);
+  const [fitStatus, setFitStatus] = useState<ClosetItemFitStatus | undefined>();
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -553,9 +554,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
   function handleAnchorToOutfit() {
     if (!item) return;
     const id = item.id;
-    const itemTitle = item.title;
     const anchorImageUrl = item.sketchImageUrl ?? item.uploadedImageUrl ?? '';
-    const itemFitStatus = item.fitStatus;
     void incrementClosetItemCounter(id, 'anchorToOutfitCount');
     onClose();
     // Defer navigation until after the modal close state update has flushed
@@ -564,9 +563,9 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
         pathname: '/create-look',
         params: {
           closetItemId: id,
-          closetItemTitle: itemTitle,
+          closetItemTitle: item.title,
           closetItemImageUrl: anchorImageUrl,
-          ...(itemFitStatus ? { closetItemFitStatus: itemFitStatus } : {}),
+          closetItemFitStatus: item.fitStatus,
         },
       });
     }, 50);
@@ -743,28 +742,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                       <TextInput value={size} onChangeText={setSize} returnKeyType="done" onSubmitEditing={Keyboard.dismiss} style={inputStyle} />
                     </View>
                   </View>
-                  <View style={{ gap: spacing.xs }}>
-                    <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>How It Fits</AppText>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs, paddingVertical: 2 }}>
-                      {CLOSET_FIT_STATUS_OPTIONS.map((opt) => (
-                        <Pressable
-                          key={opt.value}
-                          onPress={() => setFitStatus(fitStatus === opt.value ? undefined : opt.value)}
-                          style={{
-                            backgroundColor: fitStatus === opt.value ? theme.colors.accent : theme.colors.surface,
-                            borderColor: fitStatus === opt.value ? theme.colors.accent : theme.colors.border,
-                            borderRadius: 999,
-                            borderWidth: 1,
-                            paddingHorizontal: spacing.md,
-                            paddingVertical: spacing.xs,
-                          }}>
-                          <AppText style={{ color: fitStatus === opt.value ? '#FFF' : theme.colors.text, fontSize: 13 }}>
-                            {opt.label}
-                          </AppText>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
+                  <FitStatusPicker value={fitStatus} onChange={setFitStatus} />
                   {error ? <AppText style={{ color: '#D26A5C', fontSize: 13 }}>{error}</AppText> : null}
                   <PrimaryButton
                     label={isSaving ? 'Saving...' : 'Save Changes'}

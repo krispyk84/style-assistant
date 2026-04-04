@@ -10,8 +10,8 @@ import { spacing, theme } from '@/constants/theme';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
 import { closetService } from '@/services/closet';
+import { FitStatusPicker } from '@/components/closet/fit-status-picker';
 import type { ClosetItem, ClosetItemFitStatus } from '@/types/closet';
-import { CLOSET_FIT_STATUS_OPTIONS } from '@/types/closet';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 
 type SaveToClosetModalProps = {
@@ -48,7 +48,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
   const [brand, setBrand] = useState('');
   const [size, setSize] = useState('');
   const [category, setCategory] = useState('');
-  const [fitStatus, setFitStatus] = useState<ClosetItemFitStatus | undefined>(undefined);
+  const [fitStatus, setFitStatus] = useState<ClosetItemFitStatus | undefined>();
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Sketch generation state
@@ -547,28 +547,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                     </View>
                   </View>
 
-                  <View style={{ gap: spacing.xs }}>
-                    <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>How It Fits</AppText>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs, paddingVertical: 2 }}>
-                      {CLOSET_FIT_STATUS_OPTIONS.map((opt) => (
-                        <Pressable
-                          key={opt.value}
-                          onPress={() => setFitStatus(fitStatus === opt.value ? undefined : opt.value)}
-                          style={{
-                            backgroundColor: fitStatus === opt.value ? theme.colors.accent : theme.colors.surface,
-                            borderColor: fitStatus === opt.value ? theme.colors.accent : theme.colors.border,
-                            borderRadius: 999,
-                            borderWidth: 1,
-                            paddingHorizontal: spacing.md,
-                            paddingVertical: spacing.xs,
-                          }}>
-                          <AppText style={{ color: fitStatus === opt.value ? '#FFF' : theme.colors.text, fontSize: 13 }}>
-                            {opt.label}
-                          </AppText>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
+                  <FitStatusPicker value={fitStatus} onChange={setFitStatus} />
 
                   {saveError ? <AppText style={{ color: '#D26A5C', fontSize: 13 }}>{saveError}</AppText> : null}
 

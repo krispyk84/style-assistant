@@ -85,7 +85,7 @@ export const mockClosetService: ClosetService = {
       sketchImageUrl: null,
       sketchStatus: 'failed',
       savedAt: new Date().toISOString(),
-      fitStatus: request.fitStatus as ClosetItem['fitStatus'],
+      fitStatus: request.fitStatus,
     };
     await saveClosetItem(item);
     return { success: true, data: item, error: null };
@@ -111,7 +111,7 @@ export const mockClosetService: ClosetService = {
     if (!existing) {
       return { success: false, data: null, error: { code: 'NOT_FOUND', message: 'Item not found.' } };
     }
-    const updated: ClosetItem = { ...existing, title: request.title, brand: request.brand, size: request.size, category: request.category, fitStatus: (request.fitStatus as ClosetItem['fitStatus']) ?? existing.fitStatus };
+    const updated: ClosetItem = { ...existing, title: request.title, brand: request.brand, size: request.size, category: request.category, fitStatus: request.fitStatus ?? existing.fitStatus };
     await updateClosetItem(updated);
     return { success: true, data: updated, error: null };
   },

@@ -1,4 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
+import type { ClosetItemFitStatus } from '@/types/closet';
 import { View } from 'react-native';
 
 import { CreateLookRequestForm } from '@/components/forms/create-look-request-form';
@@ -23,7 +24,7 @@ export default function CreateLookScreen() {
             id: closetItemId,
             description: closetItemTitle,
             image: null,
-            fitStatus: closetItemFitStatus,
+            fitStatus: closetItemFitStatus as ClosetItemFitStatus | undefined,
             uploadedImage: {
               id: closetItemId,
               category: 'anchor-item' as const,
