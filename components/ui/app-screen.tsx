@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
 import { type PropsWithChildren, type RefObject, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,7 +19,6 @@ type AppScreenProps = PropsWithChildren<{
 const FLOATING_BACK_THRESHOLD = 80;
 
 export function AppScreen({ children, scrollable = false, topInset = true, floatingBack = false, scrollRef }: AppScreenProps) {
-  const router = useRouter();
   const [showFloatingBack, setShowFloatingBack] = useState(false);
 
   const content = (
