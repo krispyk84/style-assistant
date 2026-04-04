@@ -143,6 +143,8 @@ export function useMatchFeedback({
       }
 
       onSlotRematched(suggestion, newItem);
+      // Clear the 'down' feedback so the new match opens with a fresh state
+      setMatchFeedbackMap((prev) => ({ ...prev, [suggestion]: null }));
     } finally {
       setRegeneratingMatches((prev) => {
         const next = new Set(prev);
