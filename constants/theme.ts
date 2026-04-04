@@ -11,6 +11,7 @@ export const theme = {
     mutedText: '#6F625A',
     subtleText: '#9E8F85',
     accent: '#A56A1F',
+    inverseText: '#FFFFFF',
     danger: '#C95F4A',
   },
   fonts: {

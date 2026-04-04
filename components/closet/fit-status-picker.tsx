@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
@@ -11,32 +11,49 @@ type FitStatusPickerProps = {
 
 export function FitStatusPicker({ value, onChange }: FitStatusPickerProps) {
   return (
-    <View style={{ gap: spacing.xs }}>
-      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>
+    <View style={styles.container}>
+      <AppText variant="eyebrow" style={styles.label}>
         How It Fits
       </AppText>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: spacing.xs, paddingVertical: 2 }}>
-        {CLOSET_FIT_STATUS_OPTIONS.map((opt) => (
-          <Pressable
-            key={opt.value}
-            onPress={() => onChange(value === opt.value ? undefined : opt.value)}
-            style={{
-              backgroundColor: value === opt.value ? theme.colors.accent : theme.colors.surface,
-              borderColor: value === opt.value ? theme.colors.accent : theme.colors.border,
-              borderRadius: 999,
-              borderWidth: 1,
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.xs,
-            }}>
-            <AppText style={{ color: value === opt.value ? '#FFF' : theme.colors.text, fontSize: 13 }}>
-              {opt.label}
-            </AppText>
-          </Pressable>
-        ))}
+        contentContainerStyle={styles.scrollContent}>
+        {CLOSET_FIT_STATUS_OPTIONS.map((opt) => {
+          const active = value === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => onChange(active ? undefined : opt.value)}
+              style={[styles.pill, active ? styles.pillActive : styles.pillInactive]}>
+              <AppText style={[styles.pillText, { color: active ? theme.colors.inverseText : theme.colors.text }]}>
+                {opt.label}
+              </AppText>
+            </Pressable>
+          );
+        })}
       </ScrollView>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { gap: spacing.xs },
+  label: { color: theme.colors.mutedText, letterSpacing: 1.6 },
+  scrollContent: { gap: spacing.xs, paddingVertical: 2 },
+  pill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  pillActive: {
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
+  },
+  pillInactive: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+  },
+  pillText: { fontSize: 13 },
+});
