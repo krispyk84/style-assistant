@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useEffect, useRef } from 'react';
-import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
@@ -10,15 +10,31 @@ import type { ClosetItem } from '@/types/closet';
 type ClosetItemSheetProps = {
   item: ClosetItem;
   onClose: () => void;
+  /** The outfit piece suggestion this item was matched against — required for per-match feedback. */
+  suggestion?: string;
+  /** Pre-set thumb value for this specific match (persisted). */
+  thumbsFeedback?: 'up' | 'down' | null;
+  /** Called when thumbs-up is tapped. Sheet stays open. */
+  onThumbsUp?: () => void;
+  /** Called when thumbs-down is tapped. Sheet dismisses immediately. */
+  onThumbsDown?: () => void;
 };
 
 /**
  * Read-only bottom sheet for previewing a matched closet item.
- * Uses the same animated backdrop + slide-up sheet pattern as ClosetItemEditModal.
+ * Includes per-match thumbs feedback when callbacks are provided.
  */
-export function ClosetItemSheet({ item, onClose }: ClosetItemSheetProps) {
+export function ClosetItemSheet({
+  item,
+  onClose,
+  suggestion: _suggestion,
+  thumbsFeedback = null,
+  onThumbsUp,
+  onThumbsDown,
+}: ClosetItemSheetProps) {
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(800)).current;
+  const [localThumb, setLocalThumb] = useState<'up' | 'down' | null>(thumbsFeedback);
 
   useEffect(() => {
     Animated.parallel([
@@ -40,7 +56,21 @@ export function ClosetItemSheet({ item, onClose }: ClosetItemSheetProps) {
     ]).start(() => onClose());
   }
 
+  function handleThumbsUp() {
+    const next = localThumb === 'up' ? null : 'up';
+    setLocalThumb(next);
+    if (next === 'up') onThumbsUp?.();
+  }
+
+  function handleThumbsDown() {
+    if (localThumb === 'down') return;
+    setLocalThumb('down');
+    onThumbsDown?.();
+    dismissAndClose();
+  }
+
   const primaryUri = item.sketchImageUrl ?? item.uploadedImageUrl ?? null;
+  const hasFeedback = onThumbsUp !== undefined || onThumbsDown !== undefined;
 
   return (
     <Modal animationType="none" transparent visible onRequestClose={dismissAndClose}>
@@ -128,6 +158,33 @@ export function ClosetItemSheet({ item, onClose }: ClosetItemSheetProps) {
                 </View>
               </View>
             </View>
+
+            {/* Per-match thumbs feedback — only shown when callbacks are provided */}
+            {hasFeedback ? (
+              <View style={styles.thumbsRow}>
+                <AppText tone="muted" style={styles.thumbsLabel}>Was this a good match?</AppText>
+                <Pressable
+                  hitSlop={8}
+                  onPress={handleThumbsUp}
+                  style={[styles.thumbBtn, localThumb === 'up' && styles.thumbBtnUp]}>
+                  <Ionicons
+                    color={localThumb === 'up' ? theme.colors.accent : theme.colors.mutedText}
+                    name={localThumb === 'up' ? 'thumbs-up' : 'thumbs-up-outline'}
+                    size={16}
+                  />
+                </Pressable>
+                <Pressable
+                  hitSlop={8}
+                  onPress={handleThumbsDown}
+                  style={[styles.thumbBtn, localThumb === 'down' && styles.thumbBtnDown]}>
+                  <Ionicons
+                    color={localThumb === 'down' ? theme.colors.danger : theme.colors.mutedText}
+                    name={localThumb === 'down' ? 'thumbs-down' : 'thumbs-down-outline'}
+                    size={16}
+                  />
+                </Pressable>
+              </View>
+            ) : null}
           </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -147,3 +204,32 @@ function LabelRow({ label, value }: { label: string; value: string }) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  thumbsRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  thumbsLabel: { flex: 1, fontSize: 13 },
+  thumbBtn: {
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    borderColor: theme.colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  thumbBtnUp: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.accent,
+  },
+  thumbBtnDown: {
+    backgroundColor: '#FEF0EE',
+    borderColor: theme.colors.danger,
+  },
+});

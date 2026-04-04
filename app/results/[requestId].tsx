@@ -19,7 +19,8 @@ import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
 import { loadAppSettings } from '@/lib/app-settings-storage';
 import { incrementClosetItemCounter } from '@/lib/closet-storage';
-import { saveRecommendationFeedback, type RecommendationFeedback } from '@/lib/recommendation-feedback-storage';
+import { saveMatchFeedback, getExcludedItemIdsForSlot } from '@/lib/match-feedback-storage';
+import { findBestClosetMatch, isClosetMatchValid } from '@/lib/closet-match';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
 import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
 import { buildTierHref, parseLookInput, type LookRouteParams } from '@/lib/look-route';
@@ -42,8 +43,10 @@ export default function ResultDetailsScreen() {
   const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
   const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
   const [secondOpinionTier, setSecondOpinionTier] = useState<LookTierSlug | null>(null);
-  // Persisted thumb votes per tier for this session (survives regeneration)
-  const [thumbsMap, setThumbsMap] = useState<Record<string, 'up' | 'down' | null>>({});
+  // Per-match feedback: suggestion → 'up' | 'down' | null
+  const [matchFeedbackMap, setMatchFeedbackMap] = useState<Record<string, 'up' | 'down' | null>>({});
+  // Suggestions currently being rematched after thumbs-down
+  const [regeneratingMatches, setRegeneratingMatches] = useState<Set<string>>(new Set());
   // Tracks which closet item IDs have already had matchedToRecommendationCount incremented
   const countedMatchedIdsRef = useRef<Set<string>>(new Set());
   const { showToast } = useToast();
@@ -173,37 +176,101 @@ export default function ResultDetailsScreen() {
     };
   }, [response?.requestId]);
 
-  async function handleThumbsUp(tier: LookTierSlug) {
+  async function handleMatchThumbsUp(tier: LookTierSlug, suggestion: string, matchedItemId: string) {
     if (!response) return;
     const recommendation = response.recommendations.find((r) => r.tier === tier);
     if (!recommendation) return;
-    setThumbsMap((current) => ({ ...current, [tier]: 'up' }));
-    void saveRecommendationFeedback({
-      id: `${response.requestId}-${tier}`,
+
+    setMatchFeedbackMap((prev) => ({ ...prev, [suggestion]: 'up' }));
+
+    const prevExcluded = await getExcludedItemIdsForSlot(response.requestId, tier, suggestion);
+    void saveMatchFeedback({
+      id: `${response.requestId}:${tier}:${suggestion}`,
       requestId: response.requestId,
       tier,
       outfitTitle: recommendation.title,
+      suggestion,
+      matchedItemId,
+      matchedItemTitle: closetItems.find((c) => c.id === matchedItemId)?.title ?? null,
       thumb: 'up',
-      regenerated: false,
       createdAt: new Date().toISOString(),
+      excludedItemIds: prevExcluded,
     });
   }
 
-  async function handleThumbsDown(tier: LookTierSlug) {
+  async function handleMatchThumbsDown(tier: LookTierSlug, suggestion: string, matchedItemId: string) {
     if (!response) return;
     const recommendation = response.recommendations.find((r) => r.tier === tier);
     if (!recommendation) return;
-    setThumbsMap((current) => ({ ...current, [tier]: 'down' }));
-    void saveRecommendationFeedback({
-      id: `${response.requestId}-${tier}`,
+
+    setMatchFeedbackMap((prev) => ({ ...prev, [suggestion]: 'down' }));
+
+    // Build accumulated excluded IDs for this slot (all previous rejections + this one)
+    const prevExcluded = await getExcludedItemIdsForSlot(response.requestId, tier, suggestion);
+    const excludedItemIds = [...new Set([...prevExcluded, matchedItemId])];
+
+    void saveMatchFeedback({
+      id: `${response.requestId}:${tier}:${suggestion}`,
       requestId: response.requestId,
       tier,
       outfitTitle: recommendation.title,
+      suggestion,
+      matchedItemId,
+      matchedItemTitle: closetItems.find((c) => c.id === matchedItemId)?.title ?? null,
       thumb: 'down',
-      regenerated: true,
       createdAt: new Date().toISOString(),
+      excludedItemIds,
     });
-    void handleRegenerate(tier);
+
+    // Re-match this specific slot, excluding the rejected item
+    void rematchSlot(suggestion, excludedItemIds);
+  }
+
+  async function rematchSlot(suggestion: string, excludedItemIds: string[]) {
+    setRegeneratingMatches((prev) => new Set(prev).add(suggestion));
+
+    try {
+      const { closetMatchSensitivity } = await loadAppSettings();
+      const excludeSet = new Set(excludedItemIds);
+
+      // Try backend matching first (respects excludeItemIds in production)
+      const matchResponse = await closetService.matchItems({
+        suggestions: [suggestion],
+        items: closetItems.map((item) => ({
+          id: item.id,
+          title: item.title,
+          category: item.category,
+          brand: item.brand || undefined,
+        })),
+        sensitivity: closetMatchSensitivity,
+        excludeItemIds: excludedItemIds,
+      });
+
+      let newItem: ClosetItem | null = null;
+
+      if (matchResponse.success && matchResponse.data?.matches[0]?.matchedItemId) {
+        const matchedId = matchResponse.data.matches[0].matchedItemId;
+        if (!excludeSet.has(matchedId)) {
+          const candidate = closetItems.find((c) => c.id === matchedId) ?? null;
+          if (candidate && isClosetMatchValid(suggestion, candidate)) {
+            newItem = candidate;
+          }
+        }
+      }
+
+      // Fallback: local scoring with exclusion (handles mock env and API null returns)
+      if (!newItem) {
+        newItem = findBestClosetMatch(suggestion, closetItems, excludeSet);
+      }
+
+      setMatchMap((prev) => ({ ...prev, [suggestion]: newItem }));
+    } finally {
+      setRegeneratingMatches((prev) => {
+        const next = new Set(prev);
+        next.delete(suggestion);
+        return next;
+      });
+    }
   }
 
   async function handleRegenerate(tier: LookTierSlug) {
@@ -348,9 +415,10 @@ export default function ResultDetailsScreen() {
             onSave={() => void handleSave(recommendation.tier)}
             onAddToWeek={() => setWeekPickerTier(recommendation.tier)}
             onSecondOpinion={() => setSecondOpinionTier(recommendation.tier)}
-            onThumbsUp={() => void handleThumbsUp(recommendation.tier)}
-            onThumbsDown={() => void handleThumbsDown(recommendation.tier)}
-            thumbsFeedback={thumbsMap[recommendation.tier] ?? null}
+            onMatchThumbsUp={(suggestion, itemId) => void handleMatchThumbsUp(recommendation.tier, suggestion, itemId)}
+            onMatchThumbsDown={(suggestion, itemId) => void handleMatchThumbsDown(recommendation.tier, suggestion, itemId)}
+            matchFeedbackMap={matchFeedbackMap}
+            regeneratingMatches={regeneratingMatches}
             closetItems={closetItems}
             matchMap={matchMap}
             detailHref={buildTierHref(

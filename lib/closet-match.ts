@@ -264,13 +264,18 @@ function scoreMatch(suggestion: string, item: ClosetItem): number {
  *     effective threshold: exact group match alone is sufficient to show a match
  *     (threshold overridden to SCORE_GROUP_EXACT for these groups)
  */
-export function findBestClosetMatch(suggestion: string, items: ClosetItem[]): ClosetItem | null {
-  if (!items.length || !suggestion.trim()) return null;
+export function findBestClosetMatch(
+  suggestion: string,
+  items: ClosetItem[],
+  excludeIds?: ReadonlySet<string>,
+): ClosetItem | null {
+  const candidates = excludeIds?.size ? items.filter((item) => !excludeIds.has(item.id)) : items;
+  if (!candidates.length || !suggestion.trim()) return null;
 
   let bestItem: ClosetItem | null = null;
   let bestScore = 0;
 
-  for (const item of items) {
+  for (const item of candidates) {
     const score = scoreMatch(suggestion, item);
     if (score > bestScore) {
       bestScore = score;

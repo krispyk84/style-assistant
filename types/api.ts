@@ -154,6 +154,8 @@ export type ClosetMatchRequest = {
   items: { id: string; title: string; category: string; brand?: string }[];
   /** 0 = most forgiving, 100 = most precise. Default: 50. */
   sensitivity?: number;
+  /** Item IDs to exclude — used when regenerating a specific slot after thumbs-down. */
+  excludeItemIds?: string[];
 };
 
 export type ClosetMatchResponse = {

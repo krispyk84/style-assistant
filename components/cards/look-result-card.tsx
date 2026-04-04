@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Href, Link } from 'expo-router';
-import { Animated, Easing, Pressable, View } from 'react-native';
+import { Animated, ActivityIndicator, Easing, Pressable, View } from 'react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { spacing, theme } from '@/constants/theme';
@@ -22,14 +22,18 @@ type LookResultCardProps = {
   onSave?: () => void;
   onAddToWeek?: () => void;
   onSecondOpinion?: () => void;
-  onThumbsUp?: () => void;
-  onThumbsDown?: () => void;
-  /** Pre-set thumb value (persisted feedback). */
-  thumbsFeedback?: 'up' | 'down' | null;
   /** Closet items — used as fallback matching when matchMap is not yet populated. */
   closetItems?: ClosetItem[];
   /** Pre-computed LLM matches: suggestion string → ClosetItem or null. When provided, takes precedence over local scoring. */
   matchMap?: Record<string, ClosetItem | null>;
+  /** Called when thumbs-up is given for a specific matched item. */
+  onMatchThumbsUp?: (suggestion: string, matchedItemId: string) => void;
+  /** Called when thumbs-down is given for a specific matched item, triggering rematch. */
+  onMatchThumbsDown?: (suggestion: string, matchedItemId: string) => void;
+  /** Persisted per-suggestion feedback: suggestion → 'up' | 'down' | null. */
+  matchFeedbackMap?: Record<string, 'up' | 'down' | null>;
+  /** Suggestions currently being rematched — shows a loading indicator on that piece row. */
+  regeneratingMatches?: Set<string>;
 };
 
 export function LookResultCard({
@@ -42,15 +46,15 @@ export function LookResultCard({
   onSave,
   onAddToWeek,
   onSecondOpinion,
-  onThumbsUp,
-  onThumbsDown,
-  thumbsFeedback = null,
   closetItems = [],
   matchMap,
+  onMatchThumbsUp,
+  onMatchThumbsDown,
+  matchFeedbackMap,
+  regeneratingMatches,
 }: LookResultCardProps) {
-  // Must be declared before any early return to satisfy hooks rules
-  const [matchedItem, setMatchedItem] = useState<ClosetItem | null>(null);
-  const [localThumb, setLocalThumb] = useState<'up' | 'down' | null>(thumbsFeedback);
+  // Track which piece + suggestion is open in the sheet
+  const [matchedPiece, setMatchedPiece] = useState<{ item: ClosetItem; suggestion: string } | null>(null);
 
   const labeledPieces = useMemo(
     () => buildLabeledPieces(recommendation, closetItems, matchMap),
@@ -151,33 +155,38 @@ export function LookResultCard({
           </View>
         ) : null}
 
-        {labeledPieces.map((piece) => (
-          <View
-            key={`${piece.label}-${piece.value}`}
-            style={{
-              alignItems: 'flex-start',
-              borderBottomColor: theme.colors.border,
-              borderBottomWidth: 1,
-              flexDirection: 'row',
-              gap: spacing.xs,
-              paddingBottom: spacing.sm,
-            }}>
-            <View style={{ flex: 1, gap: spacing.xs }}>
-              <AppText variant="sectionTitle">{piece.label}</AppText>
-              <AppText tone="muted">{piece.value}</AppText>
+        {labeledPieces.map((piece) => {
+          const isRematching = regeneratingMatches?.has(piece.value) ?? false;
+          return (
+            <View
+              key={`${piece.label}-${piece.value}`}
+              style={{
+                alignItems: 'flex-start',
+                borderBottomColor: theme.colors.border,
+                borderBottomWidth: 1,
+                flexDirection: 'row',
+                gap: spacing.xs,
+                paddingBottom: spacing.sm,
+              }}>
+              <View style={{ flex: 1, gap: spacing.xs }}>
+                <AppText variant="sectionTitle">{piece.label}</AppText>
+                <AppText tone="muted">{piece.value}</AppText>
+              </View>
+              {isRematching ? (
+                <ActivityIndicator color={theme.colors.accent} size="small" style={{ paddingTop: 2 }} />
+              ) : piece.matchedClosetItem ? (
+                <Pressable
+                  accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view and rate.`}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={() => setMatchedPiece({ item: piece.matchedClosetItem!, suggestion: piece.value })}
+                  style={{ paddingTop: 2 }}>
+                  <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} />
+                </Pressable>
+              ) : null}
             </View>
-            {piece.matchedClosetItem ? (
-              <Pressable
-                accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view.`}
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={() => setMatchedItem(piece.matchedClosetItem!)}
-                style={{ paddingTop: 2 }}>
-                <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} />
-              </Pressable>
-            ) : null}
-          </View>
-        ))}
+          );
+        })}
       </View>
 
       <CardSection title="Fit notes" items={recommendation.fitNotes} />
@@ -222,62 +231,27 @@ export function LookResultCard({
         <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
       </Pressable>
 
-      {/* Thumbs feedback */}
-      <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-        <AppText tone="muted" style={{ fontSize: 13, flex: 1 }}>Was this a good match?</AppText>
-        <Pressable
-          hitSlop={8}
-          onPress={() => {
-            const next = localThumb === 'up' ? null : 'up';
-            setLocalThumb(next);
-            if (next === 'up') onThumbsUp?.();
-          }}
-          style={{
-            alignItems: 'center',
-            backgroundColor: localThumb === 'up' ? theme.colors.card : 'transparent',
-            borderColor: localThumb === 'up' ? theme.colors.accent : theme.colors.border,
-            borderRadius: 999,
-            borderWidth: 1,
-            flexDirection: 'row',
-            gap: spacing.xs,
-            paddingHorizontal: spacing.sm,
-            paddingVertical: spacing.xs,
-          }}>
-          <Ionicons
-            color={localThumb === 'up' ? theme.colors.accent : theme.colors.mutedText}
-            name={localThumb === 'up' ? 'thumbs-up' : 'thumbs-up-outline'}
-            size={16}
-          />
-        </Pressable>
-        <Pressable
-          hitSlop={8}
-          onPress={() => {
-            const next = localThumb === 'down' ? null : 'down';
-            setLocalThumb(next);
-            if (next === 'down') onThumbsDown?.();
-          }}
-          style={{
-            alignItems: 'center',
-            backgroundColor: localThumb === 'down' ? '#FEF0EE' : 'transparent',
-            borderColor: localThumb === 'down' ? theme.colors.danger : theme.colors.border,
-            borderRadius: 999,
-            borderWidth: 1,
-            flexDirection: 'row',
-            gap: spacing.xs,
-            paddingHorizontal: spacing.sm,
-            paddingVertical: spacing.xs,
-          }}>
-          <Ionicons
-            color={localThumb === 'down' ? theme.colors.danger : theme.colors.mutedText}
-            name={localThumb === 'down' ? 'thumbs-down' : 'thumbs-down-outline'}
-            size={16}
-          />
-        </Pressable>
-      </View>
-
-      {/* Bottom sheet shown when user taps a checkmark */}
-      {matchedItem ? (
-        <ClosetItemSheet item={matchedItem} onClose={() => setMatchedItem(null)} />
+      {/* Bottom sheet shown when user taps a checkmark — includes per-match feedback */}
+      {matchedPiece ? (
+        <ClosetItemSheet
+          item={matchedPiece.item}
+          suggestion={matchedPiece.suggestion}
+          thumbsFeedback={matchFeedbackMap?.[matchedPiece.suggestion] ?? null}
+          onThumbsUp={
+            onMatchThumbsUp
+              ? () => onMatchThumbsUp(matchedPiece.suggestion, matchedPiece.item.id)
+              : undefined
+          }
+          onThumbsDown={
+            onMatchThumbsDown
+              ? () => {
+                  onMatchThumbsDown(matchedPiece.suggestion, matchedPiece.item.id);
+                  setMatchedPiece(null);
+                }
+              : undefined
+          }
+          onClose={() => setMatchedPiece(null)}
+        />
       ) : null}
     </View>
   );

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 
 import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser-modal';
 
@@ -16,6 +16,7 @@ import { spacing, theme } from '@/constants/theme';
 import { loadAppSettings } from '@/lib/app-settings-storage';
 import { findBestClosetMatch, isClosetMatchValid } from '@/lib/closet-match';
 import { getLookTierDefinition } from '@/lib/look-mock-data';
+import { saveMatchFeedback, getExcludedItemIdsForSlot } from '@/lib/match-feedback-storage';
 import { parseLookInput, parseLookRecommendation, type LookRouteParams } from '@/lib/look-route';
 import { closetService } from '@/services/closet';
 import { outfitsService } from '@/services/outfits';
@@ -38,9 +39,13 @@ export default function TierScreen() {
   const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
   // suggestion string → matched ClosetItem (null = no match, undefined = not yet resolved)
   const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null>>({});
-  // The item whose sheet is currently open
-  const [sheetItem, setSheetItem] = useState<ClosetItem | null>(null);
+  // Tracks which piece is open in the "In Your Closet" sheet: item + suggestion for feedback identity
+  const [sheetPiece, setSheetPiece] = useState<{ item: ClosetItem; suggestion: string } | null>(null);
   const [secondOpinionVisible, setSecondOpinionVisible] = useState(false);
+  // Per-match feedback: suggestion → 'up' | 'down' | null
+  const [matchFeedbackMap, setMatchFeedbackMap] = useState<Record<string, 'up' | 'down' | null>>({});
+  // Suggestions currently being rematched
+  const [regeneratingMatches, setRegeneratingMatches] = useState<Set<string>>(new Set());
 
   // ── Sketch polling ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -115,6 +120,101 @@ export default function TierScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [closetItems]);
 
+  // ── Per-match feedback handlers ───────────────────────────────────────────
+
+  async function handleMatchThumbsUp(suggestion: string, matchedItemId: string) {
+    const requestId = stableParams.requestId ?? '';
+    const tier = stableParams.tier;
+    if (!liveRecommendation) return;
+
+    setMatchFeedbackMap((prev) => ({ ...prev, [suggestion]: 'up' }));
+
+    const prevExcluded = await getExcludedItemIdsForSlot(requestId, tier, suggestion);
+    void saveMatchFeedback({
+      id: `${requestId}:${tier}:${suggestion}`,
+      requestId,
+      tier,
+      outfitTitle: liveRecommendation.title,
+      suggestion,
+      matchedItemId,
+      matchedItemTitle: closetItems.find((c) => c.id === matchedItemId)?.title ?? null,
+      thumb: 'up',
+      createdAt: new Date().toISOString(),
+      excludedItemIds: prevExcluded,
+    });
+  }
+
+  async function handleMatchThumbsDown(suggestion: string, matchedItemId: string) {
+    const requestId = stableParams.requestId ?? '';
+    const tier = stableParams.tier;
+    if (!liveRecommendation) return;
+
+    setMatchFeedbackMap((prev) => ({ ...prev, [suggestion]: 'down' }));
+
+    const prevExcluded = await getExcludedItemIdsForSlot(requestId, tier, suggestion);
+    const excludedItemIds = [...new Set([...prevExcluded, matchedItemId])];
+
+    void saveMatchFeedback({
+      id: `${requestId}:${tier}:${suggestion}`,
+      requestId,
+      tier,
+      outfitTitle: liveRecommendation.title,
+      suggestion,
+      matchedItemId,
+      matchedItemTitle: closetItems.find((c) => c.id === matchedItemId)?.title ?? null,
+      thumb: 'down',
+      createdAt: new Date().toISOString(),
+      excludedItemIds,
+    });
+
+    void rematchSlot(suggestion, excludedItemIds);
+  }
+
+  async function rematchSlot(suggestion: string, excludedItemIds: string[]) {
+    setRegeneratingMatches((prev) => new Set(prev).add(suggestion));
+
+    try {
+      const { closetMatchSensitivity } = await loadAppSettings();
+      const excludeSet = new Set(excludedItemIds);
+
+      const matchResponse = await closetService.matchItems({
+        suggestions: [suggestion],
+        items: closetItems.map((item) => ({
+          id: item.id,
+          title: item.title,
+          category: item.category,
+          brand: item.brand || undefined,
+        })),
+        sensitivity: closetMatchSensitivity,
+        excludeItemIds: excludedItemIds,
+      });
+
+      let newItem: ClosetItem | null = null;
+
+      if (matchResponse.success && matchResponse.data?.matches[0]?.matchedItemId) {
+        const matchedId = matchResponse.data.matches[0].matchedItemId;
+        if (!excludeSet.has(matchedId)) {
+          const candidate = closetItems.find((c) => c.id === matchedId) ?? null;
+          if (candidate && isClosetMatchValid(suggestion, candidate)) {
+            newItem = candidate;
+          }
+        }
+      }
+
+      if (!newItem) {
+        newItem = findBestClosetMatch(suggestion, closetItems, excludeSet);
+      }
+
+      setMatchMap((prev) => ({ ...prev, [suggestion]: newItem }));
+    } finally {
+      setRegeneratingMatches((prev) => {
+        const next = new Set(prev);
+        next.delete(suggestion);
+        return next;
+      });
+    }
+  }
+
   if (!matchedTier || !liveRecommendation) {
     return (
       <AppScreen>
@@ -174,40 +274,45 @@ export default function TierScreen() {
             </View>
           ) : null}
 
-          {piecesToCheck.map((piece) => (
-            <Pressable
-              key={`${piece.label}-${piece.value}`}
-              style={pieceRowStyle}
-              onPress={() =>
-                router.push({
-                  pathname: '/check-piece',
-                  params: {
-                    requestId: stableParams.requestId,
-                    tier: liveRecommendation.tier,
-                    outfitTitle: liveRecommendation.title,
-                    anchorItemDescription: requestInput?.anchorItemDescription,
-                    pieceName: piece.value,
-                  },
-                })
-              }>
-              <View style={{ flex: 1, gap: spacing.xs }}>
-                <AppText variant="sectionTitle">{piece.label}</AppText>
-                <AppText tone="muted">{piece.value}</AppText>
-              </View>
-              {/* Closet match checkmark — tapping opens ClosetItemSheet */}
-              {piece.matchedClosetItem ? (
-                <Pressable
-                  accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view.`}
-                  accessibilityRole="button"
-                  hitSlop={8}
-                  onPress={() => setSheetItem(piece.matchedClosetItem!)}
-                  style={{ paddingTop: 2 }}>
-                  <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} />
-                </Pressable>
-              ) : null}
-              <Ionicons color={theme.colors.text} name="camera-outline" size={22} />
-            </Pressable>
-          ))}
+          {piecesToCheck.map((piece) => {
+            const isRematching = regeneratingMatches.has(piece.value);
+            return (
+              <Pressable
+                key={`${piece.label}-${piece.value}`}
+                style={pieceRowStyle}
+                onPress={() =>
+                  router.push({
+                    pathname: '/check-piece',
+                    params: {
+                      requestId: stableParams.requestId,
+                      tier: liveRecommendation.tier,
+                      outfitTitle: liveRecommendation.title,
+                      anchorItemDescription: requestInput?.anchorItemDescription,
+                      pieceName: piece.value,
+                    },
+                  })
+                }>
+                <View style={{ flex: 1, gap: spacing.xs }}>
+                  <AppText variant="sectionTitle">{piece.label}</AppText>
+                  <AppText tone="muted">{piece.value}</AppText>
+                </View>
+                {/* Closet match checkmark — tapping opens ClosetItemSheet with feedback */}
+                {isRematching ? (
+                  <ActivityIndicator color={theme.colors.accent} size="small" />
+                ) : piece.matchedClosetItem ? (
+                  <Pressable
+                    accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view and rate.`}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                    onPress={() => setSheetPiece({ item: piece.matchedClosetItem!, suggestion: piece.value })}
+                    style={{ paddingTop: 2 }}>
+                    <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} />
+                  </Pressable>
+                ) : null}
+                <Ionicons color={theme.colors.text} name="camera-outline" size={22} />
+              </Pressable>
+            );
+          })}
         </View>
         <View style={{ gap: spacing.sm, paddingTop: spacing.sm }}>
           <AppText variant="sectionTitle">Full outfit check</AppText>
@@ -232,9 +337,19 @@ export default function TierScreen() {
         </View>
       </View>
 
-      {/* Bottom sheet shown when user taps a closet-match checkmark */}
-      {sheetItem ? (
-        <ClosetItemSheet item={sheetItem} onClose={() => setSheetItem(null)} />
+      {/* Bottom sheet shown when user taps a closet-match checkmark — includes per-match feedback */}
+      {sheetPiece ? (
+        <ClosetItemSheet
+          item={sheetPiece.item}
+          suggestion={sheetPiece.suggestion}
+          thumbsFeedback={matchFeedbackMap[sheetPiece.suggestion] ?? null}
+          onThumbsUp={() => void handleMatchThumbsUp(sheetPiece.suggestion, sheetPiece.item.id)}
+          onThumbsDown={() => {
+            handleMatchThumbsDown(sheetPiece.suggestion, sheetPiece.item.id).catch(() => null);
+            setSheetPiece(null);
+          }}
+          onClose={() => setSheetPiece(null)}
+        />
       ) : null}
 
       <StylistChooserModal
@@ -254,11 +369,6 @@ type LabeledPiece = {
   matchedClosetItem: ClosetItem | null;
 };
 
-/**
- * Resolves the best closet match for a suggestion string.
- * Trusts the LLM matchMap when available, falls back to local scoring
- * while the LLM response is still loading (same strategy as LookResultCard).
- */
 function resolveMatch(
   suggestion: string,
   closetItems: ClosetItem[],
