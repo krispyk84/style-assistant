@@ -23,6 +23,10 @@ export type MatchFeedback = {
   excludedItemIds: string[];
 };
 
+export function buildMatchFeedbackId(requestId: string, tier: string, suggestion: string): string {
+  return `${requestId}:${tier}:${suggestion}`;
+}
+
 export async function loadMatchFeedback(): Promise<MatchFeedback[]> {
   const raw = await AsyncStorage.getItem(STORAGE_KEY);
   if (!raw) return [];

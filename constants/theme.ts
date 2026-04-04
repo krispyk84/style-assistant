@@ -13,6 +13,7 @@ export const theme = {
     accent: '#A56A1F',
     inverseText: '#FFFFFF',
     danger: '#C95F4A',
+    dangerSurface: '#FEF0EE',
   },
   fonts: {
     sans: 'AvenirNext-Regular',

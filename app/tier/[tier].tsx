@@ -13,13 +13,12 @@ import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing, theme } from '@/constants/theme';
-import { loadAppSettings } from '@/lib/app-settings-storage';
 import { findBestClosetMatch, isClosetMatchValid } from '@/lib/closet-match';
 import { getLookTierDefinition } from '@/lib/look-mock-data';
-import { saveMatchFeedback, getExcludedItemIdsForSlot } from '@/lib/match-feedback-storage';
 import { parseLookInput, parseLookRecommendation, type LookRouteParams } from '@/lib/look-route';
 import { closetService } from '@/services/closet';
 import { outfitsService } from '@/services/outfits';
+import { useMatchFeedback } from '@/hooks/use-match-feedback';
 import type { ClosetItem } from '@/types/closet';
 import type { LookRecommendation } from '@/types/look-request';
 
@@ -42,10 +41,13 @@ export default function TierScreen() {
   // Tracks which piece is open in the "In Your Closet" sheet: item + suggestion for feedback identity
   const [sheetPiece, setSheetPiece] = useState<{ item: ClosetItem; suggestion: string } | null>(null);
   const [secondOpinionVisible, setSecondOpinionVisible] = useState(false);
-  // Per-match feedback: suggestion → 'up' | 'down' | null
-  const [matchFeedbackMap, setMatchFeedbackMap] = useState<Record<string, 'up' | 'down' | null>>({});
-  // Suggestions currently being rematched
-  const [regeneratingMatches, setRegeneratingMatches] = useState<Set<string>>(new Set());
+  const { matchFeedbackMap, regeneratingMatches, handleMatchThumbsUp, handleMatchThumbsDown } =
+    useMatchFeedback({
+      requestId: stableParams.requestId ?? '',
+      closetItems,
+      onSlotRematched: (suggestion, item) =>
+        setMatchMap((prev) => ({ ...prev, [suggestion]: item })),
+    });
 
   // ── Sketch polling ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -119,101 +121,6 @@ export default function TierScreen() {
   // Re-run only when the closet reloads — piece suggestions don't change after load
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [closetItems]);
-
-  // ── Per-match feedback handlers ───────────────────────────────────────────
-
-  async function handleMatchThumbsUp(suggestion: string, matchedItemId: string) {
-    const requestId = stableParams.requestId ?? '';
-    const tier = stableParams.tier;
-    if (!liveRecommendation) return;
-
-    setMatchFeedbackMap((prev) => ({ ...prev, [suggestion]: 'up' }));
-
-    const prevExcluded = await getExcludedItemIdsForSlot(requestId, tier, suggestion);
-    void saveMatchFeedback({
-      id: `${requestId}:${tier}:${suggestion}`,
-      requestId,
-      tier,
-      outfitTitle: liveRecommendation.title,
-      suggestion,
-      matchedItemId,
-      matchedItemTitle: closetItems.find((c) => c.id === matchedItemId)?.title ?? null,
-      thumb: 'up',
-      createdAt: new Date().toISOString(),
-      excludedItemIds: prevExcluded,
-    });
-  }
-
-  async function handleMatchThumbsDown(suggestion: string, matchedItemId: string) {
-    const requestId = stableParams.requestId ?? '';
-    const tier = stableParams.tier;
-    if (!liveRecommendation) return;
-
-    setMatchFeedbackMap((prev) => ({ ...prev, [suggestion]: 'down' }));
-
-    const prevExcluded = await getExcludedItemIdsForSlot(requestId, tier, suggestion);
-    const excludedItemIds = [...new Set([...prevExcluded, matchedItemId])];
-
-    void saveMatchFeedback({
-      id: `${requestId}:${tier}:${suggestion}`,
-      requestId,
-      tier,
-      outfitTitle: liveRecommendation.title,
-      suggestion,
-      matchedItemId,
-      matchedItemTitle: closetItems.find((c) => c.id === matchedItemId)?.title ?? null,
-      thumb: 'down',
-      createdAt: new Date().toISOString(),
-      excludedItemIds,
-    });
-
-    void rematchSlot(suggestion, excludedItemIds);
-  }
-
-  async function rematchSlot(suggestion: string, excludedItemIds: string[]) {
-    setRegeneratingMatches((prev) => new Set(prev).add(suggestion));
-
-    try {
-      const { closetMatchSensitivity } = await loadAppSettings();
-      const excludeSet = new Set(excludedItemIds);
-
-      const matchResponse = await closetService.matchItems({
-        suggestions: [suggestion],
-        items: closetItems.map((item) => ({
-          id: item.id,
-          title: item.title,
-          category: item.category,
-          brand: item.brand || undefined,
-        })),
-        sensitivity: closetMatchSensitivity,
-        excludeItemIds: excludedItemIds,
-      });
-
-      let newItem: ClosetItem | null = null;
-
-      if (matchResponse.success && matchResponse.data?.matches[0]?.matchedItemId) {
-        const matchedId = matchResponse.data.matches[0].matchedItemId;
-        if (!excludeSet.has(matchedId)) {
-          const candidate = closetItems.find((c) => c.id === matchedId) ?? null;
-          if (candidate && isClosetMatchValid(suggestion, candidate)) {
-            newItem = candidate;
-          }
-        }
-      }
-
-      if (!newItem) {
-        newItem = findBestClosetMatch(suggestion, closetItems, excludeSet);
-      }
-
-      setMatchMap((prev) => ({ ...prev, [suggestion]: newItem }));
-    } finally {
-      setRegeneratingMatches((prev) => {
-        const next = new Set(prev);
-        next.delete(suggestion);
-        return next;
-      });
-    }
-  }
 
   if (!matchedTier || !liveRecommendation) {
     return (
@@ -341,13 +248,9 @@ export default function TierScreen() {
       {sheetPiece ? (
         <ClosetItemSheet
           item={sheetPiece.item}
-          suggestion={sheetPiece.suggestion}
           thumbsFeedback={matchFeedbackMap[sheetPiece.suggestion] ?? null}
-          onThumbsUp={() => void handleMatchThumbsUp(sheetPiece.suggestion, sheetPiece.item.id)}
-          onThumbsDown={() => {
-            handleMatchThumbsDown(sheetPiece.suggestion, sheetPiece.item.id).catch(() => null);
-            setSheetPiece(null);
-          }}
+          onThumbsUp={() => handleMatchThumbsUp(stableParams.tier, sheetPiece.suggestion, sheetPiece.item.id, liveRecommendation.title)}
+          onThumbsDown={() => handleMatchThumbsDown(stableParams.tier, sheetPiece.suggestion, sheetPiece.item.id, liveRecommendation.title)}
           onClose={() => setSheetPiece(null)}
         />
       ) : null}

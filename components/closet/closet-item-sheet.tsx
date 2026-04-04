@@ -10,8 +10,6 @@ import type { ClosetItem } from '@/types/closet';
 type ClosetItemSheetProps = {
   item: ClosetItem;
   onClose: () => void;
-  /** The outfit piece suggestion this item was matched against — required for per-match feedback. */
-  suggestion?: string;
   /** Pre-set thumb value for this specific match (persisted). */
   thumbsFeedback?: 'up' | 'down' | null;
   /** Called when thumbs-up is tapped. Sheet stays open. */
@@ -27,7 +25,6 @@ type ClosetItemSheetProps = {
 export function ClosetItemSheet({
   item,
   onClose,
-  suggestion: _suggestion,
   thumbsFeedback = null,
   onThumbsUp,
   onThumbsDown,
@@ -229,7 +226,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.accent,
   },
   thumbBtnDown: {
-    backgroundColor: '#FEF0EE',
+    backgroundColor: theme.colors.dangerSurface,
     borderColor: theme.colors.danger,
   },
 });

@@ -235,7 +235,6 @@ export function LookResultCard({
       {matchedPiece ? (
         <ClosetItemSheet
           item={matchedPiece.item}
-          suggestion={matchedPiece.suggestion}
           thumbsFeedback={matchFeedbackMap?.[matchedPiece.suggestion] ?? null}
           onThumbsUp={
             onMatchThumbsUp
@@ -244,10 +243,7 @@ export function LookResultCard({
           }
           onThumbsDown={
             onMatchThumbsDown
-              ? () => {
-                  onMatchThumbsDown(matchedPiece.suggestion, matchedPiece.item.id);
-                  setMatchedPiece(null);
-                }
+              ? () => onMatchThumbsDown(matchedPiece.suggestion, matchedPiece.item.id)
               : undefined
           }
           onClose={() => setMatchedPiece(null)}
