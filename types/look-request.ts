@@ -10,6 +10,8 @@ export type LookAnchorItem = {
   description: string;
   image: LocalImageAsset | null;
   uploadedImage: UploadedImageAsset | null;
+  /** Fit of the anchor item, forwarded to the backend for prompt context. */
+  fitStatus?: string;
 };
 
 export type CreateLookInput = {

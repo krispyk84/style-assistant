@@ -49,6 +49,7 @@ export type LookRouteParams = {
 type SerializedAnchorItem = {
   id: string;
   description: string;
+  fitStatus?: string;
   anchorImageUri?: string;
   anchorImageWidth?: string;
   anchorImageHeight?: string;
@@ -104,6 +105,7 @@ function parseSerializedAnchorItem(item: SerializedAnchorItem): LookAnchorItem {
   return {
     id: item.id,
     description: item.description ?? '',
+    fitStatus: item.fitStatus,
     image: item.anchorImageUri
       ? {
           uri: item.anchorImageUri,
@@ -170,6 +172,7 @@ function serializeAnchorItems(anchorItems: LookAnchorItem[]) {
     anchorItems.map((item) => ({
       id: item.id,
       description: item.description,
+      fitStatus: item.fitStatus,
       anchorImageUri: item.image?.uri,
       anchorImageWidth: item.image?.width ? String(item.image.width) : undefined,
       anchorImageHeight: item.image?.height ? String(item.image.height) : undefined,

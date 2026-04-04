@@ -8,10 +8,11 @@ import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing } from '@/constants/theme';
 
 export default function CreateLookScreen() {
-  const { closetItemId, closetItemTitle, closetItemImageUrl, fresh } = useLocalSearchParams<{
+  const { closetItemId, closetItemTitle, closetItemImageUrl, closetItemFitStatus, fresh } = useLocalSearchParams<{
     closetItemId?: string;
     closetItemTitle?: string;
     closetItemImageUrl?: string;
+    closetItemFitStatus?: string;
     fresh?: string;
   }>();
 
@@ -22,6 +23,7 @@ export default function CreateLookScreen() {
             id: closetItemId,
             description: closetItemTitle,
             image: null,
+            fitStatus: closetItemFitStatus,
             uploadedImage: {
               id: closetItemId,
               category: 'anchor-item' as const,

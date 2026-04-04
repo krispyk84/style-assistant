@@ -111,6 +111,7 @@ export const apiOutfitsService: OutfitsService = {
         requestId: request.requestId,
         anchorItems: request.anchorItems.map((item) => ({
           description: item.description,
+          fitStatus: item.fitStatus,
           // Closet-ref items are URL-only references, not DB uploads — skip imageId to avoid FK violations
           imageId: item.uploadedImage?.storageProvider === 'closet-ref' ? undefined : item.uploadedImage?.id,
           imageUrl: item.uploadedImage?.publicUrl,

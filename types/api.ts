@@ -98,6 +98,7 @@ export type SaveClosetItemRequest = {
   uploadedImageId?: string;
   uploadedImageUrl?: string;
   sketchImageUrl?: string;
+  fitStatus?: string;
 };
 
 export type GetClosetItemsResponse = {
@@ -110,6 +111,7 @@ export type UpdateClosetItemRequest = {
   brand: string;
   size: string;
   category: string;
+  fitStatus?: string;
 };
 
 export type GenerateClosetSketchRequest = {
