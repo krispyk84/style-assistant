@@ -151,7 +151,7 @@ export default function ClosetScreen() {
 
   function handleItemSaved(updated: ClosetItem) {
     setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-    setEditingItem(null);
+    setEditingItem(updated); // keep modal open in view mode with fresh data
   }
 
   function handleItemDeleted(id: string) {
