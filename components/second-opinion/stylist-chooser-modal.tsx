@@ -146,15 +146,10 @@ export function StylistChooserModal({ visible, recommendation, onClose }: Stylis
                           />
                         </View>
 
-                        {/* Name */}
-                        <View style={{ alignItems: 'center', gap: 1 }}>
-                          <AppText variant="sectionTitle" style={{ textAlign: 'center' }}>
-                            {stylist.name}
-                          </AppText>
-                          <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>
-                            {stylist.title}
-                          </AppText>
-                        </View>
+                        {/* Name — first name only */}
+                        <AppText variant="sectionTitle" style={{ textAlign: 'center' }}>
+                          {stylist.name}
+                        </AppText>
 
                         {/* Keywords */}
                         <View style={{ alignItems: 'center', gap: 4 }}>
@@ -233,7 +228,7 @@ function SecondOpinionResult({
             <Image contentFit="cover" source={stylist.image} style={{ height: '100%', width: '100%' }} />
           </View>
           <View style={{ flex: 1 }}>
-            <AppText variant="sectionTitle">{stylist.name} {stylist.title}</AppText>
+            <AppText variant="sectionTitle">{stylist.name}</AppText>
             <AppText tone="muted" style={{ fontSize: 12 }}>Second Opinion</AppText>
           </View>
         </View>
@@ -252,17 +247,6 @@ function SecondOpinionResult({
         <AppText tone="muted" style={{ fontStyle: 'italic', lineHeight: 24 }}>
           "{result.perspective}"
         </AppText>
-      </View>
-
-      {/* Refinements */}
-      <View style={{ gap: spacing.sm }}>
-        <AppText variant="sectionTitle">Refinements</AppText>
-        {result.suggestions.map((item, index) => (
-          <View key={index} style={{ alignItems: 'flex-start', flexDirection: 'row', gap: spacing.sm }}>
-            <AppText tone="muted" style={{ minWidth: 18 }}>{index + 1}.</AppText>
-            <AppText tone="muted" style={{ flex: 1, lineHeight: 22 }}>{item}</AppText>
-          </View>
-        ))}
       </View>
 
       <PrimaryButton label="Ask another stylist" onPress={onReset} variant="secondary" />

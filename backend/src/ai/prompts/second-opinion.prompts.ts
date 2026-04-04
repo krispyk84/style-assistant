@@ -35,10 +35,9 @@ export function buildSecondOpinionInstructions(stylistId: StylistId) {
     ...personaRules(stylistId),
     'You are giving a second opinion on a recommended menswear outfit.',
     'Return only structured JSON matching the provided schema.',
-    'perspective must be 3–5 sentences written fully in character, in a natural conversational tone — no bullet points, no formal language.',
+    'perspective must be 3–5 sentences written fully in character, in a natural conversational tone — no bullet points, no formal language, no numbered lists.',
     'Be specific to the actual pieces described. Generic observations are useless.',
-    'suggestions must be 2–3 concrete, actionable refinements written conversationally — short, direct, specific.',
-    'Do not write Key Observations or any heading-like structures in your text. Just speak naturally.',
+    'Do not write headings, section labels, or lists of any kind. Just speak naturally in flowing sentences.',
   ].join(' ');
 }
 

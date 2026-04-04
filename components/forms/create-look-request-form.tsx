@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
-import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 
@@ -506,16 +506,18 @@ function AnchorItemCard({
           <AppText tone="muted">{uploadSuccessMessage ?? 'Upload complete.'}</AppText>
         ) : null}
 
-        {/* Photo buttons */}
+        {/* Photo buttons — labels are always stable to prevent row reflow */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
           <ActionPill
             icon="image-outline"
-            label={isPickingLibrary ? 'Opening...' : 'Library'}
+            label="Library"
+            loading={isPickingLibrary}
             onPress={pickFromLibrary}
           />
           <ActionPill
             icon="camera-outline"
-            label={isPickingCamera ? 'Opening...' : 'Camera'}
+            label="Camera"
+            loading={isPickingCamera}
             onPress={takePhoto}
           />
           {onPickFromCloset ? (
@@ -561,20 +563,22 @@ function ActionPill({
   icon,
   onPress,
   disabled = false,
+  loading = false,
 }: {
   label: string;
   icon?: React.ComponentProps<typeof Ionicons>['name'];
   onPress: () => void;
   disabled?: boolean;
+  loading?: boolean;
 }) {
   return (
     <Pressable
-      disabled={disabled}
+      disabled={disabled || loading}
       onPress={onPress}
       style={{
         alignItems: 'center',
         backgroundColor: theme.colors.subtleSurface,
-        borderColor: theme.colors.border,
+        borderColor: loading ? theme.colors.accent : theme.colors.border,
         borderRadius: 999,
         borderWidth: 1,
         flexDirection: 'row',
@@ -584,8 +588,12 @@ function ActionPill({
         opacity: disabled ? 0.5 : 1,
         paddingHorizontal: spacing.md,
       }}>
-      {icon ? <Ionicons color={theme.colors.text} name={icon} size={16} /> : null}
-      <AppText>{label}</AppText>
+      {loading ? (
+        <ActivityIndicator color={theme.colors.accent} size={14} />
+      ) : icon ? (
+        <Ionicons color={theme.colors.text} name={icon} size={16} />
+      ) : null}
+      <AppText style={loading ? { color: theme.colors.accent } : undefined}>{label}</AppText>
     </Pressable>
   );
 }
