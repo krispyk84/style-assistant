@@ -1,5 +1,5 @@
 import { ThemeProvider } from '@react-navigation/native';
-import { Stack, useRouter } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
@@ -8,16 +8,19 @@ import { navTheme } from '@/constants/theme';
 import { AppSessionProvider, useAppSession } from '@/hooks/use-app-session';
 
 function AppNavigation() {
-  const router = useRouter();
   const { appInstanceKey } = useAppSession();
 
+  // router is the stable singleton (same pattern used in AppScreen and ScreenHeader).
+  // useRouter() subscribes to preview context via use() in React 19, and putting
+  // router in the dependency array would re-run this effect on every context change
+  // even though router itself never changes. Use the singleton and omit it from deps.
   useEffect(() => {
     if (!appInstanceKey) {
       return;
     }
 
     router.replace('/');
-  }, [appInstanceKey, router]);
+  }, [appInstanceKey]);
 
   return (
     <ThemeProvider value={navTheme}>

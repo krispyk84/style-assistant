@@ -410,13 +410,18 @@ function AnchorItemCard({
     removeImage,
   } = useUploadedImage('anchor-item', item.image, item.uploadedImage);
 
+  // Skip the mount fire: the parent's anchorItems is already initialised from
+  // buildInitialAnchorItems() with the exact same values useState() gives the child,
+  // so calling onChange on mount just creates a new-reference object with identical
+  // values — a wasted re-render.  Post-mount fires (user types, picks image) are
+  // genuine state changes that must propagate to the parent.
+  const hasMountedRef = useRef(false);
   useEffect(() => {
-    onChange({
-      id: item.id,
-      description,
-      image,
-      uploadedImage,
-    });
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+    onChange({ id: item.id, description, image, uploadedImage });
   }, [description, image, item.id, onChange, uploadedImage]);
 
   return (
