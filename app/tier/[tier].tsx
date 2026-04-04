@@ -245,15 +245,29 @@ export default function TierScreen() {
       </View>
 
       {/* Bottom sheet shown when user taps a closet-match checkmark — includes per-match feedback */}
-      {sheetPiece ? (
-        <ClosetItemSheet
-          item={sheetPiece.item}
-          thumbsFeedback={matchFeedbackMap[sheetPiece.suggestion] ?? null}
-          onThumbsUp={() => handleMatchThumbsUp(stableParams.tier, sheetPiece.suggestion, sheetPiece.item.id, liveRecommendation.title)}
-          onThumbsDown={() => handleMatchThumbsDown(stableParams.tier, sheetPiece.suggestion, sheetPiece.item.id, liveRecommendation.title)}
-          onClose={() => setSheetPiece(null)}
-        />
-      ) : null}
+      {sheetPiece ? (() => {
+        // Derive current item live from piecesToCheck so the sheet auto-updates after rematch
+        const currentItem = piecesToCheck.find(p => p.value === sheetPiece.suggestion)?.matchedClosetItem ?? null;
+        const isRematching = regeneratingMatches.has(sheetPiece.suggestion);
+        return (
+          <ClosetItemSheet
+            item={currentItem}
+            isRematching={isRematching}
+            thumbsFeedback={matchFeedbackMap[sheetPiece.suggestion] ?? null}
+            onThumbsUp={
+              currentItem
+                ? () => handleMatchThumbsUp(stableParams.tier, sheetPiece.suggestion, currentItem.id, liveRecommendation.title)
+                : undefined
+            }
+            onThumbsDown={
+              currentItem
+                ? () => handleMatchThumbsDown(stableParams.tier, sheetPiece.suggestion, currentItem.id, liveRecommendation.title)
+                : undefined
+            }
+            onClose={() => setSheetPiece(null)}
+          />
+        );
+      })() : null}
 
       <StylistChooserModal
         visible={secondOpinionVisible}

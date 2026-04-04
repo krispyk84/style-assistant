@@ -1,30 +1,34 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
 import type { ClosetItem } from '@/types/closet';
 
 type ClosetItemSheetProps = {
-  item: ClosetItem;
+  item: ClosetItem | null;
   onClose: () => void;
+  /** True while a rematch is in flight — shows a loading spinner instead of item content. */
+  isRematching?: boolean;
   /** Pre-set thumb value for this specific match (persisted). */
   thumbsFeedback?: 'up' | 'down' | null;
   /** Called when thumbs-up is tapped. Sheet stays open. */
   onThumbsUp?: () => void;
-  /** Called when thumbs-down is tapped. Sheet dismisses immediately. */
+  /** Called when thumbs-down is tapped. Sheet stays open while rematching. */
   onThumbsDown?: () => void;
 };
 
 /**
  * Read-only bottom sheet for previewing a matched closet item.
  * Includes per-match thumbs feedback when callbacks are provided.
+ * Stays open during rematch — shows a spinner while loading, then the new item.
  */
 export function ClosetItemSheet({
   item,
   onClose,
+  isRematching = false,
   thumbsFeedback = null,
   onThumbsUp,
   onThumbsDown,
@@ -46,6 +50,13 @@ export function ClosetItemSheet({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Reset thumbs state when the matched item changes (e.g. after a rematch)
+  useEffect(() => {
+    setLocalThumb(thumbsFeedback ?? null);
+  // item?.id changing means a new item was slotted in
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id, thumbsFeedback]);
+
   function dismissAndClose() {
     Animated.parallel([
       Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
@@ -60,13 +71,12 @@ export function ClosetItemSheet({
   }
 
   function handleThumbsDown() {
-    if (localThumb === 'down') return;
+    if (localThumb === 'down' || isRematching) return;
     setLocalThumb('down');
     onThumbsDown?.();
-    dismissAndClose();
+    // Sheet stays open — parent will update `item` and `isRematching` as the rematch runs
   }
 
-  const primaryUri = item.sketchImageUrl ?? item.uploadedImageUrl ?? null;
   const hasFeedback = onThumbsUp !== undefined || onThumbsDown !== undefined;
 
   return (
@@ -114,7 +124,7 @@ export function ClosetItemSheet({
               </Pressable>
             </View>
 
-            {/* Item image */}
+            {/* Item image / loading / no-match */}
             <View
               style={{
                 alignItems: 'center',
@@ -124,40 +134,63 @@ export function ClosetItemSheet({
                 justifyContent: 'center',
                 overflow: 'hidden',
               }}>
-              {primaryUri ? (
-                <Image
-                  contentFit="contain"
-                  source={{ uri: primaryUri }}
-                  style={{ height: '100%', width: '100%' }}
-                />
-              ) : item.sketchStatus === 'pending' ? (
+              {isRematching ? (
                 <View style={{ alignItems: 'center', gap: spacing.sm }}>
-                  <Ionicons color={theme.colors.subtleText} name="time-outline" size={32} />
+                  <ActivityIndicator color={theme.colors.accent} size="large" />
                   <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>
-                    Sketch generating...
+                    Finding a better match...
                   </AppText>
                 </View>
-              ) : (
-                <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
-              )}
+              ) : item === null ? (
+                <View style={{ alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg }}>
+                  <Ionicons color={theme.colors.subtleText} name="search-outline" size={32} />
+                  <AppText tone="muted" style={{ fontSize: 13, textAlign: 'center' }}>
+                    No suitable match could be found.
+                  </AppText>
+                </View>
+              ) : (() => {
+                const primaryUri = item.sketchImageUrl ?? item.uploadedImageUrl ?? null;
+                if (primaryUri) {
+                  return (
+                    <Image
+                      contentFit="contain"
+                      source={{ uri: primaryUri }}
+                      style={{ height: '100%', width: '100%' }}
+                    />
+                  );
+                }
+                if (item.sketchStatus === 'pending') {
+                  return (
+                    <View style={{ alignItems: 'center', gap: spacing.sm }}>
+                      <Ionicons color={theme.colors.subtleText} name="time-outline" size={32} />
+                      <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>
+                        Sketch generating...
+                      </AppText>
+                    </View>
+                  );
+                }
+                return <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />;
+              })()}
             </View>
 
-            {/* Item details */}
-            <View style={{ gap: spacing.md }}>
-              <LabelRow label="Title" value={item.title} />
-              <LabelRow label="Category" value={item.category} />
-              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                <View style={{ flex: 1 }}>
-                  <LabelRow label="Brand" value={item.brand || '—'} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <LabelRow label="Size" value={item.size || '—'} />
+            {/* Item details — hidden while rematching or when no match */}
+            {!isRematching && item !== null ? (
+              <View style={{ gap: spacing.md }}>
+                <LabelRow label="Title" value={item.title} />
+                <LabelRow label="Category" value={item.category} />
+                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                  <View style={{ flex: 1 }}>
+                    <LabelRow label="Brand" value={item.brand || '—'} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <LabelRow label="Size" value={item.size || '—'} />
+                  </View>
                 </View>
               </View>
-            </View>
+            ) : null}
 
-            {/* Per-match thumbs feedback — only shown when callbacks are provided */}
-            {hasFeedback ? (
+            {/* Per-match thumbs feedback — only shown when callbacks are provided and not rematching */}
+            {hasFeedback && !isRematching && item !== null ? (
               <View style={styles.thumbsRow}>
                 <AppText tone="muted" style={styles.thumbsLabel}>Was this a good match?</AppText>
                 <Pressable

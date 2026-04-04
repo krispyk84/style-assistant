@@ -232,23 +232,29 @@ export function LookResultCard({
       </Pressable>
 
       {/* Bottom sheet shown when user taps a checkmark — includes per-match feedback */}
-      {matchedPiece ? (
-        <ClosetItemSheet
-          item={matchedPiece.item}
-          thumbsFeedback={matchFeedbackMap?.[matchedPiece.suggestion] ?? null}
-          onThumbsUp={
-            onMatchThumbsUp
-              ? () => onMatchThumbsUp(matchedPiece.suggestion, matchedPiece.item.id)
-              : undefined
-          }
-          onThumbsDown={
-            onMatchThumbsDown
-              ? () => onMatchThumbsDown(matchedPiece.suggestion, matchedPiece.item.id)
-              : undefined
-          }
-          onClose={() => setMatchedPiece(null)}
-        />
-      ) : null}
+      {matchedPiece ? (() => {
+        // Derive the current item live from labeledPieces so the sheet auto-updates after rematch
+        const currentItem = labeledPieces.find(p => p.value === matchedPiece.suggestion)?.matchedClosetItem ?? null;
+        const isRematching = regeneratingMatches?.has(matchedPiece.suggestion) ?? false;
+        return (
+          <ClosetItemSheet
+            item={currentItem}
+            isRematching={isRematching}
+            thumbsFeedback={matchFeedbackMap?.[matchedPiece.suggestion] ?? null}
+            onThumbsUp={
+              onMatchThumbsUp && currentItem
+                ? () => onMatchThumbsUp(matchedPiece.suggestion, currentItem.id)
+                : undefined
+            }
+            onThumbsDown={
+              onMatchThumbsDown && currentItem
+                ? () => onMatchThumbsDown(matchedPiece.suggestion, currentItem.id)
+                : undefined
+            }
+            onClose={() => setMatchedPiece(null)}
+          />
+        );
+      })() : null}
     </View>
   );
 }
