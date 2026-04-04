@@ -1,7 +1,8 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, View, useWindowDimensions } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/ui/app-text';
@@ -13,13 +14,13 @@ type TimerOption = (typeof TIMER_OPTIONS)[number];
 
 export default function CameraCaptureScreen() {
   const router = useRouter();
-  const { height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [timerDelay, setTimerDelay] = useState<TimerOption>(0);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [facing, setFacing] = useState<'front' | 'back'>('front');
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function clearCountdown() {
@@ -99,10 +100,26 @@ export default function CameraCaptureScreen() {
       <CameraView
         ref={cameraRef}
         style={{ flex: 1 }}
-        facing="front"
+        facing={facing}
       />
 
-      {/* Countdown overlay */}
+      {/* Flip camera button — top-right corner */}
+      {countdown === null ? (
+        <Pressable
+          onPress={() => setFacing((f) => (f === 'front' ? 'back' : 'front'))}
+          style={{
+            position: 'absolute',
+            top: insets.top + spacing.md,
+            right: spacing.lg,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            borderRadius: 999,
+            padding: spacing.sm,
+          }}>
+          <Ionicons name="camera-reverse-outline" size={26} color="#FFF" />
+        </Pressable>
+      ) : null}
+
+      {/* Countdown overlay — full-screen dark backdrop with large number */}
       {countdown !== null ? (
         <View
           style={{
@@ -113,21 +130,34 @@ export default function CameraCaptureScreen() {
             bottom: 0,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: 'rgba(0,0,0,0.45)',
+            backgroundColor: 'rgba(0,0,0,0.5)',
           }}>
-          <AppText style={{ fontSize: 96, color: '#FFF', fontFamily: theme.fonts.sansMedium }}>
+          {/* Use raw Text to avoid lineHeight conflict from AppText body variant */}
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontFamily: 'AvenirNext-DemiBold',
+              fontSize: 120,
+              lineHeight: 140,
+              textAlign: 'center',
+              textShadowColor: 'rgba(0,0,0,0.6)',
+              textShadowOffset: { width: 0, height: 2 },
+              textShadowRadius: 8,
+            }}>
             {countdown}
-          </AppText>
+          </Text>
           <Pressable
             onPress={clearCountdown}
             style={{
               marginTop: spacing.lg,
-              backgroundColor: 'rgba(255,255,255,0.15)',
+              backgroundColor: 'rgba(255,255,255,0.2)',
               borderRadius: 999,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.4)',
               paddingHorizontal: spacing.xl,
               paddingVertical: spacing.sm,
             }}>
-            <AppText style={{ color: '#FFF' }}>Cancel</AppText>
+            <AppText style={{ color: '#FFF', fontSize: 16 }}>Cancel</AppText>
           </Pressable>
         </View>
       ) : null}
@@ -152,7 +182,7 @@ export default function CameraCaptureScreen() {
           {TIMER_OPTIONS.map((option) => (
             <Pressable
               key={option}
-              onPress={() => setTimerDelay(option)}
+              onPress={() => { clearCountdown(); setTimerDelay(option); }}
               style={{
                 alignItems: 'center',
                 backgroundColor: timerDelay === option ? theme.colors.accent : 'rgba(255,255,255,0.15)',
@@ -170,10 +200,10 @@ export default function CameraCaptureScreen() {
           ))}
         </View>
 
-        {/* Shutter row: cancel | capture | (spacer) */}
+        {/* Shutter row: cancel | capture | spacer */}
         <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => { clearCountdown(); router.back(); }}
             style={{ width: 56, alignItems: 'center' }}>
             <AppText style={{ color: '#FFF', fontSize: 16 }}>Cancel</AppText>
           </Pressable>

@@ -9,6 +9,7 @@ import { AppText } from '@/components/ui/app-text';
 import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
+import { incrementClosetItemCounter } from '@/lib/closet-storage';
 import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
 
@@ -550,6 +551,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
     const id = item.id;
     const title = item.title;
     const anchorImageUrl = item.sketchImageUrl ?? item.uploadedImageUrl ?? '';
+    void incrementClosetItemCounter(id, 'anchorToOutfitCount');
     onClose();
     // Defer navigation until after the modal close state update has flushed
     setTimeout(() => {

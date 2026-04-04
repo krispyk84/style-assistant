@@ -14,7 +14,7 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing, theme } from '@/constants/theme';
 import { loadAppSettings } from '@/lib/app-settings-storage';
-import { findBestClosetMatch } from '@/lib/closet-match';
+import { findBestClosetMatch, isClosetMatchValid } from '@/lib/closet-match';
 import { getLookTierDefinition } from '@/lib/look-mock-data';
 import { parseLookInput, parseLookRecommendation, type LookRouteParams } from '@/lib/look-route';
 import { closetService } from '@/services/closet';
@@ -132,7 +132,7 @@ export default function TierScreen() {
   const hasAnyMatch = piecesToCheck.some((p) => p.matchedClosetItem !== null);
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable floatingBack>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title={matchedTier.label} showBack />
         <View style={{ gap: spacing.xs }}>
@@ -266,7 +266,10 @@ function resolveMatch(
 ): ClosetItem | null {
   if (Object.prototype.hasOwnProperty.call(matchMap, suggestion)) {
     const llmResult = matchMap[suggestion] ?? null;
-    if (llmResult) return llmResult;
+    if (llmResult) {
+      if (isClosetMatchValid(suggestion, llmResult)) return llmResult;
+      return findBestClosetMatch(suggestion, closetItems);
+    }
     // LLM returned null — run local scoring as safety net
     return findBestClosetMatch(suggestion, closetItems);
   }

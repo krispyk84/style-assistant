@@ -63,3 +63,14 @@ export async function deleteClosetItem(id: string): Promise<ClosetItem[]> {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
   return nextItems;
 }
+
+export async function incrementClosetItemCounter(
+  id: string,
+  counter: 'anchorToOutfitCount' | 'matchedToRecommendationCount'
+): Promise<void> {
+  const items = await loadClosetItems();
+  const nextItems = items.map((item) =>
+    item.id === id ? { ...item, [counter]: (item[counter] ?? 0) + 1 } : item
+  );
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
+}

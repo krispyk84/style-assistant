@@ -11,7 +11,7 @@ const GARMENT_GROUPS: Record<string, readonly string[]> = {
   // 'oxford shirt' not 'oxford' — prevents "cap-toe oxfords" (shoes) matching shirt group
   shirt:        ['shirt', 'oxford shirt', 'button-down', 'button down', 'chambray', 'flannel', 'dress shirt', 'spread collar', 'french cuff'],
   polo:         ['polo'],
-  tee:          ['tee', 't-shirt', 'tshirt', 'long sleeve'],
+  tee:          ['tee', 't-shirt', 'tshirt', 'long sleeve', 'rash guard', 'performance shirt', 'swim shirt', 'base layer'],
   knitwear:     ['sweater', 'knit', 'crewneck', 'merino', 'cashmere', 'jumper', 'pullover'],
   cardigan:     ['cardigan'],
   hoodie:       ['hoodie', 'sweatshirt'],
@@ -61,6 +61,12 @@ const CATEGORY_TO_GROUP: Record<string, string> = {
   Hat:             'hat',
   Tie:             'tie',
   Socks:           'socks',
+  // Athletic / swim categories — prevent matching against dress/accessory suggestions
+  'T-Shirt':       'tee',
+  'Swim Shirt':    'tee',
+  'Performance Top': 'tee',
+  'Athletic Top':  'tee',
+  'Tank Top':      'tee',
 };
 
 // Groups that are meaningfully related — allow partial category credit.
@@ -278,4 +284,30 @@ export function findBestClosetMatch(suggestion: string, items: ClosetItem[]): Cl
     suggGroup && SOLO_GROUP_SUFFICIENT.has(suggGroup) ? SCORE_GROUP_EXACT : CONFIDENCE_THRESHOLD;
 
   return bestScore >= effectiveThreshold ? bestItem : null;
+}
+
+/**
+ * Validates that an LLM-returned closet match is categorically compatible
+ * with the suggestion string.
+ *
+ * When both sides have a detectable garment group and those groups are
+ * incompatible (e.g., watch suggestion matched to a tee item), this returns
+ * false so the caller can reject the LLM result rather than surfacing an
+ * obvious mismatch.
+ *
+ * Returns true when either side has no detectable group (can't disprove)
+ * or when the groups are the same or related.
+ */
+export function isClosetMatchValid(suggestion: string, item: ClosetItem): boolean {
+  const suggGroup = extractGarmentGroup(suggestion);
+  const itemGroup = getItemGarmentGroup(item);
+
+  // Can't validate if either side is unknown
+  if (!suggGroup || !itemGroup) return true;
+
+  // Groups must be exact or related — anything else is a category mismatch
+  if (suggGroup === itemGroup) return true;
+  if (isRelatedGroup(suggGroup, itemGroup)) return true;
+
+  return false;
 }

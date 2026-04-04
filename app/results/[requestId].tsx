@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { closetService } from '@/services/closet';
@@ -18,6 +18,8 @@ import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
 import { loadAppSettings } from '@/lib/app-settings-storage';
+import { incrementClosetItemCounter } from '@/lib/closet-storage';
+import { saveRecommendationFeedback, type RecommendationFeedback } from '@/lib/recommendation-feedback-storage';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
 import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
 import { buildTierHref, parseLookInput, type LookRouteParams } from '@/lib/look-route';
@@ -40,6 +42,10 @@ export default function ResultDetailsScreen() {
   const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
   const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
   const [secondOpinionTier, setSecondOpinionTier] = useState<LookTierSlug | null>(null);
+  // Persisted thumb votes per tier for this session (survives regeneration)
+  const [thumbsMap, setThumbsMap] = useState<Record<string, 'up' | 'down' | null>>({});
+  // Tracks which closet item IDs have already had matchedToRecommendationCount incremented
+  const countedMatchedIdsRef = useRef<Set<string>>(new Set());
   const { showToast } = useToast();
   const parsedInput = useMemo(() => parseLookInput(stableParams), [stableParams]);
 
@@ -126,13 +132,22 @@ export default function ResultDetailsScreen() {
       .then((matchResponse) => {
         if (!matchResponse.success || !matchResponse.data) return;
         const resolved: Record<string, ClosetItem | null> = {};
+        const newlyMatchedIds: string[] = [];
         for (const match of matchResponse.data.matches) {
           const item = match.matchedItemId
             ? (closetItems.find((c) => c.id === match.matchedItemId) ?? null)
             : null;
           resolved[match.suggestion] = item;
+          if (item && !countedMatchedIdsRef.current.has(item.id)) {
+            countedMatchedIdsRef.current.add(item.id);
+            newlyMatchedIds.push(item.id);
+          }
         }
         setMatchMap(resolved);
+        // Increment matchedToRecommendationCount for each newly matched item (fire-and-forget)
+        for (const id of newlyMatchedIds) {
+          void incrementClosetItemCounter(id, 'matchedToRecommendationCount');
+        }
       });
   // Re-run if the response changes (e.g. after regeneration) or closet items reload
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -157,6 +172,39 @@ export default function ResultDetailsScreen() {
       isMounted = false;
     };
   }, [response?.requestId]);
+
+  async function handleThumbsUp(tier: LookTierSlug) {
+    if (!response) return;
+    const recommendation = response.recommendations.find((r) => r.tier === tier);
+    if (!recommendation) return;
+    setThumbsMap((current) => ({ ...current, [tier]: 'up' }));
+    void saveRecommendationFeedback({
+      id: `${response.requestId}-${tier}`,
+      requestId: response.requestId,
+      tier,
+      outfitTitle: recommendation.title,
+      thumb: 'up',
+      regenerated: false,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  async function handleThumbsDown(tier: LookTierSlug) {
+    if (!response) return;
+    const recommendation = response.recommendations.find((r) => r.tier === tier);
+    if (!recommendation) return;
+    setThumbsMap((current) => ({ ...current, [tier]: 'down' }));
+    void saveRecommendationFeedback({
+      id: `${response.requestId}-${tier}`,
+      requestId: response.requestId,
+      tier,
+      outfitTitle: recommendation.title,
+      thumb: 'down',
+      regenerated: true,
+      createdAt: new Date().toISOString(),
+    });
+    void handleRegenerate(tier);
+  }
 
   async function handleRegenerate(tier: LookTierSlug) {
     if (!response) {
@@ -277,7 +325,7 @@ export default function ResultDetailsScreen() {
   }
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable floatingBack>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Outfit Results" showBack />
         <View style={{ gap: spacing.xs }}>
@@ -300,6 +348,9 @@ export default function ResultDetailsScreen() {
             onSave={() => void handleSave(recommendation.tier)}
             onAddToWeek={() => setWeekPickerTier(recommendation.tier)}
             onSecondOpinion={() => setSecondOpinionTier(recommendation.tier)}
+            onThumbsUp={() => void handleThumbsUp(recommendation.tier)}
+            onThumbsDown={() => void handleThumbsDown(recommendation.tier)}
+            thumbsFeedback={thumbsMap[recommendation.tier] ?? null}
             closetItems={closetItems}
             matchMap={matchMap}
             detailHref={buildTierHref(

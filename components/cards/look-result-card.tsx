@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { spacing, theme } from '@/constants/theme';
 import { formatTierLabel } from '@/lib/outfit-utils';
-import { findBestClosetMatch } from '@/lib/closet-match';
+import { findBestClosetMatch, isClosetMatchValid } from '@/lib/closet-match';
 import { ClosetItemSheet } from '@/components/closet/closet-item-sheet';
 import type { LookRecommendation } from '@/types/look-request';
 import type { ClosetItem } from '@/types/closet';
@@ -22,6 +22,10 @@ type LookResultCardProps = {
   onSave?: () => void;
   onAddToWeek?: () => void;
   onSecondOpinion?: () => void;
+  onThumbsUp?: () => void;
+  onThumbsDown?: () => void;
+  /** Pre-set thumb value (persisted feedback). */
+  thumbsFeedback?: 'up' | 'down' | null;
   /** Closet items — used as fallback matching when matchMap is not yet populated. */
   closetItems?: ClosetItem[];
   /** Pre-computed LLM matches: suggestion string → ClosetItem or null. When provided, takes precedence over local scoring. */
@@ -38,11 +42,15 @@ export function LookResultCard({
   onSave,
   onAddToWeek,
   onSecondOpinion,
+  onThumbsUp,
+  onThumbsDown,
+  thumbsFeedback = null,
   closetItems = [],
   matchMap,
 }: LookResultCardProps) {
   // Must be declared before any early return to satisfy hooks rules
   const [matchedItem, setMatchedItem] = useState<ClosetItem | null>(null);
+  const [localThumb, setLocalThumb] = useState<'up' | 'down' | null>(thumbsFeedback);
 
   const labeledPieces = useMemo(
     () => buildLabeledPieces(recommendation, closetItems, matchMap),
@@ -214,6 +222,59 @@ export function LookResultCard({
         <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
       </Pressable>
 
+      {/* Thumbs feedback */}
+      <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+        <AppText tone="muted" style={{ fontSize: 13, flex: 1 }}>Was this a good match?</AppText>
+        <Pressable
+          hitSlop={8}
+          onPress={() => {
+            const next = localThumb === 'up' ? null : 'up';
+            setLocalThumb(next);
+            if (next === 'up') onThumbsUp?.();
+          }}
+          style={{
+            alignItems: 'center',
+            backgroundColor: localThumb === 'up' ? theme.colors.card : 'transparent',
+            borderColor: localThumb === 'up' ? theme.colors.accent : theme.colors.border,
+            borderRadius: 999,
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.xs,
+            paddingHorizontal: spacing.sm,
+            paddingVertical: spacing.xs,
+          }}>
+          <Ionicons
+            color={localThumb === 'up' ? theme.colors.accent : theme.colors.mutedText}
+            name={localThumb === 'up' ? 'thumbs-up' : 'thumbs-up-outline'}
+            size={16}
+          />
+        </Pressable>
+        <Pressable
+          hitSlop={8}
+          onPress={() => {
+            const next = localThumb === 'down' ? null : 'down';
+            setLocalThumb(next);
+            if (next === 'down') onThumbsDown?.();
+          }}
+          style={{
+            alignItems: 'center',
+            backgroundColor: localThumb === 'down' ? '#FEF0EE' : 'transparent',
+            borderColor: localThumb === 'down' ? theme.colors.danger : theme.colors.border,
+            borderRadius: 999,
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.xs,
+            paddingHorizontal: spacing.sm,
+            paddingVertical: spacing.xs,
+          }}>
+          <Ionicons
+            color={localThumb === 'down' ? theme.colors.danger : theme.colors.mutedText}
+            name={localThumb === 'down' ? 'thumbs-down' : 'thumbs-down-outline'}
+            size={16}
+          />
+        </Pressable>
+      </View>
+
       {/* Bottom sheet shown when user taps a checkmark */}
       {matchedItem ? (
         <ClosetItemSheet item={matchedItem} onClose={() => setMatchedItem(null)} />
@@ -237,11 +298,13 @@ function resolveMatch(
 ): ClosetItem | null {
   if (matchMap && Object.prototype.hasOwnProperty.call(matchMap, suggestion)) {
     const llmResult = matchMap[suggestion] ?? null;
-    // LLM returned a match — trust it
-    if (llmResult) return llmResult;
+    if (llmResult) {
+      // Validate the LLM match with local category logic to reject obvious
+      // cross-category mismatches (e.g. watch suggestion → rash guard item).
+      if (isClosetMatchValid(suggestion, llmResult)) return llmResult;
+      return findBestClosetMatch(suggestion, closetItems);
+    }
     // LLM returned null — run local scoring as a safety net.
-    // Local scoring is more conservative (higher threshold) so a local hit
-    // here is almost certainly a genuine match the LLM missed.
     return findBestClosetMatch(suggestion, closetItems);
   }
   // matchMap not yet populated — fall back to local scoring while LLM loads

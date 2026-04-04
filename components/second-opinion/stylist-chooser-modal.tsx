@@ -141,6 +141,7 @@ export function StylistChooserModal({ visible, recommendation, onClose }: Stylis
                           }}>
                           <Image
                             contentFit="cover"
+                            contentPosition="top"
                             source={stylist.image}
                             style={{ height: '100%', width: '100%' }}
                           />
@@ -225,7 +226,7 @@ function SecondOpinionResult({
               overflow: 'hidden',
               width: 56,
             }}>
-            <Image contentFit="cover" source={stylist.image} style={{ height: '100%', width: '100%' }} />
+            <Image contentFit="cover" contentPosition="top" source={stylist.image} style={{ height: '100%', width: '100%' }} />
           </View>
           <View style={{ flex: 1 }}>
             <AppText variant="sectionTitle">{stylist.name}</AppText>

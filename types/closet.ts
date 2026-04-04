@@ -10,4 +10,8 @@ export type ClosetItem = {
   sketchImageUrl: string | null;
   sketchStatus: ClosetItemSketchStatus;
   savedAt: string;
+  /** How many times this item has been anchored to a new outfit. */
+  anchorToOutfitCount?: number;
+  /** How many times this item has been matched to a recommendation. */
+  matchedToRecommendationCount?: number;
 };
