@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native';
-import { Image } from 'expo-image';
+import { ActivityIndicator, Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 
 import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
@@ -18,6 +18,7 @@ type StylistChooserModalProps = {
 };
 
 export function StylistChooserModal({ visible, recommendation, onClose }: StylistChooserModalProps) {
+  const { height: screenHeight } = useWindowDimensions();
   const [selectedId, setSelectedId] = useState<StylistId | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SecondOpinionResponse | null>(null);
@@ -62,8 +63,13 @@ export function StylistChooserModal({ visible, recommendation, onClose }: Stylis
 
   const selectedStylist = STYLISTS.find((s) => s.id === selectedId) ?? null;
 
+  // Pixel-based maxHeight ensures the ScrollView gets a bounded layout context in Yoga.
+  // Percentage-based maxHeight on a Pressable does not reliably create a scroll boundary.
+  const modalMaxHeight = screenHeight * 0.88;
+
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={handleClose}>
+      {/* Backdrop — tapping outside closes */}
       <Pressable
         onPress={handleClose}
         style={{
@@ -73,18 +79,22 @@ export function StylistChooserModal({ visible, recommendation, onClose }: Stylis
           justifyContent: 'center',
           padding: spacing.lg,
         }}>
+        {/* Card — stops tap propagation; pixel maxHeight so ScrollView can scroll */}
         <Pressable
           onPress={() => undefined}
           style={{
             backgroundColor: theme.colors.surface,
             borderRadius: 28,
-            maxHeight: '88%',
+            maxHeight: modalMaxHeight,
             maxWidth: 440,
+            overflow: 'hidden',
             width: '100%',
           }}>
           <ScrollView
-            contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg }}
-            showsVerticalScrollIndicator={false}>
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg }}>
 
             {/* Header */}
             <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -97,7 +107,6 @@ export function StylistChooserModal({ visible, recommendation, onClose }: Stylis
               </Pressable>
             </View>
 
-            {/* Result view */}
             {result ? (
               <SecondOpinionResult result={result} onReset={() => { setResult(null); setSelectedId(null); }} />
             ) : (
@@ -123,17 +132,17 @@ export function StylistChooserModal({ visible, recommendation, onClose }: Stylis
                         {/* Round headshot */}
                         <View
                           style={{
+                            borderColor: isSelected ? theme.colors.accent : theme.colors.border,
                             borderRadius: 48,
+                            borderWidth: 2,
                             height: 96,
                             overflow: 'hidden',
                             width: 96,
-                            borderWidth: 2,
-                            borderColor: isSelected ? theme.colors.accent : theme.colors.border,
                           }}>
                           <Image
+                            contentFit="cover"
                             source={stylist.image}
                             style={{ height: '100%', width: '100%' }}
-                            contentFit="cover"
                           />
                         </View>
 
@@ -170,7 +179,7 @@ export function StylistChooserModal({ visible, recommendation, onClose }: Stylis
                 </View>
 
                 {errorMessage ? (
-                  <AppText tone="muted" style={{ color: theme.colors.danger, fontSize: 13, textAlign: 'center' }}>
+                  <AppText style={{ color: theme.colors.danger, fontSize: 13, textAlign: 'center' }}>
                     {errorMessage}
                   </AppText>
                 ) : null}
@@ -214,14 +223,14 @@ function SecondOpinionResult({
         <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md }}>
           <View
             style={{
+              borderColor: theme.colors.border,
               borderRadius: 28,
+              borderWidth: 1,
               height: 56,
               overflow: 'hidden',
               width: 56,
-              borderWidth: 1,
-              borderColor: theme.colors.border,
             }}>
-            <Image source={stylist.image} style={{ height: '100%', width: '100%' }} contentFit="cover" />
+            <Image contentFit="cover" source={stylist.image} style={{ height: '100%', width: '100%' }} />
           </View>
           <View style={{ flex: 1 }}>
             <AppText variant="sectionTitle">{stylist.name} {stylist.title}</AppText>
@@ -230,7 +239,7 @@ function SecondOpinionResult({
         </View>
       ) : null}
 
-      {/* Perspective */}
+      {/* Perspective — the main conversational opinion */}
       <View
         style={{
           backgroundColor: theme.colors.card,
@@ -240,29 +249,18 @@ function SecondOpinionResult({
           borderWidth: 1,
           padding: spacing.md,
         }}>
-        <AppText tone="muted" style={{ fontStyle: 'italic', lineHeight: 22 }}>
+        <AppText tone="muted" style={{ fontStyle: 'italic', lineHeight: 24 }}>
           "{result.perspective}"
         </AppText>
       </View>
 
-      {/* Key feedback */}
-      <View style={{ gap: spacing.xs }}>
-        <AppText variant="sectionTitle">Key Observations</AppText>
-        {result.keyFeedback.map((item, index) => (
-          <View key={index} style={{ alignItems: 'flex-start', flexDirection: 'row', gap: spacing.xs }}>
-            <Ionicons color={theme.colors.accent} name="ellipse" size={6} style={{ marginTop: 7 }} />
-            <AppText tone="muted" style={{ flex: 1 }}>{item}</AppText>
-          </View>
-        ))}
-      </View>
-
-      {/* Suggestions */}
-      <View style={{ gap: spacing.xs }}>
+      {/* Refinements */}
+      <View style={{ gap: spacing.sm }}>
         <AppText variant="sectionTitle">Refinements</AppText>
         {result.suggestions.map((item, index) => (
-          <View key={index} style={{ alignItems: 'flex-start', flexDirection: 'row', gap: spacing.xs }}>
+          <View key={index} style={{ alignItems: 'flex-start', flexDirection: 'row', gap: spacing.sm }}>
             <AppText tone="muted" style={{ minWidth: 18 }}>{index + 1}.</AppText>
-            <AppText tone="muted" style={{ flex: 1 }}>{item}</AppText>
+            <AppText tone="muted" style={{ flex: 1, lineHeight: 22 }}>{item}</AppText>
           </View>
         ))}
       </View>

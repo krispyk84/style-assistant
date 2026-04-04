@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -96,10 +96,15 @@ export function CreateLookRequestForm({
     setTierError(null);
   }
 
-  function updateAnchorItem(nextItem: LookAnchorItem) {
+  // useCallback with empty deps: setAnchorItems and setAnchorError are stable setState
+  // dispatchers. Without useCallback, updateAnchorItem gets a new reference every render,
+  // which causes AnchorItemCard's useEffect([onChange]) to fire → setAnchorItems →
+  // re-render → new reference → infinite loop → "Maximum update depth exceeded" →
+  // React unmounts the tree silently (effect errors don't reach ErrorBoundary) → blank screen.
+  const updateAnchorItem = useCallback((nextItem: LookAnchorItem) => {
     setAnchorItems((current) => current.map((item) => (item.id === nextItem.id ? nextItem : item)));
     setAnchorError(null);
-  }
+  }, []);
 
   function addAnchorItem() {
     setAnchorItems((current) => (current.length >= 5 ? current : [...current, createEmptyAnchorItem()]));

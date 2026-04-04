@@ -3,6 +3,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser-modal';
+
 import { LookTierDetailCard } from '@/components/cards/look-tier-detail-card';
 import { ClosetItemSheet } from '@/components/closet/closet-item-sheet';
 import { AppScreen } from '@/components/ui/app-screen';
@@ -38,6 +40,7 @@ export default function TierScreen() {
   const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null>>({});
   // The item whose sheet is currently open
   const [sheetItem, setSheetItem] = useState<ClosetItem | null>(null);
+  const [secondOpinionVisible, setSecondOpinionVisible] = useState(false);
 
   // ── Sketch polling ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -137,6 +140,24 @@ export default function TierScreen() {
           <AppText tone="muted">{matchedTier.shortDescription}</AppText>
         </View>
         <LookTierDetailCard definition={matchedTier} recommendation={liveRecommendation} />
+
+        {/* Second Opinion — ask a stylist about this specific look */}
+        <Pressable
+          onPress={() => setSecondOpinionVisible(true)}
+          style={{
+            alignItems: 'center',
+            borderColor: theme.colors.accent,
+            borderRadius: 999,
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.xs,
+            justifyContent: 'center',
+            minHeight: 48,
+            paddingHorizontal: spacing.md,
+          }}>
+          <Ionicons color={theme.colors.accent} name="chatbubble-ellipses-outline" size={18} />
+          <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
+        </Pressable>
         <View style={{ gap: spacing.md }}>
           <AppText variant="sectionTitle">Check recommended pieces</AppText>
           <AppText tone="muted">
@@ -215,6 +236,12 @@ export default function TierScreen() {
       {sheetItem ? (
         <ClosetItemSheet item={sheetItem} onClose={() => setSheetItem(null)} />
       ) : null}
+
+      <StylistChooserModal
+        visible={secondOpinionVisible}
+        recommendation={liveRecommendation}
+        onClose={() => setSecondOpinionVisible(false)}
+      />
     </AppScreen>
   );
 }

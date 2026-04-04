@@ -21,7 +21,6 @@ export type SecondOpinionResponse = {
   id: string;
   stylistId: StylistId;
   perspective: string;
-  keyFeedback: string[];
   suggestions: string[];
   createdAt: string;
 };
@@ -64,7 +63,6 @@ export const secondOpinionService = {
       id: crypto.randomUUID(),
       stylistId: input.stylistId,
       perspective: aiOutput.perspective,
-      keyFeedback: aiOutput.keyFeedback,
       suggestions: aiOutput.suggestions,
       createdAt: new Date().toISOString(),
     };

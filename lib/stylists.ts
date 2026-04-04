@@ -13,14 +13,14 @@ export const STYLISTS: Stylist[] = [
     id: 'vittorio',
     name: 'Vittorio',
     title: 'Sartori',
-    keywords: ['Milanese tailoring', 'Restrained luxury', 'Silhouette precision'],
+    keywords: ['Refined', 'Classic', 'Elegant', 'Commanding'],
     image: require('../assets/images/vittorio.png'),
   },
   {
     id: 'alessandra',
     name: 'Alessandra',
     title: 'Sartori',
-    keywords: ['Conceptual dressing', 'Bold silhouettes', 'Italian edge'],
+    keywords: ['Cultural', 'Cool', 'Current', 'Social'],
     image: require('../assets/images/alessandra.png'),
   },
 ];

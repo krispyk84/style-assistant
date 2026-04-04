@@ -144,7 +144,6 @@ export type SecondOpinionResponse = {
   id: string;
   stylistId: 'vittorio' | 'alessandra';
   perspective: string;
-  keyFeedback: string[];
   suggestions: string[];
   createdAt: string;
 };
