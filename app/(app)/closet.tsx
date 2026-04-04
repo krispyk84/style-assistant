@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, findNodeHandle, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, SectionList, TextInput, View, useWindowDimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
 import { PrimaryButton } from '@/components/ui/primary-button';
@@ -15,6 +15,17 @@ import type { ClosetItem } from '@/types/closet';
 const COLUMN_COUNT = 3;
 const POLL_INTERVAL_MS = 5000;
 
+// A row in the grid — up to COLUMN_COUNT items
+type ClosetRow = ClosetItem[];
+
+function chunkIntoRows(items: ClosetItem[]): ClosetRow[] {
+  const rows: ClosetRow[] = [];
+  for (let i = 0; i < items.length; i += COLUMN_COUNT) {
+    rows.push(items.slice(i, i + COLUMN_COUNT));
+  }
+  return rows;
+}
+
 export default function ClosetScreen() {
   const [items, setItems] = useState<ClosetItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,12 +33,18 @@ export default function ClosetScreen() {
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<ClosetItem | null>(null);
   const [addModalVisible, setAddModalVisible] = useState(false);
+  const [pendingScrollItemId, setPendingScrollItemId] = useState<string | null>(null);
   const translateX = useRef(new Animated.Value(-140)).current;
 
-  // ── Scroll-to-new-item ──────────────────────────────────────────────────────
-  const closetScrollRef = useRef<ScrollView>(null);
-  const newItemViewRef = useRef<View>(null);
-  const [pendingScrollItemId, setPendingScrollItemId] = useState<string | null>(null);
+  const { width: screenWidth } = useWindowDimensions();
+  // Compute cell width once at screen level — eliminates per-item onLayout state
+  const cellWidth = useMemo(
+    () => (screenWidth - spacing.lg * 2 - spacing.sm * (COLUMN_COUNT - 1)) / COLUMN_COUNT,
+    [screenWidth],
+  );
+
+  const flatListRef = useRef<FlatList<ClosetRow>>(null);
+  const sectionListRef = useRef<SectionList<ClosetRow>>(null);
 
   const loadItems = useCallback(async () => {
     const response = await closetService.getItems();
@@ -41,7 +58,7 @@ export default function ClosetScreen() {
     useCallback(() => {
       setIsLoading(true);
       void loadItems();
-    }, [loadItems])
+    }, [loadItems]),
   );
 
   // Loading bar animation
@@ -51,17 +68,17 @@ export default function ClosetScreen() {
       Animated.sequence([
         Animated.timing(translateX, { toValue: 220, duration: 1400, useNativeDriver: true }),
         Animated.timing(translateX, { toValue: -140, duration: 0, useNativeDriver: true }),
-      ])
+      ]),
     );
     animation.start();
     return () => animation.stop();
   }, [isLoading, translateX]);
 
-  // Poll for pending sketch items
+  // Poll for pending sketch items — depends on a stable boolean, not the entire items array,
+  // so the interval is only recreated when pending status actually flips.
+  const hasPendingItems = useMemo(() => items.some((item) => item.sketchStatus === 'pending'), [items]);
   useEffect(() => {
-    const hasPending = items.some((item) => item.sketchStatus === 'pending');
-    if (!hasPending) return;
-
+    if (!hasPendingItems) return;
     const interval = setInterval(() => {
       void closetService.getItems().then((response) => {
         if (response.success && response.data) {
@@ -69,53 +86,65 @@ export default function ClosetScreen() {
         }
       });
     }, POLL_INTERVAL_MS);
-
     return () => clearInterval(interval);
+  }, [hasPendingItems]);
+
+  // Memoised derived state — computed once per items/filter change, not on every render
+  const categories = useMemo(() => buildCategories(items), [items]);
+  const displayItems = useMemo(
+    () => (selectedCategory ? items.filter((item) => item.category === selectedCategory) : items),
+    [items, selectedCategory],
+  );
+  const filteredRows = useMemo(() => chunkIntoRows(displayItems), [displayItems]);
+  const sections = useMemo(() => {
+    const grouped = groupByCategory(items);
+    return Object.keys(grouped)
+      .sort((a, b) => a.localeCompare(b))
+      .map((cat) => ({ title: cat, data: chunkIntoRows(grouped[cat]!) }));
   }, [items]);
 
-  // After items reload, scroll to the newly added item if one is pending.
-  //
-  // We gate on two conditions before starting the 150 ms layout-commit wait:
-  //   1. The pending item is actually present in `items` (i.e. loadItems() has
-  //      completed and the new item is in the array).  Without this guard the
-  //      timeout fires before the list has updated, the ref is null, and
-  //      setPendingScrollItemId(null) gets called — meaning when items finally
-  //      reloads the effect won't re-run because pendingScrollItemId is gone.
-  //   2. The 150 ms gives React time to commit the layout for the newly rendered
-  //      row so measureLayout returns a valid Y offset.
+  // Scroll-to-new-item using FlatList/SectionList index-based APIs (no measureLayout needed)
   useEffect(() => {
     if (!pendingScrollItemId) return;
 
-    // Guard: only proceed once the item exists in the loaded list.
-    const itemIsLoaded = items.some((i) => i.id === pendingScrollItemId);
-    if (!itemIsLoaded) return;
-
-    const timeout = setTimeout(() => {
-      const itemView = newItemViewRef.current;
-      const scrollView = closetScrollRef.current;
-      if (!itemView || !scrollView) {
+    if (selectedCategory) {
+      // Filtered FlatList — scroll to the row containing the new item
+      const itemIndex = displayItems.findIndex((i) => i.id === pendingScrollItemId);
+      if (itemIndex < 0) return;
+      const rowIndex = Math.floor(itemIndex / COLUMN_COUNT);
+      const timeout = setTimeout(() => {
+        flatListRef.current?.scrollToIndex({ index: rowIndex, animated: true, viewOffset: spacing.xl });
         setPendingScrollItemId(null);
-        return;
-      }
-
-      const scrollNode = findNodeHandle(scrollView);
-      if (!scrollNode) {
+      }, 150);
+      return () => clearTimeout(timeout);
+    } else {
+      // SectionList — find section + row within that section
+      const newItem = items.find((i) => i.id === pendingScrollItemId);
+      if (!newItem) return;
+      const cat = newItem.category || 'Other';
+      const sectionIndex = sections.findIndex((s) => s.title === cat);
+      if (sectionIndex < 0) return;
+      const rowIndex =
+        sections[sectionIndex]?.data.findIndex((row) =>
+          row.some((i) => i.id === pendingScrollItemId),
+        ) ?? -1;
+      if (rowIndex < 0) return;
+      const timeout = setTimeout(() => {
+        try {
+          sectionListRef.current?.scrollToLocation({
+            sectionIndex,
+            itemIndex: rowIndex,
+            animated: true,
+            viewOffset: spacing.xl,
+          });
+        } catch {
+          // scrollToLocation can throw for unrendered items — ignore
+        }
         setPendingScrollItemId(null);
-        return;
-      }
-
-      itemView.measureLayout(
-        scrollNode as unknown as React.ElementRef<typeof View>,
-        (_, y) => {
-          scrollView.scrollTo({ y: Math.max(0, y - spacing.xl), animated: true });
-          setPendingScrollItemId(null);
-        },
-        () => { setPendingScrollItemId(null); },
-      );
-    }, 150);
-
-    return () => clearTimeout(timeout);
-  }, [items, pendingScrollItemId]);
+      }, 150);
+      return () => clearTimeout(timeout);
+    }
+  }, [displayItems, items, pendingScrollItemId, sections, selectedCategory]);
 
   function handleItemSaved(updated: ClosetItem) {
     setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
@@ -127,158 +156,191 @@ export default function ClosetScreen() {
     setEditingItem(null);
   }
 
-  /**
-   * Called once per successfully saved item from the add modal.
-   * Always resets to "All Items" so the new item is visible regardless of which
-   * category filter was active, then schedules a scroll-to once the list reloads.
-   */
   function handleNewItemSaved(savedItem: ClosetItem) {
-    // Always clear the category filter so the SectionedCloset ("All") view is
-    // shown — this ensures the new item is visible and the ref tree matches
-    // before we attempt to scroll.
     setSelectedCategory(null);
-    // Mark this item for scroll-to after the list reloads.
     setPendingScrollItemId(savedItem.id);
-    // Reload the list (state update batched with the above).
     void loadItems();
   }
 
-  const categories = buildCategories(items);
-  const displayItems = selectedCategory
-    ? items.filter((item) => item.category === selectedCategory)
-    : items;
   const activeLabel = selectedCategory ?? 'All Items';
 
-  return (
-    <AppScreen scrollable scrollRef={closetScrollRef}>
-      <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
-        {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <View style={{ gap: spacing.sm, flex: 1 }}>
-            <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
-              The Atelier
-            </AppText>
-            <AppText variant="heroSmall">My Closet</AppText>
-            <AppText tone="muted">Your catalogued wardrobe pieces.</AppText>
-          </View>
-          <Pressable
-            hitSlop={8}
-            onPress={() => setAddModalVisible(true)}
-            style={{
-              alignItems: 'center',
-              backgroundColor: theme.colors.accent,
-              borderRadius: 999,
-              height: 40,
-              justifyContent: 'center',
-              width: 40,
-            }}>
-            <Ionicons color="#FFF" name="add" size={22} />
-          </Pressable>
+  // renderItem is stable unless cellWidth changes (device rotation / window resize)
+  const renderRow = useCallback(
+    ({ item: row }: { item: ClosetRow }) => (
+      <ClosetGridRow row={row} cellWidth={cellWidth} onPressItem={setEditingItem} />
+    ),
+    [cellWidth],
+  );
+
+  const listHeaderContent = (
+    <View style={{ gap: spacing.xl, paddingBottom: spacing.xs }}>
+      {/* Title + add button */}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <View style={{ gap: spacing.sm, flex: 1 }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+            The Atelier
+          </AppText>
+          <AppText variant="heroSmall">My Closet</AppText>
+          <AppText tone="muted">Your catalogued wardrobe pieces.</AppText>
         </View>
+        <Pressable
+          hitSlop={8}
+          onPress={() => setAddModalVisible(true)}
+          style={{
+            alignItems: 'center',
+            backgroundColor: theme.colors.accent,
+            borderRadius: 999,
+            height: 40,
+            justifyContent: 'center',
+            width: 40,
+          }}>
+          <Ionicons color="#FFF" name="add" size={22} />
+        </Pressable>
+      </View>
 
-        {/* Loading bar */}
-        {isLoading ? (
+      {/* Loading bar */}
+      {isLoading ? (
+        <View
+          style={{
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            borderRadius: 28,
+            borderWidth: 1,
+            padding: spacing.xl,
+            gap: spacing.md,
+            alignItems: 'center',
+          }}>
           <View
             style={{
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.border,
-              borderRadius: 28,
-              borderWidth: 1,
-              padding: spacing.xl,
-              gap: spacing.md,
-              alignItems: 'center',
-            }}>
-            <View
-              style={{
-                backgroundColor: theme.colors.border,
-                borderRadius: 999,
-                height: 10,
-                overflow: 'hidden',
-                width: '100%',
-              }}>
-              <Animated.View
-                style={{
-                  backgroundColor: theme.colors.accent,
-                  borderRadius: 999,
-                  height: '100%',
-                  transform: [{ translateX }],
-                  width: 140,
-                }}
-              />
-            </View>
-            <AppText tone="muted">Loading your wardrobe...</AppText>
-          </View>
-        ) : null}
-
-        {/* Category filter */}
-        {!isLoading && items.length > 0 ? (
-          <Pressable
-            onPress={() => setFilterModalVisible(true)}
-            style={{
-              alignItems: 'center',
-              alignSelf: 'flex-start',
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.border,
+              backgroundColor: theme.colors.border,
               borderRadius: 999,
-              borderWidth: 1,
-              flexDirection: 'row',
-              gap: spacing.sm,
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.sm,
+              height: 10,
+              overflow: 'hidden',
+              width: '100%',
             }}>
-            <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>{activeLabel}</AppText>
-            <Ionicons color={theme.colors.mutedText} name="chevron-down" size={14} />
-          </Pressable>
-        ) : null}
-
-        {/* Grid or Sectioned list */}
-        {!isLoading ? (
-          selectedCategory ? (
-            <ClosetGrid
-              items={displayItems}
-              onPressItem={setEditingItem}
-              targetItemId={pendingScrollItemId}
-              targetItemRef={newItemViewRef}
+            <Animated.View
+              style={{
+                backgroundColor: theme.colors.accent,
+                borderRadius: 999,
+                height: '100%',
+                transform: [{ translateX }],
+                width: 140,
+              }}
             />
-          ) : (
-            <SectionedCloset
-              items={items}
-              onPressItem={setEditingItem}
-              targetItemId={pendingScrollItemId}
-              targetItemRef={newItemViewRef}
-            />
-          )
-        ) : null}
+          </View>
+          <AppText tone="muted">Loading your wardrobe...</AppText>
+        </View>
+      ) : null}
 
-        {/* Empty state */}
-        {!isLoading && items.length === 0 ? (
-          <View
-            style={{
-              alignItems: 'center',
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.border,
-              borderRadius: 28,
-              borderWidth: 1,
-              gap: spacing.md,
-              padding: spacing.xl,
-            }}>
-            <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
-            <View style={{ alignItems: 'center', gap: spacing.xs }}>
-              <AppText variant="sectionTitle">Your closet is empty</AppText>
-              <AppText tone="muted" style={{ textAlign: 'center' }}>
-                Save pieces from your outfit reviews or piece checks to start cataloguing your wardrobe.
+      {/* Category filter */}
+      {!isLoading && items.length > 0 ? (
+        <Pressable
+          onPress={() => setFilterModalVisible(true)}
+          style={{
+            alignItems: 'center',
+            alignSelf: 'flex-start',
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            borderRadius: 999,
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.sm,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.sm,
+          }}>
+          <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>{activeLabel}</AppText>
+          <Ionicons color={theme.colors.mutedText} name="chevron-down" size={14} />
+        </Pressable>
+      ) : null}
+
+      {/* Empty state */}
+      {!isLoading && items.length === 0 ? (
+        <View
+          style={{
+            alignItems: 'center',
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            borderRadius: 28,
+            borderWidth: 1,
+            gap: spacing.md,
+            padding: spacing.xl,
+          }}>
+          <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
+          <View style={{ alignItems: 'center', gap: spacing.xs }}>
+            <AppText variant="sectionTitle">Your closet is empty</AppText>
+            <AppText tone="muted" style={{ textAlign: 'center' }}>
+              Save pieces from your outfit reviews or piece checks to start cataloguing your wardrobe.
+            </AppText>
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'left', 'right']}>
+      {selectedCategory ? (
+        <FlatList<ClosetRow>
+          ref={flatListRef}
+          data={filteredRows}
+          keyExtractor={(row, i) => row[0]?.id ?? String(i)}
+          renderItem={renderRow}
+          ListHeaderComponent={listHeaderContent}
+          ItemSeparatorComponent={RowSeparator}
+          ListEmptyComponent={
+            !isLoading ? (
+              <AppText tone="muted" style={{ textAlign: 'center', paddingVertical: spacing.lg }}>
+                No items in this category.
+              </AppText>
+            ) : null
+          }
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl }}
+          windowSize={5}
+          maxToRenderPerBatch={5}
+          initialNumToRender={9}
+          removeClippedSubviews={Platform.OS === 'android'}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}
+          onScrollToIndexFailed={(info) => {
+            flatListRef.current?.scrollToOffset({
+              offset: info.averageItemLength * info.index,
+              animated: true,
+            });
+          }}
+        />
+      ) : (
+        <SectionList<ClosetRow>
+          ref={sectionListRef}
+          sections={sections}
+          keyExtractor={(row, i) => row[0]?.id ?? String(i)}
+          renderItem={renderRow}
+          renderSectionHeader={({ section: { title } }) => (
+            <View style={{ paddingBottom: spacing.md, paddingTop: spacing.xl }}>
+              <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+                {title}
               </AppText>
             </View>
-          </View>
-        ) : null}
-      </View>
+          )}
+          ListHeaderComponent={listHeaderContent}
+          ItemSeparatorComponent={RowSeparator}
+          stickySectionHeadersEnabled={false}
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl }}
+          windowSize={5}
+          maxToRenderPerBatch={5}
+          initialNumToRender={9}
+          removeClippedSubviews={Platform.OS === 'android'}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}
+          onScrollToIndexFailed={() => undefined}
+        />
+      )}
 
       <SaveToClosetModal
         visible={addModalVisible}
         onClose={() => setAddModalVisible(false)}
         onSaved={(savedItem) => {
-          // The modal manages its own close lifecycle (single or batch).
-          // We only handle data concerns here: reload + scroll.
           handleNewItemSaved(savedItem);
         }}
       />
@@ -299,78 +361,56 @@ export default function ClosetScreen() {
           onDeleted={handleItemDeleted}
         />
       ) : null}
-    </AppScreen>
+    </SafeAreaView>
   );
 }
 
-// ── Grid ─────────────────────────────────────────────────────────────────────
+const RowSeparator = () => <View style={{ height: spacing.sm }} />;
 
-function ClosetGrid({
-  items,
-  onPressItem,
-  targetItemId,
-  targetItemRef,
-}: {
-  items: ClosetItem[];
+// ── Grid row ──────────────────────────────────────────────────────────────────
+
+type ClosetGridRowProps = {
+  row: ClosetRow;
+  cellWidth: number;
   onPressItem: (item: ClosetItem) => void;
-  targetItemId?: string | null;
-  targetItemRef?: React.RefObject<View>;
-}) {
-  if (items.length === 0) {
-    return (
-      <AppText tone="muted" style={{ textAlign: 'center', paddingVertical: spacing.lg }}>
-        No items in this category.
-      </AppText>
-    );
-  }
+};
 
-  const rows: ClosetItem[][] = [];
-  for (let i = 0; i < items.length; i += COLUMN_COUNT) {
-    rows.push(items.slice(i, i + COLUMN_COUNT));
-  }
-
+const ClosetGridRow = React.memo(function ClosetGridRow({ row, cellWidth, onPressItem }: ClosetGridRowProps) {
   return (
-    <View style={{ gap: spacing.sm }}>
-      {rows.map((row, rowIndex) => (
-        <View key={rowIndex} style={{ flexDirection: 'row', gap: spacing.sm }}>
-          {row.map((item) => (
-            <ClosetGridItem
-              key={item.id}
-              item={item}
-              onPress={() => onPressItem(item)}
-              scrollTargetRef={item.id === targetItemId ? targetItemRef : undefined}
-            />
-          ))}
-          {row.length < COLUMN_COUNT
-            ? Array.from({ length: COLUMN_COUNT - row.length }).map((_, i) => (
-                <View key={`empty-${i}`} style={{ flex: 1 }} />
-              ))
-            : null}
-        </View>
+    <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+      {row.map((item) => (
+        <ClosetGridItem
+          key={item.id}
+          item={item}
+          cellWidth={cellWidth}
+          onPress={onPressItem}
+        />
       ))}
+      {row.length < COLUMN_COUNT
+        ? Array.from({ length: COLUMN_COUNT - row.length }).map((_, i) => (
+            <View key={`empty-${i}`} style={{ flex: 1 }} />
+          ))
+        : null}
     </View>
   );
-}
+});
 
-function ClosetGridItem({
-  item,
-  onPress,
-  scrollTargetRef,
-}: {
+// ── Grid item ─────────────────────────────────────────────────────────────────
+
+type ClosetGridItemProps = {
   item: ClosetItem;
-  onPress: () => void;
-  scrollTargetRef?: React.RefObject<View>;
-}) {
-  const [cellWidth, setCellWidth] = useState(0);
+  cellWidth: number;
+  onPress: (item: ClosetItem) => void;
+};
+
+const ClosetGridItem = React.memo(function ClosetGridItem({ item, cellWidth, onPress }: ClosetGridItemProps) {
   const hasBoth = Boolean(item.sketchImageUrl) && Boolean(item.uploadedImageUrl);
   const primaryUri = item.sketchImageUrl ?? item.uploadedImageUrl ?? null;
 
   return (
-    // The wrapping View receives the scroll-target ref so measureLayout can find it.
-    <View ref={scrollTargetRef} style={{ flex: 1 }}>
-      <Pressable style={{ flex: 1, gap: spacing.xs }} onPress={onPress}>
+    <View style={{ flex: 1 }}>
+      <Pressable style={{ flex: 1, gap: spacing.xs }} onPress={() => onPress(item)}>
         <View
-          onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
           style={{
             aspectRatio: 3 / 4,
             backgroundColor: theme.colors.card,
@@ -416,42 +456,7 @@ function ClosetGridItem({
       </Pressable>
     </View>
   );
-}
-
-// ── Sectioned view ────────────────────────────────────────────────────────────
-
-function SectionedCloset({
-  items,
-  onPressItem,
-  targetItemId,
-  targetItemRef,
-}: {
-  items: ClosetItem[];
-  onPressItem: (item: ClosetItem) => void;
-  targetItemId?: string | null;
-  targetItemRef?: React.RefObject<View>;
-}) {
-  const grouped = groupByCategory(items);
-  const sortedCategories = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
-
-  return (
-    <View style={{ gap: spacing.xl }}>
-      {sortedCategories.map((category) => (
-        <View key={category} style={{ gap: spacing.md }}>
-          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
-            {category}
-          </AppText>
-          <ClosetGrid
-            items={grouped[category]!}
-            onPressItem={onPressItem}
-            targetItemId={targetItemId}
-            targetItemRef={targetItemRef}
-          />
-        </View>
-      ))}
-    </View>
-  );
-}
+});
 
 // ── Edit modal ────────────────────────────────────────────────────────────────
 

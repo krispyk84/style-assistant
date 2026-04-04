@@ -1,11 +1,68 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandSplash } from '@/components/ui/brand-splash';
 import { AppText } from '@/components/ui/app-text';
-import { theme } from '@/constants/theme';
+import { spacing, theme } from '@/constants/theme';
 import { useAppSession } from '@/hooks/use-app-session';
+
+// Catches render exceptions inside any tab screen and shows a recoverable fallback
+// instead of a blank screen. Uses only primitive RN components so it cannot itself fail.
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: spacing.lg,
+          paddingHorizontal: spacing.lg,
+        }}>
+        <Text
+          style={{
+            color: theme.colors.text,
+            fontFamily: theme.fonts.sansMedium,
+            fontSize: 16,
+            textAlign: 'center',
+          }}>
+          Something went wrong
+        </Text>
+        <Text
+          style={{
+            color: theme.colors.mutedText,
+            fontFamily: theme.fonts.sans,
+            fontSize: 14,
+            textAlign: 'center',
+          }}
+          numberOfLines={4}>
+          {error.message || 'An unexpected error occurred. Please try again.'}
+        </Text>
+        <Pressable
+          onPress={retry}
+          style={{
+            backgroundColor: theme.colors.text,
+            borderRadius: 999,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.sm,
+          }}>
+          <Text
+            style={{
+              color: theme.colors.background,
+              fontFamily: theme.fonts.sansMedium,
+              fontSize: 14,
+              letterSpacing: 0.8,
+              textTransform: 'uppercase',
+            }}>
+            Retry
+          </Text>
+        </Pressable>
+      </View>
+    </SafeAreaView>
+  );
+}
 
 const TAB_ICON_SIZE = 22;
 

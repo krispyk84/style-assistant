@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 
 import { OutfitResultCard } from '@/components/cards/outfit-result-card';
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
@@ -22,84 +22,87 @@ export default function HistoryScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [weekPickerItem, setWeekPickerItem] = useState<SavedOutfit | null>(null);
-  const isFocused = useIsFocused();
   const { showToast } = useToast();
 
-  useEffect(() => {
-    let isMounted = true;
+  // useFocusEffect runs ONLY when this screen gains focus, not when leaving it.
+  // Previously, useEffect([isFocused]) ran on both gain and loss, creating racing
+  // async calls. The catch block also never called setIsLoading(false), leaving
+  // the screen permanently stuck on the loading spinner after any network error.
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
 
-    async function loadHistory() {
-      try {
-        const savedOutfits = await loadSavedOutfits();
-
-        if (!isMounted) {
-          return;
-        }
-
-        setItems(savedOutfits);
-        setErrorMessage(null);
-        setIsLoading(false);
-
-        // Only hydrate outfits whose sketch was still pending at save time.
-        // Never replace outfit content (title, keyPieces, etc.) — saved outfits
-        // are immutable snapshots and must not reflect later regenerations.
-        const hydratedSavedOutfits = await Promise.all(
-          savedOutfits.map(async (savedOutfit) => {
-            if (savedOutfit.recommendation.sketchStatus !== 'pending') {
-              return savedOutfit;
-            }
-
-            const response = await outfitsService.getOutfitResult(savedOutfit.requestId);
-
-            if (!response.success || !response.data) {
-              return savedOutfit;
-            }
-
-            const liveRecommendation = response.data.recommendations.find(
-              (item) => item.tier === savedOutfit.recommendation.tier
-            );
-
-            if (!liveRecommendation || liveRecommendation.sketchStatus !== 'ready') {
-              return savedOutfit;
-            }
-
-            return {
-              ...savedOutfit,
-              recommendation: {
-                ...savedOutfit.recommendation,
-                sketchStatus: liveRecommendation.sketchStatus,
-                sketchImageUrl: liveRecommendation.sketchImageUrl,
-              },
-            };
-          })
-        );
-
-        if (!isMounted) {
-          return;
-        }
-
-        setItems(hydratedSavedOutfits);
-        setErrorMessage(null);
-        await replaceSavedOutfits(hydratedSavedOutfits);
-      } catch {
-        if (!isMounted) {
-          return;
-        }
-
-        setItems([]);
-        setErrorMessage('Failed to load saved outfits.');
-      }
-    }
-
-    if (isFocused) {
       setIsLoading(true);
-      void loadHistory();
-    }
 
-    return () => {
-      isMounted = false;
-    };
-  }, [isFocused]);
+      void (async function loadHistory() {
+        try {
+          const savedOutfits = await loadSavedOutfits();
+
+          if (!isMounted) {
+            return;
+          }
+
+          setItems(savedOutfits);
+          setErrorMessage(null);
+          setIsLoading(false);
+
+          // Only hydrate outfits whose sketch was still pending at save time.
+          // Never replace outfit content (title, keyPieces, etc.) — saved outfits
+          // are immutable snapshots and must not reflect later regenerations.
+          const hydratedSavedOutfits = await Promise.all(
+            savedOutfits.map(async (savedOutfit) => {
+              if (savedOutfit.recommendation.sketchStatus !== 'pending') {
+                return savedOutfit;
+              }
+
+              const response = await outfitsService.getOutfitResult(savedOutfit.requestId);
+
+              if (!response.success || !response.data) {
+                return savedOutfit;
+              }
+
+              const liveRecommendation = response.data.recommendations.find(
+                (item) => item.tier === savedOutfit.recommendation.tier
+              );
+
+              if (!liveRecommendation || liveRecommendation.sketchStatus !== 'ready') {
+                return savedOutfit;
+              }
+
+              return {
+                ...savedOutfit,
+                recommendation: {
+                  ...savedOutfit.recommendation,
+                  sketchStatus: liveRecommendation.sketchStatus,
+                  sketchImageUrl: liveRecommendation.sketchImageUrl,
+                },
+              };
+            })
+          );
+
+          if (!isMounted) {
+            return;
+          }
+
+          setItems(hydratedSavedOutfits);
+          setErrorMessage(null);
+          await replaceSavedOutfits(hydratedSavedOutfits);
+        } catch {
+          if (!isMounted) {
+            return;
+          }
+
+          setItems([]);
+          setErrorMessage('Failed to load saved outfits.');
+          setIsLoading(false); // was missing — previously left screen stuck on loading spinner
+        }
+      })();
+
+      return () => {
+        isMounted = false;
+      };
+    }, [])
+  );
 
   async function handleDelete(savedOutfitId: string) {
     setDeletingId(savedOutfitId);

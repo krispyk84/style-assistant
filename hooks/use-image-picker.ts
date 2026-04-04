@@ -28,7 +28,6 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
   const cameraImagePicker = ImagePicker as typeof ImagePicker & {
     requestCameraPermissionsAsync: () => Promise<{ granted: boolean }>;
     launchCameraAsync: (options: {
-      allowsEditing: boolean;
       cameraType: 'back' | 'front';
       mediaTypes: string[];
       quality: number;
@@ -60,7 +59,6 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
       mediaTypes: ['images'],
       quality: 0.9,
       selectionLimit: 1,
@@ -123,7 +121,6 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
       }
 
       const result = await cameraImagePicker.launchCameraAsync({
-        allowsEditing: true,
         cameraType: cameraImagePicker.CameraType.back,
         mediaTypes: ['images'],
         quality: 0.9,

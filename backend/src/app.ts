@@ -15,6 +15,7 @@ import { compatibilityRouter } from './modules/compatibility/compatibility.route
 import { healthRouter } from './modules/health/health.routes.js';
 import { outfitsRouter } from './modules/outfits/outfits.routes.js';
 import { profileRouter } from './modules/profile/profile.routes.js';
+import { secondOpinionRouter } from './modules/second-opinion/second-opinion.routes.js';
 import { selfieReviewRouter } from './modules/selfie-review/selfie-review.routes.js';
 import { uploadsRouter } from './modules/uploads/uploads.routes.js';
 
@@ -75,6 +76,7 @@ export function createApp() {
   apiRouter.use(closetRouter);
   apiRouter.use(compatibilityRouter);
   apiRouter.use(selfieReviewRouter);
+  apiRouter.use(secondOpinionRouter);
   apiRouter.use(uploadsRouter);
 
   app.use(apiRouter);

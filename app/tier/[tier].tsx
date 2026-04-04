@@ -1,19 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Link, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { LookTierDetailCard } from '@/components/cards/look-tier-detail-card';
+import { ClosetItemSheet } from '@/components/closet/closet-item-sheet';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing, theme } from '@/constants/theme';
+import { loadAppSettings } from '@/lib/app-settings-storage';
+import { findBestClosetMatch } from '@/lib/closet-match';
 import { getLookTierDefinition } from '@/lib/look-mock-data';
 import { parseLookInput, parseLookRecommendation, type LookRouteParams } from '@/lib/look-route';
-import type { LookRecommendation } from '@/types/look-request';
+import { closetService } from '@/services/closet';
 import { outfitsService } from '@/services/outfits';
+import type { ClosetItem } from '@/types/closet';
+import type { LookRecommendation } from '@/types/look-request';
 
 export default function TierScreen() {
   const params = useLocalSearchParams<LookRouteParams & { tier: string; requestId?: string }>();
@@ -25,9 +30,16 @@ export default function TierScreen() {
   const matchedTier = stableParams.tier ? getLookTierDefinition(stableParams.tier) : undefined;
   const requestInput = useMemo(() => parseLookInput(stableParams), [stableParams]);
   const initialRecommendation = useMemo(() => parseLookRecommendation(stableParams), [stableParams]);
-  // liveRecommendation starts from URL params and is updated by the sketch-polling effect
   const [liveRecommendation, setLiveRecommendation] = useState<LookRecommendation | null>(initialRecommendation);
 
+  // ── Closet matching state ──────────────────────────────────────────────────
+  const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
+  // suggestion string → matched ClosetItem (null = no match, undefined = not yet resolved)
+  const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null>>({});
+  // The item whose sheet is currently open
+  const [sheetItem, setSheetItem] = useState<ClosetItem | null>(null);
+
+  // ── Sketch polling ─────────────────────────────────────────────────────────
   useEffect(() => {
     const requestId = stableParams.requestId;
     const tier = stableParams.tier;
@@ -52,6 +64,54 @@ export default function TierScreen() {
     return () => clearInterval(interval);
   }, [liveRecommendation?.sketchStatus, stableParams.requestId, stableParams.tier]);
 
+  // ── Load closet items once on mount ───────────────────────────────────────
+  useEffect(() => {
+    void closetService.getItems().then((response) => {
+      if (response.success && response.data) {
+        setClosetItems(response.data.items);
+      }
+    });
+  }, []);
+
+  // ── LLM-based closet matching (runs when both closet and recommendation are ready) ──
+  useEffect(() => {
+    if (!liveRecommendation || !closetItems.length) return;
+
+    const suggestions = [
+      ...liveRecommendation.keyPieces,
+      ...liveRecommendation.shoes,
+      ...liveRecommendation.accessories,
+    ];
+    const uniqueSuggestions = [...new Set(suggestions)];
+    if (!uniqueSuggestions.length) return;
+
+    void (async () => {
+      const { closetMatchSensitivity } = await loadAppSettings();
+      return closetService.matchItems({
+        suggestions: uniqueSuggestions,
+        items: closetItems.map((item) => ({
+          id: item.id,
+          title: item.title,
+          category: item.category,
+          brand: item.brand || undefined,
+        })),
+        sensitivity: closetMatchSensitivity,
+      });
+    })().then((matchResponse) => {
+      if (!matchResponse.success || !matchResponse.data) return;
+      const resolved: Record<string, ClosetItem | null> = {};
+      for (const match of matchResponse.data.matches) {
+        const item = match.matchedItemId
+          ? (closetItems.find((c) => c.id === match.matchedItemId) ?? null)
+          : null;
+        resolved[match.suggestion] = item;
+      }
+      setMatchMap(resolved);
+    });
+  // Re-run only when the closet reloads — piece suggestions don't change after load
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closetItems]);
+
   if (!matchedTier || !liveRecommendation) {
     return (
       <AppScreen>
@@ -65,7 +125,8 @@ export default function TierScreen() {
     );
   }
 
-  const piecesToCheck = buildPiecesToCheck(liveRecommendation);
+  const piecesToCheck = buildPiecesToCheck(liveRecommendation, closetItems, matchMap);
+  const hasAnyMatch = piecesToCheck.some((p) => p.matchedClosetItem !== null);
 
   return (
     <AppScreen scrollable>
@@ -81,28 +142,50 @@ export default function TierScreen() {
           <AppText tone="muted">
             Compare the pieces you own against this exact recommendation. You can check any items you want before moving to the selfie review.
           </AppText>
+
+          {/* Closet match legend — only shown when at least one piece is owned */}
+          {hasAnyMatch ? (
+            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
+              <Ionicons color={theme.colors.accent} name="checkmark-circle-outline" size={13} />
+              <AppText tone="muted" style={{ fontSize: 12 }}>
+                You already own a similar piece
+              </AppText>
+            </View>
+          ) : null}
+
           {piecesToCheck.map((piece) => (
-            <Link
+            <Pressable
               key={`${piece.label}-${piece.value}`}
-              href={{
-                pathname: '/check-piece',
-                params: {
-                  requestId: stableParams.requestId,
-                  tier: liveRecommendation.tier,
-                  outfitTitle: liveRecommendation.title,
-                  anchorItemDescription: requestInput?.anchorItemDescription,
-                  pieceName: piece.value,
-                },
-              }}
-              asChild>
-              <Pressable style={pieceRowStyle}>
-                <View style={{ flex: 1, gap: spacing.xs }}>
-                  <AppText variant="sectionTitle">{piece.label}</AppText>
-                  <AppText tone="muted">{piece.value}</AppText>
-                </View>
-                <Ionicons color={theme.colors.text} name="camera-outline" size={22} />
-              </Pressable>
-            </Link>
+              style={pieceRowStyle}
+              onPress={() =>
+                router.push({
+                  pathname: '/check-piece',
+                  params: {
+                    requestId: stableParams.requestId,
+                    tier: liveRecommendation.tier,
+                    outfitTitle: liveRecommendation.title,
+                    anchorItemDescription: requestInput?.anchorItemDescription,
+                    pieceName: piece.value,
+                  },
+                })
+              }>
+              <View style={{ flex: 1, gap: spacing.xs }}>
+                <AppText variant="sectionTitle">{piece.label}</AppText>
+                <AppText tone="muted">{piece.value}</AppText>
+              </View>
+              {/* Closet match checkmark — tapping opens ClosetItemSheet */}
+              {piece.matchedClosetItem ? (
+                <Pressable
+                  accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view.`}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={() => setSheetItem(piece.matchedClosetItem!)}
+                  style={{ paddingTop: 2 }}>
+                  <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} />
+                </Pressable>
+              ) : null}
+              <Ionicons color={theme.colors.text} name="camera-outline" size={22} />
+            </Pressable>
           ))}
         </View>
         <View style={{ gap: spacing.sm, paddingTop: spacing.sm }}>
@@ -127,20 +210,59 @@ export default function TierScreen() {
           />
         </View>
       </View>
+
+      {/* Bottom sheet shown when user taps a closet-match checkmark */}
+      {sheetItem ? (
+        <ClosetItemSheet item={sheetItem} onClose={() => setSheetItem(null)} />
+      ) : null}
     </AppScreen>
   );
 }
 
-function buildPiecesToCheck(recommendation: LookRecommendation) {
+// ── Piece list construction ────────────────────────────────────────────────────
+
+type LabeledPiece = {
+  label: string;
+  value: string;
+  matchedClosetItem: ClosetItem | null;
+};
+
+/**
+ * Resolves the best closet match for a suggestion string.
+ * Trusts the LLM matchMap when available, falls back to local scoring
+ * while the LLM response is still loading (same strategy as LookResultCard).
+ */
+function resolveMatch(
+  suggestion: string,
+  closetItems: ClosetItem[],
+  matchMap: Record<string, ClosetItem | null>
+): ClosetItem | null {
+  if (Object.prototype.hasOwnProperty.call(matchMap, suggestion)) {
+    const llmResult = matchMap[suggestion] ?? null;
+    if (llmResult) return llmResult;
+    // LLM returned null — run local scoring as safety net
+    return findBestClosetMatch(suggestion, closetItems);
+  }
+  // matchMap not yet populated — fall back to local scoring while LLM loads
+  return findBestClosetMatch(suggestion, closetItems);
+}
+
+function buildPiecesToCheck(
+  recommendation: LookRecommendation,
+  closetItems: ClosetItem[],
+  matchMap: Record<string, ClosetItem | null>
+): LabeledPiece[] {
   const rows = recommendation.keyPieces.map((piece, index) => ({
     label: labelForKeyPiece(piece, index),
     value: piece,
+    matchedClosetItem: resolveMatch(piece, closetItems, matchMap),
   }));
 
   recommendation.shoes.forEach((shoe, index) => {
     rows.push({
       label: index === 0 ? 'Shoes' : `Shoe ${index + 1}`,
       value: shoe,
+      matchedClosetItem: resolveMatch(shoe, closetItems, matchMap),
     });
   });
 
@@ -148,6 +270,7 @@ function buildPiecesToCheck(recommendation: LookRecommendation) {
     rows.push({
       label: `Accessory ${index + 1}`,
       value: accessory,
+      matchedClosetItem: resolveMatch(accessory, closetItems, matchMap),
     });
   });
 

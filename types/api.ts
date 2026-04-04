@@ -126,6 +126,29 @@ export type GetClosetSketchResponse = {
   sketchImageUrl: string | null;
 };
 
+export type SecondOpinionRequest = {
+  stylistId: 'vittorio' | 'alessandra';
+  profileId?: string;
+  outfitTitle?: string;
+  tier?: string;
+  anchorItem?: string;
+  keyPieces?: string[];
+  shoes?: string[];
+  accessories?: string[];
+  fitNotes?: string[];
+  whyItWorks?: string;
+  stylingDirection?: string;
+};
+
+export type SecondOpinionResponse = {
+  id: string;
+  stylistId: 'vittorio' | 'alessandra';
+  perspective: string;
+  keyFeedback: string[];
+  suggestions: string[];
+  createdAt: string;
+};
+
 export type ClosetMatchRequest = {
   suggestions: string[];
   items: { id: string; title: string; category: string; brand?: string }[];

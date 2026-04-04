@@ -1,4 +1,4 @@
-import { createContext, PropsWithChildren, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { defaultProfile } from '@/lib/default-profile';
@@ -127,12 +127,13 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
     return () => subscription.remove();
   }, []);
 
-  async function saveProfile(nextProfile: Profile, completeOnboarding = hasCompletedOnboarding) {
+  const saveProfile = useCallback(async (nextProfile: Profile, completeOnboarding?: boolean) => {
+    const willCompleteOnboarding = completeOnboarding ?? hasCompletedOnboarding;
     setIsSaving(true);
     setErrorMessage(null);
     const response = await profileService.saveProfile({
       profile: nextProfile,
-      onboardingCompleted: completeOnboarding,
+      onboardingCompleted: willCompleteOnboarding,
     });
 
     if (response.success && response.data) {
@@ -152,20 +153,23 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
 
     setIsSaving(false);
     return false;
-  }
+  }, [hasCompletedOnboarding]);
+
+  // Stable context value — only recreated when actual values change, preventing
+  // broad consumer re-renders when unrelated session state updates.
+  const contextValue = useMemo(() => ({
+    appInstanceKey,
+    hasCompletedOnboarding,
+    isHydrated,
+    isReconnecting,
+    isSaving,
+    profile,
+    errorMessage,
+    saveProfile,
+  }), [appInstanceKey, hasCompletedOnboarding, isHydrated, isReconnecting, isSaving, profile, errorMessage, saveProfile]);
 
   return (
-    <AppSessionContext.Provider
-      value={{
-        appInstanceKey,
-        hasCompletedOnboarding,
-        isHydrated,
-        isReconnecting,
-        isSaving,
-        profile,
-        errorMessage,
-        saveProfile,
-      }}>
+    <AppSessionContext.Provider value={contextValue}>
       {children}
     </AppSessionContext.Provider>
   );

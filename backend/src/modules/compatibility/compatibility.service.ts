@@ -42,11 +42,21 @@ export const compatibilityService = {
     if (uploadedImage) {
       userContent.push(await buildModelImageInput(uploadedImage));
     } else if (input.imageUrl) {
-      userContent.push({
-        type: 'input_image',
-        image_url: input.imageUrl,
-        detail: 'high',
-      });
+      // Fetch the image server-side so OpenAI receives base64 data rather than a
+      // potentially private/inaccessible URL (e.g. internal Render storage URLs).
+      try {
+        const imageRes = await fetch(input.imageUrl);
+        if (imageRes.ok) {
+          const buffer = await imageRes.arrayBuffer();
+          const base64 = Buffer.from(buffer).toString('base64');
+          const contentType = imageRes.headers.get('content-type') ?? 'image/jpeg';
+          userContent.push({ type: 'input_image', image_url: `data:${contentType};base64,${base64}`, detail: 'high' });
+        } else {
+          userContent.push({ type: 'input_image', image_url: input.imageUrl, detail: 'high' });
+        }
+      } catch {
+        userContent.push({ type: 'input_image', image_url: input.imageUrl, detail: 'high' });
+      }
     }
 
     const aiOutput = await openAiClient.createStructuredResponse({

@@ -211,3 +211,41 @@ export const selfieReviewJsonSchema = {
   },
   required: ['verdict', 'strengths', 'issues', 'recommendedAdjustments'],
 } as const;
+
+export const secondOpinionModelSchema = z.object({
+  perspective: z.string().min(1),
+  keyFeedback: z.array(z.string().min(1)).min(2).max(3),
+  suggestions: z.array(z.string().min(1)).min(2).max(3),
+});
+
+export type SecondOpinionModelOutput = z.infer<typeof secondOpinionModelSchema>;
+
+export const secondOpinionJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    perspective: {
+      type: 'string',
+      minLength: 1,
+    },
+    keyFeedback: {
+      type: 'array',
+      minItems: 2,
+      maxItems: 3,
+      items: {
+        type: 'string',
+        minLength: 1,
+      },
+    },
+    suggestions: {
+      type: 'array',
+      minItems: 2,
+      maxItems: 3,
+      items: {
+        type: 'string',
+        minLength: 1,
+      },
+    },
+  },
+  required: ['perspective', 'keyFeedback', 'suggestions'],
+} as const;

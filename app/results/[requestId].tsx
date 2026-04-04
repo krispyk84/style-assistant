@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { LoadingState, extendedFashionLoadingMessages } from '@/components/ui/loading-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
+import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser-modal';
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
@@ -38,6 +39,7 @@ export default function ResultDetailsScreen() {
   const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null>>({});
   const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
   const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
+  const [secondOpinionTier, setSecondOpinionTier] = useState<LookTierSlug | null>(null);
   const { showToast } = useToast();
   const parsedInput = useMemo(() => parseLookInput(stableParams), [stableParams]);
 
@@ -297,6 +299,7 @@ export default function ResultDetailsScreen() {
             isSaving={savingTier === recommendation.tier}
             onSave={() => void handleSave(recommendation.tier)}
             onAddToWeek={() => setWeekPickerTier(recommendation.tier)}
+            onSecondOpinion={() => setSecondOpinionTier(recommendation.tier)}
             closetItems={closetItems}
             matchMap={matchMap}
             detailHref={buildTierHref(
@@ -313,6 +316,13 @@ export default function ResultDetailsScreen() {
         onClose={() => setWeekPickerTier(null)}
         onSelectDay={handleAssignToWeek}
       />
+      {secondOpinionTier && response ? (
+        <StylistChooserModal
+          visible
+          recommendation={response.recommendations.find((r) => r.tier === secondOpinionTier)!}
+          onClose={() => setSecondOpinionTier(null)}
+        />
+      ) : null}
     </AppScreen>
   );
 }

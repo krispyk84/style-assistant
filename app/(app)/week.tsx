@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useIsFocused } from '@react-navigation/native';
-import { Link } from 'expo-router';
+import { Link, useFocusEffect } from 'expo-router';
 
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
@@ -27,61 +26,65 @@ export default function WeekScreen() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [forecastByDay, setForecastByDay] = useState<Record<string, WeekForecastDay>>({});
   const [isLoadingWeek, setIsLoadingWeek] = useState(true);
-  const isFocused = useIsFocused();
   const { showToast } = useToast();
   const { profile } = useAppSession();
 
-  useEffect(() => {
-    let isMounted = true;
+  // useFocusEffect runs ONLY when this screen gains focus, never when losing it.
+  // Previously, useEffect([isFocused]) ran on BOTH focus gain and focus loss, creating
+  // two concurrent hydrate() calls with racing isMounted closures that could drop state
+  // updates and leave the screen stuck on the loading spinner.
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
 
-    async function hydrate() {
-      setIsLoadingWeek(true);
-      const [nextItems, savedOutfits, forecast] = await Promise.all([
-        loadWeekPlan(),
-        loadSavedOutfits(),
-        loadNextSevenDayForecast().catch(() => [] as WeekForecastDay[]),
-      ]);
+      void (async function hydrate() {
+        setIsLoadingWeek(true);
+        const [nextItems, savedOutfits, forecast] = await Promise.all([
+          loadWeekPlan(),
+          loadSavedOutfits(),
+          loadNextSevenDayForecast().catch(() => [] as WeekForecastDay[]),
+        ]);
 
-      const refreshedItems = await Promise.all(
-        nextItems.map(async (item) => {
-          const response = await outfitsService.getOutfitResult(item.requestId);
+        const refreshedItems = await Promise.all(
+          nextItems.map(async (item) => {
+            const response = await outfitsService.getOutfitResult(item.requestId);
 
-          if (!response.success || !response.data) {
-            return item;
-          }
+            if (!response.success || !response.data) {
+              return item;
+            }
 
-          const latestRecommendation = response.data.recommendations.find(
-            (recommendation) => recommendation.tier === item.recommendation.tier
-          );
+            const latestRecommendation = response.data.recommendations.find(
+              (recommendation) => recommendation.tier === item.recommendation.tier
+            );
 
-          if (!latestRecommendation) {
-            return item;
-          }
+            if (!latestRecommendation) {
+              return item;
+            }
 
-          return {
-            ...item,
-            input: response.data.input,
-            recommendation: latestRecommendation,
-          };
-        })
-      );
+            return {
+              ...item,
+              input: response.data.input,
+              recommendation: latestRecommendation,
+            };
+          })
+        );
 
-      if (isMounted) {
-        setItems(refreshedItems);
-        setSavedOutfitIds(savedOutfits.map((item) => item.id));
-        setForecastByDay(Object.fromEntries(forecast.map((day) => [day.dayKey, day])));
-        setIsLoadingWeek(false);
-      }
+        if (isMounted) {
+          setItems(refreshedItems);
+          setSavedOutfitIds(savedOutfits.map((item) => item.id));
+          setForecastByDay(Object.fromEntries(forecast.map((day) => [day.dayKey, day])));
+          setIsLoadingWeek(false);
+        }
 
-      await replaceWeekPlan(refreshedItems);
-    }
+        // Persist refresh even if the user has navigated away
+        await replaceWeekPlan(refreshedItems);
+      })();
 
-    void hydrate();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isFocused]);
+      return () => {
+        isMounted = false;
+      };
+    }, [])
+  );
 
   const days = getNextSevenDays();
 

@@ -21,6 +21,7 @@ type LookResultCardProps = {
   isSaving?: boolean;
   onSave?: () => void;
   onAddToWeek?: () => void;
+  onSecondOpinion?: () => void;
   /** Closet items — used as fallback matching when matchMap is not yet populated. */
   closetItems?: ClosetItem[];
   /** Pre-computed LLM matches: suggestion string → ClosetItem or null. When provided, takes precedence over local scoring. */
@@ -36,6 +37,7 @@ export function LookResultCard({
   isSaving = false,
   onSave,
   onAddToWeek,
+  onSecondOpinion,
   closetItems = [],
   matchMap,
 }: LookResultCardProps) {
@@ -191,10 +193,26 @@ export function LookResultCard({
         </Pressable>
         <Link href={detailHref} asChild>
           <Pressable style={actionButtonStyle}>
-            <AppText>Select tier</AppText>
+            <AppText>View Look</AppText>
           </Pressable>
         </Link>
       </View>
+
+      <Pressable
+        onPress={onSecondOpinion}
+        style={[
+          actionButtonStyle,
+          {
+            flexDirection: 'row',
+            gap: spacing.xs,
+            flex: undefined,
+            width: '100%',
+            borderColor: theme.colors.accent,
+          },
+        ]}>
+        <Ionicons color={theme.colors.accent} name="chatbubble-ellipses-outline" size={18} />
+        <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
+      </Pressable>
 
       {/* Bottom sheet shown when user taps a checkmark */}
       {matchedItem ? (

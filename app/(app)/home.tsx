@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, View } from 'react-native';
 
 import { WeatherCard } from '@/components/cards/weather-card';
@@ -30,6 +30,17 @@ export default function HomeScreen() {
   const [carouselImages, setCarouselImages] = useState<string[]>([]);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  // Track focus so the carousel animation is skipped when on another tab
+  const isFocusedRef = useRef(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      isFocusedRef.current = true;
+      return () => {
+        isFocusedRef.current = false;
+      };
+    }, []),
+  );
 
   useEffect(() => {
     async function loadImages() {
@@ -48,6 +59,8 @@ export default function HomeScreen() {
     if (carouselImages.length <= 1) return;
 
     const interval = setInterval(() => {
+      // Skip animation work when the home tab is not visible
+      if (!isFocusedRef.current) return;
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: FADE_DURATION_MS,
