@@ -760,12 +760,10 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                     <View style={{ flex: 1 }}><LabelRow label="Brand" value={item?.brand || '—'} /></View>
                     <View style={{ flex: 1 }}><LabelRow label="Size" value={item?.size || '—'} /></View>
                   </View>
-                  {item?.fitStatus ? (
-                    <LabelRow
-                      label="How It Fits"
-                      value={CLOSET_FIT_STATUS_OPTIONS.find((o) => o.value === item.fitStatus)?.label}
-                    />
-                  ) : null}
+                  <LabelRow
+                    label="How It Fits"
+                    value={CLOSET_FIT_STATUS_OPTIONS.find((o) => o.value === item?.fitStatus)?.label || '—'}
+                  />
                 </View>
               )}
             </ScrollView>
