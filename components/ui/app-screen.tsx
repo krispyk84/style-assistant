@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, type PropsWithChildren, type RefObject, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
@@ -20,6 +20,7 @@ const FLOATING_BACK_THRESHOLD = 80;
 
 export function AppScreen({ children, scrollable = false, topInset = true, floatingBack = false, scrollRef }: AppScreenProps) {
   const [showFloatingBack, setShowFloatingBack] = useState(false);
+  const insets = useSafeAreaInsets();
 
   // Stable reference — prevents ScrollView from seeing a new onScroll prop on every render,
   // which in Fabric can cause repeated scroll-event registration.
@@ -82,7 +83,7 @@ export function AppScreen({ children, scrollable = false, topInset = true, float
             flexDirection: 'row',
             gap: spacing.xs,
             left: spacing.lg,
-            top: spacing.sm,
+            top: insets.top + spacing.md,
             paddingHorizontal: spacing.md,
             paddingVertical: spacing.sm,
             position: 'absolute',
