@@ -243,7 +243,7 @@ export default function WeekScreen() {
             title="No week planned yet"
             message="Add outfits from the result page to assign them to today and the next 7 days."
             actionLabel="Create a look"
-            actionHref="/(app)/create-look"
+            actionHref="/create-look"
           />
         ) : null}
       </View>

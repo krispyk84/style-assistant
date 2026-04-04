@@ -18,7 +18,7 @@ type AppSessionValue = {
 };
 
 const AppSessionContext = createContext<AppSessionValue | null>(null);
-const APP_RELAUNCH_RESET_MS = 1000 * 60 * 60 * 24; // 24 hours
+const APP_RELAUNCH_RESET_MS = 1000 * 60 * 10; // 10 minutes
 const STALE_THRESHOLD_MS = 1000 * 60 * 10; // 10 min — server may have spun down
 
 export function AppSessionProvider({ children }: PropsWithChildren) {

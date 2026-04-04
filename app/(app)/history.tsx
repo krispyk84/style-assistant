@@ -167,7 +167,7 @@ export default function HistoryScreen() {
             title="No saved outfits"
             message="Save a recommendation from the result page and it will appear here for later."
             actionLabel="Create a look"
-            actionHref="/(app)/create-look"
+            actionHref="/create-look"
           />
         )}
       </View>

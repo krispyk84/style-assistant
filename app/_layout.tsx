@@ -43,6 +43,8 @@ function AppNavigation() {
         <Stack.Screen name="selfie-review" options={{ headerShown: false }} />
         <Stack.Screen name="results/[requestId]" options={{ headerShown: false }} />
         <Stack.Screen name="tier/[tier]" options={{ headerShown: false }} />
+        <Stack.Screen name="create-look" options={{ headerShown: false }} />
+        <Stack.Screen name="camera-capture" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="dark" />

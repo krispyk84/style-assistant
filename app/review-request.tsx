@@ -40,14 +40,14 @@ export default function ReviewRequestScreen() {
           title="Request details missing"
           message="Start from Create a look so the review step has an anchor item and tier selections."
           actionLabel="Create a look"
-          actionHref="/(app)/create-look"
+          actionHref="/create-look"
         />
       </AppScreen>
     );
   }
 
   if (!params.requestId) {
-    return <Redirect href="/(app)/create-look" />;
+    return <Redirect href="/create-look" />;
   }
 
   const requestId = params.requestId;

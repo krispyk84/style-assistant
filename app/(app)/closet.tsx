@@ -554,7 +554,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
     // Defer navigation until after the modal close state update has flushed
     setTimeout(() => {
       router.push({
-        pathname: '/(app)/create-look',
+        pathname: '/create-look',
         params: { closetItemId: id, closetItemTitle: title, closetItemImageUrl: anchorImageUrl },
       });
     }, 50);

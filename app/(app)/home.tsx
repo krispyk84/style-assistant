@@ -112,7 +112,7 @@ export default function HomeScreen() {
 
         {/* Hero card */}
         <Pressable
-          onPress={() => router.push({ pathname: '/(app)/create-look', params: { fresh: String(Date.now()) } })}
+          onPress={() => router.push({ pathname: '/create-look', params: { fresh: String(Date.now()) } })}
           style={{ borderRadius: 24, overflow: 'hidden' }}>
             <View style={{ minHeight: 320 }}>
               {/* Dark base */}

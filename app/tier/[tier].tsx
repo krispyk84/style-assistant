@@ -122,7 +122,7 @@ export default function TierScreen() {
           title="Tier not found"
           message="Open tier details from a generated look so the route carries the selected recommendation."
           actionLabel="Create a look"
-          actionHref="/(app)/create-look"
+          actionHref="/create-look"
         />
       </AppScreen>
     );
