@@ -36,8 +36,8 @@ export default function ResultDetailsScreen() {
   const [regeneratingTiers, setRegeneratingTiers] = useState<LookTierSlug[]>([]);
   const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
   const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
-  // suggestion string → matched ClosetItem (null = no match, undefined = not yet resolved)
-  const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null>>({});
+  // suggestion string → ClosetItem | null (LLM no match, fallback runs) | false (rematch exhausted, no fallback)
+  const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null | false>>({});
   const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
   const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
   const [secondOpinionTier, setSecondOpinionTier] = useState<LookTierSlug | null>(null);
@@ -46,7 +46,8 @@ export default function ResultDetailsScreen() {
       requestId: stableParams.requestId ?? '',
       closetItems,
       onSlotRematched: (suggestion, item) =>
-        setMatchMap((prev) => ({ ...prev, [suggestion]: item })),
+        // null from rematch means all candidates exhausted → false sentinel prevents local-scoring fallback
+        setMatchMap((prev) => ({ ...prev, [suggestion]: item ?? false })),
     });
   // Tracks which closet item IDs have already had matchedToRecommendationCount incremented
   const countedMatchedIdsRef = useRef<Set<string>>(new Set());

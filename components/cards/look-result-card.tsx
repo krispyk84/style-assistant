@@ -24,8 +24,12 @@ type LookResultCardProps = {
   onSecondOpinion?: () => void;
   /** Closet items — used as fallback matching when matchMap is not yet populated. */
   closetItems?: ClosetItem[];
-  /** Pre-computed LLM matches: suggestion string → ClosetItem or null. When provided, takes precedence over local scoring. */
-  matchMap?: Record<string, ClosetItem | null>;
+  /**
+   * Pre-computed LLM matches: suggestion string → ClosetItem | null | false.
+   * null = LLM found no match (local scoring runs as safety net).
+   * false = rematch exhausted all candidates (no fallback).
+   */
+  matchMap?: Record<string, ClosetItem | null | false>;
   /** Called when thumbs-up is given for a specific matched item. */
   onMatchThumbsUp?: (suggestion: string, matchedItemId: string) => void;
   /** Called when thumbs-down is given for a specific matched item, triggering rematch. */
@@ -239,6 +243,7 @@ export function LookResultCard({
         return (
           <ClosetItemSheet
             item={currentItem}
+            suggestion={matchedPiece.suggestion}
             isRematching={isRematching}
             thumbsFeedback={matchFeedbackMap?.[matchedPiece.suggestion] ?? null}
             onThumbsUp={
@@ -270,14 +275,16 @@ type LabeledPiece = {
 function resolveMatch(
   suggestion: string,
   closetItems: ClosetItem[],
-  matchMap?: Record<string, ClosetItem | null>
+  matchMap?: Record<string, ClosetItem | null | false>
 ): ClosetItem | null {
   if (matchMap && Object.prototype.hasOwnProperty.call(matchMap, suggestion)) {
-    const llmResult = matchMap[suggestion] ?? null;
-    if (llmResult) {
+    const entry = matchMap[suggestion];
+    // false = rematch explicitly exhausted all candidates — do not fall back to local scoring
+    if (entry === false) return null;
+    if (entry) {
       // Validate the LLM match with local category logic to reject obvious
       // cross-category mismatches (e.g. watch suggestion → rash guard item).
-      if (isClosetMatchValid(suggestion, llmResult)) return llmResult;
+      if (isClosetMatchValid(suggestion, entry)) return entry;
       return findBestClosetMatch(suggestion, closetItems);
     }
     // LLM returned null — run local scoring as a safety net.

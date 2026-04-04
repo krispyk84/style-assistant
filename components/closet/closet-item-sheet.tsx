@@ -9,6 +9,8 @@ import type { ClosetItem } from '@/types/closet';
 
 type ClosetItemSheetProps = {
   item: ClosetItem | null;
+  /** The outfit piece suggestion this item was matched against (shown above the image). */
+  suggestion: string;
   onClose: () => void;
   /** True while a rematch is in flight — shows a loading spinner instead of item content. */
   isRematching?: boolean;
@@ -27,6 +29,7 @@ type ClosetItemSheetProps = {
  */
 export function ClosetItemSheet({
   item,
+  suggestion,
   onClose,
   isRematching = false,
   thumbsFeedback = null,
@@ -122,6 +125,14 @@ export function ClosetItemSheet({
               <Pressable hitSlop={8} onPress={dismissAndClose}>
                 <Ionicons color={theme.colors.mutedText} name="close" size={22} />
               </Pressable>
+            </View>
+
+            {/* What this item is matching against */}
+            <View style={{ gap: 2 }}>
+              <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>
+                Matching for
+              </AppText>
+              <AppText style={{ color: theme.colors.text, fontSize: 14 }}>{suggestion}</AppText>
             </View>
 
             {/* Item image / loading / no-match */}

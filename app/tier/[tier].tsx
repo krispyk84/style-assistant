@@ -36,8 +36,8 @@ export default function TierScreen() {
 
   // ── Closet matching state ──────────────────────────────────────────────────
   const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
-  // suggestion string → matched ClosetItem (null = no match, undefined = not yet resolved)
-  const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null>>({});
+  // suggestion string → ClosetItem | null (LLM no match, fallback runs) | false (rematch exhausted, no fallback)
+  const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null | false>>({});
   // Tracks which piece is open in the "In Your Closet" sheet: item + suggestion for feedback identity
   const [sheetPiece, setSheetPiece] = useState<{ item: ClosetItem; suggestion: string } | null>(null);
   const [secondOpinionVisible, setSecondOpinionVisible] = useState(false);
@@ -46,7 +46,8 @@ export default function TierScreen() {
       requestId: stableParams.requestId ?? '',
       closetItems,
       onSlotRematched: (suggestion, item) =>
-        setMatchMap((prev) => ({ ...prev, [suggestion]: item })),
+        // null from rematch means all candidates exhausted → false sentinel prevents local-scoring fallback
+        setMatchMap((prev) => ({ ...prev, [suggestion]: item ?? false })),
     });
 
   // ── Sketch polling ─────────────────────────────────────────────────────────
@@ -252,6 +253,7 @@ export default function TierScreen() {
         return (
           <ClosetItemSheet
             item={currentItem}
+            suggestion={sheetPiece.suggestion}
             isRematching={isRematching}
             thumbsFeedback={matchFeedbackMap[sheetPiece.suggestion] ?? null}
             onThumbsUp={
@@ -289,12 +291,14 @@ type LabeledPiece = {
 function resolveMatch(
   suggestion: string,
   closetItems: ClosetItem[],
-  matchMap: Record<string, ClosetItem | null>
+  matchMap: Record<string, ClosetItem | null | false>
 ): ClosetItem | null {
   if (Object.prototype.hasOwnProperty.call(matchMap, suggestion)) {
-    const llmResult = matchMap[suggestion] ?? null;
-    if (llmResult) {
-      if (isClosetMatchValid(suggestion, llmResult)) return llmResult;
+    const entry = matchMap[suggestion];
+    // false = rematch explicitly exhausted all candidates — do not fall back to local scoring
+    if (entry === false) return null;
+    if (entry) {
+      if (isClosetMatchValid(suggestion, entry)) return entry;
       return findBestClosetMatch(suggestion, closetItems);
     }
     // LLM returned null — run local scoring as safety net
@@ -307,7 +311,7 @@ function resolveMatch(
 function buildPiecesToCheck(
   recommendation: LookRecommendation,
   closetItems: ClosetItem[],
-  matchMap: Record<string, ClosetItem | null>
+  matchMap: Record<string, ClosetItem | null | false>
 ): LabeledPiece[] {
   const rows = recommendation.keyPieces.map((piece, index) => ({
     label: labelForKeyPiece(piece, index),
