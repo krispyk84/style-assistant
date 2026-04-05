@@ -1,5 +1,9 @@
 import { anchorItem } from '@/lib/mock-data';
-import type { CreateLookInput, LookRecommendation, LookRequestResponse, LookTierDefinition, LookTierSlug } from '@/types/look-request';
+import type { CreateLookInput, LookRecommendation, LookRequestResponse, LookTierDefinition, LookTierSlug, OutfitPiece } from '@/types/look-request';
+
+function p(display_name: string): OutfitPiece {
+  return { display_name, metadata: null };
+}
 
 export const lookTierDefinitions: LookTierDefinition[] = [
   {
@@ -32,9 +36,9 @@ const lookRecommendationVariants: Record<LookTierSlug, Omit<LookRecommendation, 
   business: [
     {
       title: 'Structured client dinner look',
-      keyPieces: ['Fine-gauge black merino crewneck', 'Charcoal pleated wool trouser', 'Dark navy topcoat'],
-      shoes: ['Black calfskin loafer'],
-      accessories: ['Silver watch', 'Black grained leather belt'],
+      keyPieces: [p('Fine-gauge black merino crewneck'), p('Charcoal pleated wool trouser'), p('Dark navy topcoat')],
+      shoes: [p('Black calfskin loafer')],
+      accessories: [p('Silver watch'), p('Black grained leather belt')],
       fitNotes: ['Keep the jacket trim through the shoulder', 'Trouser break should stay minimal', 'Use a close body knit to avoid bulk under the anchor layer'],
       whyItWorks: 'The sharper trouser and dark leather accessories frame the anchor item as intentional tailoring instead of utility outerwear.',
       stylingDirection: 'Quiet luxury business dressing with soft structure and controlled contrast.',
@@ -42,9 +46,9 @@ const lookRecommendationVariants: Record<LookTierSlug, Omit<LookRecommendation, 
     },
     {
       title: 'Modern office authority',
-      keyPieces: ['Cream long-sleeve polo', 'Deep navy drawstring wool trouser', 'Black unstructured blazer'],
-      shoes: ['Dark espresso derby'],
-      accessories: ['Leather folio', 'Matte steel cuff'],
+      keyPieces: [p('Cream long-sleeve polo'), p('Deep navy drawstring wool trouser'), p('Black unstructured blazer')],
+      shoes: [p('Dark espresso derby')],
+      accessories: [p('Leather folio'), p('Matte steel cuff')],
       fitNotes: ['Keep the polo collar sitting clean under the jacket', 'Trouser rise should sit high enough to elongate the leg', 'Derbies should have a slimmer last'],
       whyItWorks: 'This variant gives the anchor item a more directional business context while keeping the outfit approachable and contemporary.',
       stylingDirection: 'Executive but relaxed, closer to modern tailoring than classic corporate.',
@@ -54,9 +58,9 @@ const lookRecommendationVariants: Record<LookTierSlug, Omit<LookRecommendation, 
   'smart-casual': [
     {
       title: 'Dinner-ready smart casual',
-      keyPieces: ['Stone textured tee', 'Chocolate pleated trouser', 'Fine-knit zip cardigan'],
-      shoes: ['Dark brown penny loafer'],
-      accessories: ['Suede belt', 'Minimal signet ring'],
+      keyPieces: [p('Stone textured tee'), p('Chocolate pleated trouser'), p('Fine-knit zip cardigan')],
+      shoes: [p('Dark brown penny loafer')],
+      accessories: [p('Suede belt'), p('Minimal signet ring')],
       fitNotes: ['Keep the tee fitted through the sleeve', 'Trouser drape should feel fluid, not skinny', 'Cardigan can stay open for more vertical line'],
       whyItWorks: 'The earth-tone palette complements the anchor item and creates a confident smart-casual look without relying on obvious statement pieces.',
       stylingDirection: 'Editorial smart casual with warm neutrals and refined texture.',
@@ -64,9 +68,9 @@ const lookRecommendationVariants: Record<LookTierSlug, Omit<LookRecommendation, 
     },
     {
       title: 'Gallery night balance',
-      keyPieces: ['Washed black polo knit', 'Ecru straight trouser', 'Soft charcoal overshirt'],
-      shoes: ['Black leather moc-toe loafer'],
-      accessories: ['Slim chain', 'Soft leather tote'],
+      keyPieces: [p('Washed black polo knit'), p('Ecru straight trouser'), p('Soft charcoal overshirt')],
+      shoes: [p('Black leather moc-toe loafer')],
+      accessories: [p('Slim chain'), p('Soft leather tote')],
       fitNotes: ['Use slightly fuller trousers for shape', 'Let the overshirt sit relaxed over the polo', 'Expose a small amount of ankle or sock intentionally'],
       whyItWorks: 'The darker knit and lighter trouser sharpen the silhouette while still letting the anchor item feel versatile and lived-in.',
       stylingDirection: 'Urban smart casual with subtle contrast and stronger silhouette play.',
@@ -76,9 +80,9 @@ const lookRecommendationVariants: Record<LookTierSlug, Omit<LookRecommendation, 
   casual: [
     {
       title: 'Refined weekend uniform',
-      keyPieces: ['Heather grey heavyweight tee', 'Ecru relaxed denim', 'Navy cap'],
-      shoes: ['White leather sneaker'],
-      accessories: ['Canvas tote', 'Simple black sunglasses'],
+      keyPieces: [p('Heather grey heavyweight tee'), p('Ecru relaxed denim')],
+      shoes: [p('White leather sneaker')],
+      accessories: [p('Canvas tote'), p('Simple black sunglasses')],
       fitNotes: ['Let the denim sit straight, not stacked', 'The tee should skim the torso', 'Sneakers need to stay clean and minimal'],
       whyItWorks: 'The casual basics ground the anchor item and make it feel like part of a repeatable everyday formula.',
       stylingDirection: 'Clean off-duty dressing with premium basics and easy proportions.',
@@ -86,9 +90,9 @@ const lookRecommendationVariants: Record<LookTierSlug, Omit<LookRecommendation, 
     },
     {
       title: 'Travel-day casual',
-      keyPieces: ['Washed oatmeal hoodie', 'Soft black drawstring pant', 'Ribbed white tee'],
-      shoes: ['Taupe running-inspired sneaker'],
-      accessories: ['Crossbody pouch', 'Baseball cap'],
+      keyPieces: [p('Washed oatmeal hoodie'), p('Soft black drawstring pant'), p('Ribbed white tee')],
+      shoes: [p('Taupe running-inspired sneaker')],
+      accessories: [p('Crossbody pouch'), p('Baseball cap')],
       fitNotes: ['Keep the hoodie slightly cropped to preserve shape', 'The pant should taper softly, not hug', 'Layer the tee visibly under the hoodie'],
       whyItWorks: 'This swaps polish for comfort but still protects the visual structure of the outfit, making the anchor item feel easy instead of sloppy.',
       stylingDirection: 'Comfort-driven casual with enough restraint to still feel styled.',

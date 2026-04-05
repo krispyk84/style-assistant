@@ -28,8 +28,15 @@ export const generateClosetSketchSchema = z.object({
   uploadedImageUrl: z.string().url(),
 });
 
+const outfitPieceInputSchema = z.object({
+  display_name: z.string().min(1),
+  category: z.string().optional(),
+  color: z.string().optional(),
+  formality: z.string().optional(),
+});
+
 export const closetMatchSchema = z.object({
-  suggestions: z.array(z.string().min(1)).min(1).max(30),
+  suggestions: z.array(outfitPieceInputSchema).min(1).max(30),
   items: z
     .array(
       z.object({
@@ -42,6 +49,8 @@ export const closetMatchSchema = z.object({
     .max(100),
   /** 0 = most forgiving, 100 = most precise. Default: 50. */
   sensitivity: z.number().min(0).max(100).optional(),
+  /** Item IDs to exclude — used when regenerating a specific slot after thumbs-down. */
+  excludeItemIds: z.array(z.string()).optional(),
 });
 
 export type AnalyzeClosetItemPayload = z.infer<typeof analyzeClosetItemSchema>;

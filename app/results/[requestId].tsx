@@ -17,6 +17,7 @@ import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
+import { loadAppSettings } from '@/lib/app-settings-storage';
 import { incrementClosetItemCounter } from '@/lib/closet-storage';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
 import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
@@ -113,18 +114,30 @@ export default function ResultDetailsScreen() {
   useEffect(() => {
     if (!response || !closetItems.length) return;
 
-    const suggestions = response.recommendations.flatMap((r) => [
+    const allPieces = response.recommendations.flatMap((r) => [
       ...r.keyPieces,
       ...r.shoes,
       ...r.accessories,
     ]);
-    const uniqueSuggestions = [...new Set(suggestions)];
-    if (!uniqueSuggestions.length) return;
+    // Deduplicate by display_name — the key used in matchMap
+    const seen = new Set<string>();
+    const uniquePieces = allPieces.filter((piece) => {
+      const key = piece.display_name;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (!uniquePieces.length) return;
 
     void (async () => {
       const { closetMatchSensitivity } = await loadAppSettings();
       return closetService.matchItems({
-        suggestions: uniqueSuggestions,
+        suggestions: uniquePieces.map((piece) => ({
+          display_name: piece.display_name,
+          category: piece.metadata?.category,
+          color: piece.metadata?.color,
+          formality: piece.metadata?.formality,
+        })),
         items: closetItems.map((item) => ({
           id: item.id,
           title: item.title,

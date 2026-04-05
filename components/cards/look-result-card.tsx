@@ -7,7 +7,8 @@ import { spacing, theme } from '@/constants/theme';
 import { formatTierLabel } from '@/lib/outfit-utils';
 import { findBestClosetMatch, isClosetMatchValid } from '@/lib/closet-match';
 import { ClosetItemSheet } from '@/components/closet/closet-item-sheet';
-import type { LookRecommendation } from '@/types/look-request';
+import type { LookRecommendation, OutfitPiece } from '@/types/look-request';
+import { normalizePiece } from '@/types/look-request';
 import type { ClosetItem } from '@/types/closet';
 import { AppText } from '@/components/ui/app-text';
 import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
@@ -297,29 +298,34 @@ function resolveMatch(
 function buildLabeledPieces(
   recommendation: LookRecommendation,
   closetItems: ClosetItem[],
-  matchMap?: Record<string, ClosetItem | null>
+  matchMap?: Record<string, ClosetItem | null | false>
 ): LabeledPiece[] {
   const usedLabels = new Set<string>();
 
-  const pieces: LabeledPiece[] = recommendation.keyPieces.map((piece, index) => ({
-    label: uniqueLabel(labelForKeyPiece(piece, index), usedLabels),
-    value: piece,
-    matchedClosetItem: resolveMatch(piece, closetItems, matchMap),
-  }));
+  const pieces: LabeledPiece[] = recommendation.keyPieces.map((piece, index) => {
+    const normalized = normalizePiece(piece);
+    return {
+      label: uniqueLabel(labelForKeyPiece(normalized, index), usedLabels),
+      value: normalized.display_name,
+      matchedClosetItem: resolveMatch(normalized.display_name, closetItems, matchMap),
+    };
+  });
 
   recommendation.shoes.forEach((shoe, index) => {
+    const normalized = normalizePiece(shoe);
     pieces.push({
       label: uniqueLabel(index === 0 ? 'Shoes' : `Shoe ${index + 1}`, usedLabels),
-      value: shoe,
-      matchedClosetItem: resolveMatch(shoe, closetItems, matchMap),
+      value: normalized.display_name,
+      matchedClosetItem: resolveMatch(normalized.display_name, closetItems, matchMap),
     });
   });
 
   recommendation.accessories.forEach((accessory, index) => {
+    const normalized = normalizePiece(accessory);
     pieces.push({
       label: uniqueLabel(`Accessory ${index + 1}`, usedLabels),
-      value: accessory,
-      matchedClosetItem: resolveMatch(accessory, closetItems, matchMap),
+      value: normalized.display_name,
+      matchedClosetItem: resolveMatch(normalized.display_name, closetItems, matchMap),
     });
   });
 
@@ -345,13 +351,23 @@ function uniqueLabel(baseLabel: string, usedLabels: Set<string>): string {
   return nextLabel;
 }
 
-function labelForKeyPiece(piece: string, index: number): string {
-  const normalized = piece.toLowerCase();
+function labelForKeyPiece(piece: OutfitPiece, index: number): string {
+  // Use metadata.category when available — no text inference needed
+  if (piece.metadata?.category) {
+    const cat = piece.metadata.category;
+    if (['Suit', 'Blazer', 'Coat', 'Outerwear', 'Overshirt'].includes(cat)) return 'Outerwear';
+    if (['Shirt', 'T-Shirt', 'Polo', 'Knitwear', 'Cardigan', 'Hoodie', 'Sweatshirt', 'Tank Top'].includes(cat)) return 'Top';
+    if (['Trousers', 'Denim', 'Sweatpants'].includes(cat)) return 'Pants';
+    if (['Shorts', 'Swimming Shorts'].includes(cat)) return 'Shorts';
+    return cat;
+  }
 
-  if (/(suit|blazer|jacket|coat|topcoat|overshirt|chore)/.test(normalized)) return 'Outerwear';
-  if (/(shirt|tee|t-shirt|polo|crewneck|sweater|knit|cardigan|hoodie)/.test(normalized)) return 'Top';
-  if (/(trouser|pant|pants|jean|denim)/.test(normalized)) return 'Pants';
-  if (/(shorts)/.test(normalized)) return 'Shorts';
+  // Fallback text-based labeling for legacy pieces without metadata
+  const norm = piece.display_name.toLowerCase();
+  if (/(suit|blazer|jacket|coat|topcoat|overshirt|chore)/.test(norm)) return 'Outerwear';
+  if (/(shirt|tee|t-shirt|polo|crewneck|sweater|knit|cardigan|hoodie)/.test(norm)) return 'Top';
+  if (/(trouser|pant|pants|jean|denim)/.test(norm)) return 'Pants';
+  if (/(shorts)/.test(norm)) return 'Shorts';
 
   return index === 0 ? 'Piece 1' : `Piece ${index + 1}`;
 }

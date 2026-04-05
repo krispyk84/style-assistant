@@ -119,7 +119,7 @@ export function useMatchFeedback({
 
       // Try backend first — in production it respects excludeItemIds server-side
       const matchResponse = await closetService.matchItems({
-        suggestions: [suggestion],
+        suggestions: [{ display_name: suggestion }],
         items: itemsForMatching,
         sensitivity: closetMatchSensitivity,
         excludeItemIds: excludedItemIds,

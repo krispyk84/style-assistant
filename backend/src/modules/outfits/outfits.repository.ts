@@ -1,7 +1,25 @@
 import { OutfitTier, Prisma } from '@prisma/client';
 
 import { prisma } from '../../db/prisma.js';
-import type { OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
+import type { OutfitPieceDto, OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
+
+/** Serializes a structured piece to a JSON string for DB storage. */
+function serializePiece(piece: OutfitPieceDto): string {
+  return JSON.stringify(piece);
+}
+
+/** Deserializes a DB string back to OutfitPieceDto. Handles legacy plain strings. */
+function deserializePiece(s: string): OutfitPieceDto {
+  try {
+    const parsed: unknown = JSON.parse(s);
+    if (parsed && typeof parsed === 'object' && 'display_name' in parsed && typeof (parsed as { display_name: unknown }).display_name === 'string') {
+      return parsed as OutfitPieceDto;
+    }
+  } catch {
+    // Not JSON — legacy plain string
+  }
+  return { display_name: s, metadata: null };
+}
 
 function toPrismaTier(tier: OutfitTierSlug): OutfitTier {
   if (tier === 'business') return OutfitTier.BUSINESS;
@@ -73,9 +91,9 @@ export const outfitsRepository = {
           update: {
             title: recommendation.title,
             anchorItem: recommendation.anchorItem,
-            keyPieces: recommendation.keyPieces,
-            shoes: recommendation.shoes,
-            accessories: recommendation.accessories,
+            keyPieces: recommendation.keyPieces.map(serializePiece),
+            shoes: recommendation.shoes.map(serializePiece),
+            accessories: recommendation.accessories.map(serializePiece),
             fitNotes: recommendation.fitNotes,
             whyItWorks: recommendation.whyItWorks,
             stylingDirection: recommendation.stylingDirection,
@@ -94,9 +112,9 @@ export const outfitsRepository = {
             tier: toPrismaTier(recommendation.tier),
             title: recommendation.title,
             anchorItem: recommendation.anchorItem,
-            keyPieces: recommendation.keyPieces,
-            shoes: recommendation.shoes,
-            accessories: recommendation.accessories,
+            keyPieces: recommendation.keyPieces.map(serializePiece),
+            shoes: recommendation.shoes.map(serializePiece),
+            accessories: recommendation.accessories.map(serializePiece),
             fitNotes: recommendation.fitNotes,
             whyItWorks: recommendation.whyItWorks,
             stylingDirection: recommendation.stylingDirection,
@@ -168,9 +186,9 @@ export const outfitsRepository = {
         tier: toSlug(tier.tier),
         title: tier.title,
         anchorItem: tier.anchorItem,
-        keyPieces: tier.keyPieces as string[],
-        shoes: tier.shoes as string[],
-        accessories: tier.accessories as string[],
+        keyPieces: (tier.keyPieces as string[]).map(deserializePiece),
+        shoes: (tier.shoes as string[]).map(deserializePiece),
+        accessories: (tier.accessories as string[]).map(deserializePiece),
         fitNotes: tier.fitNotes as string[],
         whyItWorks: tier.whyItWorks,
         stylingDirection: tier.stylingDirection,

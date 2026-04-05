@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing, theme } from '@/constants/theme';
+import { loadAppSettings } from '@/lib/app-settings-storage';
 import { findBestClosetMatch, isClosetMatchValid } from '@/lib/closet-match';
 import { getLookTierDefinition } from '@/lib/look-mock-data';
 import { parseLookInput, parseLookRecommendation, type LookRouteParams } from '@/lib/look-route';
@@ -88,18 +89,28 @@ export default function TierScreen() {
   useEffect(() => {
     if (!liveRecommendation || !closetItems.length) return;
 
-    const suggestions = [
+    const allPieces = [
       ...liveRecommendation.keyPieces,
       ...liveRecommendation.shoes,
       ...liveRecommendation.accessories,
     ];
-    const uniqueSuggestions = [...new Set(suggestions)];
-    if (!uniqueSuggestions.length) return;
+    const seen = new Set<string>();
+    const uniquePieces = allPieces.filter((piece) => {
+      if (seen.has(piece.display_name)) return false;
+      seen.add(piece.display_name);
+      return true;
+    });
+    if (!uniquePieces.length) return;
 
     void (async () => {
       const { closetMatchSensitivity } = await loadAppSettings();
       return closetService.matchItems({
-        suggestions: uniqueSuggestions,
+        suggestions: uniquePieces.map((piece) => ({
+          display_name: piece.display_name,
+          category: piece.metadata?.category,
+          color: piece.metadata?.color,
+          formality: piece.metadata?.formality,
+        })),
         items: closetItems.map((item) => ({
           id: item.id,
           title: item.title,
@@ -315,32 +326,42 @@ function buildPiecesToCheck(
 ): LabeledPiece[] {
   const rows = recommendation.keyPieces.map((piece, index) => ({
     label: labelForKeyPiece(piece, index),
-    value: piece,
-    matchedClosetItem: resolveMatch(piece, closetItems, matchMap),
+    value: piece.display_name,
+    matchedClosetItem: resolveMatch(piece.display_name, closetItems, matchMap),
   }));
 
   recommendation.shoes.forEach((shoe, index) => {
     rows.push({
       label: index === 0 ? 'Shoes' : `Shoe ${index + 1}`,
-      value: shoe,
-      matchedClosetItem: resolveMatch(shoe, closetItems, matchMap),
+      value: shoe.display_name,
+      matchedClosetItem: resolveMatch(shoe.display_name, closetItems, matchMap),
     });
   });
 
   recommendation.accessories.forEach((accessory, index) => {
     rows.push({
       label: `Accessory ${index + 1}`,
-      value: accessory,
-      matchedClosetItem: resolveMatch(accessory, closetItems, matchMap),
+      value: accessory.display_name,
+      matchedClosetItem: resolveMatch(accessory.display_name, closetItems, matchMap),
     });
   });
 
   return rows;
 }
 
-function labelForKeyPiece(piece: string, index: number) {
-  const normalized = piece.toLowerCase();
+function labelForKeyPiece(piece: import('@/types/look-request').OutfitPiece, index: number) {
+  // Use metadata.category for precise label when available
+  if (piece.metadata?.category) {
+    const cat = piece.metadata.category;
+    if (cat === 'Suit') return 'Suit';
+    if (['Blazer', 'Coat', 'Outerwear', 'Overshirt'].includes(cat)) return 'Outerwear';
+    if (['Shirt', 'T-Shirt', 'Polo', 'Knitwear', 'Cardigan', 'Hoodie', 'Sweatshirt', 'Tank Top'].includes(cat)) return 'Top';
+    if (['Trousers', 'Denim', 'Sweatpants'].includes(cat)) return 'Pants';
+    if (['Shorts', 'Swimming Shorts'].includes(cat)) return 'Shorts';
+    return cat;
+  }
 
+  const normalized = piece.display_name.toLowerCase();
   if (/(suit)/.test(normalized)) return 'Suit';
   if (/(blazer|jacket|coat|topcoat|overshirt|chore)/.test(normalized)) return 'Outerwear';
   if (/(shirt|tee|t-shirt|polo|crewneck|sweater|knit|cardigan|hoodie)/.test(normalized)) return 'Top';

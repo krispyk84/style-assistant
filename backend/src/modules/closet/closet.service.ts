@@ -31,6 +31,44 @@ const matchResponseSchema = z.object({
   ),
 });
 
+// ── OutfitPieceCategory → closet item category mapping ────────────────────────
+// Maps the structured category enum (from the LLM's structured output) to the
+// closet item category strings stored in the DB. Used to pre-filter candidates
+// before the LLM matching step so category is a hard gate, not inferred from text.
+
+const OUTFIT_TO_CLOSET_CATEGORY_MAP: Record<string, string[]> = {
+  Bag:               ['Bag'],
+  Belt:              ['Belt'],
+  Blazer:            ['Blazer', 'Sports Jacket'],
+  Boots:             ['Boots'],
+  Cardigan:          ['Cardigan'],
+  Coat:              ['Coat'],
+  Denim:             ['Denim'],
+  Gloves:            ['Gloves'],
+  Hoodie:            ['Hoodie'],
+  Knitwear:          ['Knitwear'],
+  Loafers:           ['Loafers'],
+  Outerwear:         ['Outerwear', 'Jacket'],
+  Overshirt:         ['Overshirt'],
+  Polo:              ['Polo'],
+  Scarf:             ['Scarf'],
+  Shirt:             ['Shirt'],
+  Shoes:             ['Shoes'],
+  Shorts:            ['Shorts'],
+  Sneakers:          ['Sneakers'],
+  Suit:              ['Suit'],
+  Sunglasses:        ['Sunglasses'],
+  Sweatpants:        ['Sweatpants'],
+  Sweatshirt:        ['Sweatshirt'],
+  'Swim Shirt':      ['Swim Shirt'],
+  'Swimming Shorts': ['Swimming Shorts', 'Shorts'],
+  'T-Shirt':         ['T-Shirt'],
+  'Tank Top':        ['Tank Top'],
+  Trousers:          ['Trousers'],
+  Vest:              ['Vest'],
+  Watch:             ['Watch'],
+};
+
 // ── Category compatibility groups ─────────────────────────────────────────────
 // Items in the same group are category-compatible for matching purposes.
 // Keep groups broad enough for wardrobe matching, but distinct enough to
@@ -280,15 +318,62 @@ export const closetService = {
 
   async matchItems(payload: ClosetMatchPayload) {
     if (!payload.items.length) {
-      return { matches: payload.suggestions.map((suggestion, i) => ({ suggestionIndex: i, suggestion, matchedItemId: null })) };
+      return {
+        matches: payload.suggestions.map((s, i) => ({
+          suggestionIndex: i,
+          suggestion: s.display_name,
+          matchedItemId: null,
+        })),
+      };
     }
 
-    const itemList = payload.items
+    const excludeSet = new Set(payload.excludeItemIds ?? []);
+    const availableItems = excludeSet.size
+      ? payload.items.filter((item) => !excludeSet.has(item.id))
+      : payload.items;
+
+    // Pre-filter candidates per suggestion using metadata.category when available.
+    // This makes category a hard application-layer gate before the LLM even runs.
+    const candidatesPerSuggestion = payload.suggestions.map((s) => {
+      if (!s.category) return availableItems;
+      const compatibleCategories = OUTFIT_TO_CLOSET_CATEGORY_MAP[s.category];
+      if (!compatibleCategories) return availableItems;
+      const filtered = availableItems.filter((item) => compatibleCategories.includes(item.category));
+      // If no items survive the category filter, return empty (LLM should return null)
+      return filtered;
+    });
+
+    // Build a flat deduplicated item list containing only candidates that appear
+    // in at least one suggestion's candidate set.
+    const candidateItemIds = new Set(candidatesPerSuggestion.flatMap((c) => c.map((i) => i.id)));
+    const itemsForLlm = availableItems.filter((item) => candidateItemIds.has(item.id));
+
+    if (!itemsForLlm.length) {
+      return {
+        matches: payload.suggestions.map((s, i) => ({
+          suggestionIndex: i,
+          suggestion: s.display_name,
+          matchedItemId: null,
+        })),
+      };
+    }
+
+    const itemList = itemsForLlm
       .map((item) => `  - id: "${item.id}", title: "${item.title}", category: "${item.category}"${item.brand ? `, brand: "${item.brand}"` : ''}`)
       .join('\n');
 
+    // Annotate each suggestion with its category and color metadata when available.
     const suggestionList = payload.suggestions
-      .map((s, i) => `  ${i}: "${s}"`)
+      .map((s, i) => {
+        const meta = s.category
+          ? ` [category: ${s.category}${s.color ? `; color: ${s.color}` : ''}]`
+          : '';
+        const eligibleIds = candidatesPerSuggestion[i]!.map((c) => c.id);
+        const eligibleNote = s.category
+          ? ` [eligible item ids: ${eligibleIds.length ? eligibleIds.join(', ') : 'none — return null'}]`
+          : '';
+        return `  ${i}: "${s.display_name}"${meta}${eligibleNote}`;
+      })
       .join('\n');
 
     const matchingVocabulary = buildMatchingVocabulary();
@@ -309,7 +394,7 @@ export const closetService = {
                 type: 'object',
                 properties: {
                   suggestionIndex: { type: 'number', description: 'Index of the suggestion (0-based)' },
-                  matchedItemId: { type: ['string', 'null'], description: 'The id of the best matching closet item, or null if no item is in the same category group' },
+                  matchedItemId: { type: ['string', 'null'], description: 'The id of the best matching closet item, or null if no suitable match exists' },
                 },
                 required: ['suggestionIndex', 'matchedItemId'],
                 additionalProperties: false,
@@ -322,44 +407,35 @@ export const closetService = {
       },
       instructions: `You are a wardrobe matching assistant. For each outfit suggestion, follow these steps in exact order.
 
+IMPORTANT: Each suggestion may include a [category: X] annotation and an [eligible item ids: ...] list. When these are present, you MUST only consider items in the eligible list — this is the pre-filtered set of items in the correct category. If the eligible list says "none — return null", return null immediately without considering any other items.
+
 ${matchingVocabulary}
 
 ━━━ STEP 1 — CATEGORY GATE (hard, no exceptions) ━━━
-Identify which CATEGORY GROUP the outfit suggestion belongs to.
-Keep only closet items that belong to the SAME CATEGORY GROUP.
-Use the item's category field as the primary signal; fall back to the item's title only if the category is generic.
-If ZERO items pass this gate → return null immediately. Do not proceed. Do not find the "nearest" item across groups.
-
-Each group is distinct. POLO ≠ TEE. SNEAKERS ≠ LOAFERS. WATCH ≠ anything else. Crossing groups is never acceptable.
+If the suggestion has [eligible item ids: ...]: use ONLY those items. Do not consider items outside this list.
+If the suggestion has no [category:] annotation: identify the category from text using the CATEGORY GROUPS above.
+If ZERO items pass this gate → return null immediately.
 
 ━━━ STEP 2 — COLOR GATE ━━━
-Extract the dominant color word(s) from the suggestion text and find their COLOR FAMILY.
-From the same-category candidates, keep only items whose title contains a color in the matching COLOR FAMILY.
-Items with no color mentioned in their title: keep them as neutral candidates (they pass this gate).
+Use the [color: X] annotation if present, otherwise extract color from the suggestion text.
+Find the COLOR FAMILY for that color.
+Keep only same-category candidates whose title contains a color in the matching COLOR FAMILY.
+Items with no color in their title are neutral candidates (they pass this gate).
 
-If the suggestion has NO detectable color word → skip the color gate, proceed with all same-category candidates.
+If the suggestion has NO detectable color → skip the color gate.
 If every same-category candidate fails the color gate → return null.
 
 ${colorInstructions}
 
 ━━━ STEP 3 — SELECT BEST ━━━
 Among items that passed both gates, pick the single best match:
-  - prefer the closest garment sub-type (e.g. "trousers" item for a "trousers" suggestion over a "chinos" item)
+  - prefer the closest garment sub-type
   - then prefer the closest color within the family
-Return that item's id.
-
-━━━ WHAT SHOULD AND SHOULD NOT MATCH ━━━
-✓ "tailored grey trousers" → "Grey Slim-Fit Chinos"  (TROUSERS + GREY)
-✓ "stone chino trousers"  → "Beige Khaki Trousers"   (TROUSERS + STONE)
-✓ "light blue dress shirt" → "Light Blue OCBD"        (DRESS_SHIRT + BLUE)
-✓ "white crewneck tee"    → "White Cotton T-Shirt"    (TEE + WHITE)
-✗ "light blue dress shirt" → "Navy Button-Up"          ✗ BLUE ≠ NAVY
-✗ "white polo"            → "White T-Shirt"            ✗ POLO ≠ TEE
-✗ "classic dress watch"   → any trouser/shirt/shoe     ✗ wrong category entirely`,
+Return that item's id.`,
       userContent: [
         {
           type: 'input_text',
-          text: `OUTFIT SUGGESTIONS (by index):\n${suggestionList}\n\nUSER'S CLOSET ITEMS:\n${itemList}\n\nReturn one match entry per suggestion index (0 through ${payload.suggestions.length - 1}). For each suggestion, pick the best available match using the rules above.`,
+          text: `OUTFIT SUGGESTIONS (by index):\n${suggestionList}\n\nUSER'S CLOSET ITEMS (pre-filtered to eligible categories):\n${itemList}\n\nReturn one match entry per suggestion index (0 through ${payload.suggestions.length - 1}). Respect the [eligible item ids] constraint strictly — if a suggestion's eligible list is empty, return null for it.`,
         },
       ],
     });
@@ -367,7 +443,7 @@ Return that item's id.
     return {
       matches: result.matches.map((m) => ({
         suggestionIndex: m.suggestionIndex,
-        suggestion: payload.suggestions[m.suggestionIndex] ?? '',
+        suggestion: payload.suggestions[m.suggestionIndex]?.display_name ?? '',
         matchedItemId: m.matchedItemId,
       })),
     };

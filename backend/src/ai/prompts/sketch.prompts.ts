@@ -1,4 +1,4 @@
-import type { TierRecommendationDto } from '../../contracts/outfits.contracts.js';
+import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 
 export function buildClosetItemSketchPrompt(input: { itemDescription: string }) {
   return [
@@ -12,8 +12,13 @@ export function buildClosetItemSketchPrompt(input: { itemDescription: string }) 
   ].join('\n');
 }
 
-function formatList(items: string[]) {
-  return items.length ? items.map((item) => `- ${item}`).join('\n') : '- none';
+function pieceLabel(piece: OutfitPieceDto): string {
+  return piece.display_name;
+}
+
+function formatList(items: OutfitPieceDto[] | string[]) {
+  if (!items.length) return '- none';
+  return items.map((item) => `- ${typeof item === 'string' ? item : pieceLabel(item)}`).join('\n');
 }
 
 export function buildTierSketchPrompt(input: {

@@ -3,13 +3,36 @@ import { z } from 'zod';
 const tierEnum = z.enum(['business', 'smart-casual', 'casual']);
 const verdictEnum = z.enum(['Works great', 'Works okay', "Doesn't work"]);
 
+const OUTFIT_PIECE_CATEGORIES = [
+  'Bag', 'Belt', 'Blazer', 'Boots', 'Cardigan', 'Coat', 'Denim', 'Gloves',
+  'Hoodie', 'Knitwear', 'Loafers', 'Outerwear', 'Overshirt', 'Polo', 'Scarf',
+  'Shirt', 'Shoes', 'Shorts', 'Sneakers', 'Suit', 'Sunglasses', 'Sweatpants',
+  'Sweatshirt', 'Swim Shirt', 'Swimming Shorts', 'T-Shirt', 'Tank Top', 'Trousers',
+  'Vest', 'Watch',
+] as const;
+
+const outfitPieceCategoryEnum = z.enum(OUTFIT_PIECE_CATEGORIES);
+const outfitPieceFormalityEnum = z.enum(['Casual', 'Smart Casual', 'Refined Casual', 'Formal']);
+
+const outfitPieceMetaSchema = z.object({
+  category: outfitPieceCategoryEnum,
+  color: z.string().min(1),
+  material: z.string().optional(),
+  formality: outfitPieceFormalityEnum,
+});
+
+const outfitPieceSchema = z.object({
+  display_name: z.string().min(1),
+  metadata: outfitPieceMetaSchema,
+});
+
 export const outfitRecommendationSchema = z.object({
   tier: tierEnum,
   title: z.string().min(1),
   anchorItem: z.string().min(1),
-  keyPieces: z.array(z.string().min(1)).min(2).max(5),
-  shoes: z.array(z.string().min(1)).min(1).max(3),
-  accessories: z.array(z.string().min(1)).min(1).max(4),
+  keyPieces: z.array(outfitPieceSchema).min(2).max(5),
+  shoes: z.array(outfitPieceSchema).min(1).max(3),
+  accessories: z.array(outfitPieceSchema).min(1).max(4),
   fitNotes: z.array(z.string().min(1)).min(2).max(5),
   whyItWorks: z.string().min(1),
   stylingDirection: z.string().min(1),
@@ -43,6 +66,47 @@ export type SingleTierRegeneration = z.infer<typeof singleTierRegenerationSchema
 export type CompatibilityModelOutput = z.infer<typeof compatibilityModelSchema>;
 export type SelfieReviewModelOutput = z.infer<typeof selfieReviewModelSchema>;
 
+const outfitPieceMetaJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    category: {
+      type: 'string',
+      enum: OUTFIT_PIECE_CATEGORIES,
+      description: 'Canonical garment category — must be one of the exact enum values.',
+    },
+    color: {
+      type: 'string',
+      minLength: 1,
+      description: 'Dominant color of the piece, e.g. "Navy", "Stone", "Off-white".',
+    },
+    material: {
+      type: 'string',
+      description: 'Primary fabric or material if relevant, e.g. "Merino wool", "Cotton".',
+    },
+    formality: {
+      type: 'string',
+      enum: outfitPieceFormalityEnum.options,
+      description: 'Formality level of this specific piece.',
+    },
+  },
+  required: ['category', 'color', 'formality'],
+} as const;
+
+const outfitPieceJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    display_name: {
+      type: 'string',
+      minLength: 1,
+      description: 'Human-readable description shown in the UI, e.g. "Fine-gauge navy merino crewneck".',
+    },
+    metadata: outfitPieceMetaJsonSchema,
+  },
+  required: ['display_name', 'metadata'],
+} as const;
+
 const outfitRecommendationJsonSchema = {
   type: 'object',
   additionalProperties: false,
@@ -63,28 +127,19 @@ const outfitRecommendationJsonSchema = {
       type: 'array',
       minItems: 2,
       maxItems: 5,
-      items: {
-        type: 'string',
-        minLength: 1,
-      },
+      items: outfitPieceJsonSchema,
     },
     shoes: {
       type: 'array',
       minItems: 1,
       maxItems: 3,
-      items: {
-        type: 'string',
-        minLength: 1,
-      },
+      items: outfitPieceJsonSchema,
     },
     accessories: {
       type: 'array',
       minItems: 1,
       maxItems: 4,
-      items: {
-        type: 'string',
-        minLength: 1,
-      },
+      items: outfitPieceJsonSchema,
     },
     fitNotes: {
       type: 'array',

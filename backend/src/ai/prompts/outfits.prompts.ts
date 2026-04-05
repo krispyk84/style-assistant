@@ -13,6 +13,7 @@ export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[]
     'If vibe keywords are provided, treat them as a strong creative direction for silhouette, styling references, palette, detailing, and overall attitude while still honoring the selected tier.',
     'If no image is provided, rely only on the text description and profile context.',
     'Do not mention missing information, policy, or the schema in the output.',
+    'IMPORTANT — structured piece output: keyPieces, shoes, and accessories must each be objects with display_name (rich human-readable description) and metadata. The metadata.category MUST be one of the exact enum values in the schema — do not invent new categories. Choose the closest match from the enum. metadata.color should be the dominant color (e.g. "Navy", "Stone", "Charcoal"). metadata.formality must match the tier: business → "Formal" or "Refined Casual"; smart-casual → "Smart Casual" or "Refined Casual"; casual → "Casual".',
   ].join(' ');
 }
 
@@ -104,9 +105,9 @@ export function buildRegenerateTierUserPrompt(input: {
           'Previous recommendation to replace:',
           `- title: ${previousTier.title}`,
           `- stylingDirection: ${previousTier.stylingDirection}`,
-          `- keyPieces: ${previousTier.keyPieces.join('; ')}`,
-          `- shoes: ${previousTier.shoes.join('; ')}`,
-          `- accessories: ${previousTier.accessories.join('; ')}`,
+          `- keyPieces: ${previousTier.keyPieces.map((p) => p.display_name).join('; ')}`,
+          `- shoes: ${previousTier.shoes.map((p) => p.display_name).join('; ')}`,
+          `- accessories: ${previousTier.accessories.map((p) => p.display_name).join('; ')}`,
           `- whyItWorks: ${previousTier.whyItWorks}`,
         ].join('\n')
       : 'There is no previous recommendation for the requested tier.',

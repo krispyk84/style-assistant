@@ -1,6 +1,19 @@
 export type OutfitTierSlug = 'business' | 'smart-casual' | 'casual';
 export type TierSketchStatus = 'pending' | 'ready' | 'failed';
 
+export type OutfitPieceMeta = {
+  category: string;
+  color: string;
+  material?: string;
+  formality: 'Casual' | 'Smart Casual' | 'Refined Casual' | 'Formal';
+};
+
+/** Structured outfit piece. Legacy stored records may have null metadata. */
+export type OutfitPieceDto = {
+  display_name: string;
+  metadata: OutfitPieceMeta | null;
+};
+
 export type GenerateOutfitsRequest = {
   requestId: string;
   profileId?: string;
@@ -31,9 +44,9 @@ export type TierRecommendationDto = {
   tier: OutfitTierSlug;
   title: string;
   anchorItem: string;
-  keyPieces: string[];
-  shoes: string[];
-  accessories: string[];
+  keyPieces: OutfitPieceDto[];
+  shoes: OutfitPieceDto[];
+  accessories: OutfitPieceDto[];
   fitNotes: string[];
   whyItWorks: string;
   stylingDirection: string;

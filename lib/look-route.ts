@@ -1,9 +1,9 @@
 import type { Href } from 'expo-router';
 
-import type { CreateLookInput, LookAnchorItem, LookRecommendation } from '@/types/look-request';
+import type { CreateLookInput, LookAnchorItem, LookRecommendation, OutfitPiece } from '@/types/look-request';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 import type { WeatherContext, WeatherSeason } from '@/types/weather';
-import { LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
+import { LOOK_TIER_OPTIONS, normalizePiece, type LookTierSlug } from '@/types/look-request';
 
 export type LookRouteParams = {
   anchorItems?: string;
@@ -76,6 +76,25 @@ function decodeList(value?: string) {
   try {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function encodePieceList(pieces: OutfitPiece[]): string {
+  return JSON.stringify(pieces);
+}
+
+function decodePieceList(value?: string): OutfitPiece[] {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item: unknown) =>
+      typeof item === 'string'
+        ? normalizePiece(item)
+        : normalizePiece(item as OutfitPiece | string)
+    );
   } catch {
     return [];
   }
@@ -267,9 +286,9 @@ export function parseLookRecommendation(
     tier: params.tier as LookTierSlug,
     title: params.recommendationTitle,
     anchorItem: params.recommendationAnchorItem ?? '',
-    keyPieces: decodeList(params.recommendationKeyPieces),
-    shoes: decodeList(params.recommendationShoes),
-    accessories: decodeList(params.recommendationAccessories),
+    keyPieces: decodePieceList(params.recommendationKeyPieces),
+    shoes: decodePieceList(params.recommendationShoes),
+    accessories: decodePieceList(params.recommendationAccessories),
     fitNotes: decodeList(params.recommendationFitNotes),
     whyItWorks: params.recommendationWhyItWorks ?? '',
     stylingDirection: params.recommendationStylingDirection ?? '',
@@ -335,9 +354,9 @@ export function buildTierHref(
       ...buildLookRouteParams(requestId, input),
       recommendationTitle: recommendation.title,
       recommendationAnchorItem: recommendation.anchorItem,
-      recommendationKeyPieces: encodeList(recommendation.keyPieces),
-      recommendationShoes: encodeList(recommendation.shoes),
-      recommendationAccessories: encodeList(recommendation.accessories),
+      recommendationKeyPieces: encodePieceList(recommendation.keyPieces),
+      recommendationShoes: encodePieceList(recommendation.shoes),
+      recommendationAccessories: encodePieceList(recommendation.accessories),
       recommendationFitNotes: encodeList(recommendation.fitNotes),
       recommendationWhyItWorks: recommendation.whyItWorks,
       recommendationStylingDirection: recommendation.stylingDirection,

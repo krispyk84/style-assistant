@@ -143,7 +143,7 @@ export const mockClosetService: ClosetService = {
       data: {
         matches: request.suggestions.map((suggestion, i) => ({
           suggestionIndex: i,
-          suggestion,
+          suggestion: suggestion.display_name,
           matchedItemId: null,
         })),
       },

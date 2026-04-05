@@ -149,8 +149,17 @@ export type SecondOpinionResponse = {
   createdAt: string;
 };
 
+/** Structured outfit piece input for the closet matching API. */
+export type OutfitPieceInput = {
+  display_name: string;
+  /** Canonical category from OutfitPieceCategory enum — used as a hard matching gate. */
+  category?: string;
+  color?: string;
+  formality?: string;
+};
+
 export type ClosetMatchRequest = {
-  suggestions: string[];
+  suggestions: OutfitPieceInput[];
   items: { id: string; title: string; category: string; brand?: string }[];
   /** 0 = most forgiving, 100 = most precise. Default: 50. */
   sensitivity?: number;
