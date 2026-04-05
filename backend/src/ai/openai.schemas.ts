@@ -17,7 +17,7 @@ const outfitPieceFormalityEnum = z.enum(['Casual', 'Smart Casual', 'Refined Casu
 const outfitPieceMetaSchema = z.object({
   category: outfitPieceCategoryEnum,
   color: z.string().min(1),
-  material: z.string().optional(),
+  material: z.string().nullable().optional(),
   formality: outfitPieceFormalityEnum,
 });
 
@@ -81,8 +81,8 @@ const outfitPieceMetaJsonSchema = {
       description: 'Dominant color of the piece, e.g. "Navy", "Stone", "Off-white".',
     },
     material: {
-      type: 'string',
-      description: 'Primary fabric or material if relevant, e.g. "Merino wool", "Cotton".',
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+      description: 'Primary fabric or material if relevant, e.g. "Merino wool", "Cotton". Null if not applicable.',
     },
     formality: {
       type: 'string',
@@ -90,7 +90,7 @@ const outfitPieceMetaJsonSchema = {
       description: 'Formality level of this specific piece.',
     },
   },
-  required: ['category', 'color', 'formality'],
+  required: ['category', 'color', 'material', 'formality'],
 } as const;
 
 const outfitPieceJsonSchema = {

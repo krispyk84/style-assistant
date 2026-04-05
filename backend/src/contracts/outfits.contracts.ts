@@ -4,7 +4,7 @@ export type TierSketchStatus = 'pending' | 'ready' | 'failed';
 export type OutfitPieceMeta = {
   category: string;
   color: string;
-  material?: string;
+  material?: string | null;
   formality: 'Casual' | 'Smart Casual' | 'Refined Casual' | 'Formal';
 };
 

@@ -31,7 +31,7 @@ export type OutfitPieceFormality = 'Casual' | 'Smart Casual' | 'Refined Casual' 
 export type OutfitPieceMeta = {
   category: OutfitPieceCategory;
   color: string;
-  material?: string;
+  material?: string | null;
   formality: OutfitPieceFormality;
 };
 
