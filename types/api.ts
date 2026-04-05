@@ -87,15 +87,15 @@ export type AnalyzeClosetItemRequest = {
 export type AnalyzeClosetItemResponse = {
   title: string;
   category: string;
-  brand?: string;
-  subcategory?: string;
-  primaryColor?: string;
-  colorFamily?: string;
-  material?: string;
-  formality?: string;
-  silhouette?: string;
-  weight?: string;
-  pattern?: string;
+  brand?: string | null;
+  subcategory?: string | null;
+  primaryColor?: string | null;
+  colorFamily?: string | null;
+  material?: string | null;
+  formality?: string | null;
+  silhouette?: string | null;
+  weight?: string | null;
+  pattern?: string | null;
 };
 
 export type SaveClosetItemRequest = {

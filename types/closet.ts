@@ -57,6 +57,56 @@ export type ClosetItemColorFamily =
   | 'rust'
   | 'camel';
 
+export const CLOSET_COLOR_FAMILY_OPTIONS: { value: ClosetItemColorFamily; label: string }[] = [
+  { value: 'white', label: 'White' },
+  { value: 'stone', label: 'Stone' },
+  { value: 'camel', label: 'Camel' },
+  { value: 'grey', label: 'Grey' },
+  { value: 'black', label: 'Black' },
+  { value: 'navy', label: 'Navy' },
+  { value: 'blue', label: 'Blue' },
+  { value: 'brown', label: 'Brown' },
+  { value: 'olive', label: 'Olive' },
+  { value: 'green', label: 'Green' },
+  { value: 'burgundy', label: 'Burgundy' },
+  { value: 'red', label: 'Red' },
+  { value: 'pink', label: 'Pink' },
+  { value: 'yellow', label: 'Yellow' },
+  { value: 'purple', label: 'Purple' },
+  { value: 'rust', label: 'Rust' },
+];
+
+export const CLOSET_FORMALITY_OPTIONS: { value: string; label: string }[] = [
+  { value: 'Casual', label: 'Casual' },
+  { value: 'Smart Casual', label: 'Smart Casual' },
+  { value: 'Refined Casual', label: 'Refined Casual' },
+  { value: 'Formal', label: 'Formal' },
+];
+
+export const CLOSET_WEIGHT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'Lightweight', label: 'Lightweight' },
+  { value: 'Midweight', label: 'Midweight' },
+  { value: 'Heavyweight', label: 'Heavyweight' },
+];
+
+export const CLOSET_PATTERN_OPTIONS: { value: string; label: string }[] = [
+  { value: 'Solid', label: 'Solid' },
+  { value: 'Stripe', label: 'Stripe' },
+  { value: 'Check', label: 'Check' },
+  { value: 'Plaid', label: 'Plaid' },
+  { value: 'Print', label: 'Print' },
+  { value: 'Texture', label: 'Texture' },
+  { value: 'Other', label: 'Other' },
+];
+
+export const CLOSET_SEASON_OPTIONS: { value: string; label: string }[] = [
+  { value: 'All Season', label: 'All Season' },
+  { value: 'Spring', label: 'Spring' },
+  { value: 'Summer', label: 'Summer' },
+  { value: 'Fall', label: 'Fall' },
+  { value: 'Winter', label: 'Winter' },
+];
+
 // ── Closet Item ────────────────────────────────────────────────────────────────
 
 export type ClosetItem = {

@@ -11,10 +11,18 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
 import { incrementClosetItemCounter } from '@/lib/closet-storage';
 import { closetService } from '@/services/closet';
+import { ColorFamilyPicker } from '@/components/closet/color-family-picker';
 import { FitStatusPicker } from '@/components/closet/fit-status-picker';
+import { FormalityPicker } from '@/components/closet/formality-picker';
+import { PatternPicker } from '@/components/closet/pattern-picker';
+import { SeasonPicker } from '@/components/closet/season-picker';
 import { SilhouettePicker } from '@/components/closet/silhouette-picker';
-import type { ClosetItem, ClosetItemFitStatus, ClosetItemSilhouette } from '@/types/closet';
-import { CLOSET_FIT_STATUS_OPTIONS, CLOSET_SILHOUETTE_OPTIONS } from '@/types/closet';
+import { WeightPicker } from '@/components/closet/weight-picker';
+import type { ClosetItem, ClosetItemColorFamily, ClosetItemFitStatus, ClosetItemSilhouette } from '@/types/closet';
+import {
+  CLOSET_COLOR_FAMILY_OPTIONS, CLOSET_FIT_STATUS_OPTIONS, CLOSET_FORMALITY_OPTIONS,
+  CLOSET_PATTERN_OPTIONS, CLOSET_SEASON_OPTIONS, CLOSET_SILHOUETTE_OPTIONS, CLOSET_WEIGHT_OPTIONS,
+} from '@/types/closet';
 
 const COLUMN_COUNT = 3;
 const POLL_INTERVAL_MS = 5000;
@@ -480,6 +488,17 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
   const [size, setSize] = useState('');
   const [silhouette, setSilhouette] = useState<ClosetItemSilhouette | undefined>();
   const [fitStatus, setFitStatus] = useState<ClosetItemFitStatus | undefined>();
+  // Metadata fields (now fully editable)
+  const [subcategory, setSubcategory] = useState('');
+  const [primaryColor, setPrimaryColor] = useState('');
+  const [colorFamily, setColorFamily] = useState<ClosetItemColorFamily | undefined>();
+  const [material, setMaterial] = useState('');
+  const [formality, setFormality] = useState<string | undefined>();
+  const [season, setSeason] = useState<string | undefined>();
+  const [weight, setWeight] = useState<string | undefined>();
+  const [pattern, setPattern] = useState<string | undefined>();
+  const [notes, setNotes] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -520,6 +539,15 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
     setSize(item.size);
     setSilhouette(item.silhouette ?? undefined);
     setFitStatus(item.fitStatus ?? undefined);
+    setSubcategory(item.subcategory ?? '');
+    setPrimaryColor(item.primaryColor ?? '');
+    setColorFamily(item.colorFamily ?? undefined);
+    setMaterial(item.material ?? '');
+    setFormality(item.formality ?? undefined);
+    setSeason(item.season ?? undefined);
+    setWeight(item.weight ?? undefined);
+    setPattern(item.pattern ?? undefined);
+    setNotes(item.notes ?? '');
     setIsEditing(false);
     setError(null);
     setConfirmDelete(false);
@@ -537,15 +565,15 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
       category: category.trim() || 'Clothing',
       silhouette,
       fitStatus,
-      subcategory: item.subcategory ?? undefined,
-      primaryColor: item.primaryColor ?? undefined,
-      colorFamily: item.colorFamily ?? undefined,
-      material: item.material ?? undefined,
-      formality: item.formality ?? undefined,
-      season: item.season ?? undefined,
-      weight: item.weight ?? undefined,
-      pattern: item.pattern ?? undefined,
-      notes: item.notes ?? undefined,
+      subcategory: subcategory.trim() || undefined,
+      primaryColor: primaryColor.trim() || undefined,
+      colorFamily,
+      material: material.trim() || undefined,
+      formality,
+      season,
+      weight,
+      pattern,
+      notes: notes.trim() || undefined,
     });
     setIsSaving(false);
     if (response.success && response.data) {
@@ -582,6 +610,47 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
         },
       });
     }, 50);
+  }
+
+  async function handleAIAutofill() {
+    if (!item) return;
+    // Prefer the uploaded photo; fall back to sketch for items without a photo
+    const imageUrl = item.uploadedImageUrl ?? item.sketchImageUrl;
+    if (!imageUrl) {
+      setError('No image available for AI analysis. Add a photo to enable auto-fill.');
+      return;
+    }
+    setIsAnalyzing(true);
+    setError(null);
+    const response = await closetService.analyzeItem({ uploadedImageUrl: imageUrl });
+    setIsAnalyzing(false);
+    if (!response.success || !response.data) {
+      setError('AI analysis failed. Please try again.');
+      return;
+    }
+    const ai = response.data;
+    // Non-destructive: only populate fields that are currently empty.
+    // Validates structured fields against known options before applying.
+    if (!subcategory && ai.subcategory) setSubcategory(ai.subcategory);
+    if (!primaryColor && ai.primaryColor) setPrimaryColor(ai.primaryColor);
+    if (!colorFamily && ai.colorFamily && CLOSET_COLOR_FAMILY_OPTIONS.some((o) => o.value === ai.colorFamily)) {
+      setColorFamily(ai.colorFamily as ClosetItemColorFamily);
+    }
+    if (!material && ai.material) setMaterial(ai.material);
+    if (!formality && ai.formality && CLOSET_FORMALITY_OPTIONS.some((o) => o.value === ai.formality)) {
+      setFormality(ai.formality);
+    }
+    if (!weight && ai.weight && CLOSET_WEIGHT_OPTIONS.some((o) => o.value === ai.weight)) {
+      setWeight(ai.weight);
+    }
+    if (!pattern && ai.pattern && CLOSET_PATTERN_OPTIONS.some((o) => o.value === ai.pattern)) {
+      setPattern(ai.pattern);
+    }
+    // Silhouette — garment cut is reliably inferred from the image
+    if (!silhouette && ai.silhouette && CLOSET_SILHOUETTE_OPTIONS.some((o) => o.value === ai.silhouette)) {
+      setSilhouette(ai.silhouette as ClosetItemSilhouette);
+    }
+    // fitStatus is intentionally NOT auto-filled — personal fit requires the wearer's judgement
   }
 
   const hasBoth = Boolean(item?.sketchImageUrl) && Boolean(item?.uploadedImageUrl);
@@ -735,28 +804,97 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                 </View>
 
               ) : isEditing ? (
-                /* Edit mode — text inputs */
+                /* Edit mode — full metadata form */
                 <View style={{ gap: spacing.md }}>
-                  <View style={{ gap: spacing.xs }}>
-                    <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Title</AppText>
-                    <TextInput value={title} onChangeText={setTitle} returnKeyType="next" style={inputStyle} />
-                  </View>
-                  <View style={{ gap: spacing.xs }}>
-                    <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Category</AppText>
-                    <TextInput value={category} onChangeText={setCategory} returnKeyType="next" style={inputStyle} />
-                  </View>
+
+                  {/* AI Auto-Fill */}
+                  <Pressable
+                    onPress={() => void handleAIAutofill()}
+                    disabled={isAnalyzing || !(item?.uploadedImageUrl || item?.sketchImageUrl)}
+                    style={{
+                      alignItems: 'center',
+                      backgroundColor: theme.colors.card,
+                      borderColor: theme.colors.accent,
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      flexDirection: 'row',
+                      gap: spacing.sm,
+                      justifyContent: 'center',
+                      opacity: isAnalyzing || !(item?.uploadedImageUrl || item?.sketchImageUrl) ? 0.45 : 1,
+                      paddingHorizontal: spacing.md,
+                      paddingVertical: spacing.sm + 2,
+                    }}>
+                    <Ionicons color={theme.colors.accent} name="color-wand-outline" size={16} />
+                    <AppText style={{ color: theme.colors.accent, fontSize: 14, fontFamily: theme.fonts.sansMedium }}>
+                      {isAnalyzing ? 'Analyzing image...' : 'AI Auto-Fill Metadata'}
+                    </AppText>
+                  </Pressable>
+                  {!(item?.uploadedImageUrl || item?.sketchImageUrl) ? (
+                    <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center', marginTop: -spacing.xs }}>
+                      Add a photo to enable AI auto-fill
+                    </AppText>
+                  ) : (
+                    <AppText tone="muted" style={{ fontSize: 11, textAlign: 'center', marginTop: -spacing.xs }}>
+                      Fills empty fields only — your existing data is preserved
+                    </AppText>
+                  )}
+
+                  {/* ── Basics ── */}
+                  <EditSectionLabel label="BASICS" />
+                  <FieldInput label="Title" value={title} onChangeText={setTitle} returnKeyType="next" />
+                  <FieldInput label="Category" value={category} onChangeText={setCategory} returnKeyType="next" />
                   <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                    <View style={{ flex: 1, gap: spacing.xs }}>
-                      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Brand</AppText>
-                      <TextInput value={brand} onChangeText={setBrand} returnKeyType="next" style={inputStyle} />
+                    <View style={{ flex: 1 }}>
+                      <FieldInput label="Brand" value={brand} onChangeText={setBrand} returnKeyType="next" />
                     </View>
-                    <View style={{ flex: 1, gap: spacing.xs }}>
-                      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Size</AppText>
-                      <TextInput value={size} onChangeText={setSize} returnKeyType="done" onSubmitEditing={Keyboard.dismiss} style={inputStyle} />
+                    <View style={{ flex: 1 }}>
+                      <FieldInput label="Size" value={size} onChangeText={setSize} returnKeyType="done" onSubmitEditing={Keyboard.dismiss} />
                     </View>
                   </View>
+
+                  {/* ── Color & Material ── */}
+                  <EditSectionLabel label="COLOR & MATERIAL" />
+                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                    <View style={{ flex: 1 }}>
+                      <FieldInput label="Primary Color" value={primaryColor} onChangeText={setPrimaryColor} placeholder="e.g. Navy" returnKeyType="next" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <FieldInput label="Material" value={material} onChangeText={setMaterial} placeholder="e.g. Wool" returnKeyType="next" />
+                    </View>
+                  </View>
+                  <ColorFamilyPicker value={colorFamily} onChange={setColorFamily} />
+                  <PatternPicker value={pattern} onChange={setPattern} />
+                  <WeightPicker value={weight} onChange={setWeight} />
+
+                  {/* ── Shape & Style ── */}
+                  <EditSectionLabel label="SHAPE & STYLE" />
+                  <FieldInput
+                    label="Subcategory"
+                    value={subcategory}
+                    onChangeText={setSubcategory}
+                    placeholder="e.g. Slim Chino, Chelsea Boot"
+                    returnKeyType="next"
+                  />
                   <SilhouettePicker value={silhouette} onChange={setSilhouette} />
+                  <FormalityPicker value={formality} onChange={setFormality} />
+                  <SeasonPicker value={season} onChange={setSeason} />
+
+                  {/* ── Personal Fit ── */}
+                  <EditSectionLabel label="PERSONAL FIT" />
                   <FitStatusPicker value={fitStatus} onChange={setFitStatus} />
+
+                  {/* ── Notes ── */}
+                  <EditSectionLabel label="NOTES" />
+                  <TextInput
+                    value={notes}
+                    onChangeText={setNotes}
+                    multiline
+                    numberOfLines={3}
+                    placeholder="Any personal notes about this item..."
+                    placeholderTextColor={theme.colors.mutedText}
+                    style={[inputStyle, { height: 80, textAlignVertical: 'top', paddingTop: spacing.sm }]}
+                  />
+
                   {error ? <AppText style={{ color: '#D26A5C', fontSize: 13 }}>{error}</AppText> : null}
                   <PrimaryButton
                     label={isSaving ? 'Saving...' : 'Save Changes'}
@@ -766,7 +904,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                 </View>
 
               ) : (
-                /* View mode — plain labels */
+                /* View mode — structured metadata display */
                 <View style={{ gap: spacing.md }}>
                   <LabelRow label="Title" value={item?.title} />
                   <LabelRow label="Category" value={item?.subcategory ? `${item.category} · ${item.subcategory}` : item?.category} />
@@ -774,33 +912,23 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                     <View style={{ flex: 1 }}><LabelRow label="Brand" value={item?.brand || '—'} /></View>
                     <View style={{ flex: 1 }}><LabelRow label="Size" value={item?.size || '—'} /></View>
                   </View>
-                  {(item?.primaryColor || item?.material || item?.pattern) ? (
-                    <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                      {item.primaryColor ? <View style={{ flex: 1 }}><LabelRow label="Color" value={item.primaryColor} /></View> : null}
-                      {item.material ? <View style={{ flex: 1 }}><LabelRow label="Material" value={item.material} /></View> : null}
-                      {item.pattern ? <View style={{ flex: 1 }}><LabelRow label="Pattern" value={item.pattern} /></View> : null}
-                    </View>
-                  ) : null}
-                  {(item?.formality || item?.weight) ? (
-                    <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                      {item.formality ? <View style={{ flex: 1 }}><LabelRow label="Formality" value={item.formality} /></View> : null}
-                      {item.weight ? <View style={{ flex: 1 }}><LabelRow label="Weight" value={item.weight} /></View> : null}
-                    </View>
-                  ) : null}
-                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                    <View style={{ flex: 1 }}>
-                      <LabelRow
-                        label="Silhouette"
-                        value={CLOSET_SILHOUETTE_OPTIONS.find((o) => o.value === item?.silhouette)?.label || '—'}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <LabelRow
-                        label="Personal Fit"
-                        value={CLOSET_FIT_STATUS_OPTIONS.find((o) => o.value === item?.fitStatus)?.label || '—'}
-                      />
-                    </View>
-                  </View>
+                  {/* Color & Material */}
+                  <MetadataRow fields={[
+                    { label: 'Color', value: item?.primaryColor },
+                    { label: 'Color Family', value: item?.colorFamily ? cap(item.colorFamily) : undefined },
+                    { label: 'Material', value: item?.material },
+                  ]} />
+                  <MetadataRow fields={[
+                    { label: 'Pattern', value: item?.pattern },
+                    { label: 'Weight', value: item?.weight },
+                    { label: 'Formality', value: item?.formality },
+                  ]} />
+                  {/* Shape, season & fit */}
+                  <MetadataRow fields={[
+                    { label: 'Silhouette', value: CLOSET_SILHOUETTE_OPTIONS.find((o) => o.value === item?.silhouette)?.label },
+                    { label: 'Season', value: item?.season ? cap(item.season) : undefined },
+                    { label: 'Personal Fit', value: CLOSET_FIT_STATUS_OPTIONS.find((o) => o.value === item?.fitStatus)?.label },
+                  ]} />
                   {item?.notes ? <LabelRow label="Notes" value={item.notes} /> : null}
                 </View>
               )}
@@ -818,6 +946,47 @@ function LabelRow({ label, value }: { label: string; value?: string }) {
       <AppText style={{ fontSize: 15, color: theme.colors.text, fontFamily: theme.fonts.sans }}>{value ?? '—'}</AppText>
     </View>
   );
+}
+
+/** Renders a horizontal row of up to 3 populated label/value pairs. Skips empty fields gracefully. */
+function MetadataRow({ fields }: { fields: { label: string; value?: string | null }[] }) {
+  const populated = fields.filter((f) => f.value);
+  if (!populated.length) return null;
+  return (
+    <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+      {populated.map((f) => (
+        <View key={f.label} style={{ flex: 1 }}>
+          <LabelRow label={f.label} value={f.value ?? undefined} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Thin hairline section divider with an eyebrow label for the edit form. */
+function EditSectionLabel({ label }: { label: string }) {
+  return (
+    <View style={{ borderTopColor: theme.colors.border, borderTopWidth: 1, paddingTop: spacing.sm, marginTop: spacing.xs }}>
+      <AppText style={{ color: theme.colors.mutedText, fontFamily: theme.fonts.sansMedium, fontSize: 9, letterSpacing: 2 }}>
+        {label}
+      </AppText>
+    </View>
+  );
+}
+
+/** Label + TextInput combo — eliminates the repetitive eyebrow/input pattern in the edit form. */
+function FieldInput({ label, style, ...props }: { label: string } & React.ComponentProps<typeof TextInput>) {
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>{label}</AppText>
+      <TextInput style={[inputStyle, style]} placeholderTextColor={theme.colors.mutedText} {...props} />
+    </View>
+  );
+}
+
+/** Capitalizes the first letter of a string (for displaying enum-like values). */
+function cap(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 // ── Category filter modal ─────────────────────────────────────────────────────
