@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { ToastProvider } from '@/components/ui/toast-provider';
+import { AuthProvider } from '@/contexts/auth-context';
 import { AppThemeProvider, useTheme } from '@/contexts/theme-context';
 import { buildNavTheme } from '@/constants/themes';
 import { AppSessionProvider, useAppSession } from '@/hooks/use-app-session';
@@ -38,6 +39,7 @@ function AppNavigation() {
           },
         }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="auth" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="onboarding" options={{ title: 'Onboarding', gestureEnabled: false }} />
         <Stack.Screen name="review-request" options={{ headerShown: false }} />
         <Stack.Screen name="check-piece" options={{ headerShown: false }} />
@@ -60,11 +62,13 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
 export default function RootLayout() {
   return (
     <AppThemeProvider>
-      <AppSessionProvider>
-        <ToastProvider>
-          <AppNavigation />
-        </ToastProvider>
-      </AppSessionProvider>
+      <AuthProvider>
+        <AppSessionProvider>
+          <ToastProvider>
+            <AppNavigation />
+          </ToastProvider>
+        </AppSessionProvider>
+      </AuthProvider>
     </AppThemeProvider>
   );
 }

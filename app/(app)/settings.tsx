@@ -6,6 +6,7 @@ import { ProfileForm } from '@/components/forms/profile-form';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
 import { useTheme, type AppearanceMode } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
@@ -20,6 +21,7 @@ const APPEARANCE_OPTIONS: { value: AppearanceMode; label: string; description: s
 
 export default function SettingsScreen() {
   const { isSaving, profile, saveProfile } = useAppSession();
+  const { signOut, user } = useAuth();
   const { theme, appearanceMode, setAppearanceMode } = useTheme();
   const [isSavedMessageVisible, setIsSavedMessageVisible] = useState(false);
   const [sensitivity, setSensitivity] = useState(50);
@@ -162,7 +164,34 @@ export default function SettingsScreen() {
           }}>
           <AppText variant="sectionTitle">App version</AppText>
           <AppText tone="muted">Vesture {appVersion}</AppText>
+          {user?.email ? (
+            <AppText tone="subtle" style={{ fontSize: 12 }}>Signed in as {user.email}</AppText>
+          ) : null}
         </View>
+
+        {/* Sign out */}
+        <Pressable
+          onPress={() => void signOut()}
+          style={{
+            alignItems: 'center',
+            borderColor: theme.colors.danger,
+            borderRadius: 999,
+            borderWidth: 1,
+            justifyContent: 'center',
+            minHeight: 54,
+            paddingHorizontal: spacing.lg,
+          }}>
+          <AppText style={{
+            color: theme.colors.danger,
+            fontFamily: theme.fonts.sansMedium,
+            fontSize: 14,
+            letterSpacing: 0.8,
+            textTransform: 'uppercase',
+          }}>
+            Sign Out
+          </AppText>
+        </Pressable>
+
       </View>
     </AppScreen>
   );
