@@ -81,6 +81,7 @@ export type SelfieReviewResponse = AnalysisResponse;
 export type AnalyzeClosetItemRequest = {
   uploadedImageId?: string;
   uploadedImageUrl?: string;
+  sketchImageUrl?: string;
   description?: string;
 };
 

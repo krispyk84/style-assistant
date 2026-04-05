@@ -266,14 +266,26 @@ export const closetService = {
   async analyzeItem(payload: AnalyzeClosetItemPayload) {
     const userContent: Array<{ type: 'input_image'; image_url: string; detail?: 'high' } | { type: 'input_text'; text: string }> = [];
 
-    if (payload.uploadedImageUrl) {
-      const dataUrl = await imageUrlToDataUrl(payload.uploadedImageUrl);
-      userContent.push({ type: 'input_image', image_url: dataUrl, detail: 'high' });
+    const candidateUrls = [payload.uploadedImageUrl, payload.sketchImageUrl].filter((u): u is string => Boolean(u));
+    let resolvedDataUrl: string | null = null;
+    for (const url of candidateUrls) {
+      try {
+        resolvedDataUrl = await imageUrlToDataUrl(url);
+        break;
+      } catch {
+        // try next candidate
+      }
+    }
+    if (candidateUrls.length > 0 && !resolvedDataUrl) {
+      throw new HttpError(422, 'IMAGE_UNAVAILABLE', 'The item image is no longer available. Re-save the item to restore it.');
+    }
+    if (resolvedDataUrl) {
+      userContent.push({ type: 'input_image', image_url: resolvedDataUrl, detail: 'high' });
     }
 
     userContent.push({
       type: 'input_text',
-      text: payload.uploadedImageUrl
+      text: resolvedDataUrl
         ? `Identify this garment and return structured metadata. Categories: ${ANALYZE_CATEGORY_LIST}. Formality: ${ANALYZE_FORMALITY_OPTIONS}. Silhouette: ${ANALYZE_SILHOUETTE_OPTIONS}. ColorFamily: ${ANALYZE_COLOR_FAMILY_OPTIONS}. Weight: ${ANALYZE_WEIGHT_OPTIONS}. Pattern: ${ANALYZE_PATTERN_OPTIONS}. Return all fields — use empty string for brand if not detectable. Omit fields that cannot be determined from the image.`
         : `Identify this garment from the description: "${payload.description ?? ''}". Return structured metadata including title, category, and any detectable metadata fields. Brand: empty string if not apparent.`,
     });

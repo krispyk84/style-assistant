@@ -614,18 +614,22 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
 
   async function handleAIAutofill() {
     if (!item) return;
-    // Prefer the uploaded photo; fall back to sketch for items without a photo
-    const imageUrl = item.uploadedImageUrl ?? item.sketchImageUrl;
-    if (!imageUrl) {
+    if (!item.uploadedImageUrl && !item.sketchImageUrl) {
       setError('No image available for AI analysis. Add a photo to enable auto-fill.');
       return;
     }
     setIsAnalyzing(true);
     setError(null);
-    const response = await closetService.analyzeItem({ uploadedImageUrl: imageUrl });
+    const response = await closetService.analyzeItem({
+      uploadedImageUrl: item.uploadedImageUrl ?? undefined,
+      sketchImageUrl: item.sketchImageUrl ?? undefined,
+    });
     setIsAnalyzing(false);
     if (!response.success || !response.data) {
-      setError('AI analysis failed. Please try again.');
+      const msg = response.error?.code === 'IMAGE_UNAVAILABLE'
+        ? 'Item image is no longer available. Re-save the item with a new photo.'
+        : 'AI analysis failed. Please try again.';
+      setError(msg);
       return;
     }
     const ai = response.data;

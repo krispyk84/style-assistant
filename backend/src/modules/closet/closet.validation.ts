@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const analyzeClosetItemSchema = z.object({
   uploadedImageId: z.string().optional(),
   uploadedImageUrl: z.string().optional(),
+  sketchImageUrl: z.string().optional(),
   description: z.string().optional(),
 });
 
