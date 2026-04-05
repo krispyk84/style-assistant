@@ -628,7 +628,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
     if (!response.success || !response.data) {
       const msg = response.error?.code === 'IMAGE_UNAVAILABLE'
         ? 'Item image is no longer available. Re-save the item with a new photo.'
-        : 'AI analysis failed. Please try again.';
+        : `AI analysis failed: ${response.error?.code ?? 'unknown'} — ${response.error?.message ?? 'no details'}`;
       setError(msg);
       return;
     }
