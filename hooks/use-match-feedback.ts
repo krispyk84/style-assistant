@@ -16,6 +16,7 @@ type UseMatchFeedbackOptions = {
   pieces: OutfitPiece[];
   /** Called when a slot has been rematched so the screen can update its matchMap. */
   onSlotRematched: (suggestion: string, item: ClosetItem | null) => void;
+  sensitivity?: number;
 };
 
 type UseMatchFeedbackReturn = {
@@ -45,6 +46,7 @@ export function useMatchFeedback({
   closetItems,
   pieces,
   onSlotRematched,
+  sensitivity,
 }: UseMatchFeedbackOptions): UseMatchFeedbackReturn {
   const [matchFeedbackMap, setMatchFeedbackMap] = useState<Record<string, 'up' | 'down' | null>>({});
   const [regeneratingMatches, setRegeneratingMatches] = useState<Set<string>>(new Set());
@@ -112,7 +114,7 @@ export function useMatchFeedback({
     try {
       const excludeSet = new Set(excludedItemIds);
       const piece = pieces.find((p) => p.display_name === suggestion);
-      const newItem = findBestClosetMatch(piece ?? suggestion, closetItems, excludeSet);
+      const newItem = findBestClosetMatch(piece ?? suggestion, closetItems, excludeSet, sensitivity);
 
       onSlotRematched(suggestion, newItem);
       // Clear the 'down' feedback so the new match opens with a fresh state

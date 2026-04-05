@@ -19,6 +19,7 @@ import { parseLookInput, parseLookRecommendation, type LookRouteParams } from '@
 import { closetService } from '@/services/closet';
 import { outfitsService } from '@/services/outfits';
 import { useMatchFeedback } from '@/hooks/use-match-feedback';
+import { useMatchSensitivity } from '@/hooks/use-match-sensitivity';
 import type { ClosetItem } from '@/types/closet';
 import type { LookRecommendation, OutfitPiece } from '@/types/look-request';
 
@@ -59,11 +60,14 @@ export default function TierScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stableParams.requestId, stableParams.tier]);
 
+  const sensitivity = useMatchSensitivity();
+
   const { matchFeedbackMap, regeneratingMatches, handleMatchThumbsUp, handleMatchThumbsDown } =
     useMatchFeedback({
       requestId: stableParams.requestId ?? '',
       closetItems,
       pieces: uniquePieces,
+      sensitivity,
       onSlotRematched: (suggestion, item) =>
         // null from rematch means all candidates exhausted → false sentinel prevents local-scoring fallback
         setMatchMap((prev) => ({ ...prev, [suggestion]: item ?? false })),
@@ -109,7 +113,7 @@ export default function TierScreen() {
 
     const resolved: Record<string, ClosetItem | null> = {};
     for (const piece of uniquePieces) {
-      resolved[piece.display_name] = findBestClosetMatch(piece, closetItems);
+      resolved[piece.display_name] = findBestClosetMatch(piece, closetItems, undefined, sensitivity);
     }
     setMatchMap(resolved);
   }, [uniquePieces, closetItems]);

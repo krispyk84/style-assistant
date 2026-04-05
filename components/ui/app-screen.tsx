@@ -5,7 +5,8 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/ui/app-text';
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 
 type AppScreenProps = PropsWithChildren<{
   scrollable?: boolean;
@@ -21,9 +22,8 @@ const FLOATING_BACK_THRESHOLD = 80;
 export function AppScreen({ children, scrollable = false, topInset = true, floatingBack = false, scrollRef }: AppScreenProps) {
   const [showFloatingBack, setShowFloatingBack] = useState(false);
   const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
 
-  // Stable reference — prevents ScrollView from seeing a new onScroll prop on every render,
-  // which in Fabric can cause repeated scroll-event registration.
   const handleScroll = useCallback(
     (e: { nativeEvent: { contentOffset: { y: number } } }) => {
       setShowFloatingBack(e.nativeEvent.contentOffset.y > FLOATING_BACK_THRESHOLD);
@@ -43,9 +43,6 @@ export function AppScreen({ children, scrollable = false, topInset = true, float
     </View>
   );
 
-  // Only spread scroll-tracking props when floatingBack is active.
-  // Passing onScroll={undefined} / scrollEventThrottle={undefined} to a Fabric ScrollView
-  // can register an event channel even with no handler, so we omit them entirely instead.
   const floatingScrollProps = floatingBack
     ? { onScroll: handleScroll, scrollEventThrottle: 16 }
     : {};
@@ -69,7 +66,6 @@ export function AppScreen({ children, scrollable = false, topInset = true, float
         content
       )}
 
-      {/* Floating back button — appears after scrolling down on screens without bottom nav */}
       {floatingBack && showFloatingBack ? (
         <Pressable
           onPress={() => router.back()}

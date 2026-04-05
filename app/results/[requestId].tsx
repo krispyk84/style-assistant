@@ -27,6 +27,7 @@ import type { GenerateOutfitsResponse } from '@/types/api';
 import { outfitsService } from '@/services/outfits';
 import { normalizePiece, type LookTierSlug } from '@/types/look-request';
 import { useMatchFeedback } from '@/hooks/use-match-feedback';
+import { useMatchSensitivity } from '@/hooks/use-match-sensitivity';
 
 export default function ResultDetailsScreen() {
   const params = useLocalSearchParams<LookRouteParams & { requestId: string }>();
@@ -62,11 +63,14 @@ export default function ResultDetailsScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [response?.requestId]);
 
+  const sensitivity = useMatchSensitivity();
+
   const { matchFeedbackMap, regeneratingMatches, handleMatchThumbsUp, handleMatchThumbsDown } =
     useMatchFeedback({
       requestId: stableParams.requestId ?? '',
       closetItems,
       pieces: uniquePieces,
+      sensitivity,
       onSlotRematched: (suggestion, item) =>
         // null from rematch means all candidates exhausted → false sentinel prevents local-scoring fallback
         setMatchMap((prev) => ({ ...prev, [suggestion]: item ?? false })),
@@ -139,7 +143,7 @@ export default function ResultDetailsScreen() {
     const newlyMatchedIds: string[] = [];
 
     for (const piece of uniquePieces) {
-      const item = findBestClosetMatch(piece, closetItems);
+      const item = findBestClosetMatch(piece, closetItems, undefined, sensitivity);
       resolved[piece.display_name] = item;
       if (item && !countedMatchedIdsRef.current.has(item.id)) {
         countedMatchedIdsRef.current.add(item.id);

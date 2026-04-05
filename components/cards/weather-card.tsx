@@ -1,11 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
-import { View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, View } from 'react-native';
 
-import { spacing, theme } from '@/constants/theme';
+import { WeatherForecastModal } from '@/components/weather/weather-forecast-modal';
+import { AppText } from '@/components/ui/app-text';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
 import { weatherIconName } from '@/lib/outfit-utils';
 import { formatTemperature } from '@/lib/temperature-format';
-import { AppText } from '@/components/ui/app-text';
 import type { WeatherContext } from '@/types/weather';
 
 type WeatherCardProps = {
@@ -16,72 +19,104 @@ type WeatherCardProps = {
 
 export function WeatherCard({ weather, isLoading = false, errorMessage }: WeatherCardProps) {
   const { profile } = useAppSession();
+  const { theme } = useTheme();
+  const [forecastVisible, setForecastVisible] = useState(false);
 
   return (
-    <View
-      style={{
-        backgroundColor: theme.colors.surface,
-        borderColor: theme.colors.border,
-        borderRadius: 28,
-        borderWidth: 1,
-        gap: spacing.md,
-        padding: spacing.lg,
-      }}>
-      {isLoading ? (
-        <AppText tone="muted">Checking the weather so your looks fit the day.</AppText>
-      ) : weather ? (
-        <>
-          {/* Icon + location row */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-            <View
-              style={{
-                alignItems: 'center',
-                backgroundColor: theme.colors.card,
-                borderRadius: 999,
-                height: 52,
-                justifyContent: 'center',
-                width: 52,
-              }}>
-              <Ionicons
-                color={theme.colors.accent}
-                name={weatherIconName(weather.weatherCode)}
-                size={24}
-              />
+    <>
+      <Pressable
+        onPress={() => weather ? setForecastVisible(true) : undefined}
+        style={({ pressed }) => ({
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.border,
+          borderRadius: 28,
+          borderWidth: 1,
+          gap: spacing.md,
+          opacity: pressed && weather ? 0.85 : 1,
+          padding: spacing.lg,
+        })}>
+        {isLoading ? (
+          <AppText tone="muted">Checking the weather so your looks fit the day.</AppText>
+        ) : weather ? (
+          <>
+            {/* Icon + temp row */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+              <View
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: theme.colors.card,
+                  borderRadius: 999,
+                  height: 52,
+                  justifyContent: 'center',
+                  width: 52,
+                }}>
+                <Ionicons
+                  color={theme.colors.accent}
+                  name={weatherIconName(weather.weatherCode)}
+                  size={24}
+                />
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <AppText variant="eyebrow" tone="subtle" style={{ letterSpacing: 1.4 }}>
+                  {[weather.locationLabel, weather.season.charAt(0).toUpperCase() + weather.season.slice(1)]
+                    .filter(Boolean)
+                    .join(' • ')}
+                </AppText>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm, flexWrap: 'wrap' }}>
+                  <AppText variant="title">
+                    {formatTemperature(weather.temperatureC, profile.temperatureUnit)}
+                    {' — '}
+                    {weather.summary}
+                  </AppText>
+                </View>
+                {(weather.dailyHighC !== null || weather.dailyLowC !== null) ? (
+                  <View style={{ flexDirection: 'row', gap: spacing.xs, alignItems: 'center', marginTop: 2 }}>
+                    {weather.dailyHighC !== null ? (
+                      <AppText style={{ fontSize: 13, color: theme.colors.text }}>
+                        H: {formatTemperature(weather.dailyHighC, profile.temperatureUnit)}
+                      </AppText>
+                    ) : null}
+                    {weather.dailyHighC !== null && weather.dailyLowC !== null ? (
+                      <AppText tone="subtle" style={{ fontSize: 13 }}>·</AppText>
+                    ) : null}
+                    {weather.dailyLowC !== null ? (
+                      <AppText tone="muted" style={{ fontSize: 13 }}>
+                        L: {formatTemperature(weather.dailyLowC, profile.temperatureUnit)}
+                      </AppText>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+              {/* Tap indicator */}
+              <Ionicons color={theme.colors.subtleText} name="chevron-forward" size={16} />
             </View>
-            <View style={{ gap: 2 }}>
-              <AppText variant="eyebrow" tone="subtle" style={{ letterSpacing: 1.4 }}>
-                {[weather.locationLabel, weather.season.charAt(0).toUpperCase() + weather.season.slice(1)]
-                  .filter(Boolean)
-                  .join(' • ')}
-              </AppText>
-              <AppText variant="title">
-                {formatTemperature(weather.temperatureC, profile.temperatureUnit)}
-                {' — '}
-                {weather.summary}
-              </AppText>
-            </View>
-          </View>
 
-          {/* Styling hint blockquote */}
-          {weather.stylingHint ? (
-            <View
-              style={{
-                borderLeftColor: theme.colors.accent,
-                borderLeftWidth: 2,
-                paddingLeft: spacing.md,
-              }}>
-              <AppText tone="muted" style={{ fontStyle: 'italic', lineHeight: 22 }}>
-                "{weather.stylingHint}"
-              </AppText>
-            </View>
-          ) : null}
-        </>
-      ) : (
-        <AppText tone="muted">
-          {errorMessage ??
-            'Weather is unavailable right now — outfit choices will rely on your anchor item and profile only.'}
-        </AppText>
-      )}
-    </View>
+            {/* Styling hint */}
+            {weather.stylingHint ? (
+              <View
+                style={{
+                  borderLeftColor: theme.colors.accent,
+                  borderLeftWidth: 2,
+                  paddingLeft: spacing.md,
+                }}>
+                <AppText tone="muted" style={{ fontStyle: 'italic', lineHeight: 22 }}>
+                  "{weather.stylingHint}"
+                </AppText>
+              </View>
+            ) : null}
+          </>
+        ) : (
+          <AppText tone="muted">
+            {errorMessage ??
+              'Weather is unavailable right now — outfit choices will rely on your anchor item and profile only.'}
+          </AppText>
+        )}
+      </Pressable>
+
+      <WeatherForecastModal
+        visible={forecastVisible}
+        onClose={() => setForecastVisible(false)}
+      />
+    </>
   );
 }

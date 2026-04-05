@@ -159,6 +159,9 @@ const OUTFIT_CATEGORY_TO_GROUP: Partial<Record<OutfitPieceCategory, string>> = {
   Bag:             'bag',
   Watch:           'watch',
   Scarf:           'scarf',
+  Hat:             'hat',
+  Tie:             'tie',
+  Socks:           'socks',
   Suit:            'suit',
 };
 
@@ -321,6 +324,27 @@ function scoreCategory(piece: OutfitPiece, item: ClosetItem): { score: number; r
   // ── Structured metadata path ───────────────────────────────────────────────
   if (piece.metadata?.category) {
     const cat = piece.metadata.category;
+
+    // Text-veto: if the display_name text implies a group that is incompatible
+    // with the metadata category, the LLM assigned a wrong category (e.g. "navy
+    // tie" labelled as Belt). Trust the text over the structured field.
+    const textGroup  = extractGarmentGroup(piece.display_name);
+    const metaGroup  = OUTFIT_CATEGORY_TO_GROUP[cat];
+    if (textGroup && metaGroup && textGroup !== metaGroup && !isRelatedGroup(textGroup, metaGroup)) {
+      // Fall through to the text-inference path below by pretending there is no
+      // metadata category — do NOT return 0 here, a correct item could still match.
+      const itemGroup = getItemGarmentGroup(item);
+      if (itemGroup) {
+        if (itemGroup === textGroup) {
+          return { score: W.CATEGORY_INFERRED, reasons: [`cat:text_veto_inferred(${textGroup})`] };
+        }
+        if (isRelatedGroup(itemGroup, textGroup)) {
+          return { score: W.CATEGORY_RELATED, reasons: [`cat:text_veto_related(${textGroup}↔${itemGroup})`] };
+        }
+        return { score: 0, reasons: [`cat:text_veto_mismatch(meta=${cat},text=${textGroup}≠${itemGroup})`] };
+      }
+    }
+
     const compatible = OUTFIT_TO_CLOSET_CATEGORY_MAP[cat];
     if (compatible?.includes(item.category)) {
       return { score: W.CATEGORY_STRUCTURED, reasons: [`cat:exact_structured(${cat}→${item.category})`] };
@@ -392,7 +416,8 @@ function scoreColor(piece: OutfitPiece, item: ClosetItem): { score: number; reas
     if (pieceColorFamilies.has(item.colorFamily)) {
       return { score: W.COLOR_STRUCTURED, reasons: [`color:structured_match(${item.colorFamily})`] };
     }
-    return { score: 0, reasons: [`color:structured_mismatch(${item.colorFamily})`] };
+    // Confirmed color mismatch — apply penalty to prevent wrong-color category matches
+    return { score: -15, reasons: [`color:structured_mismatch(${item.colorFamily})`] };
   }
 
   // Text inference fallback
@@ -531,17 +556,25 @@ export function findBestClosetMatch(
   pieceOrString: OutfitPiece | string,
   items: ClosetItem[],
   excludeIds?: ReadonlySet<string>,
+  /** 0–100; maps to threshold LOW=45, MED=50 (default), HIGH=58. */
+  sensitivity?: number,
 ): ClosetItem | null {
   const piece = typeof pieceOrString === 'string' ? normalizePiece(pieceOrString) : pieceOrString;
   const candidates = excludeIds?.size ? items.filter((i) => !excludeIds.has(i.id)) : items;
   if (!candidates.length || !piece.display_name.trim()) return null;
+
+  const threshold =
+    sensitivity === undefined ? THRESHOLD
+    : sensitivity >= 67        ? 58
+    : sensitivity >= 34        ? 50
+    : 45;
 
   let bestItem: ClosetItem | null = null;
   let bestScore = -Infinity;
 
   for (const item of candidates) {
     const result = scoreClosetMatch(piece, item);
-    if (result.passesThreshold && result.total > bestScore) {
+    if (result.total >= threshold && result.total > bestScore) {
       bestScore = result.total;
       bestItem = item;
     }

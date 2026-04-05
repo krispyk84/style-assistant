@@ -5,9 +5,9 @@ const verdictEnum = z.enum(['Works great', 'Works okay', "Doesn't work"]);
 
 const OUTFIT_PIECE_CATEGORIES = [
   'Bag', 'Belt', 'Blazer', 'Boots', 'Cardigan', 'Coat', 'Denim', 'Gloves',
-  'Hoodie', 'Knitwear', 'Loafers', 'Outerwear', 'Overshirt', 'Polo', 'Scarf',
-  'Shirt', 'Shoes', 'Shorts', 'Sneakers', 'Suit', 'Sunglasses', 'Sweatpants',
-  'Sweatshirt', 'Swim Shirt', 'Swimming Shorts', 'T-Shirt', 'Tank Top', 'Trousers',
+  'Hat', 'Hoodie', 'Knitwear', 'Loafers', 'Outerwear', 'Overshirt', 'Polo', 'Scarf',
+  'Shirt', 'Shoes', 'Shorts', 'Sneakers', 'Socks', 'Suit', 'Sunglasses', 'Sweatpants',
+  'Sweatshirt', 'Swim Shirt', 'Swimming Shorts', 'T-Shirt', 'Tank Top', 'Tie', 'Trousers',
   'Vest', 'Watch',
 ] as const;
 

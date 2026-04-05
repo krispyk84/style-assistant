@@ -1,16 +1,27 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandSplash } from '@/components/ui/brand-splash';
 import { AppText } from '@/components/ui/app-text';
-import { spacing, theme } from '@/constants/theme';
+import { spacing, theme as staticTheme } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
 
-// Catches render exceptions inside any tab screen and shows a recoverable fallback
-// instead of a blank screen. Uses only primitive RN components so it cannot itself fail.
+const TAB_ICON_SIZE = 22;
+
+// Icon names for selected/unselected states
+const TAB_ICONS = {
+  home:     { active: 'home',          inactive: 'home-outline' },
+  week:     { active: 'calendar',      inactive: 'calendar-outline' },
+  history:  { active: 'heart',         inactive: 'heart-outline' },
+  closet:   { active: 'shirt',         inactive: 'shirt-outline' },
+  settings: { active: 'options',       inactive: 'options-outline' },
+} as const;
+
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  const { theme } = useTheme();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <View
@@ -21,53 +32,32 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
           gap: spacing.lg,
           paddingHorizontal: spacing.lg,
         }}>
-        <Text
-          style={{
-            color: theme.colors.text,
-            fontFamily: theme.fonts.sansMedium,
-            fontSize: 16,
-            textAlign: 'center',
-          }}>
+        <AppText variant="sectionTitle" style={{ textAlign: 'center' }}>
           Something went wrong
-        </Text>
-        <Text
-          style={{
-            color: theme.colors.mutedText,
-            fontFamily: theme.fonts.sans,
-            fontSize: 14,
-            textAlign: 'center',
-          }}
-          numberOfLines={4}>
+        </AppText>
+        <AppText tone="muted" style={{ textAlign: 'center' }} numberOfLines={4}>
           {error.message || 'An unexpected error occurred. Please try again.'}
-        </Text>
-        <Pressable
-          onPress={retry}
+        </AppText>
+        <View
+          onTouchEnd={retry}
           style={{
             backgroundColor: theme.colors.text,
             borderRadius: 999,
             paddingHorizontal: spacing.lg,
             paddingVertical: spacing.sm,
           }}>
-          <Text
-            style={{
-              color: theme.colors.background,
-              fontFamily: theme.fonts.sansMedium,
-              fontSize: 14,
-              letterSpacing: 0.8,
-              textTransform: 'uppercase',
-            }}>
+          <AppText style={{ color: theme.colors.inverseText, fontSize: 14, letterSpacing: 0.8, textTransform: 'uppercase' }}>
             Retry
-          </Text>
-        </Pressable>
+          </AppText>
+        </View>
       </View>
     </SafeAreaView>
   );
 }
 
-const TAB_ICON_SIZE = 22;
-
 export default function AppTabsLayout() {
   const { hasCompletedOnboarding, isHydrated, isReconnecting } = useAppSession();
+  const { theme } = useTheme();
 
   if (!isHydrated) {
     return (
@@ -87,88 +77,119 @@ export default function AppTabsLayout() {
 
   return (
     <View style={{ flex: 1 }}>
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        animation: 'fade',
-        tabBarActiveTintColor: theme.colors.text,
-        tabBarInactiveTintColor: theme.colors.mutedText,
-        tabBarStyle: {
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.border,
-          height: 88,
-          paddingBottom: 20,
-          paddingTop: 10,
-        },
-        tabBarLabelStyle: {
-          fontFamily: theme.fonts.sansMedium,
-          fontSize: 11,
-          letterSpacing: 0.4,
-          textTransform: 'uppercase',
-        },
-        sceneStyle: {
-          backgroundColor: theme.colors.background,
-        },
-      }}>
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <Ionicons color={color} name="home-outline" size={TAB_ICON_SIZE} />,
-        }}
-      />
-      <Tabs.Screen
-        name="week"
-        options={{
-          title: 'Week',
-          tabBarIcon: ({ color }) => <Ionicons color={color} name="calendar-outline" size={TAB_ICON_SIZE} />,
-        }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{
-          title: 'Favorites',
-          tabBarIcon: ({ color }) => <Ionicons color={color} name="heart-outline" size={TAB_ICON_SIZE} />,
-        }}
-      />
-      <Tabs.Screen
-        name="closet"
-        options={{
-          title: 'Closet',
-          tabBarIcon: ({ color }) => <Ionicons color={color} name="shirt-outline" size={TAB_ICON_SIZE} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color }) => <Ionicons color={color} name="options-outline" size={TAB_ICON_SIZE} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          href: null,
-        }}
-      />
-    </Tabs>
-    {isReconnecting ? (
-      <View
-        style={{
-          alignItems: 'center',
-          backgroundColor: theme.colors.background,
-          bottom: 0,
-          gap: 16,
-          justifyContent: 'center',
-          left: 0,
-          position: 'absolute',
-          right: 0,
-          top: 0,
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade',
+          tabBarActiveTintColor: theme.colors.accent,
+          tabBarInactiveTintColor: theme.colors.subtleText,
+          tabBarStyle: {
+            backgroundColor: theme.colors.surface,
+            borderTopColor: theme.colors.border,
+            borderTopWidth: 1,
+            height: 88,
+            paddingBottom: 20,
+            paddingTop: 8,
+          },
+          tabBarLabelStyle: {
+            fontFamily: staticTheme.fonts.sansMedium,
+            fontSize: 10,
+            letterSpacing: 0.6,
+            textTransform: 'uppercase',
+          },
+          sceneStyle: {
+            backgroundColor: theme.colors.background,
+          },
         }}>
-        <ActivityIndicator color={theme.colors.accent} size="large" />
-        <AppText tone="muted" style={{ fontSize: 14 }}>Reconnecting to Vesture...</AppText>
-      </View>
-    ) : null}
+        <Tabs.Screen
+          name="home"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                color={color}
+                name={focused ? TAB_ICONS.home.active : TAB_ICONS.home.inactive}
+                size={TAB_ICON_SIZE}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="week"
+          options={{
+            title: 'Week',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                color={color}
+                name={focused ? TAB_ICONS.week.active : TAB_ICONS.week.inactive}
+                size={TAB_ICON_SIZE}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="history"
+          options={{
+            title: 'Favorites',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                color={color}
+                name={focused ? TAB_ICONS.history.active : TAB_ICONS.history.inactive}
+                size={TAB_ICON_SIZE}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="closet"
+          options={{
+            title: 'Closet',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                color={color}
+                name={focused ? TAB_ICONS.closet.active : TAB_ICONS.closet.inactive}
+                size={TAB_ICON_SIZE}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: 'Settings',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                color={color}
+                name={focused ? TAB_ICONS.settings.active : TAB_ICONS.settings.inactive}
+                size={TAB_ICON_SIZE}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            href: null,
+          }}
+        />
+      </Tabs>
+      {isReconnecting ? (
+        <View
+          style={{
+            alignItems: 'center',
+            backgroundColor: theme.colors.background,
+            bottom: 0,
+            gap: 16,
+            justifyContent: 'center',
+            left: 0,
+            position: 'absolute',
+            right: 0,
+            top: 0,
+          }}>
+          <ActivityIndicator color={theme.colors.accent} size="large" />
+          <AppText tone="muted" style={{ fontSize: 14 }}>Reconnecting to Vesture...</AppText>
+        </View>
+      ) : null}
     </View>
   );
 }

@@ -2,6 +2,7 @@ import { PropsWithChildren } from 'react';
 import { StyleProp, Text, TextProps, TextStyle } from 'react-native';
 
 import { theme } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 
 type TextVariant = 'body' | 'eyebrow' | 'hero' | 'heroSmall' | 'title' | 'sectionTitle' | 'meta' | 'link';
 type TextTone = 'default' | 'muted' | 'subtle';
@@ -13,6 +14,7 @@ type AppTextProps = PropsWithChildren<{
 }> &
   Pick<TextProps, 'numberOfLines'>;
 
+// Variant styles don't change between themes (only fonts used, no colors)
 const variantStyles: Record<TextVariant, TextStyle> = {
   body: {
     fontFamily: theme.fonts.sans,
@@ -59,15 +61,15 @@ const variantStyles: Record<TextVariant, TextStyle> = {
   },
 };
 
-const toneStyles: Record<TextTone, TextStyle> = {
-  default: { color: theme.colors.text },
-  muted: { color: theme.colors.mutedText },
-  subtle: { color: theme.colors.subtleText },
-};
-
 export function AppText({ children, variant = 'body', tone = 'default', style, numberOfLines }: AppTextProps) {
+  const { theme: t } = useTheme();
+  const toneStyle: TextStyle =
+    tone === 'muted' ? { color: t.colors.mutedText }
+    : tone === 'subtle' ? { color: t.colors.subtleText }
+    : { color: t.colors.text };
+
   return (
-    <Text numberOfLines={numberOfLines} style={[variantStyles[variant], toneStyles[tone], style]}>
+    <Text numberOfLines={numberOfLines} style={[variantStyles[variant], toneStyle, style]}>
       {children}
     </Text>
   );

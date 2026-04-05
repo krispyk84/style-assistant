@@ -251,6 +251,8 @@ function parseWeatherContext(params: LookRouteParams): WeatherContext | null {
   return {
     temperatureC: params.weatherTemperatureC ? Number(params.weatherTemperatureC) : 0,
     apparentTemperatureC: params.weatherApparentTemperatureC ? Number(params.weatherApparentTemperatureC) : 0,
+    dailyHighC: null,
+    dailyLowC: null,
     weatherCode: params.weatherCode ? Number(params.weatherCode) : 0,
     season,
     summary: params.weatherSummary,

@@ -1,7 +1,8 @@
 import { Href, Link } from 'expo-router';
 import { GestureResponderEvent, Pressable, StyleProp, Text, ViewStyle } from 'react-native';
 
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 
 type PrimaryButtonProps = {
   label: string;
@@ -13,8 +14,9 @@ type PrimaryButtonProps = {
 };
 
 export function PrimaryButton({ label, href, onPress, variant = 'primary', disabled = false, style }: PrimaryButtonProps) {
+  const { theme } = useTheme();
   const backgroundColor = variant === 'primary' ? theme.colors.text : theme.colors.surface;
-  const textColor = variant === 'primary' ? theme.colors.background : theme.colors.text;
+  const textColor = variant === 'primary' ? theme.colors.inverseText : theme.colors.text;
 
   const button = (
     <Pressable

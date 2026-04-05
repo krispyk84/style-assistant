@@ -7,6 +7,8 @@ export type AppSettings = {
   closetMatchSensitivity: number;
   /** Last size entered when saving a closet item — used to pre-fill the Size field. */
   lastUsedSize?: string;
+  /** Appearance mode: 'light', 'dark', or 'system'. Default: 'system'. */
+  appearanceMode?: 'light' | 'dark' | 'system';
 };
 
 const DEFAULT_SETTINGS: AppSettings = {

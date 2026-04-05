@@ -4,15 +4,27 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Keyboard, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/ui/app-text';
+import { FitStatusPicker } from '@/components/closet/fit-status-picker';
 import { LoadingState } from '@/components/ui/loading-state';
+import { PillPicker } from '@/components/closet/pill-picker';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { spacing, theme } from '@/constants/theme';
+import { SilhouettePicker } from '@/components/closet/silhouette-picker';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
 import { closetService } from '@/services/closet';
-import { FitStatusPicker } from '@/components/closet/fit-status-picker';
-import { SilhouettePicker } from '@/components/closet/silhouette-picker';
-import type { ClosetItem, ClosetItemFitStatus, ClosetItemSilhouette } from '@/types/closet';
+import {
+  CLOSET_COLOR_FAMILY_OPTIONS,
+  CLOSET_FORMALITY_OPTIONS,
+  CLOSET_PATTERN_OPTIONS,
+  CLOSET_SEASON_OPTIONS,
+  CLOSET_WEIGHT_OPTIONS,
+  type ClosetItemColorFamily,
+  type ClosetItemFitStatus,
+  type ClosetItemSilhouette,
+} from '@/types/closet';
+import type { ClosetItem } from '@/types/closet';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 
 type SaveToClosetModalProps = {
@@ -25,6 +37,8 @@ type SaveToClosetModalProps = {
 };
 
 export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, description }: SaveToClosetModalProps) {
+  const { theme } = useTheme();
+
   const {
     image: pickedImage,
     uploadedImage: hookUploadedImage,
@@ -45,24 +59,27 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Core fields
   const [title, setTitle] = useState('');
   const [brand, setBrand] = useState('');
   const [size, setSize] = useState('');
   const [category, setCategory] = useState('');
   const [silhouette, setSilhouette] = useState<ClosetItemSilhouette | undefined>();
   const [fitStatus, setFitStatus] = useState<ClosetItemFitStatus | undefined>();
-  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // AI-filled metadata (not shown as editable fields in the save flow)
-  const [aiMeta, setAiMeta] = useState<{
-    subcategory?: string;
-    primaryColor?: string;
-    colorFamily?: string;
-    material?: string;
-    formality?: string;
-    weight?: string;
-    pattern?: string;
-  }>({});
+  // AI-fillable metadata fields (all editable by user)
+  const [subcategory, setSubcategory] = useState('');
+  const [primaryColor, setPrimaryColor] = useState('');
+  const [colorFamily, setColorFamily] = useState<ClosetItemColorFamily | undefined>();
+  const [material, setMaterial] = useState('');
+  const [formality, setFormality] = useState<string | undefined>();
+  const [weight, setWeight] = useState<string | undefined>();
+  const [pattern, setPattern] = useState<string | undefined>();
+  const [season, setSeason] = useState<string | undefined>();
+  const [notes, setNotes] = useState('');
+
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Sketch generation state
   const [isGeneratingSketch, setIsGeneratingSketch] = useState(false);
@@ -73,15 +90,9 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
   const sketchTranslateX = useRef(new Animated.Value(-140)).current;
 
   // ── Multi-select queue ──────────────────────────────────────────────────────
-  // imageQueue: remaining assets waiting to be processed (does not include the
-  // one currently shown in the modal).
   const [imageQueue, setImageQueue] = useState<LocalImageAsset[]>([]);
-  // queueTotal: total number of images selected in this batch (0 = single pick,
-  // no progress indicator shown).
   const [queueTotal, setQueueTotal] = useState(0);
 
-  // 1-based index of the item currently being edited.
-  // Derived: queueTotal - imageQueue.length (safe when queueTotal > 0).
   const currentQueueIndex = queueTotal > 0 ? queueTotal - imageQueue.length : 0;
 
   // Pre-fill size from last-used when modal opens
@@ -93,11 +104,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  // Reset form state when modal opens or when the active image changes (queue advance).
-  // NOTE: imageQueue / queueTotal are intentionally NOT reset here — they are managed
-  // by handlePickFromLibrary, handleSave (queue advance), handleClose, and the
-  // !visible cleanup effect below. Resetting them here would wipe the queue every
-  // time the uploaded image ID changes (i.e. on every queue advance).
+  // Reset form state when modal opens or when the active image changes (queue advance)
   useEffect(() => {
     if (!visible) return;
 
@@ -106,48 +113,23 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     setCategory('');
     setSilhouette(undefined);
     setFitStatus(undefined);
-    setAiMeta({});
+    setSubcategory('');
+    setPrimaryColor('');
+    setColorFamily(undefined);
+    setMaterial('');
+    setFormality(undefined);
+    setWeight(undefined);
+    setPattern(undefined);
+    setSeason(undefined);
+    setNotes('');
     setSaveError(null);
     setSketchImageUrl(null);
     setSketchJobId(null);
     setSketchError(null);
     setIsGeneratingSketch(false);
-
-    if (!effectiveUploadedImage) return;
-
-    let isMounted = true;
-    setIsAnalyzing(true);
-
-    void closetService
-      .analyzeItem({
-        uploadedImageId: effectiveUploadedImage.id,
-        uploadedImageUrl: effectiveUploadedImage.publicUrl,
-        description: description ?? '',
-      })
-      .then((response) => {
-        if (!isMounted) return;
-        if (response.success && response.data) {
-          const d = response.data;
-          setTitle(d.title);
-          setCategory(d.category);
-          if (d.brand) setBrand(d.brand);
-          if (d.silhouette) setSilhouette(d.silhouette as ClosetItemSilhouette);
-          setAiMeta({
-            subcategory: d.subcategory,
-            primaryColor: d.primaryColor,
-            colorFamily: d.colorFamily,
-            material: d.material,
-            formality: d.formality,
-            weight: d.weight,
-            pattern: d.pattern,
-          });
-        }
-        setIsAnalyzing(false);
-      });
-
-    return () => { isMounted = false; };
+    setIsAnalyzing(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, effectiveUploadedImage?.id, description]);
+  }, [visible, effectiveUploadedImage?.id]);
 
   // Sketch loading bar animation
   useEffect(() => {
@@ -184,8 +166,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     return () => clearInterval(interval);
   }, [sketchJobId]);
 
-  // Clear all local state when modal is dismissed (without server-side deletes —
-  // the explicit trash button handles those separately via removeImage()).
+  // Clear all local state when modal is dismissed
   useEffect(() => {
     if (!visible) {
       setImage(null);
@@ -196,7 +177,15 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
       setCategory('');
       setSilhouette(undefined);
       setFitStatus(undefined);
-      setAiMeta({});
+      setSubcategory('');
+      setPrimaryColor('');
+      setColorFamily(undefined);
+      setMaterial('');
+      setFormality(undefined);
+      setWeight(undefined);
+      setPattern(undefined);
+      setSeason(undefined);
+      setNotes('');
       setSaveError(null);
       setSketchImageUrl(null);
       setSketchJobId(null);
@@ -209,14 +198,12 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  // Persist last-used size after a successful save so future opens pre-fill it
   async function persistLastUsedSize(savedSize: string) {
     if (!savedSize.trim()) return;
     const settings = await loadAppSettings();
     await saveAppSettings({ ...settings, lastUsedSize: savedSize.trim() });
   }
 
-  // Reset all state + delete picked upload (explicit user-initiated photo removal).
   function handleReset() {
     removeImage();
     setTitle('');
@@ -225,16 +212,51 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     setCategory('');
     setSilhouette(undefined);
     setFitStatus(undefined);
-    setAiMeta({});
+    setSubcategory('');
+    setPrimaryColor('');
+    setColorFamily(undefined);
+    setMaterial('');
+    setFormality(undefined);
+    setWeight(undefined);
+    setPattern(undefined);
+    setSeason(undefined);
+    setNotes('');
     setSaveError(null);
     setSketchImageUrl(null);
     setSketchJobId(null);
     setSketchError(null);
     setIsGeneratingSketch(false);
     setIsAnalyzing(false);
-    // If in a queue batch, clear the remaining queue too.
     setImageQueue([]);
     setQueueTotal(0);
+  }
+
+  async function handleAIAutofill() {
+    if (!effectiveUploadedImage) return;
+    setIsAnalyzing(true);
+
+    const response = await closetService.analyzeItem({
+      uploadedImageId: effectiveUploadedImage.id,
+      uploadedImageUrl: effectiveUploadedImage.publicUrl,
+      description: description ?? '',
+    });
+
+    setIsAnalyzing(false);
+
+    if (response.success && response.data) {
+      const d = response.data;
+      if (d.title) setTitle(d.title);
+      if (d.category) setCategory(d.category);
+      if (d.brand) setBrand(d.brand);
+      if (d.silhouette) setSilhouette(d.silhouette as ClosetItemSilhouette);
+      if (d.subcategory) setSubcategory(d.subcategory);
+      if (d.primaryColor) setPrimaryColor(d.primaryColor);
+      if (d.colorFamily) setColorFamily(d.colorFamily as ClosetItemColorFamily);
+      if (d.material) setMaterial(d.material);
+      if (d.formality) setFormality(d.formality);
+      if (d.weight) setWeight(d.weight);
+      if (d.pattern) setPattern(d.pattern);
+    }
   }
 
   async function handleGenerateSketch() {
@@ -270,7 +292,15 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
       sketchImageUrl: sketchImageUrl ?? undefined,
       silhouette,
       fitStatus,
-      ...aiMeta,
+      subcategory: subcategory.trim() || undefined,
+      primaryColor: primaryColor.trim() || undefined,
+      colorFamily: colorFamily ?? undefined,
+      material: material.trim() || undefined,
+      formality: formality ?? undefined,
+      weight: weight ?? undefined,
+      pattern: pattern ?? undefined,
+      season: season ?? undefined,
+      notes: notes.trim() || undefined,
     });
 
     setIsSaving(false);
@@ -281,21 +311,24 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     }
 
     void persistLastUsedSize(size);
-
-    // Notify the parent about the saved item (triggers loadItems / scroll logic).
     onSaved(response.data);
 
     if (imageQueue.length > 0) {
-      // ── Advance to next item in the batch ───────────────────────────────────
       const nextAsset = imageQueue[0]!;
       setImageQueue((q) => q.slice(1));
 
-      // Reset form & sketch state for the next item. We deliberately skip
-      // server-side upload deletion (the previous item is already saved).
       setHookUploadedImage(null);
       setSilhouette(undefined);
       setFitStatus(undefined);
-      setAiMeta({});
+      setSubcategory('');
+      setPrimaryColor('');
+      setColorFamily(undefined);
+      setMaterial('');
+      setFormality(undefined);
+      setWeight(undefined);
+      setPattern(undefined);
+      setSeason(undefined);
+      setNotes('');
       setSaveError(null);
       setSketchImageUrl(null);
       setSketchJobId(null);
@@ -303,34 +336,23 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
       setIsGeneratingSketch(false);
       setIsAnalyzing(false);
 
-      // Set the next local image, then upload it.
-      // uploadImage will internally clean up the previous upload record and
-      // then trigger a new upload; when the upload settles, effectiveUploadedImage
-      // changes which fires the analysis useEffect automatically.
       setImage(nextAsset);
       await uploadImage(nextAsset);
     } else {
-      // ── Last item (or single pick) — close the modal ────────────────────────
       setQueueTotal(0);
       onClose();
     }
   }
 
-  /**
-   * Cancel/close: clears any remaining queue and dismisses the modal.
-   * Already-saved items from earlier in the batch are unaffected.
-   */
   function handleClose() {
     setImageQueue([]);
     setQueueTotal(0);
     onClose();
   }
 
-  // ── Library multi-select handler ────────────────────────────────────────────
   async function handlePickFromLibrary() {
     const assets = await pickMultipleFromLibrary();
     if (assets.length > 1) {
-      // Queue assets 2..n; asset 1 is already being uploaded by the hook.
       setImageQueue(assets.slice(1));
       setQueueTotal(assets.length);
     }
@@ -339,19 +361,32 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
   const hasBothImages = Boolean(sketchImageUrl) && Boolean(displayImageUri);
   const isInQueue = queueTotal > 1;
 
+  const inputStyle = {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    color: theme.colors.text,
+    fontFamily: theme.fonts.sans,
+    fontSize: 15,
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  } as const;
+
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={handleClose}>
         <View
           style={{
             alignItems: 'center',
-            backgroundColor: 'rgba(24, 18, 14, 0.52)',
+            backgroundColor: theme.colors.overlay,
             flex: 1,
             justifyContent: 'center',
             padding: spacing.lg,
           }}>
           <View
             style={{
-              backgroundColor: '#FFFDFC',
+              backgroundColor: theme.colors.surface,
               borderRadius: 28,
               maxWidth: 420,
               width: '100%',
@@ -483,8 +518,36 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                     </Pressable>
                   )}
 
+                  {/* AI Autofill button */}
+                  {isAnalyzing ? (
+                    <LoadingState
+                      label="Identifying piece..."
+                      messages={['Identifying your piece.', 'Checking the fabric situation.', 'Cataloguing with intention.']}
+                    />
+                  ) : (
+                    <Pressable
+                      onPress={() => void handleAIAutofill()}
+                      style={{
+                        alignItems: 'center',
+                        backgroundColor: theme.colors.subtleSurface,
+                        borderColor: theme.colors.border,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        flexDirection: 'row',
+                        gap: spacing.sm,
+                        justifyContent: 'center',
+                        paddingHorizontal: spacing.md,
+                        paddingVertical: spacing.sm,
+                      }}>
+                      <Ionicons color={theme.colors.accent} name="sparkles-outline" size={16} />
+                      <AppText variant="eyebrow" style={{ color: theme.colors.accent, letterSpacing: 1.4 }}>
+                        AI Autofill
+                      </AppText>
+                    </Pressable>
+                  )}
+
                   {sketchError ? (
-                    <AppText style={{ color: '#D26A5C', fontSize: 12 }}>{sketchError}</AppText>
+                    <AppText style={{ color: theme.colors.danger, fontSize: 12 }}>{sketchError}</AppText>
                   ) : null}
                 </View>
               ) : !uploadedImage ? (
@@ -505,7 +568,6 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                     </View>
                   ) : (
                     <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                      {/* Library — multi-select, independent opening state */}
                       <Pressable
                         disabled={isPicking}
                         onPress={() => void handlePickFromLibrary()}
@@ -527,7 +589,6 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                         <AppText>{isPickingLibrary ? 'Opening...' : 'Library'}</AppText>
                       </Pressable>
 
-                      {/* Camera — single-select with editing, independent opening state */}
                       <Pressable
                         disabled={isPicking}
                         onPress={() => void capturePhoto()}
@@ -553,68 +614,113 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                 </View>
               ) : null}
 
-              {isAnalyzing ? (
-                <LoadingState
-                  label="Identifying piece..."
-                  messages={['Identifying your piece.', 'Checking the fabric situation.', 'Cataloguing with intention.']}
+              {/* Form fields */}
+              <View style={{ gap: spacing.md }}>
+                <View style={{ gap: spacing.xs }}>
+                  <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Title</AppText>
+                  <TextInput value={title} onChangeText={setTitle} placeholder="e.g. Navy Slim Trousers" placeholderTextColor={theme.colors.subtleText} returnKeyType="next" style={inputStyle} />
+                </View>
+
+                <View style={{ gap: spacing.xs }}>
+                  <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Category</AppText>
+                  <TextInput value={category} onChangeText={setCategory} placeholder="e.g. Trousers" placeholderTextColor={theme.colors.subtleText} returnKeyType="next" style={inputStyle} />
+                </View>
+
+                <View style={{ gap: spacing.xs }}>
+                  <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Subcategory</AppText>
+                  <TextInput value={subcategory} onChangeText={setSubcategory} placeholder="e.g. Slim-cut chinos" placeholderTextColor={theme.colors.subtleText} returnKeyType="next" style={inputStyle} />
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                  <View style={{ flex: 1, gap: spacing.xs }}>
+                    <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Brand</AppText>
+                    <TextInput value={brand} onChangeText={setBrand} placeholder="e.g. COS" placeholderTextColor={theme.colors.subtleText} returnKeyType="next" style={inputStyle} />
+                  </View>
+                  <View style={{ flex: 1, gap: spacing.xs }}>
+                    <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Size</AppText>
+                    <TextInput value={size} onChangeText={setSize} placeholder="e.g. M / 32" placeholderTextColor={theme.colors.subtleText} returnKeyType="next" style={inputStyle} />
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                  <View style={{ flex: 1, gap: spacing.xs }}>
+                    <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Primary Color</AppText>
+                    <TextInput value={primaryColor} onChangeText={setPrimaryColor} placeholder="e.g. Navy" placeholderTextColor={theme.colors.subtleText} returnKeyType="next" style={inputStyle} />
+                  </View>
+                  <View style={{ flex: 1, gap: spacing.xs }}>
+                    <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Material</AppText>
+                    <TextInput value={material} onChangeText={setMaterial} placeholder="e.g. Wool" placeholderTextColor={theme.colors.subtleText} returnKeyType="done" onSubmitEditing={Keyboard.dismiss} style={inputStyle} />
+                  </View>
+                </View>
+
+                <PillPicker
+                  label="Color Family"
+                  options={CLOSET_COLOR_FAMILY_OPTIONS}
+                  value={colorFamily}
+                  onChange={setColorFamily}
                 />
-              ) : (
-                <View style={{ gap: spacing.md }}>
-                  <View style={{ gap: spacing.xs }}>
-                    <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Title</AppText>
-                    <TextInput value={title} onChangeText={setTitle} placeholder="e.g. Navy Slim Trousers" placeholderTextColor={theme.colors.subtleText} returnKeyType="next" style={inputStyle} />
-                  </View>
 
-                  <View style={{ gap: spacing.xs }}>
-                    <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Category</AppText>
-                    <TextInput value={category} onChangeText={setCategory} placeholder="e.g. Trousers" placeholderTextColor={theme.colors.subtleText} returnKeyType="next" style={inputStyle} />
-                  </View>
+                <PillPicker
+                  label="Formality"
+                  options={CLOSET_FORMALITY_OPTIONS}
+                  value={formality}
+                  onChange={setFormality}
+                />
 
-                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                    <View style={{ flex: 1, gap: spacing.xs }}>
-                      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Brand</AppText>
-                      <TextInput value={brand} onChangeText={setBrand} placeholder="e.g. COS" placeholderTextColor={theme.colors.subtleText} returnKeyType="next" style={inputStyle} />
-                    </View>
-                    <View style={{ flex: 1, gap: spacing.xs }}>
-                      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Size</AppText>
-                      <TextInput value={size} onChangeText={setSize} placeholder="e.g. M / 32" placeholderTextColor={theme.colors.subtleText} returnKeyType="done" onSubmitEditing={Keyboard.dismiss} style={inputStyle} />
-                    </View>
-                  </View>
+                <PillPicker
+                  label="Weight"
+                  options={CLOSET_WEIGHT_OPTIONS}
+                  value={weight}
+                  onChange={setWeight}
+                />
 
-                  <SilhouettePicker value={silhouette} onChange={setSilhouette} />
+                <PillPicker
+                  label="Pattern"
+                  options={CLOSET_PATTERN_OPTIONS}
+                  value={pattern}
+                  onChange={setPattern}
+                />
 
-                  <FitStatusPicker value={fitStatus} onChange={setFitStatus} />
+                <PillPicker
+                  label="Season"
+                  options={CLOSET_SEASON_OPTIONS}
+                  value={season}
+                  onChange={setSeason}
+                />
 
-                  {saveError ? <AppText style={{ color: '#D26A5C', fontSize: 13 }}>{saveError}</AppText> : null}
+                <SilhouettePicker value={silhouette} onChange={setSilhouette} />
 
-                  <PrimaryButton
-                    label={isSaving ? 'Saving...' : 'Save to Closet'}
-                    onPress={() => void handleSave()}
-                    disabled={isSaving || !title.trim()}
-                  />
-                  <PrimaryButton
-                    label={isInQueue ? 'Cancel Remaining' : 'Cancel'}
-                    onPress={handleClose}
-                    variant="secondary"
+                <FitStatusPicker value={fitStatus} onChange={setFitStatus} />
+
+                <View style={{ gap: spacing.xs }}>
+                  <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>Notes</AppText>
+                  <TextInput
+                    value={notes}
+                    onChangeText={setNotes}
+                    placeholder="Any additional details..."
+                    placeholderTextColor={theme.colors.subtleText}
+                    multiline
+                    numberOfLines={3}
+                    style={[inputStyle, { minHeight: 80, paddingTop: spacing.sm, textAlignVertical: 'top' }]}
                   />
                 </View>
-              )}
+
+                {saveError ? <AppText style={{ color: theme.colors.danger, fontSize: 13 }}>{saveError}</AppText> : null}
+
+                <PrimaryButton
+                  label={isSaving ? 'Saving...' : 'Save to Closet'}
+                  onPress={() => void handleSave()}
+                  disabled={isSaving || !title.trim()}
+                />
+                <PrimaryButton
+                  label={isInQueue ? 'Cancel Remaining' : 'Cancel'}
+                  onPress={handleClose}
+                  variant="secondary"
+                />
+              </View>
             </ScrollView>
           </View>
         </View>
     </Modal>
   );
 }
-
-const inputStyle = {
-  backgroundColor: theme.colors.surface,
-  borderColor: theme.colors.border,
-  borderRadius: 14,
-  borderWidth: 1,
-  color: theme.colors.text,
-  fontFamily: theme.fonts.sans,
-  fontSize: 15,
-  minHeight: 48,
-  paddingHorizontal: spacing.md,
-  paddingVertical: spacing.sm,
-} as const;

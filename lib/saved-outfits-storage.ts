@@ -46,10 +46,8 @@ function normalizeSavedOutfit(savedOutfit: SavedOutfit): SavedOutfit {
     },
     recommendation: {
       ...savedOutfit.recommendation,
-      sketchImageUrl:
-        savedOutfit.recommendation.sketchStatus === 'ready'
-          ? buildStableSavedSketchUri(savedOutfit.requestId, savedOutfit.recommendation.tier)
-          : savedOutfit.recommendation.sketchImageUrl ?? null,
+      sketchImageUrl: buildStableSavedSketchUri(savedOutfit.requestId, savedOutfit.recommendation.tier)
+        ?? savedOutfit.recommendation.sketchImageUrl ?? null,
     },
   };
 }
@@ -99,10 +97,8 @@ export async function saveSavedOutfit(input: CreateLookInput, recommendation: Lo
     input,
     recommendation: {
       ...recommendation,
-      sketchImageUrl:
-        recommendation.sketchStatus === 'ready'
-          ? buildStableSavedSketchUri(requestId, recommendation.tier)
-          : recommendation.sketchImageUrl ?? null,
+      sketchImageUrl: buildStableSavedSketchUri(requestId, recommendation.tier)
+        ?? recommendation.sketchImageUrl ?? null,
     },
   };
 

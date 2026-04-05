@@ -1,20 +1,37 @@
 import Constants from 'expo-constants';
 import { useEffect, useRef, useState } from 'react';
-import { PanResponder, View } from 'react-native';
+import { PanResponder, Pressable, View } from 'react-native';
 
 import { ProfileForm } from '@/components/forms/profile-form';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
+import { useTheme, type AppearanceMode } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
 
 const appVersion = Constants.expoConfig?.version ?? '0.0.1';
 
+const APPEARANCE_OPTIONS: { value: AppearanceMode; label: string; description: string }[] = [
+  { value: 'light',  label: 'Light',  description: 'Always use light mode' },
+  { value: 'dark',   label: 'Dark',   description: 'Always use dark mode' },
+  { value: 'system', label: 'System', description: 'Follow device setting' },
+];
+
 export default function SettingsScreen() {
   const { isSaving, profile, saveProfile } = useAppSession();
+  const { theme, appearanceMode, setAppearanceMode } = useTheme();
   const [isSavedMessageVisible, setIsSavedMessageVisible] = useState(false);
   const [sensitivity, setSensitivity] = useState(50);
+
+  const cardStyle = {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: 28,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.lg,
+  } as const;
 
   useEffect(() => {
     void loadAppSettings().then((s) => setSensitivity(s.closetMatchSensitivity));
@@ -26,9 +43,11 @@ export default function SettingsScreen() {
   }
 
   const sensitivityLabel =
-    sensitivity >= 67 ? 'Precise — close color and shade required'
-    : sensitivity >= 34 ? 'Balanced — same color family required'
-    : 'Forgiving — broad color family accepted';
+    sensitivity >= 67
+      ? 'Precise — same color family AND similar shade required'
+      : sensitivity >= 34
+        ? 'Balanced — same broad color family required'
+        : 'Forgiving — broad color range, focus on category and style';
 
   return (
     <AppScreen scrollable>
@@ -41,14 +60,8 @@ export default function SettingsScreen() {
           <AppText tone="muted">Profile and app details.</AppText>
         </View>
 
-        <View
-          style={{
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
-            borderRadius: 28,
-            borderWidth: 1,
-            padding: spacing.lg,
-          }}>
+        {/* Profile */}
+        <View style={cardStyle}>
           <ProfileForm
             initialValue={profile}
             submitLabel={isSaving ? 'Saving...' : 'Save profile'}
@@ -61,20 +74,58 @@ export default function SettingsScreen() {
           {isSavedMessageVisible ? <AppText tone="muted">Profile updated.</AppText> : null}
         </View>
 
+        {/* Appearance */}
+        <View style={cardStyle}>
+          <View style={{ gap: spacing.xs }}>
+            <AppText variant="sectionTitle">Appearance</AppText>
+            <AppText tone="muted">Choose how the app looks.</AppText>
+          </View>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {APPEARANCE_OPTIONS.map((option) => {
+              const isSelected = appearanceMode === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  onPress={() => void setAppearanceMode(option.value)}
+                  style={{
+                    flex: 1,
+                    alignItems: 'center',
+                    backgroundColor: isSelected ? theme.colors.accent : theme.colors.subtleSurface,
+                    borderColor: isSelected ? theme.colors.accent : theme.colors.border,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    gap: 4,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.md,
+                  }}>
+                  <AppText
+                    style={{
+                      fontFamily: theme.fonts.sansMedium,
+                      fontSize: 13,
+                      color: isSelected ? '#FFFFFF' : theme.colors.text,
+                    }}>
+                    {option.label}
+                  </AppText>
+                  <AppText
+                    style={{
+                      fontSize: 10,
+                      textAlign: 'center',
+                      color: isSelected ? 'rgba(255,255,255,0.75)' : theme.colors.subtleText,
+                    }}>
+                    {option.description}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
         {/* Closet Match Sensitivity */}
-        <View
-          style={{
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
-            borderRadius: 28,
-            borderWidth: 1,
-            gap: spacing.md,
-            padding: spacing.lg,
-          }}>
+        <View style={cardStyle}>
           <View style={{ gap: spacing.xs }}>
             <AppText variant="sectionTitle">Closet Match Sensitivity</AppText>
             <AppText tone="muted">
-              Controls how closely outfit suggestions must match items in your closet. Category matching is always strict — this adjusts color and shade tolerance.
+              Controls how strictly outfit suggestions match items in your closet. Category matching is always strict — this tunes color and shade tolerance.
             </AppText>
           </View>
 
@@ -99,6 +150,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* App version */}
         <View
           style={{
             backgroundColor: theme.colors.surface,
@@ -119,12 +171,12 @@ export default function SettingsScreen() {
 // ── Sensitivity slider ─────────────────────────────────────────────────────────
 
 function SensitivitySlider({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const { theme } = useTheme();
   const trackMetrics = useRef({ x: 0, width: 1 });
   const trackRef = useRef<View>(null);
 
   const panResponder = useRef(
     PanResponder.create({
-      // Claim horizontal drags; let vertical drags pass to the parent ScrollView
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > Math.abs(gs.dy),
       onPanResponderGrant: (evt) => {
@@ -149,10 +201,8 @@ function SensitivitySlider({ value, onChange }: { value: number; onChange: (v: n
           trackMetrics.current = { x, width: width || 1 };
         });
       }}
-      // Tall touch target so the thumb is easy to grab
       style={{ height: 44, justifyContent: 'center' }}>
 
-      {/* Track background */}
       <View
         style={{
           borderRadius: 4,
@@ -160,7 +210,6 @@ function SensitivitySlider({ value, onChange }: { value: number; onChange: (v: n
           height: 6,
           overflow: 'hidden',
         }}>
-        {/* Filled portion */}
         <View
           style={{
             backgroundColor: theme.colors.accent,
@@ -171,7 +220,6 @@ function SensitivitySlider({ value, onChange }: { value: number; onChange: (v: n
         />
       </View>
 
-      {/* Thumb */}
       <View
         pointerEvents="none"
         style={{

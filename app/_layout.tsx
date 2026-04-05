@@ -4,16 +4,15 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { ToastProvider } from '@/components/ui/toast-provider';
-import { navTheme } from '@/constants/theme';
+import { AppThemeProvider, useTheme } from '@/contexts/theme-context';
+import { buildNavTheme } from '@/constants/themes';
 import { AppSessionProvider, useAppSession } from '@/hooks/use-app-session';
 
 function AppNavigation() {
   const { appInstanceKey } = useAppSession();
+  const { theme } = useTheme();
+  const navTheme = buildNavTheme(theme);
 
-  // router is the stable singleton (same pattern used in AppScreen and ScreenHeader).
-  // useRouter() subscribes to preview context via use() in React 19, and putting
-  // router in the dependency array would re-run this effect on every context change
-  // even though router itself never changes. Use the singleton and omit it from deps.
   useEffect(() => {
     if (!appInstanceKey) {
       return;
@@ -50,17 +49,23 @@ function AppNavigation() {
         <Stack.Screen name="camera-capture" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
       </Stack>
-      <StatusBar style="dark" />
+      <StatusBar style={theme.dark ? 'light' : 'dark'} />
     </ThemeProvider>
   );
 }
 
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  return null; // handled by app/(app)/_layout.tsx
+}
+
 export default function RootLayout() {
   return (
-    <AppSessionProvider>
-      <ToastProvider>
-        <AppNavigation />
-      </ToastProvider>
-    </AppSessionProvider>
+    <AppThemeProvider>
+      <AppSessionProvider>
+        <ToastProvider>
+          <AppNavigation />
+        </ToastProvider>
+      </AppSessionProvider>
+    </AppThemeProvider>
   );
 }
