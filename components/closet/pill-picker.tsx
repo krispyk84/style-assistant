@@ -1,7 +1,8 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
 import { AppText } from '@/components/ui/app-text';
-import { spacing, theme } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
+import { spacing } from '@/constants/theme';
 
 type PillPickerProps<T extends string> = {
   label: string;
@@ -11,23 +12,31 @@ type PillPickerProps<T extends string> = {
 };
 
 export function PillPicker<T extends string>({ label, options, value, onChange }: PillPickerProps<T>) {
+  const { theme } = useTheme();
   return (
-    <View style={styles.container}>
-      <AppText variant="eyebrow" style={styles.label}>
+    <View style={{ gap: spacing.xs }}>
+      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>
         {label}
       </AppText>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
+        contentContainerStyle={{ gap: spacing.xs, paddingVertical: 2 }}>
         {options.map((opt) => {
           const active = value === opt.value;
           return (
             <Pressable
               key={opt.value}
               onPress={() => onChange(active ? undefined : opt.value)}
-              style={[styles.pill, active ? styles.pillActive : styles.pillInactive]}>
-              <AppText style={[styles.pillText, { color: active ? theme.colors.inverseText : theme.colors.text }]}>
+              style={{
+                borderRadius: 999,
+                borderWidth: 1,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.xs,
+                backgroundColor: active ? theme.colors.accent : theme.colors.surface,
+                borderColor: active ? theme.colors.accent : theme.colors.border,
+              }}>
+              <AppText style={{ fontSize: 13, color: active ? theme.colors.inverseText : theme.colors.text }}>
                 {opt.label}
               </AppText>
             </Pressable>
@@ -37,24 +46,3 @@ export function PillPicker<T extends string>({ label, options, value, onChange }
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { gap: spacing.xs },
-  label: { color: theme.colors.mutedText, letterSpacing: 1.6 },
-  scrollContent: { gap: spacing.xs, paddingVertical: 2 },
-  pill: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  pillActive: {
-    backgroundColor: theme.colors.accent,
-    borderColor: theme.colors.accent,
-  },
-  pillInactive: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
-  },
-  pillText: { fontSize: 13 },
-});

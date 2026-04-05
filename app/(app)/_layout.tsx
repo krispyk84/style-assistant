@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandSplash } from '@/components/ui/brand-splash';
@@ -56,7 +56,7 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
 }
 
 export default function AppTabsLayout() {
-  const { hasCompletedOnboarding, isHydrated, isReconnecting } = useAppSession();
+  const { hasCompletedOnboarding, isHydrated } = useAppSession();
   const { theme } = useTheme();
 
   if (!isHydrated) {
@@ -173,23 +173,6 @@ export default function AppTabsLayout() {
           }}
         />
       </Tabs>
-      {isReconnecting ? (
-        <View
-          style={{
-            alignItems: 'center',
-            backgroundColor: theme.colors.background,
-            bottom: 0,
-            gap: 16,
-            justifyContent: 'center',
-            left: 0,
-            position: 'absolute',
-            right: 0,
-            top: 0,
-          }}>
-          <ActivityIndicator color={theme.colors.accent} size="large" />
-          <AppText tone="muted" style={{ fontSize: 14 }}>Reconnecting to Vesture...</AppText>
-        </View>
-      ) : null}
     </View>
   );
 }

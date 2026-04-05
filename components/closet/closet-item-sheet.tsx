@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 
 import { AppText } from '@/components/ui/app-text';
-import { spacing, theme } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
+import { spacing } from '@/constants/theme';
 import type { ClosetItem } from '@/types/closet';
 
 type ClosetItemSheetProps = {
@@ -20,6 +21,8 @@ type ClosetItemSheetProps = {
   onThumbsUp?: () => void;
   /** Called when thumbs-down is tapped. Sheet stays open while rematching. */
   onThumbsDown?: () => void;
+  /** 0–100 confidence score for this match. Shown above thumbs when provided. */
+  confidencePercent?: number;
 };
 
 /**
@@ -35,7 +38,9 @@ export function ClosetItemSheet({
   thumbsFeedback = null,
   onThumbsUp,
   onThumbsDown,
+  confidencePercent,
 }: ClosetItemSheetProps) {
+  const { theme } = useTheme();
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(800)).current;
   const [localThumb, setLocalThumb] = useState<'up' | 'down' | null>(thumbsFeedback);
@@ -81,6 +86,7 @@ export function ClosetItemSheet({
   }
 
   const hasFeedback = onThumbsUp !== undefined || onThumbsDown !== undefined;
+  const showConfidence = confidencePercent !== undefined && !isRematching && item !== null;
 
   return (
     <Modal animationType="none" transparent visible onRequestClose={dismissAndClose}>
@@ -102,7 +108,7 @@ export function ClosetItemSheet({
         style={{ flex: 1, justifyContent: 'flex-end' }}>
         <Animated.View
           style={{
-            backgroundColor: '#FFFDFC',
+            backgroundColor: theme.colors.surface,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
             maxHeight: '80%',
@@ -200,14 +206,53 @@ export function ClosetItemSheet({
               </View>
             ) : null}
 
+            {/* Match Confidence Score — shown above thumbs when available */}
+            {showConfidence ? (
+              <View style={{ gap: spacing.xs }}>
+                <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>
+                    Match Confidence Score
+                  </AppText>
+                  <AppText style={{ color: theme.colors.text, fontSize: 13, fontWeight: '600' }}>
+                    {confidencePercent}%
+                  </AppText>
+                </View>
+                <View style={{ backgroundColor: theme.colors.border, borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                  <View
+                    style={{
+                      backgroundColor: confidencePercent! >= 70 ? theme.colors.accent : confidencePercent! >= 40 ? '#C97B2A' : theme.colors.danger,
+                      borderRadius: 4,
+                      height: '100%',
+                      width: `${confidencePercent}%`,
+                    }}
+                  />
+                </View>
+              </View>
+            ) : null}
+
             {/* Per-match thumbs feedback — only shown when callbacks are provided and not rematching */}
             {hasFeedback && !isRematching && item !== null ? (
-              <View style={styles.thumbsRow}>
-                <AppText tone="muted" style={styles.thumbsLabel}>Was this a good match?</AppText>
+              <View style={{
+                alignItems: 'center',
+                flexDirection: 'row',
+                gap: spacing.sm,
+                paddingTop: spacing.xs,
+                borderTopWidth: 1,
+                borderTopColor: theme.colors.border,
+              }}>
+                <AppText tone="muted" style={{ flex: 1, fontSize: 13 }}>Was this a good match?</AppText>
                 <Pressable
                   hitSlop={8}
                   onPress={handleThumbsUp}
-                  style={[styles.thumbBtn, localThumb === 'up' && styles.thumbBtnUp]}>
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: localThumb === 'up' ? theme.colors.card : 'transparent',
+                    borderColor: localThumb === 'up' ? theme.colors.accent : theme.colors.border,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.xs,
+                  }}>
                   <Ionicons
                     color={localThumb === 'up' ? theme.colors.accent : theme.colors.mutedText}
                     name={localThumb === 'up' ? 'thumbs-up' : 'thumbs-up-outline'}
@@ -217,7 +262,15 @@ export function ClosetItemSheet({
                 <Pressable
                   hitSlop={8}
                   onPress={handleThumbsDown}
-                  style={[styles.thumbBtn, localThumb === 'down' && styles.thumbBtnDown]}>
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: localThumb === 'down' ? theme.colors.dangerSurface : 'transparent',
+                    borderColor: localThumb === 'down' ? theme.colors.danger : theme.colors.border,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.xs,
+                  }}>
                   <Ionicons
                     color={localThumb === 'down' ? theme.colors.danger : theme.colors.mutedText}
                     name={localThumb === 'down' ? 'thumbs-down' : 'thumbs-down-outline'}
@@ -234,6 +287,7 @@ export function ClosetItemSheet({
 }
 
 function LabelRow({ label, value }: { label: string; value: string }) {
+  const { theme } = useTheme();
   return (
     <View style={{ gap: 4 }}>
       <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>
@@ -245,32 +299,3 @@ function LabelRow({ label, value }: { label: string; value: string }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  thumbsRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  thumbsLabel: { flex: 1, fontSize: 13 },
-  thumbBtn: {
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-    borderColor: theme.colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  thumbBtnUp: {
-    backgroundColor: theme.colors.card,
-    borderColor: theme.colors.accent,
-  },
-  thumbBtnDown: {
-    backgroundColor: theme.colors.dangerSurface,
-    borderColor: theme.colors.danger,
-  },
-});

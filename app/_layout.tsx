@@ -24,7 +24,6 @@ function AppNavigation() {
   return (
     <ThemeProvider value={navTheme}>
       <Stack
-        key={appInstanceKey}
         screenOptions={{
           animation: 'fade',
           contentStyle: { backgroundColor: navTheme.colors.background },

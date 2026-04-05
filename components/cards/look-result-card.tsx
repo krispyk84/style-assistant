@@ -3,9 +3,10 @@ import { Href, Link } from 'expo-router';
 import { Animated, ActivityIndicator, Easing, Pressable, View } from 'react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import { formatTierLabel } from '@/lib/outfit-utils';
-import { findBestClosetMatch } from '@/lib/closet-match';
+import { findBestClosetMatch, getMatchConfidencePercent } from '@/lib/closet-match';
 import { ClosetItemSheet } from '@/components/closet/closet-item-sheet';
 import type { LookRecommendation, OutfitPiece } from '@/types/look-request';
 import { normalizePiece } from '@/types/look-request';
@@ -58,8 +59,20 @@ export function LookResultCard({
   matchFeedbackMap,
   regeneratingMatches,
 }: LookResultCardProps) {
+  const { theme } = useTheme();
+  const actionButtonStyle = {
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+  } as const;
   // Track which piece + suggestion is open in the sheet
-  const [matchedPiece, setMatchedPiece] = useState<{ item: ClosetItem; suggestion: string } | null>(null);
+  const [matchedPiece, setMatchedPiece] = useState<{ item: ClosetItem; suggestion: string; confidencePercent: number } | null>(null);
 
   const labeledPieces = useMemo(
     () => buildLabeledPieces(recommendation, closetItems, matchMap),
@@ -184,7 +197,7 @@ export function LookResultCard({
                   accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view and rate.`}
                   accessibilityRole="button"
                   hitSlop={8}
-                  onPress={() => setMatchedPiece({ item: piece.matchedClosetItem!, suggestion: piece.value })}
+                  onPress={() => setMatchedPiece({ item: piece.matchedClosetItem!, suggestion: piece.value, confidencePercent: piece.confidencePercent })}
                   style={{ paddingTop: 2 }}>
                   <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} />
                 </Pressable>
@@ -247,6 +260,7 @@ export function LookResultCard({
             suggestion={matchedPiece.suggestion}
             isRematching={isRematching}
             thumbsFeedback={matchFeedbackMap?.[matchedPiece.suggestion] ?? null}
+            confidencePercent={matchedPiece.confidencePercent}
             onThumbsUp={
               onMatchThumbsUp && currentItem
                 ? () => onMatchThumbsUp(matchedPiece.suggestion, currentItem.id)
@@ -271,22 +285,31 @@ type LabeledPiece = {
   label: string;
   value: string;
   matchedClosetItem: ClosetItem | null;
+  confidencePercent: number;
 };
 
 function resolveMatch(
   piece: OutfitPiece,
   closetItems: ClosetItem[],
   matchMap?: Record<string, ClosetItem | null | false>
-): ClosetItem | null {
+): { item: ClosetItem | null; confidencePercent: number } {
   const suggestion = piece.display_name;
+  let item: ClosetItem | null;
   if (matchMap && Object.prototype.hasOwnProperty.call(matchMap, suggestion)) {
     const entry = matchMap[suggestion];
     // false = rematch exhausted all candidates — do not fall back to local scoring
-    if (entry === false) return null;
-    return entry ?? findBestClosetMatch(piece, closetItems);
+    if (entry === false) {
+      return { item: null, confidencePercent: 0 };
+    }
+    item = entry ?? findBestClosetMatch(piece, closetItems);
+  } else {
+    // matchMap not yet populated — fall back to local scoring while closet loads
+    item = findBestClosetMatch(piece, closetItems);
   }
-  // matchMap not yet populated — fall back to local scoring while closet loads
-  return findBestClosetMatch(piece, closetItems);
+  return {
+    item,
+    confidencePercent: item ? getMatchConfidencePercent(piece, item) : 0,
+  };
 }
 
 function buildLabeledPieces(
@@ -298,28 +321,34 @@ function buildLabeledPieces(
 
   const pieces: LabeledPiece[] = recommendation.keyPieces.map((piece, index) => {
     const normalized = normalizePiece(piece);
+    const { item, confidencePercent } = resolveMatch(normalized, closetItems, matchMap);
     return {
       label: uniqueLabel(labelForKeyPiece(normalized, index), usedLabels),
       value: normalized.display_name,
-      matchedClosetItem: resolveMatch(normalized, closetItems, matchMap),
+      matchedClosetItem: item,
+      confidencePercent,
     };
   });
 
   recommendation.shoes.forEach((shoe, index) => {
     const normalized = normalizePiece(shoe);
+    const { item, confidencePercent } = resolveMatch(normalized, closetItems, matchMap);
     pieces.push({
       label: uniqueLabel(index === 0 ? 'Shoes' : `Shoe ${index + 1}`, usedLabels),
       value: normalized.display_name,
-      matchedClosetItem: resolveMatch(normalized, closetItems, matchMap),
+      matchedClosetItem: item,
+      confidencePercent,
     });
   });
 
   recommendation.accessories.forEach((accessory, index) => {
     const normalized = normalizePiece(accessory);
+    const { item, confidencePercent } = resolveMatch(normalized, closetItems, matchMap);
     pieces.push({
       label: uniqueLabel(`Accessory ${index + 1}`, usedLabels),
       value: normalized.display_name,
-      matchedClosetItem: resolveMatch(normalized, closetItems, matchMap),
+      matchedClosetItem: item,
+      confidencePercent,
     });
   });
 
@@ -369,6 +398,7 @@ function labelForKeyPiece(piece: OutfitPiece, index: number): string {
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function TierSketch({ recommendation }: { recommendation: LookRecommendation }) {
+  const { theme } = useTheme();
   if (recommendation.sketchStatus === 'ready' && recommendation.sketchImageUrl) {
     return (
       <RemoteImagePanel
@@ -432,6 +462,7 @@ function TierSketch({ recommendation }: { recommendation: LookRecommendation }) 
 }
 
 function AnimatedLoadingBar() {
+  const { theme } = useTheme();
   const translateX = useRef(new Animated.Value(-140)).current;
 
   useEffect(() => {
@@ -492,14 +523,3 @@ function CardSection({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-const actionButtonStyle = {
-  alignItems: 'center',
-  backgroundColor: theme.colors.card,
-  borderColor: theme.colors.border,
-  borderRadius: 999,
-  borderWidth: 1,
-  flex: 1,
-  justifyContent: 'center',
-  minHeight: 48,
-  paddingHorizontal: spacing.md,
-} as const;

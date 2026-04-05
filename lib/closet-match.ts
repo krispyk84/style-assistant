@@ -67,6 +67,13 @@ const W = {
 // Related-category (30) requires at least one supporting signal.
 const THRESHOLD = 50;
 
+/**
+ * Practical maximum score for a well-matched item.
+ * Used to normalise raw scores into a 0–100 % confidence value.
+ * (70 cat + 22 color + 16 material + 14 formality + 8 sub/silhouette = 130)
+ */
+export const MATCH_SCORE_MAX = 130;
+
 // ── Garment group taxonomy ─────────────────────────────────────────────────────
 // Maps free text to canonical group keys, used when metadata category is absent.
 
@@ -315,6 +322,8 @@ export type MatchDimensions = {
 export type MatchScore = {
   total: number;
   passesThreshold: boolean;
+  /** 0–100 confidence percentage derived from total / MATCH_SCORE_MAX. */
+  confidencePercent: number;
   dimensions: MatchDimensions;
   /** Short reason codes — useful for logging and future tuning. */
   reasons: string[];
@@ -515,6 +524,7 @@ export function scoreClosetMatch(piece: OutfitPiece, item: ClosetItem): MatchSco
     return {
       total: 0,
       passesThreshold: false,
+      confidencePercent: 0,
       dimensions: { category: 0, subcategory: 0, color: 0, material: 0, formality: 0, silhouette: 0, fuzzyTitle: 0, fitPenalty: 0 },
       reasons,
     };
@@ -542,8 +552,9 @@ export function scoreClosetMatch(piece: OutfitPiece, item: ClosetItem): MatchSco
   };
 
   const total = Object.values(dimensions).reduce((sum, v) => sum + v, 0);
+  const confidencePercent = Math.round(Math.min(100, Math.max(0, Math.max(0, total) / MATCH_SCORE_MAX * 100)));
 
-  return { total, passesThreshold: total >= THRESHOLD, dimensions, reasons };
+  return { total, passesThreshold: total >= THRESHOLD, confidencePercent, dimensions, reasons };
 }
 
 /**
@@ -564,10 +575,9 @@ export function findBestClosetMatch(
   if (!candidates.length || !piece.display_name.trim()) return null;
 
   const threshold =
-    sensitivity === undefined ? THRESHOLD
-    : sensitivity >= 67        ? 58
-    : sensitivity >= 34        ? 50
-    : 45;
+    sensitivity === undefined
+      ? THRESHOLD
+      : Math.round(((20 + (sensitivity / 100) * 60) / 100) * MATCH_SCORE_MAX);
 
   let bestItem: ClosetItem | null = null;
   let bestScore = -Infinity;
@@ -581,6 +591,15 @@ export function findBestClosetMatch(
   }
 
   return bestItem;
+}
+
+/**
+ * Returns the match confidence (0–100) between an outfit piece and a closet item.
+ * Convenience wrapper around scoreClosetMatch for callers that only need the percentage.
+ */
+export function getMatchConfidencePercent(piece: OutfitPiece | string, item: ClosetItem): number {
+  const normalized = typeof piece === 'string' ? normalizePiece(piece) : piece;
+  return scoreClosetMatch(normalized, item).confidencePercent;
 }
 
 /**

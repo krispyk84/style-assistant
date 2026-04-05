@@ -9,7 +9,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingState } from '@/components/ui/loading-state';
 import { useToast } from '@/components/ui/toast-provider';
 import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import { buildTierHref } from '@/lib/look-route';
 import { formatTierLabel, weatherIconName } from '@/lib/outfit-utils';
 import { getNextSevenDays, loadWeekPlan, removeWeekPlan, replaceWeekPlan } from '@/lib/week-plan-storage';
@@ -28,6 +29,7 @@ export default function WeekScreen() {
   const [isLoadingWeek, setIsLoadingWeek] = useState(true);
   const { showToast } = useToast();
   const { profile } = useAppSession();
+  const { theme } = useTheme();
 
   // useFocusEffect runs ONLY when this screen gains focus, never when losing it.
   // Previously, useEffect([isFocused]) ran on BOTH focus gain and focus loss, creating

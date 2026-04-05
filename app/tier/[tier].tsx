@@ -12,8 +12,9 @@ import { AppText } from '@/components/ui/app-text';
 import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
-import { spacing, theme } from '@/constants/theme';
-import { findBestClosetMatch } from '@/lib/closet-match';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
+import { findBestClosetMatch, getMatchConfidencePercent } from '@/lib/closet-match';
 import { getLookTierDefinition } from '@/lib/look-mock-data';
 import { parseLookInput, parseLookRecommendation, type LookRouteParams } from '@/lib/look-route';
 import { closetService } from '@/services/closet';
@@ -39,8 +40,20 @@ export default function TierScreen() {
   const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
   // suggestion string → ClosetItem | null | false (rematch exhausted, no fallback)
   const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null | false>>({});
+  const { theme } = useTheme();
+  const pieceRowStyle = {
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: 22,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  } as const;
   // Tracks which piece is open in the "In Your Closet" sheet: item + suggestion for feedback identity
-  const [sheetPiece, setSheetPiece] = useState<{ item: ClosetItem; suggestion: string } | null>(null);
+  const [sheetPiece, setSheetPiece] = useState<{ item: ClosetItem; suggestion: string; confidencePercent: number } | null>(null);
   const [secondOpinionVisible, setSecondOpinionVisible] = useState(false);
 
   // Stable: pieces come from route params, don't change after mount
@@ -207,7 +220,7 @@ export default function TierScreen() {
                     accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view and rate.`}
                     accessibilityRole="button"
                     hitSlop={8}
-                    onPress={() => setSheetPiece({ item: piece.matchedClosetItem!, suggestion: piece.value })}
+                    onPress={() => setSheetPiece({ item: piece.matchedClosetItem!, suggestion: piece.value, confidencePercent: piece.confidencePercent })}
                     style={{ paddingTop: 2 }}>
                     <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} />
                   </Pressable>
@@ -251,6 +264,7 @@ export default function TierScreen() {
             suggestion={sheetPiece.suggestion}
             isRematching={isRematching}
             thumbsFeedback={matchFeedbackMap[sheetPiece.suggestion] ?? null}
+            confidencePercent={sheetPiece.confidencePercent}
             onThumbsUp={
               currentItem
                 ? () => handleMatchThumbsUp(stableParams.tier, sheetPiece.suggestion, currentItem.id, liveRecommendation.title)
@@ -281,21 +295,28 @@ type LabeledPiece = {
   label: string;
   value: string;
   matchedClosetItem: ClosetItem | null;
+  confidencePercent: number;
 };
 
 function resolveMatch(
   piece: OutfitPiece,
   closetItems: ClosetItem[],
   matchMap: Record<string, ClosetItem | null | false>
-): ClosetItem | null {
+): { item: ClosetItem | null; confidencePercent: number } {
+  let item: ClosetItem | null;
   if (Object.prototype.hasOwnProperty.call(matchMap, piece.display_name)) {
     const entry = matchMap[piece.display_name];
     // false = rematch exhausted all candidates — do not fall back to local scoring
-    if (entry === false) return null;
-    return entry ?? null;
+    if (entry === false) return { item: null, confidencePercent: 0 };
+    item = entry ?? null;
+  } else {
+    // matchMap not yet populated — fall back to local scoring while closet loads
+    item = findBestClosetMatch(piece, closetItems);
   }
-  // matchMap not yet populated — fall back to local scoring while closet loads
-  return findBestClosetMatch(piece, closetItems);
+  return {
+    item,
+    confidencePercent: item ? getMatchConfidencePercent(piece, item) : 0,
+  };
 }
 
 function buildPiecesToCheck(
@@ -303,26 +324,19 @@ function buildPiecesToCheck(
   closetItems: ClosetItem[],
   matchMap: Record<string, ClosetItem | null | false>
 ): LabeledPiece[] {
-  const rows = recommendation.keyPieces.map((piece, index) => ({
-    label: labelForKeyPiece(piece, index),
-    value: piece.display_name,
-    matchedClosetItem: resolveMatch(piece, closetItems, matchMap),
-  }));
+  const rows = recommendation.keyPieces.map((piece, index) => {
+    const { item, confidencePercent } = resolveMatch(piece, closetItems, matchMap);
+    return { label: labelForKeyPiece(piece, index), value: piece.display_name, matchedClosetItem: item, confidencePercent };
+  });
 
   recommendation.shoes.forEach((shoe, index) => {
-    rows.push({
-      label: index === 0 ? 'Shoes' : `Shoe ${index + 1}`,
-      value: shoe.display_name,
-      matchedClosetItem: resolveMatch(shoe, closetItems, matchMap),
-    });
+    const { item, confidencePercent } = resolveMatch(shoe, closetItems, matchMap);
+    rows.push({ label: index === 0 ? 'Shoes' : `Shoe ${index + 1}`, value: shoe.display_name, matchedClosetItem: item, confidencePercent });
   });
 
   recommendation.accessories.forEach((accessory, index) => {
-    rows.push({
-      label: `Accessory ${index + 1}`,
-      value: accessory.display_name,
-      matchedClosetItem: resolveMatch(accessory, closetItems, matchMap),
-    });
+    const { item, confidencePercent } = resolveMatch(accessory, closetItems, matchMap);
+    rows.push({ label: `Accessory ${index + 1}`, value: accessory.display_name, matchedClosetItem: item, confidencePercent });
   });
 
   return rows;
@@ -350,14 +364,3 @@ function labelForKeyPiece(piece: import('@/types/look-request').OutfitPiece, ind
   return `Piece ${index + 1}`;
 }
 
-const pieceRowStyle = {
-  alignItems: 'center',
-  backgroundColor: theme.colors.surface,
-  borderColor: theme.colors.border,
-  borderRadius: 22,
-  borderWidth: 1,
-  flexDirection: 'row',
-  gap: spacing.md,
-  paddingHorizontal: spacing.md,
-  paddingVertical: spacing.md,
-} as const;

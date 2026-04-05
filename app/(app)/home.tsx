@@ -7,7 +7,8 @@ import { Animated, Pressable, View } from 'react-native';
 import { WeatherCard } from '@/components/cards/weather-card';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
 import { useCurrentWeather } from '@/hooks/use-current-weather';
 import { loadSavedOutfits } from '@/lib/saved-outfits-storage';
@@ -25,6 +26,7 @@ function getGreeting() {
 export default function HomeScreen() {
   const { weather, isLoading, errorMessage } = useCurrentWeather();
   const { profile } = useAppSession();
+  const { theme } = useTheme();
   const firstName = profile.name.trim() || 'there';
 
   const [carouselImages, setCarouselImages] = useState<string[]>([]);
@@ -172,16 +174,6 @@ export default function HomeScreen() {
             </View>
           </Pressable>
 
-        {/* Powered by */}
-        <View style={{ alignItems: 'center' }}>
-          <AppText
-            variant="eyebrow"
-            tone="subtle"
-            style={{ letterSpacing: 1.6 }}>
-            ✦ Powered by Vesture Intelligence ✦
-          </AppText>
-        </View>
-
         {/* Weather section */}
         <View style={{ gap: spacing.md }}>
           <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
@@ -208,6 +200,7 @@ export default function HomeScreen() {
 }
 
 function HeroCardContent() {
+  const { theme } = useTheme();
   return (
     <View
       style={{
