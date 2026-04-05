@@ -2,6 +2,7 @@ import { deleteClosetItem, loadClosetItems, saveClosetItem, updateClosetItem } f
 import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
+  ApiResponse,
   ClosetMatchRequest,
   ClosetMatchResponse,
   GenerateClosetSketchRequest,
@@ -11,8 +12,7 @@ import type {
   SaveClosetItemRequest,
   UpdateClosetItemRequest,
 } from '@/types/api';
-import type { ApiResponse } from '@/types/api';
-import type { ClosetItem } from '@/types/closet';
+import type { ClosetItem, ClosetItemFitStatus, ClosetItemSilhouette } from '@/types/closet';
 import type { ClosetService } from '@/services/closet/closet-service';
 
 const MOCK_CATEGORIES: Record<string, string> = {
@@ -85,7 +85,17 @@ export const mockClosetService: ClosetService = {
       sketchImageUrl: null,
       sketchStatus: 'failed',
       savedAt: new Date().toISOString(),
-      fitStatus: request.fitStatus,
+      subcategory: request.subcategory,
+      primaryColor: request.primaryColor,
+      colorFamily: request.colorFamily as ClosetItem['colorFamily'],
+      material: request.material,
+      formality: request.formality,
+      silhouette: request.silhouette as ClosetItemSilhouette | undefined,
+      season: request.season,
+      weight: request.weight,
+      pattern: request.pattern,
+      notes: request.notes,
+      fitStatus: request.fitStatus as ClosetItemFitStatus | undefined,
     };
     await saveClosetItem(item);
     return { success: true, data: item, error: null };
@@ -111,7 +121,24 @@ export const mockClosetService: ClosetService = {
     if (!existing) {
       return { success: false, data: null, error: { code: 'NOT_FOUND', message: 'Item not found.' } };
     }
-    const updated: ClosetItem = { ...existing, title: request.title, brand: request.brand, size: request.size, category: request.category, fitStatus: request.fitStatus ?? existing.fitStatus };
+    const updated: ClosetItem = {
+      ...existing,
+      title: request.title,
+      brand: request.brand,
+      size: request.size,
+      category: request.category,
+      subcategory: request.subcategory ?? existing.subcategory,
+      primaryColor: request.primaryColor ?? existing.primaryColor,
+      colorFamily: (request.colorFamily ?? existing.colorFamily) as ClosetItem['colorFamily'],
+      material: request.material ?? existing.material,
+      formality: request.formality ?? existing.formality,
+      silhouette: (request.silhouette ?? existing.silhouette) as ClosetItemSilhouette | undefined,
+      season: request.season ?? existing.season,
+      weight: request.weight ?? existing.weight,
+      pattern: request.pattern ?? existing.pattern,
+      notes: request.notes ?? existing.notes,
+      fitStatus: (request.fitStatus ?? existing.fitStatus) as ClosetItemFitStatus | undefined,
+    };
     await updateClosetItem(updated);
     return { success: true, data: updated, error: null };
   },

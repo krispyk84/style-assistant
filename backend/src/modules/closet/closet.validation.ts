@@ -6,6 +6,20 @@ export const analyzeClosetItemSchema = z.object({
   description: z.string().optional(),
 });
 
+const closetMetadataFields = {
+  subcategory: z.string().optional(),
+  primaryColor: z.string().optional(),
+  colorFamily: z.string().optional(),
+  material: z.string().optional(),
+  formality: z.string().optional(),
+  silhouette: z.string().optional(),
+  season: z.string().optional(),
+  weight: z.string().optional(),
+  pattern: z.string().optional(),
+  notes: z.string().optional(),
+  fitStatus: z.string().optional(),
+};
+
 export const saveClosetItemSchema = z.object({
   title: z.string().min(1),
   brand: z.string().default(''),
@@ -14,6 +28,7 @@ export const saveClosetItemSchema = z.object({
   uploadedImageId: z.string().optional(),
   uploadedImageUrl: z.string().optional(),
   sketchImageUrl: z.string().optional(),
+  ...closetMetadataFields,
 });
 
 export const updateClosetItemSchema = z.object({
@@ -21,6 +36,7 @@ export const updateClosetItemSchema = z.object({
   brand: z.string().default(''),
   size: z.string().default(''),
   category: z.string().default('Clothing'),
+  ...closetMetadataFields,
 });
 
 export const generateClosetSketchSchema = z.object({
@@ -44,6 +60,9 @@ export const closetMatchSchema = z.object({
         title: z.string(),
         category: z.string(),
         brand: z.string().optional(),
+        colorFamily: z.string().optional(),
+        material: z.string().optional(),
+        formality: z.string().optional(),
       })
     )
     .max(100),

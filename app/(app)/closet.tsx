@@ -12,8 +12,9 @@ import { spacing, theme } from '@/constants/theme';
 import { incrementClosetItemCounter } from '@/lib/closet-storage';
 import { closetService } from '@/services/closet';
 import { FitStatusPicker } from '@/components/closet/fit-status-picker';
-import type { ClosetItem, ClosetItemFitStatus } from '@/types/closet';
-import { CLOSET_FIT_STATUS_OPTIONS } from '@/types/closet';
+import { SilhouettePicker } from '@/components/closet/silhouette-picker';
+import type { ClosetItem, ClosetItemFitStatus, ClosetItemSilhouette } from '@/types/closet';
+import { CLOSET_FIT_STATUS_OPTIONS, CLOSET_SILHOUETTE_OPTIONS } from '@/types/closet';
 
 const COLUMN_COUNT = 3;
 const POLL_INTERVAL_MS = 5000;
@@ -477,6 +478,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
   const [category, setCategory] = useState('');
   const [brand, setBrand] = useState('');
   const [size, setSize] = useState('');
+  const [silhouette, setSilhouette] = useState<ClosetItemSilhouette | undefined>();
   const [fitStatus, setFitStatus] = useState<ClosetItemFitStatus | undefined>();
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -516,7 +518,8 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
     setCategory(item.category);
     setBrand(item.brand);
     setSize(item.size);
-    setFitStatus(item.fitStatus);
+    setSilhouette(item.silhouette ?? undefined);
+    setFitStatus(item.fitStatus ?? undefined);
     setIsEditing(false);
     setError(null);
     setConfirmDelete(false);
@@ -532,7 +535,17 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
       brand: brand.trim(),
       size: size.trim(),
       category: category.trim() || 'Clothing',
+      silhouette,
       fitStatus,
+      subcategory: item.subcategory ?? undefined,
+      primaryColor: item.primaryColor ?? undefined,
+      colorFamily: item.colorFamily ?? undefined,
+      material: item.material ?? undefined,
+      formality: item.formality ?? undefined,
+      season: item.season ?? undefined,
+      weight: item.weight ?? undefined,
+      pattern: item.pattern ?? undefined,
+      notes: item.notes ?? undefined,
     });
     setIsSaving(false);
     if (response.success && response.data) {
@@ -742,6 +755,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                       <TextInput value={size} onChangeText={setSize} returnKeyType="done" onSubmitEditing={Keyboard.dismiss} style={inputStyle} />
                     </View>
                   </View>
+                  <SilhouettePicker value={silhouette} onChange={setSilhouette} />
                   <FitStatusPicker value={fitStatus} onChange={setFitStatus} />
                   {error ? <AppText style={{ color: '#D26A5C', fontSize: 13 }}>{error}</AppText> : null}
                   <PrimaryButton
@@ -755,15 +769,39 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                 /* View mode — plain labels */
                 <View style={{ gap: spacing.md }}>
                   <LabelRow label="Title" value={item?.title} />
-                  <LabelRow label="Category" value={item?.category} />
+                  <LabelRow label="Category" value={item?.subcategory ? `${item.category} · ${item.subcategory}` : item?.category} />
                   <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                     <View style={{ flex: 1 }}><LabelRow label="Brand" value={item?.brand || '—'} /></View>
                     <View style={{ flex: 1 }}><LabelRow label="Size" value={item?.size || '—'} /></View>
                   </View>
-                  <LabelRow
-                    label="How It Fits"
-                    value={CLOSET_FIT_STATUS_OPTIONS.find((o) => o.value === item?.fitStatus)?.label || '—'}
-                  />
+                  {(item?.primaryColor || item?.material || item?.pattern) ? (
+                    <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                      {item.primaryColor ? <View style={{ flex: 1 }}><LabelRow label="Color" value={item.primaryColor} /></View> : null}
+                      {item.material ? <View style={{ flex: 1 }}><LabelRow label="Material" value={item.material} /></View> : null}
+                      {item.pattern ? <View style={{ flex: 1 }}><LabelRow label="Pattern" value={item.pattern} /></View> : null}
+                    </View>
+                  ) : null}
+                  {(item?.formality || item?.weight) ? (
+                    <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                      {item.formality ? <View style={{ flex: 1 }}><LabelRow label="Formality" value={item.formality} /></View> : null}
+                      {item.weight ? <View style={{ flex: 1 }}><LabelRow label="Weight" value={item.weight} /></View> : null}
+                    </View>
+                  ) : null}
+                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                    <View style={{ flex: 1 }}>
+                      <LabelRow
+                        label="Silhouette"
+                        value={CLOSET_SILHOUETTE_OPTIONS.find((o) => o.value === item?.silhouette)?.label || '—'}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <LabelRow
+                        label="Personal Fit"
+                        value={CLOSET_FIT_STATUS_OPTIONS.find((o) => o.value === item?.fitStatus)?.label || '—'}
+                      />
+                    </View>
+                  </View>
+                  {item?.notes ? <LabelRow label="Notes" value={item.notes} /> : null}
                 </View>
               )}
             </ScrollView>

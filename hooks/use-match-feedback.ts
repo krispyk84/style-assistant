@@ -1,18 +1,19 @@
 import { useState } from 'react';
 
-import { loadAppSettings } from '@/lib/app-settings-storage';
-import { findBestClosetMatch, isClosetMatchValid } from '@/lib/closet-match';
+import { findBestClosetMatch } from '@/lib/closet-match';
 import {
   buildMatchFeedbackId,
   getExcludedItemIdsForSlot,
   saveMatchFeedback,
 } from '@/lib/match-feedback-storage';
-import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
+import type { OutfitPiece } from '@/types/look-request';
 
 type UseMatchFeedbackOptions = {
   requestId: string;
   closetItems: ClosetItem[];
+  /** Full OutfitPiece objects so rematch uses structured metadata. */
+  pieces: OutfitPiece[];
   /** Called when a slot has been rematched so the screen can update its matchMap. */
   onSlotRematched: (suggestion: string, item: ClosetItem | null) => void;
 };
@@ -42,6 +43,7 @@ type UseMatchFeedbackReturn = {
 export function useMatchFeedback({
   requestId,
   closetItems,
+  pieces,
   onSlotRematched,
 }: UseMatchFeedbackOptions): UseMatchFeedbackReturn {
   const [matchFeedbackMap, setMatchFeedbackMap] = useState<Record<string, 'up' | 'down' | null>>({});
@@ -108,39 +110,9 @@ export function useMatchFeedback({
     setRegeneratingMatches((prev) => new Set(prev).add(suggestion));
 
     try {
-      const { closetMatchSensitivity } = await loadAppSettings();
       const excludeSet = new Set(excludedItemIds);
-      const itemsForMatching = closetItems.map((item) => ({
-        id: item.id,
-        title: item.title,
-        category: item.category,
-        brand: item.brand || undefined,
-      }));
-
-      // Try backend first — in production it respects excludeItemIds server-side
-      const matchResponse = await closetService.matchItems({
-        suggestions: [{ display_name: suggestion }],
-        items: itemsForMatching,
-        sensitivity: closetMatchSensitivity,
-        excludeItemIds: excludedItemIds,
-      });
-
-      let newItem: ClosetItem | null = null;
-
-      if (matchResponse.success && matchResponse.data?.matches[0]?.matchedItemId) {
-        const matchedId = matchResponse.data.matches[0].matchedItemId;
-        if (!excludeSet.has(matchedId)) {
-          const candidate = closetItems.find((c) => c.id === matchedId) ?? null;
-          if (candidate && isClosetMatchValid(suggestion, candidate)) {
-            newItem = candidate;
-          }
-        }
-      }
-
-      // Fallback: local scoring with exclusion (handles mock env and API null returns)
-      if (!newItem) {
-        newItem = findBestClosetMatch(suggestion, closetItems, excludeSet);
-      }
+      const piece = pieces.find((p) => p.display_name === suggestion);
+      const newItem = findBestClosetMatch(piece ?? suggestion, closetItems, excludeSet);
 
       onSlotRematched(suggestion, newItem);
       // Clear the 'down' feedback so the new match opens with a fresh state

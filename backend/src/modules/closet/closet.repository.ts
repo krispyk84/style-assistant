@@ -1,5 +1,19 @@
 import { prisma } from '../../db/prisma.js';
 
+type ClosetItemMetadata = {
+  subcategory?: string;
+  primaryColor?: string;
+  colorFamily?: string;
+  material?: string;
+  formality?: string;
+  silhouette?: string;
+  season?: string;
+  weight?: string;
+  pattern?: string;
+  notes?: string;
+  fitStatus?: string;
+};
+
 export const closetRepository = {
   async createItem(data: {
     title: string;
@@ -12,7 +26,7 @@ export const closetRepository = {
     sketchMimeType?: string;
     sketchImageData?: Buffer;
     sketchStatus: string;
-  }) {
+  } & ClosetItemMetadata) {
     return prisma.closetItem.create({ data });
   },
 
@@ -24,7 +38,12 @@ export const closetRepository = {
     return prisma.closetItem.findUnique({ where: { id } });
   },
 
-  async updateItem(id: string, data: { title: string; brand: string; size: string; category: string }) {
+  async updateItem(id: string, data: {
+    title: string;
+    brand: string;
+    size: string;
+    category: string;
+  } & ClosetItemMetadata) {
     return prisma.closetItem.update({ where: { id }, data });
   },
 

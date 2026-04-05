@@ -88,6 +88,14 @@ export type AnalyzeClosetItemResponse = {
   title: string;
   category: string;
   brand?: string;
+  subcategory?: string;
+  primaryColor?: string;
+  colorFamily?: string;
+  material?: string;
+  formality?: string;
+  silhouette?: string;
+  weight?: string;
+  pattern?: string;
 };
 
 export type SaveClosetItemRequest = {
@@ -98,6 +106,16 @@ export type SaveClosetItemRequest = {
   uploadedImageId?: string;
   uploadedImageUrl?: string;
   sketchImageUrl?: string;
+  subcategory?: string;
+  primaryColor?: string;
+  colorFamily?: string;
+  material?: string;
+  formality?: string;
+  silhouette?: string;
+  season?: string;
+  weight?: string;
+  pattern?: string;
+  notes?: string;
   fitStatus?: ClosetItemFitStatus;
 };
 
@@ -111,6 +129,16 @@ export type UpdateClosetItemRequest = {
   brand: string;
   size: string;
   category: string;
+  subcategory?: string;
+  primaryColor?: string;
+  colorFamily?: string;
+  material?: string;
+  formality?: string;
+  silhouette?: string;
+  season?: string;
+  weight?: string;
+  pattern?: string;
+  notes?: string;
   fitStatus?: ClosetItemFitStatus;
 };
 
@@ -160,7 +188,7 @@ export type OutfitPieceInput = {
 
 export type ClosetMatchRequest = {
   suggestions: OutfitPieceInput[];
-  items: { id: string; title: string; category: string; brand?: string }[];
+  items: { id: string; title: string; category: string; brand?: string; colorFamily?: string; material?: string; formality?: string }[];
   /** 0 = most forgiving, 100 = most precise. Default: 50. */
   sensitivity?: number;
   /** Item IDs to exclude — used when regenerating a specific slot after thumbs-down. */

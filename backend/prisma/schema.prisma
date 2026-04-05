@@ -178,6 +178,21 @@ model ClosetItem {
   savedAt          DateTime @default(now())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  // ── Design metadata ──────────────────────────────────────────────────────
+  subcategory      String?
+  primaryColor     String?
+  colorFamily      String?
+  material         String?
+  formality        String?
+  silhouette       String?
+  season           String?
+  weight           String?
+  pattern          String?
+  notes            String?
+
+  // ── Personal fit ─────────────────────────────────────────────────────────
+  fitStatus        String?
 }
 
 model ClosetSketchJob {

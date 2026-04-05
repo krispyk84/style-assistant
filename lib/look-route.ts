@@ -1,6 +1,7 @@
 import type { Href } from 'expo-router';
 
 import type { CreateLookInput, LookAnchorItem, LookRecommendation, OutfitPiece } from '@/types/look-request';
+import type { ClosetItemFitStatus } from '@/types/closet';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 import type { WeatherContext, WeatherSeason } from '@/types/weather';
 import { LOOK_TIER_OPTIONS, normalizePiece, type LookTierSlug } from '@/types/look-request';
@@ -124,7 +125,7 @@ function parseSerializedAnchorItem(item: SerializedAnchorItem): LookAnchorItem {
   return {
     id: item.id,
     description: item.description ?? '',
-    fitStatus: item.fitStatus,
+    fitStatus: item.fitStatus as ClosetItemFitStatus | undefined,
     image: item.anchorImageUri
       ? {
           uri: item.anchorImageUri,

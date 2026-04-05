@@ -4,6 +4,8 @@ import { View } from 'react-native';
 
 import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
+import { findBestClosetMatch } from '@/lib/closet-match';
+import type { OutfitPiece } from '@/types/look-request';
 
 import { LookResultCard } from '@/components/cards/look-result-card';
 import { LookRequestReviewCard } from '@/components/cards/look-request-review-card';
@@ -17,14 +19,13 @@ import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { useToast } from '@/components/ui/toast-provider';
 import { spacing } from '@/constants/theme';
-import { loadAppSettings } from '@/lib/app-settings-storage';
 import { incrementClosetItemCounter } from '@/lib/closet-storage';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
 import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
 import { buildTierHref, parseLookInput, type LookRouteParams } from '@/lib/look-route';
 import type { GenerateOutfitsResponse } from '@/types/api';
 import { outfitsService } from '@/services/outfits';
-import type { LookTierSlug } from '@/types/look-request';
+import { normalizePiece, type LookTierSlug } from '@/types/look-request';
 import { useMatchFeedback } from '@/hooks/use-match-feedback';
 
 export default function ResultDetailsScreen() {
@@ -42,10 +43,30 @@ export default function ResultDetailsScreen() {
   const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
   const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
   const [secondOpinionTier, setSecondOpinionTier] = useState<LookTierSlug | null>(null);
+  // Stable across sketch-poll response updates (memoized on requestId only)
+  const uniquePieces = useMemo((): OutfitPiece[] => {
+    if (!response) return [];
+    const allPieces = response.recommendations.flatMap((r) => [
+      ...r.keyPieces,
+      ...r.shoes,
+      ...r.accessories,
+    ]);
+    const seen = new Set<string>();
+    return allPieces
+      .map((p) => normalizePiece(p))
+      .filter((piece) => {
+        if (seen.has(piece.display_name)) return false;
+        seen.add(piece.display_name);
+        return true;
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [response?.requestId]);
+
   const { matchFeedbackMap, regeneratingMatches, handleMatchThumbsUp, handleMatchThumbsDown } =
     useMatchFeedback({
       requestId: stableParams.requestId ?? '',
       closetItems,
+      pieces: uniquePieces,
       onSlotRematched: (suggestion, item) =>
         // null from rematch means all candidates exhausted → false sentinel prevents local-scoring fallback
         setMatchMap((prev) => ({ ...prev, [suggestion]: item ?? false })),
@@ -110,66 +131,29 @@ export default function ResultDetailsScreen() {
     });
   }, []);
 
-  // Once both outfit response and closet items are ready, run LLM-based matching
+  // Once both outfit response and closet items are ready, run local deterministic matching
   useEffect(() => {
-    if (!response || !closetItems.length) return;
+    if (!uniquePieces.length || !closetItems.length) return;
 
-    const allPieces = response.recommendations.flatMap((r) => [
-      ...r.keyPieces,
-      ...r.shoes,
-      ...r.accessories,
-    ]);
-    // Deduplicate by display_name — the key used in matchMap
-    const seen = new Set<string>();
-    const uniquePieces = allPieces.filter((piece) => {
-      const key = piece.display_name;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-    if (!uniquePieces.length) return;
+    const resolved: Record<string, ClosetItem | null> = {};
+    const newlyMatchedIds: string[] = [];
 
-    void (async () => {
-      const { closetMatchSensitivity } = await loadAppSettings();
-      return closetService.matchItems({
-        suggestions: uniquePieces.map((piece) => ({
-          display_name: piece.display_name,
-          category: piece.metadata?.category,
-          color: piece.metadata?.color,
-          formality: piece.metadata?.formality,
-        })),
-        items: closetItems.map((item) => ({
-          id: item.id,
-          title: item.title,
-          category: item.category,
-          brand: item.brand || undefined,
-        })),
-        sensitivity: closetMatchSensitivity,
-      });
-    })()
-      .then((matchResponse) => {
-        if (!matchResponse.success || !matchResponse.data) return;
-        const resolved: Record<string, ClosetItem | null> = {};
-        const newlyMatchedIds: string[] = [];
-        for (const match of matchResponse.data.matches) {
-          const item = match.matchedItemId
-            ? (closetItems.find((c) => c.id === match.matchedItemId) ?? null)
-            : null;
-          resolved[match.suggestion] = item;
-          if (item && !countedMatchedIdsRef.current.has(item.id)) {
-            countedMatchedIdsRef.current.add(item.id);
-            newlyMatchedIds.push(item.id);
-          }
-        }
-        setMatchMap(resolved);
-        // Increment matchedToRecommendationCount for each newly matched item (fire-and-forget)
-        for (const id of newlyMatchedIds) {
-          void incrementClosetItemCounter(id, 'matchedToRecommendationCount');
-        }
-      });
-  // Re-run if the response changes (e.g. after regeneration) or closet items reload
+    for (const piece of uniquePieces) {
+      const item = findBestClosetMatch(piece, closetItems);
+      resolved[piece.display_name] = item;
+      if (item && !countedMatchedIdsRef.current.has(item.id)) {
+        countedMatchedIdsRef.current.add(item.id);
+        newlyMatchedIds.push(item.id);
+      }
+    }
+
+    setMatchMap(resolved);
+    for (const id of newlyMatchedIds) {
+      void incrementClosetItemCounter(id, 'matchedToRecommendationCount');
+    }
+  // uniquePieces is stable across sketch-poll updates (memoized on requestId)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [response?.requestId, closetItems]);
+  }, [uniquePieces, closetItems]);
 
   useEffect(() => {
     let isMounted = true;

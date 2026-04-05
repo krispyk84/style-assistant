@@ -1,14 +1,79 @@
-import type { ClosetItem } from '@/types/closet';
+/**
+ * Closet matching engine.
+ *
+ * Architecture: deterministic weighted metadata scorer.
+ * Accepts a structured OutfitPiece (with category/color/formality/material metadata)
+ * and scores every candidate ClosetItem across multiple dimensions.
+ *
+ * Scoring order of precedence (strongest → weakest):
+ *   1. Category  — hard gate; unrelated categories score zero
+ *   2. Subcategory fuzzy — token set similarity on item.subcategory vs piece description
+ *   3. Color family — structured colorFamily beats text inference
+ *   4. Material — keyword groups + fuzzy text
+ *   5. Formality — tier-distance scoring with adjacency bonus
+ *   6. Silhouette — item.silhouette vs piece description keywords
+ *   7. Title fuzzy — Jaccard token similarity as a tie-breaker
+ *   8. Fit status — personal fit penalty for ill-fitting items
+ *
+ * Fuzzy matching: Jaccard token similarity (≈ RapidFuzz token_set_ratio).
+ * Used only for subcategory, material, and title — as supporting signals,
+ * never to overpower category logic.
+ */
 
-// ── Garment groups ─────────────────────────────────────────────────────────────
-// Maps a canonical group key to every keyword that can appear in a
-// free-text suggestion string or closet item title.
+import type { ClosetItem } from '@/types/closet';
+import type { OutfitPiece, OutfitPieceCategory } from '@/types/look-request';
+import { normalizePiece, OUTFIT_TO_CLOSET_CATEGORY_MAP } from '@/types/look-request';
+
+// ── Scoring weights ────────────────────────────────────────────────────────────
+
+const W = {
+  // Category
+  CATEGORY_STRUCTURED:  70,  // piece.metadata.category → OUTFIT_TO_CLOSET_CATEGORY_MAP confirms
+  CATEGORY_INFERRED:    55,  // text-inferred groups match
+  CATEGORY_RELATED:     30,  // adjacent groups (blazer ↔ jacket, shirt ↔ polo)
+  CATEGORY_UNKNOWN:      5,  // one side unknown — neutral credit
+
+  // Subcategory (Jaccard token similarity against piece description)
+  SUBCATEGORY_HIGH:     25,  // Jaccard ≥ 0.50
+  SUBCATEGORY_MED:      12,  // Jaccard ≥ 0.28
+
+  // Color
+  COLOR_STRUCTURED:     22,  // item.colorFamily (authoritative) matches piece color family
+  COLOR_TEXT:           12,  // text-inferred color families match
+
+  // Material
+  MATERIAL_EXACT:       16,  // same material group (wool/merino = same group)
+  MATERIAL_FUZZY:        8,  // Jaccard ≥ 0.40 on material text
+
+  // Formality (piece.metadata.formality vs item.formality)
+  FORMALITY_EXACT:      14,
+  FORMALITY_ADJACENT:    5,  // 1 tier apart
+  FORMALITY_FAR:        -8,  // ≥ 2 tiers apart (Formal vs Casual)
+
+  // Silhouette (item.silhouette vs piece description keywords)
+  SILHOUETTE_MATCH:      8,
+
+  // Title fuzzy — tie-breaker only
+  TITLE_HIGH:           11,  // Jaccard ≥ 0.50
+  TITLE_MED:             5,  // Jaccard ≥ 0.30
+
+  // Fit penalty
+  FITSTAT_POOR:         -5,  // too-tight | fits-large | needs-alteration
+  FITSTAT_TAILORED:      3,  // tailored — confirmed good fit
+};
+
+// Minimum score for a match to be shown.
+// Category alone (70 structured / 55 inferred) always passes.
+// Related-category (30) requires at least one supporting signal.
+const THRESHOLD = 50;
+
+// ── Garment group taxonomy ─────────────────────────────────────────────────────
+// Maps free text to canonical group keys, used when metadata category is absent.
 
 const GARMENT_GROUPS: Record<string, readonly string[]> = {
   trousers:     ['trouser', 'chino', 'slack', 'cord', 'gabardine'],
   denim:        ['jean', 'denim'],
   shorts:       ['short'],
-  // 'oxford shirt' not 'oxford' — prevents "cap-toe oxfords" (shoes) matching shirt group
   shirt:        ['shirt', 'oxford shirt', 'button-down', 'button down', 'chambray', 'flannel', 'dress shirt', 'spread collar', 'french cuff'],
   polo:         ['polo'],
   tee:          ['tee', 't-shirt', 'tshirt', 'long sleeve', 'rash guard', 'performance shirt', 'swim shirt', 'base layer'],
@@ -22,7 +87,6 @@ const GARMENT_GROUPS: Record<string, readonly string[]> = {
   sneakers:     ['sneaker', 'trainer', 'runner', 'canvas shoe', 'court shoe', 'plimsoll'],
   loafers:      ['loafer', 'penny loafer', 'moccasin', 'slip-on'],
   boots:        ['boot', 'chelsea', 'chukka', 'desert boot'],
-  // Added 'oxford', 'oxfords', 'cap-toe' to correctly classify dress shoes
   formal_shoes: ['oxford shoe', 'derby shoe', 'brogue', 'monk strap', 'oxford', 'oxfords', 'cap-toe', 'cap toe', 'dress shoe'],
   belt:         ['belt'],
   bag:          ['bag', 'tote', 'briefcase', 'backpack', 'satchel'],
@@ -33,8 +97,7 @@ const GARMENT_GROUPS: Record<string, readonly string[]> = {
   socks:        ['sock'],
 };
 
-// Maps the canonical category strings stored on ClosetItem → garment group keys.
-// These match the values produced by mock-closet-service and the real API.
+// Maps stored ClosetItem.category → garment group key.
 const CATEGORY_TO_GROUP: Record<string, string> = {
   Trousers:        'trousers',
   Denim:           'denim',
@@ -47,7 +110,7 @@ const CATEGORY_TO_GROUP: Record<string, string> = {
   Blazer:          'blazer',
   'Sports Jacket': 'blazer',
   Jacket:          'jacket',
-  Overshirt:       'jacket',  // Added: prevents title fallback finding "shirt" keyword
+  Overshirt:       'jacket',
   Coat:            'coat',
   Suit:            'suit',
   Shoes:           'formal_shoes',
@@ -61,7 +124,6 @@ const CATEGORY_TO_GROUP: Record<string, string> = {
   Hat:             'hat',
   Tie:             'tie',
   Socks:           'socks',
-  // Athletic / swim categories — prevent matching against dress/accessory suggestions
   'T-Shirt':       'tee',
   'Swim Shirt':    'tee',
   'Performance Top': 'tee',
@@ -69,18 +131,45 @@ const CATEGORY_TO_GROUP: Record<string, string> = {
   'Tank Top':      'tee',
 };
 
+// Maps OutfitPieceCategory → garment group key for related-group checks.
+const OUTFIT_CATEGORY_TO_GROUP: Partial<Record<OutfitPieceCategory, string>> = {
+  Blazer:          'blazer',
+  Coat:            'coat',
+  Outerwear:       'jacket',
+  Overshirt:       'jacket',
+  Vest:            'jacket',
+  Shirt:           'shirt',
+  Polo:            'polo',
+  'T-Shirt':       'tee',
+  'Tank Top':      'tee',
+  'Swim Shirt':    'tee',
+  Knitwear:        'knitwear',
+  Cardigan:        'cardigan',
+  Hoodie:          'hoodie',
+  Sweatshirt:      'hoodie',
+  Trousers:        'trousers',
+  Denim:           'denim',
+  Shorts:          'shorts',
+  'Swimming Shorts': 'shorts',
+  Sneakers:        'sneakers',
+  Loafers:         'loafers',
+  Boots:           'boots',
+  Shoes:           'formal_shoes',
+  Belt:            'belt',
+  Bag:             'bag',
+  Watch:           'watch',
+  Scarf:           'scarf',
+  Suit:            'suit',
+};
+
 // Groups that are meaningfully related — allow partial category credit.
 const RELATED_GROUP_SETS: ReadonlyArray<ReadonlySet<string>> = [
   new Set(['blazer', 'jacket', 'coat']),
-  // shirt and polo are related; tee is NOT related to dress shirt — excluded intentionally
   new Set(['shirt', 'polo']),
   new Set(['trousers', 'denim', 'shorts']),
   new Set(['sneakers', 'loafers', 'boots', 'formal_shoes']),
+  new Set(['knitwear', 'cardigan', 'hoodie']),
 ];
-
-// Accessory categories where an exact group match alone is sufficient to show a
-// checkmark — color/keyword signals are often absent for these narrow categories.
-const SOLO_GROUP_SUFFICIENT = new Set(['watch', 'belt', 'scarf', 'hat', 'tie', 'socks']);
 
 // ── Color families ─────────────────────────────────────────────────────────────
 
@@ -88,7 +177,6 @@ const COLOR_FAMILIES: Record<string, readonly string[]> = {
   white:    ['white', 'cream', 'ivory', 'ecru', 'off-white', 'chalk', 'bone', 'milk', 'optical white'],
   stone:    ['stone', 'khaki', 'beige', 'sand', 'tan', 'oatmeal', 'wheat', 'natural', 'linen', 'taupe', 'putty', 'parchment'],
   camel:    ['camel', 'caramel', 'biscuit'],
-  // Added metallic tones: steel, stainless, gunmetal (common in watch descriptions)
   grey:     ['grey', 'gray', 'silver', 'heather', 'slate', 'ash', 'charcoal', 'graphite', 'marl', 'steel', 'stainless', 'gunmetal'],
   black:    ['black', 'onyx', 'jet', 'ebony'],
   navy:     ['navy', 'midnight blue', 'ink blue', 'naval'],
@@ -104,40 +192,60 @@ const COLOR_FAMILIES: Record<string, readonly string[]> = {
   purple:   ['purple', 'violet', 'lavender', 'lilac', 'plum'],
 };
 
-// ── Scoring weights ────────────────────────────────────────────────────────────
+// ── Material groups ────────────────────────────────────────────────────────────
 
-const SCORE_GROUP_EXACT   = 50; // same garment category
-const SCORE_GROUP_RELATED = 15; // related garment category (e.g. blazer ↔ jacket)
-const SCORE_GROUP_UNKNOWN =  5; // one side has no detectable garment type
-const SCORE_COLOR_MATCH   = 35; // at least one shared color family
-const SCORE_KEYWORD_EACH  =  5; // per shared significant word (max 20)
-const SCORE_KEYWORD_MAX   = 20;
+const MATERIAL_GROUPS: Record<string, readonly string[]> = {
+  wool:      ['wool', 'merino', 'cashmere', 'lambswool', 'shetland', 'worsted', 'flannel', 'tweed'],
+  cotton:    ['cotton', 'poplin', 'oxford cloth', 'twill', 'canvas', 'jersey', 'chambray', 'percale'],
+  linen:     ['linen', 'ramie', 'linen blend'],
+  denim:     ['denim', 'selvedge', 'raw denim'],
+  leather:   ['leather', 'suede', 'nubuck', 'calfskin', 'pebbled leather'],
+  synthetic: ['nylon', 'polyester', 'poly', 'synthetic', 'tech', 'performance', 'stretch'],
+  silk:      ['silk', 'satin', 'crepe', 'charmeuse'],
+  knit:      ['knit', 'ribbed', 'waffle', 'cable', 'interlock'],
+};
 
-// A match must reach this score to show a checkmark.
-// Requires at minimum: exact group + color, or exact group + 2 keyword hits.
-const CONFIDENCE_THRESHOLD = 60;
+// ── Formality scale ────────────────────────────────────────────────────────────
 
-// ── Formality guard ────────────────────────────────────────────────────────────
-// Prevents a dress-shirt suggestion from matching a t-shirt or casual top item
-// within the same 'shirt' group, and vice-versa.
+const FORMALITY_RANK: Record<string, number> = {
+  'Casual':         0,
+  'Smart Casual':   1,
+  'Refined Casual': 2,
+  'Formal':         3,
+};
 
-const DRESS_SHIRT_SIGNALS = ['dress shirt', 'spread collar', 'french cuff', 'french cuffs', 'spread-collar', 'oxford shirt', 'formal shirt'];
-const TEE_SIGNALS         = ['tee', 't-shirt', 'tshirt', 'long sleeve', 'long-sleeve'];
+// ── Silhouette hint vocabulary ─────────────────────────────────────────────────
 
-function isDressShirtText(text: string): boolean {
-  const norm = text.toLowerCase();
-  return DRESS_SHIRT_SIGNALS.some((s) => norm.includes(s));
-}
-
-function isTeeText(text: string): boolean {
-  const norm = text.toLowerCase();
-  return TEE_SIGNALS.some((s) => norm.includes(s));
-}
+const SILHOUETTE_HINTS: Record<string, readonly string[]> = {
+  slim:      ['slim', 'fitted', 'skinny', 'tapered', 'slim-fit', 'slim fit', 'narrow'],
+  straight:  ['straight', 'regular', 'classic', 'standard'],
+  relaxed:   ['relaxed', 'loose', 'easy', 'comfort', 'wide', 'wide-leg', 'slouch'],
+  oversized: ['oversized', 'oversized-fit', 'baggy', 'boxy', 'roomy', 'dropped'],
+  cropped:   ['cropped', 'crop', 'short'],
+};
 
 // ── Text utilities ─────────────────────────────────────────────────────────────
 
 function normalizeText(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Jaccard token similarity — equivalent to RapidFuzz `token_set_ratio` for short garment texts.
+ * Returns 0–1; higher = more similar.
+ * Used as a supporting signal only: never overrides category logic.
+ */
+function jaccardSimilarity(a: string, b: string): number {
+  const tokenize = (s: string): Set<string> =>
+    new Set(normalizeText(s).split(/\s+/).filter((w) => w.length > 2));
+  const setA = tokenize(a);
+  const setB = tokenize(b);
+  if (!setA.size || !setB.size) return 0;
+  let intersection = 0;
+  for (const t of setA) {
+    if (setB.has(t)) intersection++;
+  }
+  return intersection / (setA.size + setB.size - intersection);
 }
 
 function extractGarmentGroup(text: string): string | null {
@@ -151,168 +259,321 @@ function extractGarmentGroup(text: string): string | null {
 }
 
 function getItemGarmentGroup(item: ClosetItem): string | null {
-  const fromCategory = CATEGORY_TO_GROUP[item.category];
-  if (fromCategory) return fromCategory;
-  // Fall back to parsing the item's title for cases where category is generic
-  return extractGarmentGroup(item.title);
+  return CATEGORY_TO_GROUP[item.category] ?? extractGarmentGroup(item.title);
 }
 
 function isRelatedGroup(a: string, b: string): boolean {
-  return RELATED_GROUP_SETS.some((set) => set.has(a) && set.has(b));
+  return RELATED_GROUP_SETS.some((s) => s.has(a) && s.has(b));
 }
 
 function extractColorFamilies(text: string): Set<string> {
   const norm = normalizeText(text);
   const result = new Set<string>();
   for (const [family, keywords] of Object.entries(COLOR_FAMILIES)) {
-    if (keywords.some((kw) => norm.includes(kw))) {
-      result.add(family);
-    }
+    if (keywords.some((kw) => norm.includes(kw))) result.add(family);
   }
   return result;
 }
 
-// Words worth comparing — long enough, not generic styling/garment stop-words
-const KEYWORD_STOP_WORDS = new Set([
-  'with', 'that', 'this', 'from', 'your', 'have', 'been', 'will',
-  'colour', 'color', 'style', 'wear', 'piece', 'item', 'look',
-  'fitted', 'fitting', 'slim', 'classic', 'tailored', 'relaxed',
-  'light', 'dark', 'deep', 'pale', 'rich', 'toned',
-]);
-
-function significantWords(text: string): Set<string> {
-  return new Set(
-    normalizeText(text)
-      .split(' ')
-      .filter((w) => w.length > 3 && !KEYWORD_STOP_WORDS.has(w))
-  );
+function getMaterialGroup(text: string): string | null {
+  const norm = normalizeText(text);
+  for (const [group, keywords] of Object.entries(MATERIAL_GROUPS)) {
+    if (keywords.some((kw) => norm.includes(kw))) return group;
+  }
+  return null;
 }
 
-// ── Match scoring ──────────────────────────────────────────────────────────────
+const DRESS_SHIRT_SIGNALS = ['dress shirt', 'spread collar', 'french cuff', 'oxford shirt', 'formal shirt'];
+const TEE_SIGNALS         = ['tee', 't-shirt', 'tshirt', 'long sleeve', 'long-sleeve'];
 
-function scoreMatch(suggestion: string, item: ClosetItem): number {
-  const suggGroup = extractGarmentGroup(suggestion);
+function isDressShirt(text: string): boolean {
+  const n = text.toLowerCase();
+  return DRESS_SHIRT_SIGNALS.some((s) => n.includes(s));
+}
+
+function isTee(text: string): boolean {
+  const n = text.toLowerCase();
+  return TEE_SIGNALS.some((s) => n.includes(s));
+}
+
+// ── Scoring dimensions ─────────────────────────────────────────────────────────
+
+export type MatchDimensions = {
+  category: number;
+  subcategory: number;
+  color: number;
+  material: number;
+  formality: number;
+  silhouette: number;
+  fuzzyTitle: number;
+  fitPenalty: number;
+};
+
+export type MatchScore = {
+  total: number;
+  passesThreshold: boolean;
+  dimensions: MatchDimensions;
+  /** Short reason codes — useful for logging and future tuning. */
+  reasons: string[];
+};
+
+function scoreCategory(piece: OutfitPiece, item: ClosetItem): { score: number; reasons: string[] } {
+  // ── Structured metadata path ───────────────────────────────────────────────
+  if (piece.metadata?.category) {
+    const cat = piece.metadata.category;
+    const compatible = OUTFIT_TO_CLOSET_CATEGORY_MAP[cat];
+    if (compatible?.includes(item.category)) {
+      return { score: W.CATEGORY_STRUCTURED, reasons: [`cat:exact_structured(${cat}→${item.category})`] };
+    }
+    // Try related-group check as a fallback
+    const itemGroup = getItemGarmentGroup(item);
+    const pieceGroup = OUTFIT_CATEGORY_TO_GROUP[cat];
+    if (itemGroup && pieceGroup) {
+      if (itemGroup === pieceGroup) {
+        // Same group but not in OUTFIT_TO_CLOSET_CATEGORY_MAP — treat as inferred exact
+        return { score: W.CATEGORY_INFERRED, reasons: [`cat:group_match(${pieceGroup})`] };
+      }
+      if (isRelatedGroup(itemGroup, pieceGroup)) {
+        return { score: W.CATEGORY_RELATED, reasons: [`cat:related(${pieceGroup}↔${itemGroup})`] };
+      }
+    }
+    // Confirmed mismatch — hard fail
+    return { score: 0, reasons: [`cat:mismatch_structured(${cat}≠${item.category})`] };
+  }
+
+  // ── Text inference path ────────────────────────────────────────────────────
+  const suggGroup = extractGarmentGroup(piece.display_name);
   const itemGroup = getItemGarmentGroup(item);
-
-  let groupScore = 0;
 
   if (suggGroup && itemGroup) {
     if (suggGroup === itemGroup) {
-      // Formality guard: dress shirt suggestion must not match a tee item (and vice versa)
+      // Formality guard: dress shirt suggestion ↔ tee item (or vice versa)
       if (suggGroup === 'shirt' || suggGroup === 'tee') {
-        const suggIsDress = isDressShirtText(suggestion);
-        const itemIsDress = isDressShirtText(item.title);
-        const suggIsTee   = isTeeText(suggestion);
-        const itemIsTee   = isTeeText(item.title);
-        if ((suggIsDress && itemIsTee) || (suggIsTee && itemIsDress)) return 0;
+        const sd = isDressShirt(piece.display_name);
+        const id = isDressShirt(item.title);
+        const st = isTee(piece.display_name);
+        const it = isTee(item.title);
+        if ((sd && it) || (st && id)) {
+          return { score: 0, reasons: ['cat:formality_guard(shirt/tee)'] };
+        }
       }
-      groupScore = SCORE_GROUP_EXACT;
-
-      // Accessories with narrow, unambiguous categories pass on group match alone
-      if (SOLO_GROUP_SUFFICIENT.has(suggGroup)) {
-        return SCORE_GROUP_EXACT; // already above threshold (50 < 60… so let color/keyword run normally)
-      }
-    } else if (isRelatedGroup(suggGroup, itemGroup)) {
-      groupScore = SCORE_GROUP_RELATED;
-    } else {
-      // Hard category mismatch — completely different garment types can never match
-      return 0;
+      return { score: W.CATEGORY_INFERRED, reasons: [`cat:exact_inferred(${suggGroup})`] };
     }
-  } else if (suggGroup !== itemGroup) {
-    // One side has no detectable group — small neutral credit, let color/keywords decide
-    groupScore = SCORE_GROUP_UNKNOWN;
-  }
-  // Both null: neither side has a detectable type; groupScore stays 0
-
-  const suggColors = extractColorFamilies(suggestion);
-  const itemColors = extractColorFamilies(item.title);
-  const colorScore =
-    suggColors.size > 0 && itemColors.size > 0 && [...suggColors].some((c) => itemColors.has(c))
-      ? SCORE_COLOR_MATCH
-      : 0;
-
-  const suggWords = significantWords(suggestion);
-  const itemWords = significantWords(item.title);
-  const overlapCount = [...suggWords].filter((w) => itemWords.has(w)).length;
-  const keywordScore = Math.min(SCORE_KEYWORD_MAX, overlapCount * SCORE_KEYWORD_EACH);
-
-  // For narrow accessory categories, an exact group match alone is sufficient —
-  // color/keyword signals are rarely present in watch/belt/hat suggestions.
-  if (suggGroup && itemGroup && suggGroup === itemGroup && SOLO_GROUP_SUFFICIENT.has(suggGroup)) {
-    return SCORE_GROUP_EXACT + colorScore + keywordScore;
+    if (isRelatedGroup(suggGroup, itemGroup)) {
+      return { score: W.CATEGORY_RELATED, reasons: [`cat:related_inferred(${suggGroup}↔${itemGroup})`] };
+    }
+    // Hard mismatch
+    return { score: 0, reasons: [`cat:mismatch_inferred(${suggGroup}≠${itemGroup})`] };
   }
 
-  return groupScore + colorScore + keywordScore;
+  // One or both sides have no detectable group
+  if (suggGroup !== itemGroup) {
+    return { score: W.CATEGORY_UNKNOWN, reasons: ['cat:unknown_one_side'] };
+  }
+  return { score: 0, reasons: ['cat:both_unknown'] };
+}
+
+function scoreSubcategory(piece: OutfitPiece, item: ClosetItem): { score: number; reasons: string[] } {
+  if (!item.subcategory) return { score: 0, reasons: [] };
+  const sim = jaccardSimilarity(item.subcategory, piece.display_name);
+  if (sim >= 0.50) return { score: W.SUBCATEGORY_HIGH, reasons: [`sub:high(${sim.toFixed(2)})`] };
+  if (sim >= 0.28) return { score: W.SUBCATEGORY_MED, reasons: [`sub:med(${sim.toFixed(2)})`] };
+  return { score: 0, reasons: [] };
+}
+
+function scoreColor(piece: OutfitPiece, item: ClosetItem): { score: number; reasons: string[] } {
+  // Piece color: use metadata.color if available, else infer from display_name
+  const pieceColorText = piece.metadata?.color ?? piece.display_name;
+  const pieceColorFamilies = extractColorFamilies(pieceColorText);
+  if (!pieceColorFamilies.size) return { score: 0, reasons: ['color:no_piece_color'] };
+
+  // Item color: structured colorFamily beats text inference
+  if (item.colorFamily) {
+    if (pieceColorFamilies.has(item.colorFamily)) {
+      return { score: W.COLOR_STRUCTURED, reasons: [`color:structured_match(${item.colorFamily})`] };
+    }
+    return { score: 0, reasons: [`color:structured_mismatch(${item.colorFamily})`] };
+  }
+
+  // Text inference fallback
+  const itemColorText = (item.primaryColor ?? '') + ' ' + item.title;
+  const itemColorFamilies = extractColorFamilies(itemColorText);
+  if (!itemColorFamilies.size) return { score: 0, reasons: ['color:no_item_color'] };
+
+  const hasMatch = [...pieceColorFamilies].some((f) => itemColorFamilies.has(f));
+  if (hasMatch) return { score: W.COLOR_TEXT, reasons: ['color:text_match'] };
+  return { score: 0, reasons: ['color:text_mismatch'] };
+}
+
+function scoreMaterial(piece: OutfitPiece, item: ClosetItem): { score: number; reasons: string[] } {
+  // Item material: structured first
+  const itemMaterialText = item.material ?? '';
+  const pieceText = (piece.metadata as { material?: string } | null)?.material ?? piece.display_name;
+
+  const itemGroup = getMaterialGroup(itemMaterialText) ?? getMaterialGroup(item.title);
+  const pieceGroup = getMaterialGroup(pieceText);
+
+  if (itemGroup && pieceGroup) {
+    if (itemGroup === pieceGroup) {
+      return { score: W.MATERIAL_EXACT, reasons: [`mat:group_match(${itemGroup})`] };
+    }
+    return { score: 0, reasons: ['mat:group_mismatch'] };
+  }
+
+  // No material group detected on either side — try Jaccard on raw text
+  if (itemMaterialText && pieceText) {
+    const sim = jaccardSimilarity(itemMaterialText, pieceText);
+    if (sim >= 0.40) return { score: W.MATERIAL_FUZZY, reasons: [`mat:fuzzy(${sim.toFixed(2)})`] };
+  }
+
+  return { score: 0, reasons: [] };
+}
+
+function scoreFormality(piece: OutfitPiece, item: ClosetItem): { score: number; reasons: string[] } {
+  const pieceFormality = piece.metadata?.formality;
+  const itemFormality = item.formality;
+  if (!pieceFormality || !itemFormality) return { score: 0, reasons: [] };
+
+  const pRank = FORMALITY_RANK[pieceFormality] ?? -1;
+  const iRank = FORMALITY_RANK[itemFormality] ?? -1;
+  if (pRank === -1 || iRank === -1) return { score: 0, reasons: [] };
+
+  const diff = Math.abs(pRank - iRank);
+  if (diff === 0) return { score: W.FORMALITY_EXACT, reasons: [`form:exact(${pieceFormality})`] };
+  if (diff === 1) return { score: W.FORMALITY_ADJACENT, reasons: [`form:adjacent(diff=${diff})`] };
+  return { score: W.FORMALITY_FAR, reasons: [`form:far_penalty(diff=${diff})`] };
+}
+
+function scoreSilhouette(piece: OutfitPiece, item: ClosetItem): { score: number; reasons: string[] } {
+  if (!item.silhouette) return { score: 0, reasons: [] };
+  const hints = SILHOUETTE_HINTS[item.silhouette];
+  if (!hints) return { score: 0, reasons: [] };
+  const norm = piece.display_name.toLowerCase();
+  if (hints.some((h) => norm.includes(h))) {
+    return { score: W.SILHOUETTE_MATCH, reasons: [`sil:match(${item.silhouette})`] };
+  }
+  return { score: 0, reasons: [] };
+}
+
+function scoreFuzzyTitle(piece: OutfitPiece, item: ClosetItem): { score: number; reasons: string[] } {
+  const sim = jaccardSimilarity(piece.display_name, item.title);
+  if (sim >= 0.50) return { score: W.TITLE_HIGH, reasons: [`title:high(${sim.toFixed(2)})`] };
+  if (sim >= 0.30) return { score: W.TITLE_MED, reasons: [`title:med(${sim.toFixed(2)})`] };
+  return { score: 0, reasons: [] };
+}
+
+function scoreFitPenalty(item: ClosetItem): { score: number; reasons: string[] } {
+  const poor = new Set(['too-tight', 'fits-large', 'needs-alteration']);
+  if (item.fitStatus && poor.has(item.fitStatus)) {
+    return { score: W.FITSTAT_POOR, reasons: [`fit:penalty(${item.fitStatus})`] };
+  }
+  if (item.fitStatus === 'tailored') {
+    return { score: W.FITSTAT_TAILORED, reasons: ['fit:tailored_bonus'] };
+  }
+  return { score: 0, reasons: [] };
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 /**
- * Returns the single best-matching closet item for the given outfit piece
- * suggestion string, or null if no item meets the confidence threshold.
+ * Scores a single OutfitPiece against a single ClosetItem.
+ * Returns a MatchScore with per-dimension breakdown for explainability.
+ */
+export function scoreClosetMatch(piece: OutfitPiece, item: ClosetItem): MatchScore {
+  const reasons: string[] = [];
+
+  const cat = scoreCategory(piece, item);
+  reasons.push(...cat.reasons);
+
+  // Hard category mismatch — short-circuit, no point scoring other dimensions
+  if (cat.score === 0) {
+    return {
+      total: 0,
+      passesThreshold: false,
+      dimensions: { category: 0, subcategory: 0, color: 0, material: 0, formality: 0, silhouette: 0, fuzzyTitle: 0, fitPenalty: 0 },
+      reasons,
+    };
+  }
+
+  const sub  = scoreSubcategory(piece, item);
+  const col  = scoreColor(piece, item);
+  const mat  = scoreMaterial(piece, item);
+  const form = scoreFormality(piece, item);
+  const sil  = scoreSilhouette(piece, item);
+  const tit  = scoreFuzzyTitle(piece, item);
+  const fit  = scoreFitPenalty(item);
+
+  reasons.push(...sub.reasons, ...col.reasons, ...mat.reasons, ...form.reasons, ...sil.reasons, ...tit.reasons, ...fit.reasons);
+
+  const dimensions: MatchDimensions = {
+    category:   cat.score,
+    subcategory: sub.score,
+    color:      col.score,
+    material:   mat.score,
+    formality:  form.score,
+    silhouette: sil.score,
+    fuzzyTitle: tit.score,
+    fitPenalty: fit.score,
+  };
+
+  const total = Object.values(dimensions).reduce((sum, v) => sum + v, 0);
+
+  return { total, passesThreshold: total >= THRESHOLD, dimensions, reasons };
+}
+
+/**
+ * Finds the best-matching ClosetItem for an outfit piece recommendation.
  *
- * Scoring (max 105 pts, threshold 60):
- *   50 — exact garment category match
- *   15 — related garment category (e.g. blazer ↔ jacket)
- *    5 — one side has no detectable garment type (neutral credit)
- *   35 — at least one shared color family
- *  +5 per shared significant word, capped at 20
- *
- * Special rules:
- *   - Dress-shirt suggestions never match tee/long-sleeve items (formality guard)
- *   - Narrow accessory groups (watch, belt, hat, scarf, tie, socks) use a lower
- *     effective threshold: exact group match alone is sufficient to show a match
- *     (threshold overridden to SCORE_GROUP_EXACT for these groups)
+ * Accepts OutfitPiece (structured) or string (legacy fallback).
+ * Returns null if no item meets the confidence threshold.
  */
 export function findBestClosetMatch(
-  suggestion: string,
+  pieceOrString: OutfitPiece | string,
   items: ClosetItem[],
   excludeIds?: ReadonlySet<string>,
 ): ClosetItem | null {
-  const candidates = excludeIds?.size ? items.filter((item) => !excludeIds.has(item.id)) : items;
-  if (!candidates.length || !suggestion.trim()) return null;
+  const piece = typeof pieceOrString === 'string' ? normalizePiece(pieceOrString) : pieceOrString;
+  const candidates = excludeIds?.size ? items.filter((i) => !excludeIds.has(i.id)) : items;
+  if (!candidates.length || !piece.display_name.trim()) return null;
 
   let bestItem: ClosetItem | null = null;
-  let bestScore = 0;
+  let bestScore = -Infinity;
 
   for (const item of candidates) {
-    const score = scoreMatch(suggestion, item);
-    if (score > bestScore) {
-      bestScore = score;
+    const result = scoreClosetMatch(piece, item);
+    if (result.passesThreshold && result.total > bestScore) {
+      bestScore = result.total;
       bestItem = item;
     }
   }
 
-  // For solo-sufficient accessory groups, lower the threshold to exact-group score
-  const suggGroup = extractGarmentGroup(suggestion);
-  const effectiveThreshold =
-    suggGroup && SOLO_GROUP_SUFFICIENT.has(suggGroup) ? SCORE_GROUP_EXACT : CONFIDENCE_THRESHOLD;
-
-  return bestScore >= effectiveThreshold ? bestItem : null;
+  return bestItem;
 }
 
 /**
- * Validates that an LLM-returned closet match is categorically compatible
- * with the suggestion string.
- *
- * When both sides have a detectable garment group and those groups are
- * incompatible (e.g., watch suggestion matched to a tee item), this returns
- * false so the caller can reject the LLM result rather than surfacing an
- * obvious mismatch.
- *
- * Returns true when either side has no detectable group (can't disprove)
- * or when the groups are the same or related.
+ * Validates that a closet item is categorically compatible with a suggestion.
+ * Used to sanity-check entries that may have been stored from older matching runs.
  */
-export function isClosetMatchValid(suggestion: string, item: ClosetItem): boolean {
-  const suggGroup = extractGarmentGroup(suggestion);
+export function isClosetMatchValid(
+  suggestionOrPiece: string | OutfitPiece,
+  item: ClosetItem,
+): boolean {
+  const piece =
+    typeof suggestionOrPiece === 'string' ? normalizePiece(suggestionOrPiece) : suggestionOrPiece;
+
+  // Structured path: check OUTFIT_TO_CLOSET_CATEGORY_MAP
+  if (piece.metadata?.category) {
+    const compatible = OUTFIT_TO_CLOSET_CATEGORY_MAP[piece.metadata.category];
+    if (compatible) return compatible.includes(item.category);
+    // Unknown category — allow (can't disprove)
+    return true;
+  }
+
+  // Text inference path
+  const suggGroup = extractGarmentGroup(piece.display_name);
   const itemGroup = getItemGarmentGroup(item);
-
-  // Can't validate if either side is unknown
   if (!suggGroup || !itemGroup) return true;
-
-  // Groups must be exact or related — anything else is a category mismatch
   if (suggGroup === itemGroup) return true;
   if (isRelatedGroup(suggGroup, itemGroup)) return true;
-
   return false;
 }

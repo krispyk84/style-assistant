@@ -20,6 +20,14 @@ const analyzeResponseSchema = z.object({
   title: z.string(),
   category: z.string(),
   brand: z.string(),
+  subcategory: z.string().optional(),
+  primaryColor: z.string().optional(),
+  colorFamily: z.string().optional(),
+  material: z.string().optional(),
+  formality: z.string().optional(),
+  silhouette: z.string().optional(),
+  weight: z.string().optional(),
+  pattern: z.string().optional(),
 });
 
 const matchResponseSchema = z.object({
@@ -187,6 +195,17 @@ function mapItem(item: {
   sketchImageUrl: string | null;
   sketchStatus: string;
   savedAt: Date;
+  subcategory?: string | null;
+  primaryColor?: string | null;
+  colorFamily?: string | null;
+  material?: string | null;
+  formality?: string | null;
+  silhouette?: string | null;
+  season?: string | null;
+  weight?: string | null;
+  pattern?: string | null;
+  notes?: string | null;
+  fitStatus?: string | null;
 }) {
   return {
     id: item.id,
@@ -198,8 +217,28 @@ function mapItem(item: {
     sketchImageUrl: item.sketchImageUrl,
     sketchStatus: item.sketchStatus,
     savedAt: item.savedAt.toISOString(),
+    subcategory: item.subcategory ?? undefined,
+    primaryColor: item.primaryColor ?? undefined,
+    colorFamily: item.colorFamily ?? undefined,
+    material: item.material ?? undefined,
+    formality: item.formality ?? undefined,
+    silhouette: item.silhouette ?? undefined,
+    season: item.season ?? undefined,
+    weight: item.weight ?? undefined,
+    pattern: item.pattern ?? undefined,
+    notes: item.notes ?? undefined,
+    fitStatus: item.fitStatus ?? undefined,
   };
 }
+
+// ── analyzeItem prompt vocabulary (static — defined once at module scope) ──────
+
+const ANALYZE_CATEGORY_LIST = 'Suit, Blazer, Sports Jacket, Coat, Shirt, Polo, Knitwear, Cardigan, Hoodie, Trousers, Denim, Shorts, Shoes, Sneakers, Loafers, Boots, Belt, Bag, Watch, Scarf, Hat, Tie, Socks, Clothing';
+const ANALYZE_FORMALITY_OPTIONS = 'Casual, Smart Casual, Refined Casual, Formal';
+const ANALYZE_SILHOUETTE_OPTIONS = 'slim, straight, relaxed, oversized, cropped';
+const ANALYZE_COLOR_FAMILY_OPTIONS = 'white, stone, grey, black, navy, blue, brown, olive, green, burgundy, red, pink, yellow, purple, rust, camel';
+const ANALYZE_WEIGHT_OPTIONS = 'Lightweight, Midweight, Heavyweight';
+const ANALYZE_PATTERN_OPTIONS = 'Solid, Stripe, Check, Plaid, Print, Texture, Other';
 
 async function imageUrlToDataUrl(imageUrl: string): Promise<string> {
   // Prefer reading directly from disk — faster and avoids self-HTTP requests on Render.
@@ -235,27 +274,35 @@ export const closetService = {
     userContent.push({
       type: 'input_text',
       text: payload.uploadedImageUrl
-        ? 'Identify this garment. Return: (1) a concise product-style title e.g. "Chocolate Brown Corduroy Blazer"; (2) the most specific category from: Suit, Blazer, Sports Jacket, Coat, Shirt, Polo, Knitwear, Cardigan, Hoodie, Trousers, Denim, Shorts, Shoes, Sneakers, Loafers, Boots, Belt, Bag, Watch, Scarf, Hat, Tie, Socks, Clothing; (3) the brand name only if clearly identifiable from a visible logo, embroidery, label, or printed text — return an empty string if not detectable.'
-        : `Identify this garment from the description: "${payload.description ?? ''}". Return a concise product-style title, a specific category, and the brand if apparent — otherwise empty string.`,
+        ? `Identify this garment and return structured metadata. Categories: ${ANALYZE_CATEGORY_LIST}. Formality: ${ANALYZE_FORMALITY_OPTIONS}. Silhouette: ${ANALYZE_SILHOUETTE_OPTIONS}. ColorFamily: ${ANALYZE_COLOR_FAMILY_OPTIONS}. Weight: ${ANALYZE_WEIGHT_OPTIONS}. Pattern: ${ANALYZE_PATTERN_OPTIONS}. Return all fields — use empty string for brand if not detectable. Omit fields that cannot be determined from the image.`
+        : `Identify this garment from the description: "${payload.description ?? ''}". Return structured metadata including title, category, and any detectable metadata fields. Brand: empty string if not apparent.`,
     });
 
     const result = await openAiClient.createStructuredResponse({
       schema: analyzeResponseSchema,
       jsonSchema: {
         name: 'closet_item_analysis',
-        description: 'Identifies a garment title, category, and brand',
+        description: 'Identifies a garment and returns structured wardrobe metadata',
         schema: {
           type: 'object',
           properties: {
             title: { type: 'string', description: 'Concise product-style title, e.g. "Chocolate Brown Corduroy Blazer"' },
-            category: { type: 'string', description: 'Single category name from the standard list' },
+            category: { type: 'string', description: `Single category name from: ${ANALYZE_CATEGORY_LIST}` },
             brand: { type: 'string', description: 'Brand name if clearly identifiable from logos, tags, or visible text; empty string if not detectable' },
+            subcategory: { type: 'string', description: 'More specific sub-type, e.g. "Slim Chino", "Chelsea Boot", "Crewneck Sweater"' },
+            primaryColor: { type: 'string', description: 'Primary color name, e.g. "Navy", "Chocolate Brown", "Stone"' },
+            colorFamily: { type: 'string', description: `Broad color family for matching: ${ANALYZE_COLOR_FAMILY_OPTIONS}` },
+            material: { type: 'string', description: 'Primary fabric or material, e.g. "Wool", "Cotton", "Denim", "Cashmere"' },
+            formality: { type: 'string', description: `Formality level: ${ANALYZE_FORMALITY_OPTIONS}` },
+            silhouette: { type: 'string', description: `Garment's design cut: ${ANALYZE_SILHOUETTE_OPTIONS}` },
+            weight: { type: 'string', description: `Fabric weight: ${ANALYZE_WEIGHT_OPTIONS}` },
+            pattern: { type: 'string', description: `Surface pattern: ${ANALYZE_PATTERN_OPTIONS}` },
           },
           required: ['title', 'category', 'brand'],
           additionalProperties: false,
         },
       },
-      instructions: 'You are a menswear expert cataloguing a wardrobe. Identify garments accurately and concisely. Only return a brand if you can see it clearly on the garment — from logos, embroidery, labels, or printed text. Never guess a brand.',
+      instructions: 'You are a menswear expert cataloguing a wardrobe. Identify garments accurately. Return all metadata you can confidently determine from the image. Only return a brand if you can see it clearly — from logos, embroidery, labels, or printed text. Never guess a brand.',
       userContent,
     });
 
@@ -271,6 +318,17 @@ export const closetService = {
       uploadedImageUrl: payload.uploadedImageUrl,
       sketchImageUrl: payload.sketchImageUrl,
       sketchStatus: payload.sketchImageUrl ? 'ready' : 'failed',
+      subcategory: payload.subcategory,
+      primaryColor: payload.primaryColor,
+      colorFamily: payload.colorFamily,
+      material: payload.material,
+      formality: payload.formality,
+      silhouette: payload.silhouette,
+      season: payload.season,
+      weight: payload.weight,
+      pattern: payload.pattern,
+      notes: payload.notes,
+      fitStatus: payload.fitStatus,
     });
     return mapItem(item);
   },
@@ -294,6 +352,17 @@ export const closetService = {
       brand: payload.brand,
       size: payload.size,
       category: payload.category,
+      subcategory: payload.subcategory,
+      primaryColor: payload.primaryColor,
+      colorFamily: payload.colorFamily,
+      material: payload.material,
+      formality: payload.formality,
+      silhouette: payload.silhouette,
+      season: payload.season,
+      weight: payload.weight,
+      pattern: payload.pattern,
+      notes: payload.notes,
+      fitStatus: payload.fitStatus,
     });
     return mapItem(updated);
   },
@@ -359,7 +428,14 @@ export const closetService = {
     }
 
     const itemList = itemsForLlm
-      .map((item) => `  - id: "${item.id}", title: "${item.title}", category: "${item.category}"${item.brand ? `, brand: "${item.brand}"` : ''}`)
+      .map((item) => {
+        let line = `  - id: "${item.id}", title: "${item.title}", category: "${item.category}"`;
+        if (item.brand) line += `, brand: "${item.brand}"`;
+        if (item.colorFamily) line += `, colorFamily: "${item.colorFamily}"`;
+        if (item.material) line += `, material: "${item.material}"`;
+        if (item.formality) line += `, formality: "${item.formality}"`;
+        return line;
+      })
       .join('\n');
 
     // Annotate each suggestion with its category and color metadata when available.
@@ -419,8 +495,9 @@ If ZERO items pass this gate → return null immediately.
 ━━━ STEP 2 — COLOR GATE ━━━
 Use the [color: X] annotation if present, otherwise extract color from the suggestion text.
 Find the COLOR FAMILY for that color.
-Keep only same-category candidates whose title contains a color in the matching COLOR FAMILY.
-Items with no color in their title are neutral candidates (they pass this gate).
+For each candidate item: if it has a [colorFamily: X] field, use that directly as its color family (authoritative — do not infer from title). Otherwise, extract color from the item's title.
+Keep only same-category candidates whose color family matches.
+Items with no detectable color (no colorFamily field and no color in title) are neutral candidates (they pass this gate).
 
 If the suggestion has NO detectable color → skip the color gate.
 If every same-category candidate fails the color gate → return null.

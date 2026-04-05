@@ -11,7 +11,8 @@ import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
 import { closetService } from '@/services/closet';
 import { FitStatusPicker } from '@/components/closet/fit-status-picker';
-import type { ClosetItem, ClosetItemFitStatus } from '@/types/closet';
+import { SilhouettePicker } from '@/components/closet/silhouette-picker';
+import type { ClosetItem, ClosetItemFitStatus, ClosetItemSilhouette } from '@/types/closet';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 
 type SaveToClosetModalProps = {
@@ -48,8 +49,20 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
   const [brand, setBrand] = useState('');
   const [size, setSize] = useState('');
   const [category, setCategory] = useState('');
+  const [silhouette, setSilhouette] = useState<ClosetItemSilhouette | undefined>();
   const [fitStatus, setFitStatus] = useState<ClosetItemFitStatus | undefined>();
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // AI-filled metadata (not shown as editable fields in the save flow)
+  const [aiMeta, setAiMeta] = useState<{
+    subcategory?: string;
+    primaryColor?: string;
+    colorFamily?: string;
+    material?: string;
+    formality?: string;
+    weight?: string;
+    pattern?: string;
+  }>({});
 
   // Sketch generation state
   const [isGeneratingSketch, setIsGeneratingSketch] = useState(false);
@@ -91,7 +104,9 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     setTitle('');
     setBrand('');
     setCategory('');
+    setSilhouette(undefined);
     setFitStatus(undefined);
+    setAiMeta({});
     setSaveError(null);
     setSketchImageUrl(null);
     setSketchJobId(null);
@@ -112,9 +127,20 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
       .then((response) => {
         if (!isMounted) return;
         if (response.success && response.data) {
-          setTitle(response.data.title);
-          setCategory(response.data.category);
-          if (response.data.brand) setBrand(response.data.brand);
+          const d = response.data;
+          setTitle(d.title);
+          setCategory(d.category);
+          if (d.brand) setBrand(d.brand);
+          if (d.silhouette) setSilhouette(d.silhouette as ClosetItemSilhouette);
+          setAiMeta({
+            subcategory: d.subcategory,
+            primaryColor: d.primaryColor,
+            colorFamily: d.colorFamily,
+            material: d.material,
+            formality: d.formality,
+            weight: d.weight,
+            pattern: d.pattern,
+          });
         }
         setIsAnalyzing(false);
       });
@@ -168,7 +194,9 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
       setBrand('');
       setSize('');
       setCategory('');
+      setSilhouette(undefined);
       setFitStatus(undefined);
+      setAiMeta({});
       setSaveError(null);
       setSketchImageUrl(null);
       setSketchJobId(null);
@@ -195,7 +223,9 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     setBrand('');
     setSize('');
     setCategory('');
+    setSilhouette(undefined);
     setFitStatus(undefined);
+    setAiMeta({});
     setSaveError(null);
     setSketchImageUrl(null);
     setSketchJobId(null);
@@ -238,7 +268,9 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
       uploadedImageId: effectiveUploadedImage?.id,
       uploadedImageUrl: effectiveUploadedImage?.publicUrl,
       sketchImageUrl: sketchImageUrl ?? undefined,
+      silhouette,
       fitStatus,
+      ...aiMeta,
     });
 
     setIsSaving(false);
@@ -261,7 +293,9 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
       // Reset form & sketch state for the next item. We deliberately skip
       // server-side upload deletion (the previous item is already saved).
       setHookUploadedImage(null);
+      setSilhouette(undefined);
       setFitStatus(undefined);
+      setAiMeta({});
       setSaveError(null);
       setSketchImageUrl(null);
       setSketchJobId(null);
@@ -546,6 +580,8 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                       <TextInput value={size} onChangeText={setSize} placeholder="e.g. M / 32" placeholderTextColor={theme.colors.subtleText} returnKeyType="done" onSubmitEditing={Keyboard.dismiss} style={inputStyle} />
                     </View>
                   </View>
+
+                  <SilhouettePicker value={silhouette} onChange={setSilhouette} />
 
                   <FitStatusPicker value={fitStatus} onChange={setFitStatus} />
 

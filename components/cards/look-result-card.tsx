@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { spacing, theme } from '@/constants/theme';
 import { formatTierLabel } from '@/lib/outfit-utils';
-import { findBestClosetMatch, isClosetMatchValid } from '@/lib/closet-match';
+import { findBestClosetMatch } from '@/lib/closet-match';
 import { ClosetItemSheet } from '@/components/closet/closet-item-sheet';
 import type { LookRecommendation, OutfitPiece } from '@/types/look-request';
 import { normalizePiece } from '@/types/look-request';
@@ -274,25 +274,19 @@ type LabeledPiece = {
 };
 
 function resolveMatch(
-  suggestion: string,
+  piece: OutfitPiece,
   closetItems: ClosetItem[],
   matchMap?: Record<string, ClosetItem | null | false>
 ): ClosetItem | null {
+  const suggestion = piece.display_name;
   if (matchMap && Object.prototype.hasOwnProperty.call(matchMap, suggestion)) {
     const entry = matchMap[suggestion];
-    // false = rematch explicitly exhausted all candidates — do not fall back to local scoring
+    // false = rematch exhausted all candidates — do not fall back to local scoring
     if (entry === false) return null;
-    if (entry) {
-      // Validate the LLM match with local category logic to reject obvious
-      // cross-category mismatches (e.g. watch suggestion → rash guard item).
-      if (isClosetMatchValid(suggestion, entry)) return entry;
-      return findBestClosetMatch(suggestion, closetItems);
-    }
-    // LLM returned null — run local scoring as a safety net.
-    return findBestClosetMatch(suggestion, closetItems);
+    return entry ?? findBestClosetMatch(piece, closetItems);
   }
-  // matchMap not yet populated — fall back to local scoring while LLM loads
-  return findBestClosetMatch(suggestion, closetItems);
+  // matchMap not yet populated — fall back to local scoring while closet loads
+  return findBestClosetMatch(piece, closetItems);
 }
 
 function buildLabeledPieces(
@@ -307,7 +301,7 @@ function buildLabeledPieces(
     return {
       label: uniqueLabel(labelForKeyPiece(normalized, index), usedLabels),
       value: normalized.display_name,
-      matchedClosetItem: resolveMatch(normalized.display_name, closetItems, matchMap),
+      matchedClosetItem: resolveMatch(normalized, closetItems, matchMap),
     };
   });
 
@@ -316,7 +310,7 @@ function buildLabeledPieces(
     pieces.push({
       label: uniqueLabel(index === 0 ? 'Shoes' : `Shoe ${index + 1}`, usedLabels),
       value: normalized.display_name,
-      matchedClosetItem: resolveMatch(normalized.display_name, closetItems, matchMap),
+      matchedClosetItem: resolveMatch(normalized, closetItems, matchMap),
     });
   });
 
@@ -325,7 +319,7 @@ function buildLabeledPieces(
     pieces.push({
       label: uniqueLabel(`Accessory ${index + 1}`, usedLabels),
       value: normalized.display_name,
-      matchedClosetItem: resolveMatch(normalized.display_name, closetItems, matchMap),
+      matchedClosetItem: resolveMatch(normalized, closetItems, matchMap),
     });
   });
 

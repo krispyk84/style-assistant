@@ -13,15 +13,14 @@ import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing, theme } from '@/constants/theme';
-import { loadAppSettings } from '@/lib/app-settings-storage';
-import { findBestClosetMatch, isClosetMatchValid } from '@/lib/closet-match';
+import { findBestClosetMatch } from '@/lib/closet-match';
 import { getLookTierDefinition } from '@/lib/look-mock-data';
 import { parseLookInput, parseLookRecommendation, type LookRouteParams } from '@/lib/look-route';
 import { closetService } from '@/services/closet';
 import { outfitsService } from '@/services/outfits';
 import { useMatchFeedback } from '@/hooks/use-match-feedback';
 import type { ClosetItem } from '@/types/closet';
-import type { LookRecommendation } from '@/types/look-request';
+import type { LookRecommendation, OutfitPiece } from '@/types/look-request';
 
 export default function TierScreen() {
   const params = useLocalSearchParams<LookRouteParams & { tier: string; requestId?: string }>();
@@ -37,15 +36,34 @@ export default function TierScreen() {
 
   // ── Closet matching state ──────────────────────────────────────────────────
   const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
-  // suggestion string → ClosetItem | null (LLM no match, fallback runs) | false (rematch exhausted, no fallback)
+  // suggestion string → ClosetItem | null | false (rematch exhausted, no fallback)
   const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null | false>>({});
   // Tracks which piece is open in the "In Your Closet" sheet: item + suggestion for feedback identity
   const [sheetPiece, setSheetPiece] = useState<{ item: ClosetItem; suggestion: string } | null>(null);
   const [secondOpinionVisible, setSecondOpinionVisible] = useState(false);
+
+  // Stable: pieces come from route params, don't change after mount
+  const uniquePieces = useMemo((): OutfitPiece[] => {
+    if (!liveRecommendation) return [];
+    const allPieces = [
+      ...liveRecommendation.keyPieces,
+      ...liveRecommendation.shoes,
+      ...liveRecommendation.accessories,
+    ];
+    const seen = new Set<string>();
+    return allPieces.filter((piece) => {
+      if (seen.has(piece.display_name)) return false;
+      seen.add(piece.display_name);
+      return true;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stableParams.requestId, stableParams.tier]);
+
   const { matchFeedbackMap, regeneratingMatches, handleMatchThumbsUp, handleMatchThumbsDown } =
     useMatchFeedback({
       requestId: stableParams.requestId ?? '',
       closetItems,
+      pieces: uniquePieces,
       onSlotRematched: (suggestion, item) =>
         // null from rematch means all candidates exhausted → false sentinel prevents local-scoring fallback
         setMatchMap((prev) => ({ ...prev, [suggestion]: item ?? false })),
@@ -85,54 +103,16 @@ export default function TierScreen() {
     });
   }, []);
 
-  // ── LLM-based closet matching (runs when both closet and recommendation are ready) ──
+  // ── Local deterministic matching (runs when both closet and pieces are ready) ──
   useEffect(() => {
-    if (!liveRecommendation || !closetItems.length) return;
+    if (!uniquePieces.length || !closetItems.length) return;
 
-    const allPieces = [
-      ...liveRecommendation.keyPieces,
-      ...liveRecommendation.shoes,
-      ...liveRecommendation.accessories,
-    ];
-    const seen = new Set<string>();
-    const uniquePieces = allPieces.filter((piece) => {
-      if (seen.has(piece.display_name)) return false;
-      seen.add(piece.display_name);
-      return true;
-    });
-    if (!uniquePieces.length) return;
-
-    void (async () => {
-      const { closetMatchSensitivity } = await loadAppSettings();
-      return closetService.matchItems({
-        suggestions: uniquePieces.map((piece) => ({
-          display_name: piece.display_name,
-          category: piece.metadata?.category,
-          color: piece.metadata?.color,
-          formality: piece.metadata?.formality,
-        })),
-        items: closetItems.map((item) => ({
-          id: item.id,
-          title: item.title,
-          category: item.category,
-          brand: item.brand || undefined,
-        })),
-        sensitivity: closetMatchSensitivity,
-      });
-    })().then((matchResponse) => {
-      if (!matchResponse.success || !matchResponse.data) return;
-      const resolved: Record<string, ClosetItem | null> = {};
-      for (const match of matchResponse.data.matches) {
-        const item = match.matchedItemId
-          ? (closetItems.find((c) => c.id === match.matchedItemId) ?? null)
-          : null;
-        resolved[match.suggestion] = item;
-      }
-      setMatchMap(resolved);
-    });
-  // Re-run only when the closet reloads — piece suggestions don't change after load
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [closetItems]);
+    const resolved: Record<string, ClosetItem | null> = {};
+    for (const piece of uniquePieces) {
+      resolved[piece.display_name] = findBestClosetMatch(piece, closetItems);
+    }
+    setMatchMap(resolved);
+  }, [uniquePieces, closetItems]);
 
   if (!matchedTier || !liveRecommendation) {
     return (
@@ -300,23 +280,18 @@ type LabeledPiece = {
 };
 
 function resolveMatch(
-  suggestion: string,
+  piece: OutfitPiece,
   closetItems: ClosetItem[],
   matchMap: Record<string, ClosetItem | null | false>
 ): ClosetItem | null {
-  if (Object.prototype.hasOwnProperty.call(matchMap, suggestion)) {
-    const entry = matchMap[suggestion];
-    // false = rematch explicitly exhausted all candidates — do not fall back to local scoring
+  if (Object.prototype.hasOwnProperty.call(matchMap, piece.display_name)) {
+    const entry = matchMap[piece.display_name];
+    // false = rematch exhausted all candidates — do not fall back to local scoring
     if (entry === false) return null;
-    if (entry) {
-      if (isClosetMatchValid(suggestion, entry)) return entry;
-      return findBestClosetMatch(suggestion, closetItems);
-    }
-    // LLM returned null — run local scoring as safety net
-    return findBestClosetMatch(suggestion, closetItems);
+    return entry ?? null;
   }
-  // matchMap not yet populated — fall back to local scoring while LLM loads
-  return findBestClosetMatch(suggestion, closetItems);
+  // matchMap not yet populated — fall back to local scoring while closet loads
+  return findBestClosetMatch(piece, closetItems);
 }
 
 function buildPiecesToCheck(
@@ -327,14 +302,14 @@ function buildPiecesToCheck(
   const rows = recommendation.keyPieces.map((piece, index) => ({
     label: labelForKeyPiece(piece, index),
     value: piece.display_name,
-    matchedClosetItem: resolveMatch(piece.display_name, closetItems, matchMap),
+    matchedClosetItem: resolveMatch(piece, closetItems, matchMap),
   }));
 
   recommendation.shoes.forEach((shoe, index) => {
     rows.push({
       label: index === 0 ? 'Shoes' : `Shoe ${index + 1}`,
       value: shoe.display_name,
-      matchedClosetItem: resolveMatch(shoe.display_name, closetItems, matchMap),
+      matchedClosetItem: resolveMatch(shoe, closetItems, matchMap),
     });
   });
 
@@ -342,7 +317,7 @@ function buildPiecesToCheck(
     rows.push({
       label: `Accessory ${index + 1}`,
       value: accessory.display_name,
-      matchedClosetItem: resolveMatch(accessory.display_name, closetItems, matchMap),
+      matchedClosetItem: resolveMatch(accessory, closetItems, matchMap),
     });
   });
 
