@@ -1,6 +1,6 @@
 import type { AnalysisRequest, AnalysisResponse } from '../../contracts/analysis.contracts.js';
 import { openAiClient } from '../../ai/openai-client.js';
-import { buildModelImageInput } from '../../ai/image-input.js';
+import { buildModelImageInput, resolveImageUrlForAI } from '../../ai/image-input.js';
 import { selfieReviewJsonSchema, selfieReviewModelSchema } from '../../ai/openai.schemas.js';
 import { buildSelfieReviewInstructions, buildSelfieReviewUserPrompt } from '../../ai/prompts/analysis.prompts.js';
 import { profileRepository } from '../profile/profile.repository.js';
@@ -40,11 +40,8 @@ export const selfieReviewService = {
     if (uploadedImage) {
       userContent.push(await buildModelImageInput(uploadedImage));
     } else if (input.imageUrl) {
-      userContent.push({
-        type: 'input_image',
-        image_url: input.imageUrl,
-        detail: 'high',
-      });
+      const imageInput = await resolveImageUrlForAI(input.imageUrl);
+      if (imageInput) userContent.push(imageInput);
     }
 
     const aiOutput = await openAiClient.createStructuredResponse({

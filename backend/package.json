@@ -18,6 +18,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1024.0",
     "@prisma/client": "^5.22.0",
     "adm-zip": "^0.5.16",
     "cors": "^2.8.5",

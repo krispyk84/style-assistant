@@ -1,6 +1,6 @@
 import type { AnalysisRequest, AnalysisResponse } from '../../contracts/analysis.contracts.js';
 import { openAiClient } from '../../ai/openai-client.js';
-import { buildModelImageInput } from '../../ai/image-input.js';
+import { buildModelImageInput, resolveImageUrlForAI } from '../../ai/image-input.js';
 import { compatibilityJsonSchema, compatibilityModelSchema } from '../../ai/openai.schemas.js';
 import { buildCompatibilityInstructions, buildCompatibilityUserPrompt } from '../../ai/prompts/analysis.prompts.js';
 import { profileRepository } from '../profile/profile.repository.js';
@@ -42,21 +42,8 @@ export const compatibilityService = {
     if (uploadedImage) {
       userContent.push(await buildModelImageInput(uploadedImage));
     } else if (input.imageUrl) {
-      // Fetch the image server-side so OpenAI receives base64 data rather than a
-      // potentially private/inaccessible URL (e.g. internal Render storage URLs).
-      try {
-        const imageRes = await fetch(input.imageUrl);
-        if (imageRes.ok) {
-          const buffer = await imageRes.arrayBuffer();
-          const base64 = Buffer.from(buffer).toString('base64');
-          const contentType = imageRes.headers.get('content-type') ?? 'image/jpeg';
-          userContent.push({ type: 'input_image', image_url: `data:${contentType};base64,${base64}`, detail: 'high' });
-        }
-        // If image is unavailable (e.g. Render ephemeral FS wiped on redeploy), proceed
-        // with text-only analysis rather than passing a 404 URL to OpenAI.
-      } catch {
-        // Network error fetching image — proceed text-only
-      }
+      const imageInput = await resolveImageUrlForAI(input.imageUrl);
+      if (imageInput) userContent.push(imageInput);
     }
 
     const aiOutput = await openAiClient.createStructuredResponse({

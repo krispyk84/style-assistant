@@ -5,6 +5,8 @@ import { storageConfig } from '../config/storage.js';
 import { logger } from '../config/logger.js';
 import { HttpError } from '../lib/http-error.js';
 
+type ImageInput = { type: 'input_image'; image_url: string; detail: 'high' };
+
 type UploadedImageRecord = {
   storageProvider: string;
   storageKey: string;
@@ -18,6 +20,48 @@ function mimeTypeFromStorageKey(storageKey: string) {
   if (extension === '.webp') return 'image/webp';
   if (extension === '.gif') return 'image/gif';
   return 'image/jpeg';
+}
+
+/**
+ * Resolves an image URL into an AI-ready image input.
+ *
+ * - If the URL points to our own /media/ endpoint, reads the file directly from
+ *   the local filesystem — avoiding an HTTP round trip to ourselves and working
+ *   even when the public URL can't be reached (e.g. dev environment).
+ * - For external URLs, fetches via HTTP and converts to base64.
+ * - Returns null (proceed text-only) if the image is unavailable for any reason
+ *   (e.g. file wiped after Render redeploy, network error, 404).
+ */
+export async function resolveImageUrlForAI(imageUrl: string): Promise<ImageInput | null> {
+  const mediaPrefix = `${storageConfig.publicBaseUrl}/media/`;
+
+  if (imageUrl.startsWith(mediaPrefix)) {
+    const storageKey = imageUrl.slice(mediaPrefix.length);
+    const filePath = path.join(storageConfig.localDirectory, storageKey);
+    try {
+      const file = await fs.readFile(filePath);
+      const mimeType = mimeTypeFromStorageKey(storageKey);
+      return { type: 'input_image', image_url: `data:${mimeType};base64,${file.toString('base64')}`, detail: 'high' };
+    } catch {
+      logger.warn({ storageKey }, 'Local media file not found — proceeding without image');
+      return null;
+    }
+  }
+
+  try {
+    const imageRes = await fetch(imageUrl);
+    if (!imageRes.ok) {
+      logger.warn({ imageUrl, status: imageRes.status }, 'External image URL returned non-OK — proceeding without image');
+      return null;
+    }
+    const buffer = await imageRes.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString('base64');
+    const contentType = imageRes.headers.get('content-type') ?? 'image/jpeg';
+    return { type: 'input_image', image_url: `data:${contentType};base64,${base64}`, detail: 'high' };
+  } catch {
+    logger.warn({ imageUrl }, 'Failed to fetch external image URL — proceeding without image');
+    return null;
+  }
 }
 
 export async function buildModelImageInput(uploadedImage: UploadedImageRecord) {

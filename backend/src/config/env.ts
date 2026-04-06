@@ -21,10 +21,17 @@ const envSchema = z.object({
   STYLE_GUIDE_SOURCE_PATH: z.string().default('style-guides/source/Esquire-2024.epub'),
   STYLE_GUIDE_MAX_RESULTS: z.coerce.number().int().positive().max(10).default(3),
   STYLE_GUIDE_SCORE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.65),
-  STORAGE_PROVIDER: z.enum(['local']).default('local'),
+  STORAGE_PROVIDER: z.enum(['local', 's3']).default('local'),
   STORAGE_PUBLIC_BASE_URL: z.string().url(),
   STORAGE_LOCAL_DIR: z.string().min(1),
   STORAGE_MAX_FILE_SIZE_MB: z.coerce.number().positive().default(8),
+  // S3 / Cloudflare R2 (required when STORAGE_PROVIDER=s3)
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  AWS_REGION: z.string().optional(),
+  AWS_S3_BUCKET: z.string().optional(),
+  AWS_S3_ENDPOINT: z.string().url().optional(),
+  AWS_S3_PUBLIC_BASE_URL: z.string().url().optional(),
 });
 
 export const env = envSchema.parse(process.env);
