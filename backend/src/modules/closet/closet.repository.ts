@@ -32,6 +32,17 @@ export const closetRepository = {
   },
 
   async getItems(supabaseUserId: string) {
+    const items = await prisma.closetItem.findMany({
+      where: { supabaseUserId },
+      orderBy: { savedAt: 'desc' },
+    });
+
+    if (items.length > 0) return items;
+
+    // Lazy migration: claim orphaned items (pre-auth records with null supabaseUserId)
+    // for the first user who fetches. Safe because the app was single-user before auth.
+    await prisma.closetItem.updateMany({ where: { supabaseUserId: null }, data: { supabaseUserId } });
+
     return prisma.closetItem.findMany({
       where: { supabaseUserId },
       orderBy: { savedAt: 'desc' },
