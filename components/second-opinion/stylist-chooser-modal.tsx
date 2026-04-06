@@ -8,6 +8,8 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
 import { STYLISTS, type StylistId } from '@/lib/stylists';
 import { secondOpinionService } from '@/services/second-opinion';
+import { trackSecondOpinionRequested } from '@/lib/analytics';
+import { recordError } from '@/lib/crashlytics';
 import type { LookRecommendation } from '@/types/look-request';
 import type { SecondOpinionResponse } from '@/types/api';
 
@@ -37,6 +39,7 @@ export function StylistChooserModal({ visible, recommendation, onClose }: Stylis
 
     setIsLoading(true);
     setErrorMessage(null);
+    trackSecondOpinionRequested({ stylist_id: selectedId });
 
     const response = await secondOpinionService.getOpinion({
       stylistId: selectedId,
@@ -55,6 +58,10 @@ export function StylistChooserModal({ visible, recommendation, onClose }: Stylis
 
     if (!response.success || !response.data) {
       setErrorMessage(response.error?.message ?? 'Could not get a second opinion. Please try again.');
+      recordError(
+        new Error(response.error?.message ?? 'Second opinion request failed'),
+        'second_opinion_request'
+      );
       return;
     }
 

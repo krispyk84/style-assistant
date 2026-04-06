@@ -8,6 +8,7 @@ import { AuthProvider } from '@/contexts/auth-context';
 import { AppThemeProvider, useTheme } from '@/contexts/theme-context';
 import { buildNavTheme } from '@/constants/themes';
 import { AppSessionProvider, useAppSession } from '@/hooks/use-app-session';
+import { ScreenTracker } from '@/lib/analytics';
 
 function AppNavigation() {
   const { appInstanceKey } = useAppSession();
@@ -24,6 +25,7 @@ function AppNavigation() {
 
   return (
     <ThemeProvider value={navTheme}>
+      <ScreenTracker />
       <Stack
         screenOptions={{
           animation: 'fade',
@@ -40,7 +42,7 @@ function AppNavigation() {
         }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false, animation: 'fade' }} />
-        <Stack.Screen name="onboarding" options={{ title: 'Onboarding', gestureEnabled: false }} />
+        <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="review-request" options={{ headerShown: false }} />
         <Stack.Screen name="check-piece" options={{ headerShown: false }} />
         <Stack.Screen name="selfie-review" options={{ headerShown: false }} />

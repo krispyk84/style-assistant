@@ -26,6 +26,7 @@ import {
 } from '@/types/closet';
 import type { ClosetItem } from '@/types/closet';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
+import { trackClosetItemAdded } from '@/lib/analytics';
 
 type SaveToClosetModalProps = {
   visible: boolean;
@@ -311,6 +312,7 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
     }
 
     void persistLastUsedSize(size);
+    trackClosetItemAdded({ category: category.trim() || 'Clothing' });
     onSaved(response.data);
 
     if (imageQueue.length > 0) {

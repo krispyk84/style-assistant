@@ -13,6 +13,9 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
 import { supabase, type SupabaseProfile } from '@/lib/supabase';
+import { syncUserDataOnSignIn } from '@/lib/user-data-sync';
+import { setAnalyticsUserId } from '@/lib/analytics';
+import { setCrashlyticsUserId } from '@/lib/crashlytics';
 
 // Required so the in-app browser session can be dismissed cleanly after OAuth.
 WebBrowser.maybeCompleteAuthSession();
@@ -64,6 +67,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setSession(stored);
       setUser(stored?.user ?? null);
       if (stored?.user) {
+        setAnalyticsUserId(stored.user.id);
+        setCrashlyticsUserId(stored.user.id);
         void fetchSupabaseProfile(stored.user.id).then(setSupabaseProfile);
       }
       setIsAuthLoading(false);
@@ -72,11 +77,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     // Listen to all subsequent auth changes (sign-in, sign-out, token refresh, etc.)
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, next) => {
+    } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next);
       setUser(next?.user ?? null);
       if (next?.user) {
         void fetchSupabaseProfile(next.user.id).then(setSupabaseProfile);
+        if (event === 'SIGNED_IN') {
+          setAnalyticsUserId(next.user.id);
+          setCrashlyticsUserId(next.user.id);
+          void syncUserDataOnSignIn(next.user.id).catch(() => undefined);
+        }
       } else {
         setSupabaseProfile(null);
       }
@@ -121,7 +131,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if ((err as { code?: string }).code === 'ERR_REQUEST_CANCELED') {
         return { error: null };
       }
-      return { error: 'Apple sign-in failed. Please try again.' };
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[Apple sign-in error]', err);
+      return { error: `Apple sign-in failed: ${message}` };
     }
   }, []);
 
@@ -148,8 +160,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
         return { error: null };
       }
 
-      // Supabase PKCE flow: the callback URL contains ?code=... — exchange it for a session.
-      const { error: sessionError } = await supabase.auth.exchangeCodeForSession(result.url);
+      // Supabase implicit flow: tokens come back in the URL hash fragment.
+      // e.g. styleassistant://auth/callback#access_token=...&refresh_token=...
+      const hashIndex = result.url.indexOf('#');
+      const fragment = hashIndex !== -1 ? result.url.slice(hashIndex + 1) : '';
+      const params = new URLSearchParams(fragment);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+
+      if (!accessToken || !refreshToken) {
+        return { error: 'Google sign-in failed: no session tokens received.' };
+      }
+
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
       return { error: sessionError?.message ?? null };
     } catch {
       return { error: 'Google sign-in failed. Please try again.' };

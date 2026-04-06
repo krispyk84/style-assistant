@@ -17,6 +17,12 @@ import { spacing, theme } from '@/constants/theme';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import { closetService } from '@/services/closet';
 import { compatibilityService } from '@/services/compatibility';
+import {
+  trackCheckPieceStarted,
+  trackCheckPieceCompleted,
+  trackCheckPieceFailed,
+} from '@/lib/analytics';
+import { recordError } from '@/lib/crashlytics';
 import type { ClosetItem } from '@/types/closet';
 import type { CompatibilityCheckResponse } from '@/types/api';
 
@@ -92,6 +98,7 @@ export default function CheckPieceScreen() {
 
     setIsAnalyzing(true);
     setAnalysisError(null);
+    trackCheckPieceStarted({ source: selectedClosetItem ? 'closet' : 'photo' });
 
     let response;
 
@@ -122,9 +129,15 @@ export default function CheckPieceScreen() {
 
     if (response.success && response.data) {
       setAnalysis(response.data);
+      trackCheckPieceCompleted({ verdict: response.data.verdict });
     } else {
       setAnalysis(null);
       setAnalysisError(response.error?.message ?? 'Failed to analyze the selected piece.');
+      trackCheckPieceFailed();
+      recordError(
+        new Error(response.error?.message ?? 'Check piece analysis failed'),
+        'check_piece_analysis'
+      );
     }
 
     setIsAnalyzing(false);

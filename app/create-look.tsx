@@ -1,6 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 import type { ClosetItemFitStatus } from '@/types/closet';
 import { View } from 'react-native';
+import { trackCreateLookStarted } from '@/lib/analytics';
 
 import { CreateLookRequestForm } from '@/components/forms/create-look-request-form';
 import { AppScreen } from '@/components/ui/app-screen';
@@ -9,6 +11,8 @@ import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing } from '@/constants/theme';
 
 export default function CreateLookScreen() {
+  useEffect(() => { trackCreateLookStarted(); }, []);
+
   const { closetItemId, closetItemTitle, closetItemImageUrl, closetItemFitStatus, fresh } = useLocalSearchParams<{
     closetItemId?: string;
     closetItemTitle?: string;

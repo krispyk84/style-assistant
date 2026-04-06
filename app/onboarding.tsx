@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, router } from 'expo-router';
-import { type ReactNode, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,6 +13,7 @@ import { SelectorGrid, type SelectorOption } from '@/components/ui/selector-grid
 import { spacing, theme } from '@/constants/theme';
 import { useAppSession } from '@/hooks/use-app-session';
 import { useToast } from '@/components/ui/toast-provider';
+import { trackOnboardingStarted, trackOnboardingCompleted } from '@/lib/analytics';
 import type { Profile } from '@/types/profile';
 import {
   BUDGET_OPTIONS,
@@ -184,6 +185,10 @@ export default function OnboardingScreen() {
 
   const [stepIndex, setStepIndex] = useState(0);
 
+  useEffect(() => {
+    trackOnboardingStarted();
+  }, []);
+
   // Measurement units — default ft/lbs
   const [weightUnit, setWeightUnit] = useState<WeightUnit>('lbs');
   const [heightUnit, setHeightUnit] = useState<HeightUnit>('ft');
@@ -328,6 +333,7 @@ export default function OnboardingScreen() {
 
     const saved = await saveProfile(finalProfile, true);
     if (saved) {
+      trackOnboardingCompleted();
       router.replace('/(app)/home');
     } else {
       showToast('Profile could not be saved. Please try again.', 'error');

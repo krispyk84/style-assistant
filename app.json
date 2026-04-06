@@ -14,12 +14,15 @@
     "ios": {
       "bundleIdentifier": "com.krispyk84.styleassistant",
       "supportsTablet": false,
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "plugins": [
       "expo-router",
+      "@react-native-firebase/app",
+      "@react-native-firebase/crashlytics",
       "expo-apple-authentication",
       [
         "expo-location",

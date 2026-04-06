@@ -28,6 +28,14 @@ import { outfitsService } from '@/services/outfits';
 import { normalizePiece, type LookTierSlug } from '@/types/look-request';
 import { useMatchFeedback } from '@/hooks/use-match-feedback';
 import { useMatchSensitivity } from '@/hooks/use-match-sensitivity';
+import {
+  trackCreateLookCompleted,
+  trackCreateLookFailed,
+  trackClosetMatchShown,
+  trackSaveOutfit,
+  trackAddToWeek,
+} from '@/lib/analytics';
+import { recordError, log } from '@/lib/crashlytics';
 
 export default function ResultDetailsScreen() {
   const params = useLocalSearchParams<LookRouteParams & { requestId: string }>();
@@ -91,8 +99,20 @@ export default function ResultDetailsScreen() {
     if (!serviceResponse.success || !serviceResponse.data) {
       setErrorMessage(serviceResponse.error?.message ?? 'Failed to load outfit results.');
       setResponse(null);
+      if (input) {
+        // Only track failure for generation requests, not re-fetches of existing results
+        trackCreateLookFailed({ error: serviceResponse.error?.code });
+        recordError(
+          new Error(serviceResponse.error?.message ?? 'Outfit generation failed'),
+          'create_look_generation'
+        );
+      }
     } else {
       setResponse(serviceResponse.data);
+      if (input) {
+        trackCreateLookCompleted({ tier_count: serviceResponse.data.recommendations.length });
+        log(`Look generated: ${requestId} (${serviceResponse.data.recommendations.length} tiers)`);
+      }
     }
 
     setIsLoading(false);
@@ -152,6 +172,10 @@ export default function ResultDetailsScreen() {
     }
 
     setMatchMap(resolved);
+    const matchCount = Object.values(resolved).filter(Boolean).length;
+    if (matchCount > 0) {
+      trackClosetMatchShown({ match_count: matchCount, tier: 'results' });
+    }
     for (const id of newlyMatchedIds) {
       void incrementClosetItemCounter(id, 'matchedToRecommendationCount');
     }
@@ -236,6 +260,7 @@ export default function ResultDetailsScreen() {
     try {
       await saveSavedOutfit(response.input, recommendation, response.requestId);
       setSavedOutfitIds((current) => [...current, savedOutfitId]);
+      trackSaveOutfit({ tier });
       showToast('Outfit saved to history.');
     } catch {
       showToast('Could not save this outfit.', 'error');
@@ -256,6 +281,7 @@ export default function ResultDetailsScreen() {
 
     try {
       await assignOutfitToWeekDay(dayKey, dayLabel, response.input, recommendation, response.requestId);
+      trackAddToWeek({ tier: weekPickerTier, day_label: dayLabel });
       showToast(`Added to ${dayLabel}.`);
     } catch {
       showToast('Could not add this outfit to your week.', 'error');

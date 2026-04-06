@@ -18,6 +18,11 @@ import { findBestClosetMatch, getMatchConfidencePercent } from '@/lib/closet-mat
 import { getLookTierDefinition } from '@/lib/look-mock-data';
 import { parseLookInput, parseLookRecommendation, type LookRouteParams } from '@/lib/look-route';
 import { closetService } from '@/services/closet';
+import {
+  trackClosetMatchShown,
+  trackClosetMatchThumbUp,
+  trackClosetMatchThumbDown,
+} from '@/lib/analytics';
 import { outfitsService } from '@/services/outfits';
 import { useMatchFeedback } from '@/hooks/use-match-feedback';
 import { useMatchSensitivity } from '@/hooks/use-match-sensitivity';
@@ -129,6 +134,10 @@ export default function TierScreen() {
       resolved[piece.display_name] = findBestClosetMatch(piece, closetItems, undefined, sensitivity);
     }
     setMatchMap(resolved);
+    const matchCount = Object.values(resolved).filter(Boolean).length;
+    if (matchCount > 0) {
+      trackClosetMatchShown({ match_count: matchCount, tier: stableParams.tier ?? '' });
+    }
   }, [uniquePieces, closetItems]);
 
   if (!matchedTier || !liveRecommendation) {
@@ -267,12 +276,18 @@ export default function TierScreen() {
             confidencePercent={sheetPiece.confidencePercent}
             onThumbsUp={
               currentItem
-                ? () => handleMatchThumbsUp(stableParams.tier, sheetPiece.suggestion, currentItem.id, liveRecommendation.title)
+                ? () => {
+                    trackClosetMatchThumbUp({ tier: stableParams.tier ?? '' });
+                    handleMatchThumbsUp(stableParams.tier, sheetPiece.suggestion, currentItem.id, liveRecommendation.title);
+                  }
                 : undefined
             }
             onThumbsDown={
               currentItem
-                ? () => handleMatchThumbsDown(stableParams.tier, sheetPiece.suggestion, currentItem.id, liveRecommendation.title)
+                ? () => {
+                    trackClosetMatchThumbDown({ tier: stableParams.tier ?? '' });
+                    handleMatchThumbsDown(stableParams.tier, sheetPiece.suggestion, currentItem.id, liveRecommendation.title);
+                  }
                 : undefined
             }
             onClose={() => setSheetPiece(null)}
