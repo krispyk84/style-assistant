@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Redirect, Tabs } from 'expo-router';
+import { Redirect, router, Tabs } from 'expo-router';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandSplash } from '@/components/ui/brand-splash';
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme as staticTheme } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
 
@@ -57,7 +59,14 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
 
 export default function AppTabsLayout() {
   const { hasCompletedOnboarding, isHydrated } = useAppSession();
+  const { user } = useAuth();
   const { theme } = useTheme();
+
+  useEffect(() => {
+    if (!user) {
+      router.replace('/auth');
+    }
+  }, [user]);
 
   if (!isHydrated) {
     return (
@@ -80,7 +89,6 @@ export default function AppTabsLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          animation: 'fade',
           tabBarActiveTintColor: theme.colors.accent,
           tabBarInactiveTintColor: theme.colors.subtleText,
           tabBarStyle: {
@@ -94,7 +102,7 @@ export default function AppTabsLayout() {
           tabBarLabelStyle: {
             fontFamily: staticTheme.fonts.sansMedium,
             fontSize: 10,
-            letterSpacing: 0.6,
+            letterSpacing: 0.3,
             textTransform: 'uppercase',
           },
           sceneStyle: {
