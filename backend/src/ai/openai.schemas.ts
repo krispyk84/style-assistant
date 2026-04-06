@@ -77,7 +77,6 @@ const outfitPieceMetaJsonSchema = {
     },
     color: {
       type: 'string',
-      minLength: 1,
       description: 'Dominant color of the piece, e.g. "Navy", "Stone", "Off-white".',
     },
     material: {
@@ -99,7 +98,6 @@ const outfitPieceJsonSchema = {
   properties: {
     display_name: {
       type: 'string',
-      minLength: 1,
       description: 'Human-readable description shown in the UI, e.g. "Fine-gauge navy merino crewneck".',
     },
     metadata: outfitPieceMetaJsonSchema,
@@ -117,54 +115,38 @@ const outfitRecommendationJsonSchema = {
     },
     title: {
       type: 'string',
-      minLength: 1,
     },
     anchorItem: {
       type: 'string',
-      minLength: 1,
     },
     keyPieces: {
       type: 'array',
-      minItems: 2,
-      maxItems: 5,
       items: outfitPieceJsonSchema,
     },
     shoes: {
       type: 'array',
-      minItems: 1,
-      maxItems: 3,
       items: outfitPieceJsonSchema,
     },
     accessories: {
       type: 'array',
-      minItems: 1,
-      maxItems: 4,
       items: outfitPieceJsonSchema,
     },
     fitNotes: {
       type: 'array',
-      minItems: 2,
-      maxItems: 5,
       items: {
         type: 'string',
-        minLength: 1,
       },
     },
     whyItWorks: {
       type: 'string',
-      minLength: 1,
     },
     stylingDirection: {
       type: 'string',
-      minLength: 1,
     },
     detailNotes: {
       type: 'array',
-      minItems: 2,
-      maxItems: 5,
       items: {
         type: 'string',
-        minLength: 1,
       },
     },
   },
@@ -177,8 +159,6 @@ export const tieredOutfitGenerationJsonSchema = {
   properties: {
     recommendations: {
       type: 'array',
-      minItems: 1,
-      maxItems: 3,
       items: outfitRecommendationJsonSchema,
     },
   },
@@ -204,24 +184,17 @@ export const compatibilityJsonSchema = {
     },
     explanation: {
       type: 'string',
-      minLength: 1,
     },
     concerns: {
       type: 'array',
-      minItems: 1,
-      maxItems: 4,
       items: {
         type: 'string',
-        minLength: 1,
       },
     },
     suggestedAlternatives: {
       type: 'array',
-      minItems: 1,
-      maxItems: 4,
       items: {
         type: 'string',
-        minLength: 1,
       },
     },
   },
@@ -238,29 +211,20 @@ export const selfieReviewJsonSchema = {
     },
     strengths: {
       type: 'array',
-      minItems: 1,
-      maxItems: 4,
       items: {
         type: 'string',
-        minLength: 1,
       },
     },
     issues: {
       type: 'array',
-      minItems: 1,
-      maxItems: 4,
       items: {
         type: 'string',
-        minLength: 1,
       },
     },
     recommendedAdjustments: {
       type: 'array',
-      minItems: 1,
-      maxItems: 4,
       items: {
         type: 'string',
-        minLength: 1,
       },
     },
   },
@@ -279,7 +243,6 @@ export const secondOpinionJsonSchema = {
   properties: {
     perspective: {
       type: 'string',
-      minLength: 1,
     },
   },
   required: ['perspective'],
