@@ -1,7 +1,7 @@
 import type { GetProfileResponse, ProfileDto, UpsertProfileRequest } from '../../contracts/profile.contracts.js';
 import { profileRepository } from './profile.repository.js';
 
-function mapProfile(profile: Awaited<ReturnType<typeof profileRepository.findLatest>>): GetProfileResponse {
+function mapProfile(profile: Awaited<ReturnType<typeof profileRepository.findByUserId>>): GetProfileResponse {
   if (!profile) {
     return null;
   }
@@ -29,13 +29,13 @@ function mapProfile(profile: Awaited<ReturnType<typeof profileRepository.findLat
 }
 
 export const profileService = {
-  async getProfile() {
-    const profile = await profileRepository.findLatest();
+  async getProfile(supabaseUserId: string) {
+    const profile = await profileRepository.findByUserId(supabaseUserId);
     return mapProfile(profile);
   },
 
-  async upsertProfile(input: UpsertProfileRequest) {
-    const profile = await profileRepository.upsertLatest(input);
+  async upsertProfile(supabaseUserId: string, input: UpsertProfileRequest) {
+    const profile = await profileRepository.upsertByUserId(supabaseUserId, input);
     return mapProfile(profile);
   },
 };

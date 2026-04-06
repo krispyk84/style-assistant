@@ -7,16 +7,27 @@ type RequestOptions = {
   signal?: AbortSignal;
 };
 
+// Module-level token — set by auth-context on every session change so all
+// requests automatically carry the current user's Bearer token.
+let _authToken: string | null = null;
+
+export function setApiAuthToken(token: string | null): void {
+  _authToken = token;
+}
+
 export class ApiClient {
   constructor(private readonly baseUrl: string) {}
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (_authToken) {
+        headers['Authorization'] = `Bearer ${_authToken}`;
+      }
+
       const response = await fetch(`${this.baseUrl}${path}`, {
         method: options.method ?? 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: options.body ? JSON.stringify(options.body) : undefined,
         signal: options.signal,
       });

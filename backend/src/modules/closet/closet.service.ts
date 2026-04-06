@@ -321,8 +321,9 @@ export const closetService = {
     return result;
   },
 
-  async saveItem(payload: SaveClosetItemPayload) {
+  async saveItem(payload: SaveClosetItemPayload, supabaseUserId: string) {
     const item = await closetRepository.createItem({
+      supabaseUserId,
       title: payload.title,
       brand: payload.brand,
       size: payload.size,
@@ -345,21 +346,21 @@ export const closetService = {
     return mapItem(item);
   },
 
-  async getItems() {
-    const items = await closetRepository.getItems();
+  async getItems(supabaseUserId: string) {
+    const items = await closetRepository.getItems(supabaseUserId);
     return { items: items.map(mapItem) };
   },
 
-  async getItem(id: string) {
-    const item = await closetRepository.getItem(id);
+  async getItem(id: string, supabaseUserId: string) {
+    const item = await closetRepository.getItem(id, supabaseUserId);
     if (!item) throw new HttpError(404, 'NOT_FOUND', 'Item not found.');
     return mapItem(item);
   },
 
-  async updateItem(id: string, payload: UpdateClosetItemPayload) {
-    const existing = await closetRepository.getItem(id);
+  async updateItem(id: string, supabaseUserId: string, payload: UpdateClosetItemPayload) {
+    const existing = await closetRepository.getItem(id, supabaseUserId);
     if (!existing) throw new HttpError(404, 'NOT_FOUND', 'Item not found.');
-    const updated = await closetRepository.updateItem(id, {
+    await closetRepository.updateItem(id, supabaseUserId, {
       title: payload.title,
       brand: payload.brand,
       size: payload.size,
@@ -376,13 +377,16 @@ export const closetService = {
       notes: payload.notes,
       fitStatus: payload.fitStatus,
     });
+    // Re-fetch to return the updated row (updateMany doesn't return records)
+    const updated = await closetRepository.getItem(id, supabaseUserId);
+    if (!updated) throw new HttpError(404, 'NOT_FOUND', 'Item not found after update.');
     return mapItem(updated);
   },
 
-  async deleteItem(id: string) {
-    const existing = await closetRepository.getItem(id);
+  async deleteItem(id: string, supabaseUserId: string) {
+    const existing = await closetRepository.getItem(id, supabaseUserId);
     if (!existing) throw new HttpError(404, 'NOT_FOUND', 'Item not found.');
-    await closetRepository.deleteItem(id);
+    await closetRepository.deleteItem(id, supabaseUserId);
     return { deleted: true };
   },
 

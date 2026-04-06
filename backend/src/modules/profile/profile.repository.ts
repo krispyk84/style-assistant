@@ -3,41 +3,23 @@ import type { UpsertProfileRequest } from '../../contracts/profile.contracts.js'
 
 export const profileRepository = {
   async findById(id: string) {
-    return prisma.userProfile.findUnique({
-      where: { id },
-    });
+    return prisma.userProfile.findUnique({ where: { id } });
   },
 
-  async findLatest() {
-    return prisma.userProfile.findFirst({
-      orderBy: {
-        updatedAt: 'desc',
-      },
-    });
+  async findByUserId(supabaseUserId: string) {
+    return prisma.userProfile.findFirst({ where: { supabaseUserId } });
   },
 
-  async upsertLatest(input: UpsertProfileRequest) {
-    const existing = await prisma.userProfile.findFirst({
-      orderBy: {
-        updatedAt: 'desc',
-      },
-    });
-
+  async upsertByUserId(supabaseUserId: string, input: UpsertProfileRequest) {
+    const existing = await prisma.userProfile.findFirst({ where: { supabaseUserId } });
     if (!existing) {
       return prisma.userProfile.create({
-        data: {
-          ...input,
-          notes: input.notes ?? null,
-        },
+        data: { ...input, supabaseUserId, notes: input.notes ?? null },
       });
     }
-
     return prisma.userProfile.update({
       where: { id: existing.id },
-      data: {
-        ...input,
-        notes: input.notes ?? null,
-      },
+      data: { ...input, notes: input.notes ?? null },
     });
   },
 };

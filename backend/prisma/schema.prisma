@@ -27,6 +27,7 @@ enum UploadedImageCategory {
 
 model UserProfile {
   id                   String               @id @default(cuid())
+  supabaseUserId       String?
   gender               String
   heightCm             Float
   weightKg             Float
@@ -44,6 +45,8 @@ model UserProfile {
   outfitRequests       OutfitRequest[]
   compatibilityChecks  CompatibilityCheck[]
   selfieReviews        SelfieReview[]
+
+  @@index([supabaseUserId])
 }
 
 model OutfitRequest {
@@ -165,6 +168,7 @@ model UploadedImage {
 
 model ClosetItem {
   id               String   @id @default(cuid())
+  supabaseUserId   String?
   title            String
   brand            String   @default("")
   size             String   @default("")
@@ -193,6 +197,8 @@ model ClosetItem {
 
   // ── Personal fit ─────────────────────────────────────────────────────────
   fitStatus        String?
+
+  @@index([supabaseUserId])
 }
 
 model ClosetSketchJob {

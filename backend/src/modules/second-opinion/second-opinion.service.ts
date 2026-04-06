@@ -25,10 +25,10 @@ export type SecondOpinionResponse = {
 };
 
 export const secondOpinionService = {
-  async createOpinion(input: SecondOpinionRequest): Promise<SecondOpinionResponse> {
+  async createOpinion(input: SecondOpinionRequest, supabaseUserId: string): Promise<SecondOpinionResponse> {
     const profile = input.profileId
       ? await profileRepository.findById(input.profileId)
-      : await profileRepository.findLatest();
+      : await profileRepository.findByUserId(supabaseUserId);
 
     const aiOutput = await openAiClient.createStructuredResponse({
       schema: secondOpinionModelSchema,

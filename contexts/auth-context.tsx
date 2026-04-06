@@ -13,6 +13,7 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
 import { supabase, type SupabaseProfile } from '@/lib/supabase';
+import { setApiAuthToken } from '@/lib/api/api-client';
 import { clearAllLocalUserData, syncUserDataOnSignIn } from '@/lib/user-data-sync';
 import { setAnalyticsUserId } from '@/lib/analytics';
 import { setCrashlyticsUserId } from '@/lib/crashlytics';
@@ -66,6 +67,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     void supabase.auth.getSession().then(({ data: { session: stored } }) => {
       setSession(stored);
       setUser(stored?.user ?? null);
+      setApiAuthToken(stored?.access_token ?? null);
       if (stored?.user) {
         setAnalyticsUserId(stored.user.id);
         setCrashlyticsUserId(stored.user.id);
@@ -80,6 +82,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next);
       setUser(next?.user ?? null);
+      // Keep the API client token in sync with the current Supabase session.
+      // This covers sign-in, sign-out, and automatic token refreshes.
+      setApiAuthToken(next?.access_token ?? null);
       if (next?.user) {
         void fetchSupabaseProfile(next.user.id).then(setSupabaseProfile);
         if (event === 'SIGNED_IN') {

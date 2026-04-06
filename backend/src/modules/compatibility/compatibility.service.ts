@@ -9,9 +9,9 @@ import { compatibilityRepository } from './compatibility.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
 
 export const compatibilityService = {
-  async createCheck(input: AnalysisRequest) {
+  async createCheck(input: AnalysisRequest, supabaseUserId: string) {
     const uploadedImage = input.imageId ? await uploadsRepository.findById(input.imageId) : null;
-    const profile = input.profileId ? await profileRepository.findById(input.profileId) : await profileRepository.findLatest();
+    const profile = input.profileId ? await profileRepository.findById(input.profileId) : await profileRepository.findByUserId(supabaseUserId);
     const styleGuideContext = await styleGuideService.retrieveGuidance({
       task: 'compatibility-check',
       query: [

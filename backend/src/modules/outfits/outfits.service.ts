@@ -76,12 +76,11 @@ function getCanonicalAnchorDescription(input: {
   return 'Anchor item not provided';
 }
 
-async function findProfile(profileId?: string) {
+async function findProfile(supabaseUserId: string, profileId?: string) {
   if (profileId) {
     return profileRepository.findById(profileId);
   }
-
-  return profileRepository.findLatest();
+  return profileRepository.findByUserId(supabaseUserId);
 }
 
 export const outfitsService = {
@@ -127,10 +126,10 @@ export const outfitsService = {
     throw new HttpError(404, 'OUTFIT_SKETCH_NOT_FOUND', 'No sketch exists for the provided outfit tier.');
   },
 
-  async generateOutfits(input: GenerateOutfitsRequest, variantMap?: Partial<Record<OutfitTierSlug, number>>) {
+  async generateOutfits(input: GenerateOutfitsRequest, supabaseUserId: string, variantMap?: Partial<Record<OutfitTierSlug, number>>) {
     const selectedTiers = CANONICAL_TIERS.filter((tier) => input.selectedTiers.includes(tier));
     const anchorItems = getNormalizedAnchorItems(input);
-    const profile = await findProfile(input.profileId);
+    const profile = await findProfile(supabaseUserId, input.profileId);
     const uploadedAnchorImages = await Promise.all(
       anchorItems.map(async (item) => (item.imageId ? uploadsRepository.findById(item.imageId) : null))
     );
@@ -244,7 +243,7 @@ export const outfitsService = {
     return response;
   },
 
-  async regenerateTier(requestId: string, tier: OutfitTierSlug) {
+  async regenerateTier(requestId: string, tier: OutfitTierSlug, supabaseUserId: string) {
     const existing = await outfitsRepository.findGeneratedOutfit(requestId);
 
     if (!existing) {
@@ -254,7 +253,7 @@ export const outfitsService = {
     const currentRecommendation = existing.recommendations.find((item) => item.tier === tier);
     const currentVariantIndex = currentRecommendation?.variantIndex ?? 0;
     const nextVariantIndex = currentVariantIndex + 1;
-    const profile = await findProfile(undefined);
+    const profile = await findProfile(supabaseUserId);
     const anchorItems = getNormalizedAnchorItems(existing.input);
     const uploadedAnchorImages = await Promise.all(
       anchorItems.map(async (item) => (item.imageId ? uploadsRepository.findById(item.imageId) : null))

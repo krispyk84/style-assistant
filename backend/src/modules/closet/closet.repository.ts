@@ -16,6 +16,7 @@ type ClosetItemMetadata = {
 
 export const closetRepository = {
   async createItem(data: {
+    supabaseUserId: string;
     title: string;
     brand: string;
     size: string;
@@ -30,25 +31,28 @@ export const closetRepository = {
     return prisma.closetItem.create({ data });
   },
 
-  async getItems() {
-    return prisma.closetItem.findMany({ orderBy: { savedAt: 'desc' } });
+  async getItems(supabaseUserId: string) {
+    return prisma.closetItem.findMany({
+      where: { supabaseUserId },
+      orderBy: { savedAt: 'desc' },
+    });
   },
 
-  async getItem(id: string) {
-    return prisma.closetItem.findUnique({ where: { id } });
+  async getItem(id: string, supabaseUserId: string) {
+    return prisma.closetItem.findFirst({ where: { id, supabaseUserId } });
   },
 
-  async updateItem(id: string, data: {
+  async updateItem(id: string, supabaseUserId: string, data: {
     title: string;
     brand: string;
     size: string;
     category: string;
   } & ClosetItemMetadata) {
-    return prisma.closetItem.update({ where: { id }, data });
+    return prisma.closetItem.updateMany({ where: { id, supabaseUserId }, data });
   },
 
-  async deleteItem(id: string) {
-    return prisma.closetItem.delete({ where: { id } });
+  async deleteItem(id: string, supabaseUserId: string) {
+    return prisma.closetItem.deleteMany({ where: { id, supabaseUserId } });
   },
 
   async createSketchJob() {

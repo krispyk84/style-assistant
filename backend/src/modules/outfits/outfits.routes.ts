@@ -4,6 +4,7 @@ import { sendSuccess } from '../../lib/api-response.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
 import { parseWithSchema } from '../../lib/validation.js';
+import { requireAuth } from '../../middleware/auth.js';
 import { outfitsService } from './outfits.service.js';
 import { generateOutfitsSchema, regenerateTierSchema } from './outfits.validation.js';
 
@@ -46,19 +47,21 @@ outfitsRouter.get(
 
 outfitsRouter.post(
   '/outfits/generate',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const payload = parseWithSchema(generateOutfitsSchema, request.body);
-    const result = await outfitsService.generateOutfits(payload);
+    const result = await outfitsService.generateOutfits(payload, request.userId!);
     return sendSuccess(response, result, 201);
   })
 );
 
 outfitsRouter.post(
   '/outfits/:id/regenerate-tier',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const payload = parseWithSchema(regenerateTierSchema, request.body);
     const requestId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
-    const result = await outfitsService.regenerateTier(requestId, payload.tier);
+    const result = await outfitsService.regenerateTier(requestId, payload.tier, request.userId!);
     return sendSuccess(response, result);
   })
 );

@@ -9,9 +9,9 @@ import { selfieReviewRepository } from './selfie-review.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
 
 export const selfieReviewService = {
-  async createReview(input: AnalysisRequest) {
+  async createReview(input: AnalysisRequest, supabaseUserId: string) {
     const uploadedImage = input.imageId ? await uploadsRepository.findById(input.imageId) : null;
-    const profile = input.profileId ? await profileRepository.findById(input.profileId) : await profileRepository.findLatest();
+    const profile = input.profileId ? await profileRepository.findById(input.profileId) : await profileRepository.findByUserId(supabaseUserId);
     const styleGuideContext = await styleGuideService.retrieveGuidance({
       task: 'selfie-review',
       query: [
