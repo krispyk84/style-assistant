@@ -2,6 +2,8 @@ import { ThemeProvider } from '@react-navigation/native';
 import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ToastProvider } from '@/components/ui/toast-provider';
 import { AuthProvider } from '@/contexts/auth-context';
@@ -58,7 +60,21 @@ function AppNavigation() {
 }
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
-  return null; // handled by app/(app)/_layout.tsx
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      <ScrollView contentContainerStyle={{ padding: 24 }}>
+        <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 8, color: '#e00' }}>
+          Root Error
+        </Text>
+        <Text style={{ fontSize: 13, color: '#333', marginBottom: 16 }}>
+          {error?.message ?? String(error)}
+        </Text>
+        <Text style={{ fontSize: 11, color: '#888' }}>
+          {error?.stack ?? '(no stack)'}
+        </Text>
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
 
 export default function RootLayout() {
