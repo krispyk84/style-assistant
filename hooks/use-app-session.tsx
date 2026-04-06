@@ -23,7 +23,7 @@ const APP_RELAUNCH_RESET_MS = 1000 * 60 * 10; // 10 minutes
 const STALE_THRESHOLD_MS = 1000 * 60 * 10; // 10 min — server may have spun down
 
 export function AppSessionProvider({ children }: PropsWithChildren) {
-  const { user } = useAuth();
+  const { user, isAuthLoading } = useAuth();
   const [profile, setProfile] = useState(defaultProfile);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -40,6 +40,13 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
 
     if (!response.success) {
       setErrorMessage(response.error?.message ?? 'Failed to load session.');
+      return;
+    }
+
+    // Backend has no record for this user (e.g. existing profile predates
+    // supabaseUserId scoping). Preserve local cached state rather than
+    // overwriting hasCompletedOnboarding with false.
+    if (!response.data?.profile && !response.data?.onboardingCompleted) {
       return;
     }
 
@@ -133,11 +140,17 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
 
   // ── React to user identity changes (sign-out / sign-in after sign-out) ───
   useEffect(() => {
+    // Don't process while auth is still being restored from storage.
+    // Without this guard the ref gets set to null on the first render
+    // (before auth resolves), causing the next render (null → userId) to
+    // look like a post-sign-out sign-in and trigger a spurious backend fetch.
+    if (isAuthLoading) return;
+
     const currentUserId = user?.id ?? null;
     const prevUserId = prevUserIdRef.current;
     prevUserIdRef.current = currentUserId;
 
-    // First run before auth resolves — hydrate() handles initial load
+    // First auth resolution — hydrate() already handles the initial load
     if (prevUserId === undefined) return;
     // No change in identity
     if (currentUserId === prevUserId) return;
@@ -158,7 +171,7 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
       .catch(() => undefined)
       .finally(() => setIsHydrated(true));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, isAuthLoading]);
 
   const saveProfile = useCallback(async (nextProfile: Profile, completeOnboarding?: boolean) => {
     const willCompleteOnboarding = completeOnboarding ?? hasCompletedOnboarding;
