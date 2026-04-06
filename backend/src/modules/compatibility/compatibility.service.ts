@@ -51,11 +51,11 @@ export const compatibilityService = {
           const base64 = Buffer.from(buffer).toString('base64');
           const contentType = imageRes.headers.get('content-type') ?? 'image/jpeg';
           userContent.push({ type: 'input_image', image_url: `data:${contentType};base64,${base64}`, detail: 'high' });
-        } else {
-          userContent.push({ type: 'input_image', image_url: input.imageUrl, detail: 'high' });
         }
+        // If image is unavailable (e.g. Render ephemeral FS wiped on redeploy), proceed
+        // with text-only analysis rather than passing a 404 URL to OpenAI.
       } catch {
-        userContent.push({ type: 'input_image', image_url: input.imageUrl, detail: 'high' });
+        // Network error fetching image — proceed text-only
       }
     }
 

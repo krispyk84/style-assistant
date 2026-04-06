@@ -117,7 +117,7 @@ export const openAiClient = {
           'OpenAI Responses API request failed'
         );
 
-        throw new HttpError(502, 'OPENAI_REQUEST_FAILED', `The AI provider could not complete the request. (${response.status}: ${openAiError})`);
+        throw new HttpError(502, 'OPENAI_REQUEST_FAILED', 'The AI provider could not complete the request.');
       }
 
       const outputText = extractOutputText(payload);
