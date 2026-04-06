@@ -2,7 +2,7 @@ import { ThemeProvider } from '@react-navigation/native';
 import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ToastProvider } from '@/components/ui/toast-provider';
@@ -62,15 +62,17 @@ function AppNavigation() {
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-      <ScrollView contentContainerStyle={{ padding: 24 }}>
-        <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 8, color: '#e00' }}>
-          Root Error
+      <ScrollView
+        contentContainerStyle={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: 32 }}
+        onTouchEnd={retry}>
+        <Text style={{ color: '#e00', fontSize: 15, fontWeight: '600', marginBottom: 8, textAlign: 'center' }}>
+          Something went wrong
         </Text>
-        <Text style={{ fontSize: 13, color: '#333', marginBottom: 16 }}>
-          {error?.message ?? String(error)}
+        <Text style={{ color: '#666', fontSize: 13, textAlign: 'center' }}>
+          {error?.message ?? 'An unexpected error occurred.'}
         </Text>
-        <Text style={{ fontSize: 11, color: '#888' }}>
-          {error?.stack ?? '(no stack)'}
+        <Text style={{ color: '#aaa', fontSize: 12, marginTop: 16, textAlign: 'center' }}>
+          Tap anywhere to retry
         </Text>
       </ScrollView>
     </SafeAreaView>

@@ -178,7 +178,7 @@ const STEP_HINTS: Record<Step, string> = {
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function OnboardingScreen() {
-  const { isHydrated, isSaving, saveProfile } = useAppSession();
+  const { isHydrated, isSaving, saveProfile, hasCompletedOnboarding } = useAppSession();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
