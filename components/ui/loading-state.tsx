@@ -1,7 +1,8 @@
 import { Animated, Easing, View } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import { AppText } from '@/components/ui/app-text';
 
 type LoadingStateProps = {
@@ -10,6 +11,7 @@ type LoadingStateProps = {
 };
 
 export function LoadingState({ label, messages }: LoadingStateProps) {
+  const { theme } = useTheme();
   const [messageIndex, setMessageIndex] = useState(0);
   const [messageOrder, setMessageOrder] = useState<string[]>(messages ?? []);
   const activeLabel = messageOrder.length ? messageOrder[messageIndex % messageOrder.length] : label;

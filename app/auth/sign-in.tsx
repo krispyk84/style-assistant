@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
@@ -55,8 +56,13 @@ export default function SignInScreen() {
     <AppScreen scrollable>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
 
+        {/* Back */}
+        <Pressable onPress={() => router.back()} hitSlop={12} style={{ alignSelf: 'flex-start', paddingTop: spacing.md }}>
+          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
+        </Pressable>
+
         {/* Header */}
-        <View style={{ gap: spacing.xs, paddingTop: spacing.md }}>
+        <View style={{ gap: spacing.xs }}>
           <AppText variant="eyebrow" style={{ color: theme.colors.accent, letterSpacing: 2 }}>
             Welcome back
           </AppText>

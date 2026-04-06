@@ -1,6 +1,7 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
+import { useAuth } from '@/contexts/auth-context';
 import { defaultProfile } from '@/lib/default-profile';
 import { loadSession as loadStoredSession, saveProfile as saveStoredProfile } from '@/lib/profile-storage';
 import type { Profile } from '@/types/profile';
@@ -22,6 +23,7 @@ const APP_RELAUNCH_RESET_MS = 1000 * 60 * 10; // 10 minutes
 const STALE_THRESHOLD_MS = 1000 * 60 * 10; // 10 min — server may have spun down
 
 export function AppSessionProvider({ children }: PropsWithChildren) {
+  const { user } = useAuth();
   const [profile, setProfile] = useState(defaultProfile);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -30,6 +32,8 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
   const [appInstanceKey, setAppInstanceKey] = useState(0);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const lastBackgroundedAtRef = useRef<number | null>(null);
+  // undefined = not yet initialized (auth still loading); null = signed out
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
 
   async function refreshSessionFromBackend() {
     const response = await profileService.loadSession();
@@ -126,6 +130,35 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
 
     return () => subscription.remove();
   }, []);
+
+  // ── React to user identity changes (sign-out / sign-in after sign-out) ───
+  useEffect(() => {
+    const currentUserId = user?.id ?? null;
+    const prevUserId = prevUserIdRef.current;
+    prevUserIdRef.current = currentUserId;
+
+    // First run before auth resolves — hydrate() handles initial load
+    if (prevUserId === undefined) return;
+    // No change in identity
+    if (currentUserId === prevUserId) return;
+
+    if (!currentUserId) {
+      // Signed out: reset to blank state so no data bleeds into the next user
+      setProfile(defaultProfile);
+      setHasCompletedOnboarding(false);
+      setIsHydrated(false);
+      setErrorMessage(null);
+      return;
+    }
+
+    // New user signed in after a sign-out — re-hydrate from backend.
+    // Local storage was cleared by auth-context on SIGNED_OUT so this loads
+    // a fresh session for the new account.
+    void refreshSessionFromBackend()
+      .catch(() => undefined)
+      .finally(() => setIsHydrated(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const saveProfile = useCallback(async (nextProfile: Profile, completeOnboarding?: boolean) => {
     const willCompleteOnboarding = completeOnboarding ?? hasCompletedOnboarding;

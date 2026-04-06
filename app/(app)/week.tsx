@@ -41,45 +41,50 @@ export default function WeekScreen() {
 
       void (async function hydrate() {
         setIsLoadingWeek(true);
-        const [nextItems, savedOutfits, forecast] = await Promise.all([
-          loadWeekPlan(),
-          loadSavedOutfits(),
-          loadNextSevenDayForecast().catch(() => [] as WeekForecastDay[]),
-        ]);
+        try {
+          const [nextItems, savedOutfits, forecast] = await Promise.all([
+            loadWeekPlan(),
+            loadSavedOutfits(),
+            loadNextSevenDayForecast().catch(() => [] as WeekForecastDay[]),
+          ]);
 
-        const refreshedItems = await Promise.all(
-          nextItems.map(async (item) => {
-            const response = await outfitsService.getOutfitResult(item.requestId);
+          const refreshedItems = await Promise.all(
+            nextItems.map(async (item) => {
+              const response = await outfitsService.getOutfitResult(item.requestId);
 
-            if (!response.success || !response.data) {
-              return item;
-            }
+              if (!response.success || !response.data) {
+                return item;
+              }
 
-            const latestRecommendation = response.data.recommendations.find(
-              (recommendation) => recommendation.tier === item.recommendation.tier
-            );
+              const latestRecommendation = response.data.recommendations.find(
+                (recommendation) => recommendation.tier === item.recommendation.tier
+              );
 
-            if (!latestRecommendation) {
-              return item;
-            }
+              if (!latestRecommendation) {
+                return item;
+              }
 
-            return {
-              ...item,
-              input: response.data.input,
-              recommendation: latestRecommendation,
-            };
-          })
-        );
+              return {
+                ...item,
+                input: response.data.input,
+                recommendation: latestRecommendation,
+              };
+            })
+          );
 
-        if (isMounted) {
-          setItems(refreshedItems);
-          setSavedOutfitIds(savedOutfits.map((item) => item.id));
-          setForecastByDay(Object.fromEntries(forecast.map((day) => [day.dayKey, day])));
-          setIsLoadingWeek(false);
+          if (isMounted) {
+            setItems(refreshedItems);
+            setSavedOutfitIds(savedOutfits.map((item) => item.id));
+            setForecastByDay(Object.fromEntries(forecast.map((day) => [day.dayKey, day])));
+          }
+
+          // Persist refresh even if the user has navigated away
+          await replaceWeekPlan(refreshedItems);
+        } finally {
+          if (isMounted) {
+            setIsLoadingWeek(false);
+          }
         }
-
-        // Persist refresh even if the user has navigated away
-        await replaceWeekPlan(refreshedItems);
       })();
 
       return () => {

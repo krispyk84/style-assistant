@@ -337,7 +337,7 @@ function scoreCategory(piece: OutfitPiece, item: ClosetItem): { score: number; r
     // Text-veto: if the display_name text implies a group that is incompatible
     // with the metadata category, the LLM assigned a wrong category (e.g. "navy
     // tie" labelled as Belt). Trust the text over the structured field.
-    const textGroup  = extractGarmentGroup(piece.display_name);
+    const textGroup  = extractGarmentGroup(piece.display_name.replace(/\(.*?\)/g, '').trim());
     const metaGroup  = OUTFIT_CATEGORY_TO_GROUP[cat];
     if (textGroup && metaGroup && textGroup !== metaGroup && !isRelatedGroup(textGroup, metaGroup)) {
       // Fall through to the text-inference path below by pretending there is no
@@ -375,7 +375,7 @@ function scoreCategory(piece: OutfitPiece, item: ClosetItem): { score: number; r
   }
 
   // ── Text inference path ────────────────────────────────────────────────────
-  const suggGroup = extractGarmentGroup(piece.display_name);
+  const suggGroup = extractGarmentGroup(piece.display_name.replace(/\(.*?\)/g, '').trim());
   const itemGroup = getItemGarmentGroup(item);
 
   if (suggGroup && itemGroup) {
@@ -567,17 +567,18 @@ export function findBestClosetMatch(
   pieceOrString: OutfitPiece | string,
   items: ClosetItem[],
   excludeIds?: ReadonlySet<string>,
-  /** 0–100; maps to threshold LOW=45, MED=50 (default), HIGH=58. */
+  /** 0–100; maps to min-confidence threshold: 0=50%, 100=80% (linear). Default: 50 raw. */
   sensitivity?: number,
 ): ClosetItem | null {
   const piece = typeof pieceOrString === 'string' ? normalizePiece(pieceOrString) : pieceOrString;
   const candidates = excludeIds?.size ? items.filter((i) => !excludeIds.has(i.id)) : items;
   if (!candidates.length || !piece.display_name.trim()) return null;
 
+  // sensitivity=0 → 50% min, sensitivity=100 → 80% min (linear)
   const threshold =
     sensitivity === undefined
       ? THRESHOLD
-      : Math.round(((20 + (sensitivity / 100) * 60) / 100) * MATCH_SCORE_MAX);
+      : Math.round((0.50 + (sensitivity / 100) * 0.30) * MATCH_SCORE_MAX);
 
   let bestItem: ClosetItem | null = null;
   let bestScore = -Infinity;
@@ -622,7 +623,7 @@ export function isClosetMatchValid(
   }
 
   // Text inference path
-  const suggGroup = extractGarmentGroup(piece.display_name);
+  const suggGroup = extractGarmentGroup(piece.display_name.replace(/\(.*?\)/g, '').trim());
   const itemGroup = getItemGarmentGroup(item);
   if (!suggGroup || !itemGroup) return true;
   if (suggGroup === itemGroup) return true;

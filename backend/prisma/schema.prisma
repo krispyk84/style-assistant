@@ -28,8 +28,8 @@ enum UploadedImageCategory {
 model UserProfile {
   id                   String               @id @default(cuid())
   gender               String
-  heightCm             Int
-  weightKg             Int
+  heightCm             Float
+  weightKg             Float
   fitPreference        String
   stylePreference      String
   budget               String

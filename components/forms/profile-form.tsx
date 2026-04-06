@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import { defaultProfile } from '@/lib/default-profile';
 import { hasValidationErrors, validateProfile } from '@/lib/profile-validation';
 import type { Profile, ProfileValidationErrors } from '@/types/profile';
@@ -29,15 +30,37 @@ type ProfileFormProps = {
 };
 
 type WeightUnit = 'kg' | 'lbs';
+type HeightUnit = 'cm' | 'ft';
 type PickerFieldKey =
-  | 'gender'
   | 'fitPreference'
   | 'stylePreference'
   | 'budget'
   | 'hairColor'
-  | 'skinTone'
-  | 'summerBottomPreference'
-  | 'temperatureUnit';
+  | 'skinTone';
+
+function normalizeProfile(p: Profile): Profile {
+  const g = p.gender as string;
+  return {
+    ...p,
+    gender: g === 'prefer-not-to-say' ? 'non-binary' : p.gender,
+  };
+}
+
+function centimetersToFeetInches(cm: string): { feet: string; inches: string } {
+  const numeric = Number(cm);
+  if (!Number.isFinite(numeric) || numeric <= 0) return { feet: '', inches: '' };
+  const totalInches = numeric / 2.54;
+  const feet = Math.floor(totalInches / 12);
+  const inches = Math.round(totalInches % 12);
+  return { feet: String(feet), inches: String(inches) };
+}
+
+function feetInchesToCentimeters(feet: string, inches: string): string {
+  const f = parseFloat(feet) || 0;
+  const i = parseFloat(inches) || 0;
+  const totalInches = f * 12 + i;
+  return totalInches > 0 ? Math.round(totalInches * 2.54).toString() : '';
+}
 
 function kilogramsToPounds(value: string) {
   const numeric = Number(value);
@@ -65,14 +88,32 @@ export function ProfileForm({
   disabled = false,
   onSubmit,
 }: ProfileFormProps) {
-  const [profile, setProfile] = useState(initialValue);
+  const { theme } = useTheme();
+  const inputStyle = {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: 18,
+    borderWidth: 1,
+    color: theme.colors.text,
+    fontFamily: theme.fonts.sans,
+    fontSize: 16,
+    minHeight: 54,
+    paddingHorizontal: spacing.md,
+  } as const;
+  const [profile, setProfile] = useState(() => normalizeProfile(initialValue));
+  const [heightUnit, setHeightUnit] = useState<HeightUnit>('cm');
+  const [heightFeet, setHeightFeet] = useState('');
+  const [heightInches, setHeightInches] = useState('');
   const [weightUnit, setWeightUnit] = useState<WeightUnit>('kg');
   const [weightValue, setWeightValue] = useState(initialValue.weightKg);
   const [errors, setErrors] = useState<ProfileValidationErrors>({});
   const [pickerField, setPickerField] = useState<PickerFieldKey | null>(null);
 
   useEffect(() => {
-    setProfile(initialValue);
+    setProfile(normalizeProfile(initialValue));
+    setHeightUnit('cm');
+    setHeightFeet('');
+    setHeightInches('');
     setWeightUnit('kg');
     setWeightValue(initialValue.weightKg);
   }, [initialValue]);
@@ -80,6 +121,7 @@ export function ProfileForm({
   async function handleSubmit() {
     const normalizedProfile = {
       ...profile,
+      heightCm: heightUnit === 'ft' ? feetInchesToCentimeters(heightFeet, heightInches) : profile.heightCm,
       weightKg: weightUnit === 'lbs' ? poundsToKilograms(weightValue) : weightValue,
     };
     const nextErrors = validateProfile(normalizedProfile);
@@ -97,6 +139,26 @@ export function ProfileForm({
     setErrors((current) => {
       const next = { ...current };
       delete next[key];
+      return next;
+    });
+  }
+
+  function handleHeightUnitChange(nextUnit: string) {
+    if (nextUnit !== 'cm' && nextUnit !== 'ft') return;
+    if (nextUnit === heightUnit) return;
+
+    if (nextUnit === 'ft') {
+      const { feet, inches } = centimetersToFeetInches(profile.heightCm);
+      setHeightFeet(feet);
+      setHeightInches(inches);
+    } else {
+      updateField('heightCm', feetInchesToCentimeters(heightFeet, heightInches));
+    }
+
+    setHeightUnit(nextUnit);
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.heightCm;
       return next;
     });
   }
@@ -127,12 +189,6 @@ export function ProfileForm({
 
   const pickerConfigs = useMemo(
     () => ({
-      gender: {
-        label: 'Gender',
-        options: GENDER_OPTIONS,
-        value: profile.gender,
-        onChange: (value: string) => updateField('gender', value as Profile['gender']),
-      },
       fitPreference: {
         label: 'Fit preference',
         options: FIT_PREFERENCE_OPTIONS,
@@ -163,18 +219,6 @@ export function ProfileForm({
         value: profile.skinTone,
         onChange: (value: string) => updateField('skinTone', value as Profile['skinTone']),
       },
-      summerBottomPreference: {
-        label: 'Warm weather bottoms',
-        options: SUMMER_BOTTOM_OPTIONS,
-        value: profile.summerBottomPreference,
-        onChange: (value: string) => updateField('summerBottomPreference', value as Profile['summerBottomPreference']),
-      },
-      temperatureUnit: {
-        label: 'Temperature unit',
-        options: TEMPERATURE_UNIT_OPTIONS,
-        value: profile.temperatureUnit,
-        onChange: (value: string) => updateField('temperatureUnit', value as Profile['temperatureUnit']),
-      },
     }),
     [profile]
   );
@@ -194,18 +238,52 @@ export function ProfileForm({
       </FormField>
 
       <FormField label="Gender" hint="Used to tailor fit and style guidance.">
-        <PickerField value={profile.gender} onPress={() => setPickerField('gender')} />
+        <SegmentedControl
+          options={GENDER_OPTIONS}
+          value={profile.gender}
+          onChange={(value) => updateField('gender', value)}
+        />
       </FormField>
 
-      <FormField label="Height" hint="Enter your height in centimeters." error={errors.heightCm as string | undefined}>
-        <TextInput
-          keyboardType="number-pad"
-          onChangeText={(value) => updateField('heightCm', value.replace(/[^0-9]/g, ''))}
-          placeholder="183"
-          placeholderTextColor={theme.colors.subtleText}
-          style={inputStyle}
-          value={profile.heightCm}
-        />
+      <FormField label="Height" hint="Switch between centimetres and feet anytime." error={errors.heightCm as string | undefined}>
+        <View style={{ gap: spacing.md }}>
+          <SegmentedControl options={['cm', 'ft']} value={heightUnit} onChange={handleHeightUnitChange} />
+          {heightUnit === 'cm' ? (
+            <TextInput
+              keyboardType="number-pad"
+              onChangeText={(value) => updateField('heightCm', value.replace(/[^0-9]/g, ''))}
+              placeholder="183"
+              placeholderTextColor={theme.colors.subtleText}
+              style={inputStyle}
+              value={profile.heightCm}
+            />
+          ) : (
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <View style={{ flex: 1, gap: spacing.xs }}>
+                <TextInput
+                  keyboardType="number-pad"
+                  onChangeText={(v) => setHeightFeet(v.replace(/[^0-9]/g, ''))}
+                  placeholder="5"
+                  placeholderTextColor={theme.colors.subtleText}
+                  style={inputStyle}
+                  value={heightFeet}
+                />
+                <AppText tone="muted" style={{ fontSize: 11, textAlign: 'center' }}>feet</AppText>
+              </View>
+              <View style={{ flex: 1, gap: spacing.xs }}>
+                <TextInput
+                  keyboardType="decimal-pad"
+                  onChangeText={(v) => setHeightInches(v.replace(/[^0-9.]/g, ''))}
+                  placeholder="10"
+                  placeholderTextColor={theme.colors.subtleText}
+                  style={inputStyle}
+                  value={heightInches}
+                />
+                <AppText tone="muted" style={{ fontSize: 11, textAlign: 'center' }}>inches</AppText>
+              </View>
+            </View>
+          )}
+        </View>
       </FormField>
 
       <FormField label="Weight" hint="Switch between kilograms and pounds anytime." error={errors.weightKg as string | undefined}>
@@ -243,11 +321,19 @@ export function ProfileForm({
       </FormField>
 
       <FormField label="Warm weather bottoms" hint="Choose whether summer looks can include shorts or should stay with longer bottoms.">
-        <PickerField value={profile.summerBottomPreference} onPress={() => setPickerField('summerBottomPreference')} />
+        <SegmentedControl
+          options={SUMMER_BOTTOM_OPTIONS}
+          value={profile.summerBottomPreference}
+          onChange={(value) => updateField('summerBottomPreference', value)}
+        />
       </FormField>
 
       <FormField label="Temperature unit" hint="Use your preferred unit wherever temperatures appear in the app.">
-        <PickerField value={profile.temperatureUnit} onPress={() => setPickerField('temperatureUnit')} />
+        <SegmentedControl
+          options={TEMPERATURE_UNIT_OPTIONS}
+          value={profile.temperatureUnit}
+          onChange={(value) => updateField('temperatureUnit', value)}
+        />
       </FormField>
 
       <FormField label="Notes" hint="Optional context like profession, climate, or wardrobe pain points." error={errors.notes as string | undefined}>
@@ -287,8 +373,21 @@ export function ProfileForm({
 }
 
 function PickerField({ value, onPress }: { value: string; onPress: () => void }) {
+  const { theme } = useTheme();
   return (
-    <Pressable onPress={onPress} style={pickerFieldStyle}>
+    <Pressable
+      onPress={onPress}
+      style={{
+        alignItems: 'center',
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.border,
+        borderRadius: 18,
+        borderWidth: 1,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        minHeight: 54,
+        paddingHorizontal: spacing.md,
+      }}>
       <AppText style={{ textTransform: 'capitalize' }}>{value.replaceAll('-', ' ')}</AppText>
       <Ionicons color={theme.colors.subtleText} name="chevron-down" size={18} />
     </Pressable>
@@ -310,10 +409,41 @@ function PickerModal({
   onClose: () => void;
   onSelect: (value: string) => void;
 }) {
+  const { theme } = useTheme();
+  const optionStyle = {
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 52,
+    paddingHorizontal: spacing.md,
+  } as const;
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={modalOverlayStyle}>
-        <Pressable onPress={(event) => event.stopPropagation()} style={modalCardStyle}>
+      <Pressable
+        onPress={onClose}
+        style={{
+          alignItems: 'center',
+          backgroundColor: theme.colors.overlay,
+          flex: 1,
+          justifyContent: 'center',
+          padding: spacing.lg,
+        }}>
+        <Pressable
+          onPress={(event) => event.stopPropagation()}
+          style={{
+            backgroundColor: theme.colors.background,
+            borderColor: theme.colors.border,
+            borderRadius: 24,
+            borderWidth: 1,
+            gap: spacing.lg,
+            maxWidth: 420,
+            padding: spacing.lg,
+            width: '100%',
+          }}>
           <View style={{ gap: spacing.xs }}>
             <AppText variant="title">{title}</AppText>
             <AppText tone="muted">Choose the option that fits you best.</AppText>
@@ -327,7 +457,7 @@ function PickerModal({
                   key={option}
                   onPress={() => onSelect(option)}
                   style={[
-                    pickerOptionStyle,
+                    optionStyle,
                     { borderColor: isSelected ? theme.colors.accent : theme.colors.border },
                   ]}>
                   <AppText style={{ textTransform: 'capitalize' }}>{option.replaceAll('-', ' ')}</AppText>
@@ -336,7 +466,7 @@ function PickerModal({
               );
             })}
           </ScrollView>
-          <Pressable onPress={onClose} style={pickerOptionStyle}>
+          <Pressable onPress={onClose} style={optionStyle}>
             <AppText>Cancel</AppText>
           </Pressable>
         </Pressable>
@@ -345,57 +475,3 @@ function PickerModal({
   );
 }
 
-const inputStyle = {
-  backgroundColor: theme.colors.surface,
-  borderColor: theme.colors.border,
-  borderRadius: 18,
-  borderWidth: 1,
-  color: theme.colors.text,
-  fontFamily: theme.fonts.sans,
-  fontSize: 16,
-  minHeight: 54,
-  paddingHorizontal: spacing.md,
-} as const;
-
-const pickerFieldStyle = {
-  alignItems: 'center',
-  backgroundColor: theme.colors.surface,
-  borderColor: theme.colors.border,
-  borderRadius: 18,
-  borderWidth: 1,
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  minHeight: 54,
-  paddingHorizontal: spacing.md,
-} as const;
-
-const modalOverlayStyle = {
-  alignItems: 'center',
-  backgroundColor: 'rgba(24, 20, 16, 0.25)',
-  flex: 1,
-  justifyContent: 'center',
-  padding: spacing.lg,
-} as const;
-
-const modalCardStyle = {
-  backgroundColor: theme.colors.background,
-  borderColor: theme.colors.border,
-  borderRadius: 24,
-  borderWidth: 1,
-  gap: spacing.lg,
-  maxWidth: 420,
-  padding: spacing.lg,
-  width: '100%',
-} as const;
-
-const pickerOptionStyle = {
-  alignItems: 'center',
-  backgroundColor: theme.colors.surface,
-  borderColor: theme.colors.border,
-  borderRadius: 18,
-  borderWidth: 1,
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  minHeight: 52,
-  paddingHorizontal: spacing.md,
-} as const;

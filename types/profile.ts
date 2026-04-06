@@ -1,9 +1,9 @@
-export const GENDER_OPTIONS = ['man', 'woman', 'non-binary', 'prefer-not-to-say'] as const;
+export const GENDER_OPTIONS = ['man', 'woman', 'non-binary'] as const;
 export const FIT_PREFERENCE_OPTIONS = ['slim', 'tailored', 'regular', 'relaxed'] as const;
 export const STYLE_PREFERENCE_OPTIONS = ['minimal', 'classic', 'streetwear', 'smart-casual', 'editorial'] as const;
 export const BUDGET_OPTIONS = ['budget', 'mid-range', 'premium', 'luxury'] as const;
 export const HAIR_COLOR_OPTIONS = ['black', 'brown', 'blonde', 'red', 'gray', 'other'] as const;
-export const SKIN_TONE_OPTIONS = ['fair', 'light', 'medium', 'olive', 'deep'] as const;
+export const SKIN_TONE_OPTIONS = ['fair', 'light', 'medium', 'olive', 'deep', 'black'] as const;
 export const SUMMER_BOTTOM_OPTIONS = ['shorts-ok', 'prefer-trousers'] as const;
 export const TEMPERATURE_UNIT_OPTIONS = ['celsius', 'fahrenheit'] as const;
 

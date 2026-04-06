@@ -75,8 +75,10 @@ export const apiProfileService: ProfileService = {
       method: 'POST',
       body: {
         gender: request.profile.gender,
-        heightCm: Number(request.profile.heightCm),
-        weightKg: Number(request.profile.weightKg),
+        // Round to nearest integer for the current backend schema (Int columns).
+        // After the Float migration deploys these can become parseFloat directly.
+        heightCm: Math.round(parseFloat(request.profile.heightCm)),
+        weightKg: Math.round(parseFloat(request.profile.weightKg)),
         fitPreference: request.profile.fitPreference,
         stylePreference: request.profile.stylePreference,
         budget: request.profile.budget,

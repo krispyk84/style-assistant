@@ -2,7 +2,8 @@ import { Link } from 'expo-router';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import { buildTierHref } from '@/lib/look-route';
 import { formatTierLabel } from '@/lib/outfit-utils';
 import type { SavedOutfit } from '@/types/style';
@@ -16,6 +17,7 @@ type OutfitResultCardProps = {
 };
 
 export function OutfitResultCard({ result, onDelete, onAddToWeek }: OutfitResultCardProps) {
+  const { theme } = useTheme();
   const sketchUri = result.recommendation.sketchImageUrl;
   const detailHref = buildTierHref(
     result.recommendation.tier,

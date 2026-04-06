@@ -10,7 +10,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { LoadingState } from '@/components/ui/loading-state';
 import { useToast } from '@/components/ui/toast-provider';
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import { deleteSavedOutfit, loadSavedOutfits, replaceSavedOutfits } from '@/lib/saved-outfits-storage';
 import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
 import { outfitsService } from '@/services/outfits';
@@ -23,6 +24,7 @@ export default function HistoryScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [weekPickerItem, setWeekPickerItem] = useState<SavedOutfit | null>(null);
   const { showToast } = useToast();
+  const { theme } = useTheme();
 
   // useFocusEffect runs ONLY when this screen gains focus, not when leaving it.
   // Previously, useEffect([isFocused]) ran on both gain and loss, creating racing

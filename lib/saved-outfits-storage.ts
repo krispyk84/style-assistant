@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { appConfig } from '@/constants/config';
+import {
+  deleteSavedOutfitFromSupabase,
+  upsertSavedOutfitToSupabase,
+} from '@/lib/supabase-data';
 import type { CreateLookInput, LookAnchorItem, LookRecommendation } from '@/types/look-request';
 import type { SavedOutfit } from '@/types/style';
 
@@ -104,6 +108,7 @@ export async function saveSavedOutfit(input: CreateLookInput, recommendation: Lo
 
   const nextSavedOutfits = [nextSavedOutfit, ...savedOutfits.filter((item) => item.id !== id)];
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
+  void upsertSavedOutfitToSupabase(nextSavedOutfit).catch(() => undefined);
   return normalizeSavedOutfit(nextSavedOutfit);
 }
 
@@ -112,6 +117,7 @@ export async function deleteSavedOutfit(savedOutfitId: string) {
   const nextSavedOutfits = savedOutfits.filter((item) => item.id !== savedOutfitId);
 
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
+  void deleteSavedOutfitFromSupabase(savedOutfitId).catch(() => undefined);
   return nextSavedOutfits;
 }
 

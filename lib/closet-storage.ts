@@ -1,5 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {
+  deleteClosetItemFromSupabase,
+  upsertClosetItemToSupabase,
+} from '@/lib/supabase-data';
 import type { ClosetItem } from '@/types/closet';
 
 const STORAGE_KEY = 'style-assistant/closet-items';
@@ -47,6 +51,7 @@ export async function saveClosetItem(item: ClosetItem): Promise<ClosetItem[]> {
   }
 
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
+  void upsertClosetItemToSupabase(item).catch(() => undefined);
   return nextItems;
 }
 
@@ -54,6 +59,7 @@ export async function updateClosetItem(item: ClosetItem): Promise<ClosetItem[]> 
   const items = await loadClosetItems();
   const nextItems = items.map((i) => (i.id === item.id ? item : i));
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
+  void upsertClosetItemToSupabase(item).catch(() => undefined);
   return nextItems;
 }
 
@@ -61,6 +67,7 @@ export async function deleteClosetItem(id: string): Promise<ClosetItem[]> {
   const items = await loadClosetItems();
   const nextItems = items.filter((i) => i.id !== id);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
+  void deleteClosetItemFromSupabase(id).catch(() => undefined);
   return nextItems;
 }
 
@@ -73,4 +80,6 @@ export async function incrementClosetItemCounter(
     item.id === id ? { ...item, [counter]: (item[counter] ?? 0) + 1 } : item
   );
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
+  const updated = nextItems.find((item) => item.id === id);
+  if (updated) void upsertClosetItemToSupabase(updated).catch(() => undefined);
 }

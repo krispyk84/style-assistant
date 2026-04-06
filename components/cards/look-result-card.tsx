@@ -301,7 +301,7 @@ function resolveMatch(
     if (entry === false) {
       return { item: null, confidencePercent: 0 };
     }
-    item = entry ?? findBestClosetMatch(piece, closetItems);
+    item = entry as ClosetItem | null;
   } else {
     // matchMap not yet populated — fall back to local scoring while closet loads
     item = findBestClosetMatch(piece, closetItems);

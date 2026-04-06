@@ -160,7 +160,7 @@ export default function HomeScreen() {
               {/* Dark gradient overlay for readability */}
               <View
                 style={{
-                  backgroundColor: 'rgba(18, 12, 6, 0.62)',
+                  backgroundColor: 'rgba(18, 12, 6, 0.40)',
                   bottom: 0,
                   left: 0,
                   position: 'absolute',

@@ -13,7 +13,7 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
 import { supabase, type SupabaseProfile } from '@/lib/supabase';
-import { syncUserDataOnSignIn } from '@/lib/user-data-sync';
+import { clearAllLocalUserData, syncUserDataOnSignIn } from '@/lib/user-data-sync';
 import { setAnalyticsUserId } from '@/lib/analytics';
 import { setCrashlyticsUserId } from '@/lib/crashlytics';
 
@@ -89,6 +89,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
       } else {
         setSupabaseProfile(null);
+        if (event === 'SIGNED_OUT') {
+          void clearAllLocalUserData().catch(() => undefined);
+        }
       }
     });
 

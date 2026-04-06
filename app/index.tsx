@@ -39,7 +39,10 @@ export default function LandingScreen() {
     );
   }
 
-  // 4. Authenticated + hydrated → route on onboarding status.
-  //    Phase 2 will update this flag via Supabase profile once onboarding is migrated.
-  return <Redirect href={hasCompletedOnboarding ? '/(app)/home' : '/onboarding'} />;
+  // Authenticated + hydrated — route based on onboarding state.
+  if (!hasCompletedOnboarding) {
+    return <Redirect href="/onboarding" />;
+  }
+
+  return <Redirect href="/(app)/home" />;
 }

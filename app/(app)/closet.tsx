@@ -8,7 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText } from '@/components/ui/app-text';
 import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { spacing, theme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import { incrementClosetItemCounter } from '@/lib/closet-storage';
 import { closetService } from '@/services/closet';
 import { ColorFamilyPicker } from '@/components/closet/color-family-picker';
@@ -39,6 +40,7 @@ function chunkIntoRows(items: ClosetItem[]): ClosetRow[] {
 }
 
 export default function ClosetScreen() {
+  const { theme } = useTheme();
   const [items, setItems] = useState<ClosetItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -59,11 +61,14 @@ export default function ClosetScreen() {
   const sectionListRef = useRef<SectionList<ClosetRow>>(null);
 
   const loadItems = useCallback(async () => {
-    const response = await closetService.getItems();
-    if (response.success && response.data) {
-      setItems(response.data.items);
+    try {
+      const response = await closetService.getItems();
+      if (response.success && response.data) {
+        setItems(response.data.items);
+      }
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   useFocusEffect(
@@ -416,6 +421,7 @@ type ClosetGridItemProps = {
 };
 
 const ClosetGridItem = React.memo(function ClosetGridItem({ item, cellWidth, onPress }: ClosetGridItemProps) {
+  const { theme } = useTheme();
   const hasBoth = Boolean(item.sketchImageUrl) && Boolean(item.uploadedImageUrl);
   const primaryUri = item.sketchImageUrl ?? item.uploadedImageUrl ?? null;
 
@@ -480,7 +486,20 @@ type ClosetItemEditModalProps = {
 };
 
 function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEditModalProps) {
+  const { theme } = useTheme();
   const router = useRouter();
+  const inputStyle = {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    color: theme.colors.text,
+    fontFamily: theme.fonts.sans,
+    fontSize: 15,
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  } as const;
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
@@ -679,7 +698,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
         <Animated.View
           style={{
-            backgroundColor: '#FFFDFC',
+            backgroundColor: theme.colors.surface,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
             maxHeight: '92%',
@@ -784,14 +803,14 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                 <View style={{ gap: spacing.md }}>
                   <View
                     style={{
-                      backgroundColor: '#FDF2F0',
-                      borderColor: '#D26A5C',
+                      backgroundColor: theme.colors.dangerSurface,
+                      borderColor: theme.colors.danger,
                       borderRadius: 16,
                       borderWidth: 1,
                       gap: spacing.xs,
                       padding: spacing.md,
                     }}>
-                    <AppText variant="sectionTitle" style={{ color: '#C95F4A' }}>Remove from closet?</AppText>
+                    <AppText variant="sectionTitle" style={{ color: theme.colors.danger }}>Remove from closet?</AppText>
                     <AppText tone="muted" style={{ fontSize: 13 }}>
                       This will permanently delete "{item?.title}" from your wardrobe.
                     </AppText>
@@ -899,7 +918,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
                     style={[inputStyle, { height: 80, textAlignVertical: 'top', paddingTop: spacing.sm }]}
                   />
 
-                  {error ? <AppText style={{ color: '#D26A5C', fontSize: 13 }}>{error}</AppText> : null}
+                  {error ? <AppText style={{ color: theme.colors.danger, fontSize: 13 }}>{error}</AppText> : null}
                   <PrimaryButton
                     label={isSaving ? 'Saving...' : 'Save Changes'}
                     onPress={() => void handleSave()}
@@ -944,6 +963,7 @@ function ClosetItemEditModal({ item, onClose, onSaved, onDeleted }: ClosetItemEd
 }
 
 function LabelRow({ label, value }: { label: string; value?: string }) {
+  const { theme } = useTheme();
   return (
     <View style={{ gap: 4 }}>
       <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>{label}</AppText>
@@ -969,6 +989,7 @@ function MetadataRow({ fields }: { fields: { label: string; value?: string | nul
 
 /** Thin hairline section divider with an eyebrow label for the edit form. */
 function EditSectionLabel({ label }: { label: string }) {
+  const { theme } = useTheme();
   return (
     <View style={{ borderTopColor: theme.colors.border, borderTopWidth: 1, paddingTop: spacing.sm, marginTop: spacing.xs }}>
       <AppText style={{ color: theme.colors.mutedText, fontFamily: theme.fonts.sansMedium, fontSize: 9, letterSpacing: 2 }}>
@@ -980,6 +1001,19 @@ function EditSectionLabel({ label }: { label: string }) {
 
 /** Label + TextInput combo — eliminates the repetitive eyebrow/input pattern in the edit form. */
 function FieldInput({ label, style, ...props }: { label: string } & React.ComponentProps<typeof TextInput>) {
+  const { theme } = useTheme();
+  const inputStyle = {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    color: theme.colors.text,
+    fontFamily: theme.fonts.sans,
+    fontSize: 15,
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  } as const;
   return (
     <View style={{ gap: spacing.xs }}>
       <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6 }}>{label}</AppText>
@@ -1006,9 +1040,23 @@ type CategoryFilterModalProps = {
 };
 
 function CategoryFilterModal({ visible, categories, selected, onSelect, onClose }: CategoryFilterModalProps) {
+  const { theme } = useTheme();
   const { height: screenHeight } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const itemYOffsets = useRef<number[]>([]);
+  const filterRowStyle = {
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+    minHeight: 54,
+    paddingHorizontal: spacing.lg,
+  } as const;
+  const filterRowActiveStyle = { borderColor: theme.colors.accent } as const;
 
   useEffect(() => {
     if (!visible) return;
@@ -1026,7 +1074,7 @@ function CategoryFilterModal({ visible, categories, selected, onSelect, onClose 
         onPress={onClose}
         style={{
           alignItems: 'center',
-          backgroundColor: 'rgba(24, 18, 14, 0.24)',
+          backgroundColor: theme.colors.overlay,
           flex: 1,
           justifyContent: 'center',
           padding: spacing.lg,
@@ -1035,7 +1083,7 @@ function CategoryFilterModal({ visible, categories, selected, onSelect, onClose 
         <Pressable
           onPress={() => undefined}
           style={{
-            backgroundColor: '#FFFDFC',
+            backgroundColor: theme.colors.background,
             borderRadius: 28,
             maxWidth: 420,
             overflow: 'hidden',
@@ -1111,30 +1159,3 @@ function buildCategories(items: ClosetItem[]): CategoryEntry[] {
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
-const filterRowStyle = {
-  alignItems: 'center',
-  backgroundColor: theme.colors.surface,
-  borderColor: theme.colors.border,
-  borderRadius: 999,
-  borderWidth: 1,
-  flexDirection: 'row',
-  gap: spacing.sm,
-  justifyContent: 'space-between',
-  minHeight: 54,
-  paddingHorizontal: spacing.lg,
-} as const;
-
-const filterRowActiveStyle = { borderColor: theme.colors.accent } as const;
-
-const inputStyle = {
-  backgroundColor: theme.colors.surface,
-  borderColor: theme.colors.border,
-  borderRadius: 14,
-  borderWidth: 1,
-  color: theme.colors.text,
-  fontFamily: theme.fonts.sans,
-  fontSize: 15,
-  minHeight: 48,
-  paddingHorizontal: spacing.md,
-  paddingVertical: spacing.sm,
-} as const;

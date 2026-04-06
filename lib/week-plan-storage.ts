@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { appConfig } from '@/constants/config';
+import {
+  deleteWeekPlanItemFromSupabase,
+  upsertWeekPlanItemToSupabase,
+} from '@/lib/supabase-data';
 import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
 import type { WeekPlannedOutfit } from '@/types/style';
 
@@ -117,6 +121,7 @@ export async function assignOutfitToWeekDay(
   });
   const nextItems = [nextItem, ...currentItems.filter((item) => item.dayKey !== dayKey)];
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
+  void upsertWeekPlanItemToSupabase(nextItem).catch(() => undefined);
   return nextItem;
 }
 
@@ -124,6 +129,7 @@ export async function removeWeekPlan(dayKey: string) {
   const currentItems = await loadWeekPlan();
   const nextItems = currentItems.filter((item) => item.dayKey !== dayKey);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
+  void deleteWeekPlanItemFromSupabase(dayKey).catch(() => undefined);
   return nextItems;
 }
 

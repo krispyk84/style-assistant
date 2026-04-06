@@ -1,13 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, useWindowDimensions, View } from 'react-native';
 
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/contexts/theme-context';
+
+const logo = require('@/logo.png');
 
 export default function AuthWelcomeScreen() {
   const { theme } = useTheme();
@@ -32,19 +34,22 @@ export default function AuthWelcomeScreen() {
   }
 
   const isLoading = loadingProvider !== null;
+  const { width } = useWindowDimensions();
+  const logoSize = (width - 48) * 0.75;
 
   return (
     <AppScreen scrollable>
       <View style={{ flex: 1, gap: spacing.xl, paddingBottom: spacing.xl }}>
 
         {/* Brand header */}
-        <View style={{ gap: spacing.xs, paddingTop: spacing.xl }}>
-          <AppText variant="eyebrow" style={{ color: theme.colors.accent, letterSpacing: 2 }}>
-            Vesture
-          </AppText>
-          <AppText variant="hero">Welcome{'\n'}back.</AppText>
-          <AppText tone="muted" style={{ lineHeight: 22 }}>
-            Sign in to access your wardrobe, saved looks, and style profile.
+        <View style={{ alignItems: 'center', gap: 6, paddingTop: 24 }}>
+          <Image
+            source={logo}
+            style={{ height: logoSize, width: logoSize }}
+            resizeMode="contain"
+          />
+          <AppText tone="muted" style={{ lineHeight: 22, textAlign: 'center' }}>
+            Personal style, intelligently arranged.
           </AppText>
         </View>
 
