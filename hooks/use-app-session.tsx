@@ -46,9 +46,8 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
     // Backend has no record for this user (e.g. existing profile predates
     // supabaseUserId scoping). Preserve local cached state rather than
     // overwriting hasCompletedOnboarding with false.
-    if (!response.data?.profile && !response.data?.onboardingCompleted) {
-      return;
-    }
+    const hasBackendRecord = response.data?.profile || response.data?.onboardingCompleted;
+    if (!hasBackendRecord) return;
 
     const backendProfile = response.data?.profile ?? defaultProfile;
     const nextOnboardingCompleted = response.data?.onboardingCompleted ?? false;
@@ -140,10 +139,8 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
 
   // ── React to user identity changes (sign-out / sign-in after sign-out) ───
   useEffect(() => {
-    // Don't process while auth is still being restored from storage.
-    // Without this guard the ref gets set to null on the first render
-    // (before auth resolves), causing the next render (null → userId) to
-    // look like a post-sign-out sign-in and trigger a spurious backend fetch.
+    // Skip until auth is fully restored — prevents the null→userId transition
+    // from being misread as a post-sign-out sign-in.
     if (isAuthLoading) return;
 
     const currentUserId = user?.id ?? null;
@@ -183,7 +180,6 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
     });
 
     if (response.success && response.data) {
-      // Backend does not persist 'name' — preserve it from the submitted profile
       const backendProfile = response.data.profile ?? defaultProfile;
       const mergedProfile = { ...backendProfile, name: nextProfile.name };
       const nextOnboardingCompleted = response.data.onboardingCompleted;
