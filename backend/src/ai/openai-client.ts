@@ -107,16 +107,17 @@ export const openAiClient = {
       const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
+        const openAiError = payload?.error?.message ?? JSON.stringify(payload?.error) ?? 'Unknown OpenAI error';
         logger.error(
           {
             statusCode: response.status,
             responseId: payload?.id,
-            error: payload?.error?.message ?? payload?.error ?? 'Unknown OpenAI error',
+            error: openAiError,
           },
           'OpenAI Responses API request failed'
         );
 
-        throw new HttpError(502, 'OPENAI_REQUEST_FAILED', 'The AI provider could not complete the request.');
+        throw new HttpError(502, 'OPENAI_REQUEST_FAILED', `The AI provider could not complete the request. (${response.status}: ${openAiError})`);
       }
 
       const outputText = extractOutputText(payload);
