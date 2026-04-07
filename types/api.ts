@@ -57,6 +57,7 @@ export type CompatibilityCheckRequest = {
   outfitTitle?: string;
   anchorItemDescription?: string;
   pieceName?: string;
+  candidateItemDescription?: string;
 };
 
 export type CompatibilityCheckResponse = AnalysisResponse;

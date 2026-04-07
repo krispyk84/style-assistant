@@ -1,0 +1,7 @@
+node_modules.nosync/
+backend/
+.git/
+ios/build/
+ios/Pods/
+/tmp/
+*.log

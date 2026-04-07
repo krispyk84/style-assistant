@@ -103,8 +103,6 @@ export default function CheckPieceScreen() {
     let response;
 
     if (selectedClosetItem) {
-      // Use the closet item's existing image URL directly — no upload needed.
-      // The API service picks up imageUrl from image.uri when no uploadedImage is provided.
       const imageUri =
         selectedClosetItem.uploadedImageUrl ?? selectedClosetItem.sketchImageUrl ?? '';
       response = await compatibilityService.analyzePiece({
@@ -113,7 +111,8 @@ export default function CheckPieceScreen() {
         tier: params.tier,
         outfitTitle: params.outfitTitle,
         anchorItemDescription: params.anchorItemDescription,
-        pieceName: params.pieceName ?? selectedClosetItem.title,
+        pieceName: params.pieceName,
+        candidateItemDescription: selectedClosetItem.title,
       });
     } else {
       response = await compatibilityService.analyzePiece({

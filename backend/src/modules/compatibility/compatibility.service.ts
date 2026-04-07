@@ -33,6 +33,7 @@ export const compatibilityService = {
           anchorItemDescription: input.anchorItemDescription,
           tier: input.tier,
           pieceName: input.pieceName,
+          candidateItemDescription: input.candidateItemDescription,
           imageFilename: input.imageFilename ?? uploadedImage?.originalFilename ?? undefined,
           styleGuideContext: styleGuideContext?.promptContext,
         }),

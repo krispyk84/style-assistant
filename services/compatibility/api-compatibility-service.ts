@@ -14,6 +14,7 @@ export const apiCompatibilityService: CompatibilityService = {
         outfitTitle: request.outfitTitle,
         anchorItemDescription: request.anchorItemDescription,
         pieceName: request.pieceName,
+        candidateItemDescription: request.candidateItemDescription,
       },
     });
   },

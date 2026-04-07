@@ -10,6 +10,7 @@ export type AnalysisRequest = {
   outfitTitle?: string;
   anchorItemDescription?: string;
   pieceName?: string;
+  candidateItemDescription?: string;
 };
 
 export type AnalysisResponse = {
