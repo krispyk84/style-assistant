@@ -44,9 +44,11 @@ export default function SettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      let isMounted = true;
       void usageService.getMonthlyTotal().then((r) => {
-        if (r.success && r.data) setMonthlyAiCost(r.data.totalCostUsd);
+        if (isMounted && r.success && r.data) setMonthlyAiCost(r.data.totalCostUsd);
       });
+      return () => { isMounted = false; };
     }, [])
   );
 
