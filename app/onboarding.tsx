@@ -254,13 +254,13 @@ export default function OnboardingScreen() {
     setTimeout(advance, 160);
   }
 
-  // Resolved cm/kg values for final save (preserves float precision — no integer rounding).
+  // Resolved cm/kg values for final save — always whole numbers.
   function resolvedHeightCm(): string {
     if (heightUnit === 'ft') {
       const feet = parseFloat(heightFeet) || 0;
       const inches = parseFloat(heightInches) || 0;
       const totalInches = feet * 12 + inches;
-      return totalInches > 0 ? String(totalInches * 2.54) : '';
+      return totalInches > 0 ? String(Math.round(totalInches * 2.54)) : '';
     }
     return profile.heightCm;
   }
@@ -268,7 +268,7 @@ export default function OnboardingScreen() {
   function resolvedWeightKg(): string {
     if (weightUnit === 'lbs') {
       const lbs = parseFloat(profile.weightKg);
-      return lbs > 0 ? String(lbs / 2.20462) : '';
+      return lbs > 0 ? String(Math.round(lbs / 2.20462)) : '';
     }
     return profile.weightKg;
   }

@@ -24,8 +24,8 @@ function toProfile(dto: BackendProfileDto): Profile {
   return {
     name: '', // populated from AsyncStorage by use-app-session after backend merge
     gender: dto.gender as Profile['gender'],
-    heightCm: String(dto.heightCm),
-    weightKg: String(dto.weightKg),
+    heightCm: String(Math.round(dto.heightCm)),
+    weightKg: String(Math.round(dto.weightKg)),
     fitPreference: dto.fitPreference as Profile['fitPreference'],
     stylePreference: dto.stylePreference as Profile['stylePreference'],
     budget: dto.budget as Profile['budget'],

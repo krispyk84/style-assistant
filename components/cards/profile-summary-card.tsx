@@ -10,8 +10,8 @@ type ProfileSummaryCardProps = {
 
 const rows = (profile: Profile) => [
   { label: 'Gender', value: profile.gender },
-  { label: 'Height', value: `${profile.heightCm} cm` },
-  { label: 'Weight', value: `${profile.weightKg} kg` },
+  { label: 'Height', value: `${Math.round(parseFloat(profile.heightCm) || 0)} cm` },
+  { label: 'Weight', value: `${Math.round(parseFloat(profile.weightKg) || 0)} kg` },
   { label: 'Fit', value: profile.fitPreference },
   { label: 'Style', value: profile.stylePreference },
   { label: 'Budget', value: profile.budget },

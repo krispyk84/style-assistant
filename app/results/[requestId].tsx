@@ -45,6 +45,10 @@ export default function ResultDetailsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [regeneratingTiers, setRegeneratingTiers] = useState<LookTierSlug[]>([]);
+  // Ref mirrors state so the sketch-poll callback always sees the current regenerating set
+  // without needing to re-create the interval on every state change.
+  const regeneratingTiersRef = useRef<LookTierSlug[]>([]);
+  const [tierGenerations, setTierGenerations] = useState<Partial<Record<LookTierSlug, number>>>({});
   const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
   const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
   // suggestion string → ClosetItem | null (LLM no match, fallback runs) | false (rematch exhausted, no fallback)
@@ -130,6 +134,11 @@ export default function ResultDetailsScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stableParams.requestId, parsedInput]);
 
+  // Keep ref in sync so the poll closure always reads the current set without re-creating the interval.
+  useEffect(() => {
+    regeneratingTiersRef.current = regeneratingTiers;
+  }, [regeneratingTiers]);
+
   useEffect(() => {
     if (!response?.requestId || !response.recommendations.some((item) => item.sketchStatus === 'pending')) {
       return;
@@ -139,7 +148,22 @@ export default function ResultDetailsScreen() {
       const serviceResponse = await outfitsService.getOutfitResult(response.requestId);
 
       if (serviceResponse.success && serviceResponse.data) {
-        setResponse(serviceResponse.data);
+        setResponse((current) => {
+          if (!current || !serviceResponse.data) return current;
+          const protecting = regeneratingTiersRef.current;
+          // If no tiers are mid-regeneration, apply the full server response as-is.
+          if (protecting.length === 0) return serviceResponse.data;
+          // Otherwise preserve the in-flight state for any tier currently being regenerated
+          // so stale server data doesn't overwrite a pending regeneration.
+          return {
+            ...serviceResponse.data,
+            recommendations: serviceResponse.data.recommendations.map((newRec) =>
+              protecting.includes(newRec.tier)
+                ? (current.recommendations.find((r) => r.tier === newRec.tier) ?? newRec)
+                : newRec
+            ),
+          };
+        });
       }
     }, 4000);
 
@@ -208,6 +232,11 @@ export default function ResultDetailsScreen() {
       return;
     }
 
+    // Capture the current generation BEFORE incrementing so we can remove its save ID.
+    const currentGen = tierGenerations[tier] ?? 0;
+    const oldSaveId = buildSavedOutfitId(response.requestId, tier, currentGen);
+
+    setTierGenerations((prev) => ({ ...prev, [tier]: currentGen + 1 }));
     setRegeneratingTiers((current) => (current.includes(tier) ? current : [...current, tier]));
     setErrorMessage(null);
     setResponse((current) =>
@@ -234,7 +263,8 @@ export default function ResultDetailsScreen() {
     } else {
       const latestResponse = await outfitsService.getOutfitResult(response.requestId);
       setResponse(latestResponse.success && latestResponse.data ? latestResponse.data : serviceResponse.data);
-      setSavedOutfitIds((current) => current.filter((id) => id !== buildSavedOutfitId(response.requestId, tier)));
+      // Remove the old generation's save marker — the regenerated outfit is a new entity.
+      setSavedOutfitIds((current) => current.filter((id) => id !== oldSaveId));
     }
 
     setRegeneratingTiers((current) => current.filter((item) => item !== tier));
@@ -250,7 +280,7 @@ export default function ResultDetailsScreen() {
       return;
     }
 
-    const savedOutfitId = buildSavedOutfitId(response.requestId, tier);
+    const savedOutfitId = buildSavedOutfitId(response.requestId, tier, tierGenerations[tier] ?? 0);
     if (savedOutfitIds.includes(savedOutfitId)) {
       return;
     }
@@ -258,7 +288,8 @@ export default function ResultDetailsScreen() {
     setSavingTier(tier);
 
     try {
-      await saveSavedOutfit(response.input, recommendation, response.requestId);
+      // Deep-copy the recommendation snapshot so later regenerations can't mutate what was saved.
+      await saveSavedOutfit(response.input, { ...recommendation }, response.requestId, tierGenerations[tier] ?? 0);
       setSavedOutfitIds((current) => [...current, savedOutfitId]);
       trackSaveOutfit({ tier });
       showToast('Outfit saved to history.');
@@ -280,7 +311,7 @@ export default function ResultDetailsScreen() {
     }
 
     try {
-      await assignOutfitToWeekDay(dayKey, dayLabel, response.input, recommendation, response.requestId);
+      await assignOutfitToWeekDay(dayKey, dayLabel, response.input, { ...recommendation }, response.requestId);
       trackAddToWeek({ tier: weekPickerTier, day_label: dayLabel });
       showToast(`Added to ${dayLabel}.`);
     } catch {
@@ -342,7 +373,7 @@ export default function ResultDetailsScreen() {
             recommendation={recommendation}
             onRegenerate={() => void handleRegenerate(recommendation.tier)}
             isRegenerating={regeneratingTiers.includes(recommendation.tier)}
-            isSaved={savedOutfitIds.includes(buildSavedOutfitId(response.requestId, recommendation.tier))}
+            isSaved={savedOutfitIds.includes(buildSavedOutfitId(response.requestId, recommendation.tier, tierGenerations[recommendation.tier] ?? 0))}
             isSaving={savingTier === recommendation.tier}
             onSave={() => void handleSave(recommendation.tier)}
             onAddToWeek={() => setWeekPickerTier(recommendation.tier)}

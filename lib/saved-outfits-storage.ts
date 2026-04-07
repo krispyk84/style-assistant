@@ -10,8 +10,10 @@ import type { SavedOutfit } from '@/types/style';
 
 const STORAGE_KEY = 'style-assistant/saved-outfits';
 
-export function buildSavedOutfitId(requestId: string, tier: LookRecommendation['tier']) {
-  return `${requestId}:${tier}`;
+// generation 0 uses the legacy format for backward compatibility with existing saved outfits.
+// generation > 0 appends :gN to create a distinct slot per regeneration.
+export function buildSavedOutfitId(requestId: string, tier: LookRecommendation['tier'], generation = 0) {
+  return generation === 0 ? `${requestId}:${tier}` : `${requestId}:${tier}:g${generation}`;
 }
 
 function buildStableSavedSketchUri(requestId: string, tier: LookRecommendation['tier']) {
@@ -91,9 +93,9 @@ export async function loadSavedOutfits(): Promise<SavedOutfit[]> {
   }
 }
 
-export async function saveSavedOutfit(input: CreateLookInput, recommendation: LookRecommendation, requestId: string) {
+export async function saveSavedOutfit(input: CreateLookInput, recommendation: LookRecommendation, requestId: string, generation = 0) {
   const savedOutfits = await loadSavedOutfits();
-  const id = buildSavedOutfitId(requestId, recommendation.tier);
+  const id = buildSavedOutfitId(requestId, recommendation.tier, generation);
   const nextSavedOutfit: SavedOutfit = {
     id,
     requestId,

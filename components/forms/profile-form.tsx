@@ -40,10 +40,17 @@ type PickerFieldKey =
 
 function normalizeProfile(p: Profile): Profile {
   const g = p.gender as string;
+  const heightN = parseFloat(p.heightCm);
   return {
     ...p,
     gender: g === 'prefer-not-to-say' ? 'non-binary' : p.gender,
+    heightCm: Number.isFinite(heightN) && heightN > 0 ? String(Math.round(heightN)) : p.heightCm,
   };
+}
+
+function roundMeasurementStr(s: string): string {
+  const n = parseFloat(s);
+  return Number.isFinite(n) && n > 0 ? String(Math.round(n)) : s;
 }
 
 function centimetersToFeetInches(cm: string): { feet: string; inches: string } {
@@ -105,7 +112,7 @@ export function ProfileForm({
   const [heightFeet, setHeightFeet] = useState('');
   const [heightInches, setHeightInches] = useState('');
   const [weightUnit, setWeightUnit] = useState<WeightUnit>('kg');
-  const [weightValue, setWeightValue] = useState(initialValue.weightKg);
+  const [weightValue, setWeightValue] = useState(() => roundMeasurementStr(initialValue.weightKg));
   const [errors, setErrors] = useState<ProfileValidationErrors>({});
   const [pickerField, setPickerField] = useState<PickerFieldKey | null>(null);
 
@@ -115,7 +122,7 @@ export function ProfileForm({
     setHeightFeet('');
     setHeightInches('');
     setWeightUnit('kg');
-    setWeightValue(initialValue.weightKg);
+    setWeightValue(roundMeasurementStr(initialValue.weightKg));
   }, [initialValue]);
 
   async function handleSubmit() {
