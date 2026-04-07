@@ -2,7 +2,7 @@
   "expo": {
     "name": "Vesture",
     "slug": "style-assistant",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "platforms": [
       "ios"
     ],
@@ -17,7 +17,8 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "buildNumber": "10"
     },
     "plugins": [
       "expo-router",

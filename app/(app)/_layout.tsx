@@ -180,6 +180,12 @@ export default function AppTabsLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="create-look"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
     </View>
   );
