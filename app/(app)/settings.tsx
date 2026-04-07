@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
-import { useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PanResponder, Pressable, View } from 'react-native';
 
 import { ProfileForm } from '@/components/forms/profile-form';
@@ -39,10 +40,15 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void loadAppSettings().then((s) => setSensitivity(s.closetMatchSensitivity));
-    void usageService.getMonthlyTotal().then((r) => {
-      if (r.success && r.data) setMonthlyAiCost(r.data.totalCostUsd);
-    });
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void usageService.getMonthlyTotal().then((r) => {
+        if (r.success && r.data) setMonthlyAiCost(r.data.totalCostUsd);
+      });
+    }, [])
+  );
 
   async function handleSensitivityChange(value: number) {
     setSensitivity(value);
