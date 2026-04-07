@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useTheme, type AppearanceMode } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
+import { usageService } from '@/services/usage';
 
 const appVersion = Constants.expoConfig?.version ?? '0.0.1';
 
@@ -25,6 +26,7 @@ export default function SettingsScreen() {
   const { theme, appearanceMode, setAppearanceMode } = useTheme();
   const [isSavedMessageVisible, setIsSavedMessageVisible] = useState(false);
   const [sensitivity, setSensitivity] = useState(50);
+  const [monthlyAiCost, setMonthlyAiCost] = useState<number | null>(null);
 
   const cardStyle = {
     backgroundColor: theme.colors.surface,
@@ -37,6 +39,9 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void loadAppSettings().then((s) => setSensitivity(s.closetMatchSensitivity));
+    void usageService.getMonthlyTotal().then((r) => {
+      if (r.success && r.data) setMonthlyAiCost(r.data.totalCostUsd);
+    });
   }, []);
 
   async function handleSensitivityChange(value: number) {
@@ -166,6 +171,9 @@ export default function SettingsScreen() {
           <AppText tone="muted">Vesture {appVersion}</AppText>
           {user?.email ? (
             <AppText tone="subtle" style={{ fontSize: 12 }}>Signed in as {user.email}</AppText>
+          ) : null}
+          {monthlyAiCost !== null ? (
+            <AppText tone="subtle" style={{ fontSize: 12 }}>AI usage this month: ${monthlyAiCost.toFixed(2)}</AppText>
           ) : null}
         </View>
 

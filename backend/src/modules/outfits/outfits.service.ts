@@ -198,6 +198,8 @@ export const outfitsService = {
       },
       instructions: buildGenerateOutfitsInstructions(selectedTiers),
       userContent,
+      supabaseUserId,
+      feature: 'outfit-generation',
     });
 
     const recommendationMap = new Map(aiOutput.recommendations.map((recommendation) => [recommendation.tier, recommendation]));
@@ -239,7 +241,7 @@ export const outfitsService = {
     };
 
     await outfitsRepository.upsertGeneratedOutfit(input.profileId, response);
-    void tierSketchService.queueSketchesForOutfit(response);
+    void tierSketchService.queueSketchesForOutfit(response, supabaseUserId);
     return response;
   },
 
@@ -307,6 +309,8 @@ export const outfitsService = {
       },
       instructions: buildRegenerateTierInstructions(),
       userContent,
+      supabaseUserId,
+      feature: 'tier-regeneration',
     });
 
     const mergedResponse: OutfitResponse = {
@@ -331,7 +335,7 @@ export const outfitsService = {
     };
 
     await outfitsRepository.upsertGeneratedOutfit(undefined, mergedResponse);
-    void tierSketchService.queueSketchForTier(mergedResponse, tier);
+    void tierSketchService.queueSketchForTier(mergedResponse, tier, supabaseUserId);
     return mergedResponse;
   },
 };

@@ -56,6 +56,8 @@ export const secondOpinionService = {
           }),
         },
       ],
+      supabaseUserId,
+      feature: 'second-opinion',
     });
 
     return {

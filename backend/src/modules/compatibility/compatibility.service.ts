@@ -55,6 +55,8 @@ export const compatibilityService = {
       },
       instructions: buildCompatibilityInstructions(),
       userContent,
+      supabaseUserId,
+      feature: 'compatibility-check',
     });
 
     const output: AnalysisResponse = {

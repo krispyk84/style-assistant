@@ -14,7 +14,7 @@ function formatTierLabel(tier: OutfitTierSlug) {
   return tier.charAt(0).toUpperCase() + tier.slice(1);
 }
 
-async function generateSingleTierSketch(requestId: string, anchorItemDescription: string, recommendation: TierRecommendationDto) {
+async function generateSingleTierSketch(requestId: string, anchorItemDescription: string, recommendation: TierRecommendationDto, supabaseUserId?: string) {
   try {
     const generatedImage = await openAiClient.generateImage({
       prompt: buildTierSketchPrompt({
@@ -25,6 +25,8 @@ async function generateSingleTierSketch(requestId: string, anchorItemDescription
       size: '1024x1536',
       quality: 'medium',
       outputFormat: 'jpeg',
+      supabaseUserId,
+      feature: 'outfit-sketch',
     });
 
     const storedFile = await storageProvider.storeGeneratedFile({
@@ -62,21 +64,21 @@ async function generateSingleTierSketch(requestId: string, anchorItemDescription
 }
 
 export const tierSketchService = {
-  async queueSketchesForOutfit(outfit: OutfitResponse) {
+  async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string) {
     await Promise.all(
       outfit.recommendations.map((recommendation) =>
-        generateSingleTierSketch(outfit.requestId, outfit.input.anchorItemDescription, recommendation)
+        generateSingleTierSketch(outfit.requestId, outfit.input.anchorItemDescription, recommendation, supabaseUserId)
       )
     );
   },
 
-  async queueSketchForTier(outfit: OutfitResponse, tier: OutfitTierSlug) {
+  async queueSketchForTier(outfit: OutfitResponse, tier: OutfitTierSlug, supabaseUserId?: string) {
     const recommendation = outfit.recommendations.find((item) => item.tier === tier);
 
     if (!recommendation) {
       return;
     }
 
-    await generateSingleTierSketch(outfit.requestId, outfit.input.anchorItemDescription, recommendation);
+    await generateSingleTierSketch(outfit.requestId, outfit.input.anchorItemDescription, recommendation, supabaseUserId);
   },
 };

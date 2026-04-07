@@ -263,7 +263,7 @@ async function imageUrlToDataUrl(imageUrl: string): Promise<string> {
 }
 
 export const closetService = {
-  async analyzeItem(payload: AnalyzeClosetItemPayload) {
+  async analyzeItem(payload: AnalyzeClosetItemPayload, supabaseUserId?: string) {
     const userContent: Array<{ type: 'input_image'; image_url: string; detail?: 'high' } | { type: 'input_text'; text: string }> = [];
 
     const candidateUrls = [payload.uploadedImageUrl, payload.sketchImageUrl].filter((u): u is string => Boolean(u));
@@ -316,6 +316,8 @@ export const closetService = {
       },
       instructions: 'You are a menswear expert cataloguing a wardrobe. Identify garments accurately. Return all metadata you can confidently determine from the image. Only return a brand if you can see it clearly — from logos, embroidery, labels, or printed text. Never guess a brand.',
       userContent,
+      supabaseUserId,
+      feature: 'closet-analyze',
     });
 
     return result;
@@ -390,8 +392,8 @@ export const closetService = {
     return { deleted: true };
   },
 
-  async generateItemSketch(payload: GenerateClosetSketchPayload) {
-    const jobId = await closetSketchService.startSketchJob(payload.uploadedImageUrl);
+  async generateItemSketch(payload: GenerateClosetSketchPayload, supabaseUserId?: string) {
+    const jobId = await closetSketchService.startSketchJob(payload.uploadedImageUrl, supabaseUserId);
     return { jobId };
   },
 
@@ -401,7 +403,7 @@ export const closetService = {
     return result;
   },
 
-  async matchItems(payload: ClosetMatchPayload) {
+  async matchItems(payload: ClosetMatchPayload, supabaseUserId?: string) {
     if (!payload.items.length) {
       return {
         matches: payload.suggestions.map((s, i) => ({
@@ -531,6 +533,8 @@ Return that item's id.`,
           text: `OUTFIT SUGGESTIONS (by index):\n${suggestionList}\n\nUSER'S CLOSET ITEMS (pre-filtered to eligible categories):\n${itemList}\n\nReturn one match entry per suggestion index (0 through ${payload.suggestions.length - 1}). Respect the [eligible item ids] constraint strictly — if a suggestion's eligible list is empty, return null for it.`,
         },
       ],
+      supabaseUserId,
+      feature: 'closet-match',
     });
 
     return {

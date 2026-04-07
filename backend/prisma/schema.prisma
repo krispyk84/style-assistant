@@ -212,6 +212,20 @@ model ClosetSketchJob {
   updatedAt        DateTime @updatedAt
 }
 
+model AiUsageEntry {
+  id             String   @id @default(cuid())
+  supabaseUserId String
+  monthKey       String
+  feature        String
+  model          String
+  costUsd        Float
+  inputTokens    Int?
+  outputTokens   Int?
+  createdAt      DateTime @default(now())
+
+  @@index([supabaseUserId, monthKey])
+}
+
 model StyleGuideDocument {
   id                  String   @id @default(cuid())
   name                String

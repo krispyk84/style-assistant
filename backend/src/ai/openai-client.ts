@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { HttpError } from '../lib/http-error.js';
+import { calcImageCost, calcTextCost, type AiFeature } from './costs.js';
+import { usageService } from '../modules/usage/usage.service.js';
 
 type JsonSchemaConfig = {
   name: string;
@@ -35,6 +37,8 @@ type CreateStructuredResponseInput<TSchema extends z.ZodTypeAny> = {
   jsonSchema: JsonSchemaConfig;
   instructions: string;
   userContent: InputContent[];
+  supabaseUserId?: string;
+  feature?: AiFeature;
 };
 
 type GenerateImageInput = {
@@ -42,6 +46,8 @@ type GenerateImageInput = {
   size?: '1024x1024' | '1024x1536' | '1536x1024' | 'auto';
   quality?: 'low' | 'medium' | 'high' | 'auto';
   outputFormat?: 'png' | 'jpeg' | 'webp';
+  supabaseUserId?: string;
+  feature?: AiFeature;
 };
 
 function extractOutputText(payload: any): string | null {
@@ -141,6 +147,19 @@ export const openAiClient = {
         throw new HttpError(502, 'OPENAI_SCHEMA_MISMATCH', 'The AI provider returned an unexpected response shape.');
       }
 
+      if (input.supabaseUserId && input.feature) {
+        const inputTokens: number = payload?.usage?.input_tokens ?? 0;
+        const outputTokens: number = payload?.usage?.output_tokens ?? 0;
+        usageService.record({
+          supabaseUserId: input.supabaseUserId,
+          feature: input.feature,
+          model: env.OPENAI_RESPONSES_MODEL,
+          costUsd: calcTextCost(inputTokens, outputTokens),
+          inputTokens,
+          outputTokens,
+        });
+      }
+
       return validated.data;
     } catch (error) {
       if (error instanceof HttpError) {
@@ -198,6 +217,15 @@ export const openAiClient = {
       if (typeof imageBase64 !== 'string' || !imageBase64) {
         logger.error({ payload }, 'OpenAI image generation response did not include image data');
         throw new HttpError(502, 'OPENAI_IMAGE_INVALID', 'The AI provider returned an invalid sketch response.');
+      }
+
+      if (input.supabaseUserId && input.feature) {
+        usageService.record({
+          supabaseUserId: input.supabaseUserId,
+          feature: input.feature,
+          model: env.OPENAI_IMAGE_MODEL,
+          costUsd: calcImageCost(input.size ?? '1024x1536', input.quality ?? 'medium'),
+        });
       }
 
       return {

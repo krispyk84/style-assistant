@@ -35,7 +35,7 @@ async function imageUrlToDataUrl(imageUrl: string): Promise<string> {
   return `data:${mimeType};base64,${Buffer.from(await res.arrayBuffer()).toString('base64')}`;
 }
 
-async function describeGarmentFromImage(imageUrl: string): Promise<string> {
+async function describeGarmentFromImage(imageUrl: string, supabaseUserId?: string): Promise<string> {
   const dataUrl = await imageUrlToDataUrl(imageUrl);
 
   const result = await openAiClient.createStructuredResponse({
@@ -60,20 +60,24 @@ async function describeGarmentFromImage(imageUrl: string): Promise<string> {
       { type: 'input_image', image_url: dataUrl, detail: 'high' },
       { type: 'input_text', text: 'Describe this garment in detail: colour, fabric, style, and key visual features.' },
     ],
+    supabaseUserId,
+    feature: 'closet-describe',
   });
 
   return result.description;
 }
 
-async function runSketchGeneration(jobId: string, imageUrl: string) {
+async function runSketchGeneration(jobId: string, imageUrl: string, supabaseUserId?: string) {
   try {
-    const itemDescription = await describeGarmentFromImage(imageUrl);
+    const itemDescription = await describeGarmentFromImage(imageUrl, supabaseUserId);
 
     const generatedImage = await openAiClient.generateImage({
       prompt: buildClosetItemSketchPrompt({ itemDescription }),
       size: '1024x1536',
       quality: 'medium',
       outputFormat: 'jpeg',
+      supabaseUserId,
+      feature: 'closet-sketch',
     });
 
     // Store image data in DB only (not on the ephemeral filesystem) so sketches
@@ -102,9 +106,9 @@ async function runSketchGeneration(jobId: string, imageUrl: string) {
 }
 
 export const closetSketchService = {
-  async startSketchJob(imageUrl: string): Promise<string> {
+  async startSketchJob(imageUrl: string, supabaseUserId?: string): Promise<string> {
     const job = await closetRepository.createSketchJob();
-    void runSketchGeneration(job.id, imageUrl);
+    void runSketchGeneration(job.id, imageUrl, supabaseUserId);
     return job.id;
   },
 

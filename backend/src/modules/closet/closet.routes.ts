@@ -16,13 +16,12 @@ import {
 
 export const closetRouter = Router();
 
-// Stateless AI operations — auth required but no userId scoping needed in the service
 closetRouter.post(
   '/closet/match',
   requireAuth,
   asyncHandler(async (request, response) => {
     const payload = parseWithSchema(closetMatchSchema, request.body);
-    const result = await closetService.matchItems(payload);
+    const result = await closetService.matchItems(payload, request.userId!);
     return sendSuccess(response, result);
   })
 );
@@ -32,7 +31,7 @@ closetRouter.post(
   requireAuth,
   asyncHandler(async (request, response) => {
     const payload = parseWithSchema(analyzeClosetItemSchema, request.body);
-    const result = await closetService.analyzeItem(payload);
+    const result = await closetService.analyzeItem(payload, request.userId!);
     return sendSuccess(response, result);
   })
 );
@@ -43,7 +42,7 @@ closetRouter.post(
   requireAuth,
   asyncHandler(async (request, response) => {
     const payload = parseWithSchema(generateClosetSketchSchema, request.body);
-    const result = await closetService.generateItemSketch(payload);
+    const result = await closetService.generateItemSketch(payload, request.userId!);
     return sendSuccess(response, result, 201);
   })
 );

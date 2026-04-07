@@ -53,6 +53,8 @@ export const selfieReviewService = {
       },
       instructions: buildSelfieReviewInstructions(),
       userContent,
+      supabaseUserId,
+      feature: 'selfie-review',
     });
 
     const output: AnalysisResponse = {
