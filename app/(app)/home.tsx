@@ -129,11 +129,15 @@ export default function HomeScreen() {
                 }}
               />
 
-              {/* Default placeholder image — shown only when no saved outfits */}
+              {/* Default placeholder image — shown only when no saved outfits; gender-aware */}
               {!hasRealImages ? (
                 <Image
                   contentFit="cover"
-                  source={require('../../assets/images/defaultoutfit.png')}
+                  source={
+                    profile.gender === 'woman'
+                      ? require('../../assets/images/defaultoutfit-female.jpg')
+                      : require('../../assets/images/defaultoutfit.png')
+                  }
                   style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, height: '100%', width: '100%' }}
                 />
               ) : null}
