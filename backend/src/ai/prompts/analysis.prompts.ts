@@ -3,14 +3,15 @@ import { formatProfileContext } from '../prompt-context.js';
 
 type PromptProfile = Parameters<typeof formatProfileContext>[0];
 
-export function buildCompatibilityInstructions() {
+export function buildCompatibilityInstructions(gender?: string | null) {
+  const fashionContext = gender === 'woman' ? 'womenswear' : 'menswear';
   return [
-    ...buildBaseAnalysisRules(),
-    'You are evaluating whether a candidate menswear piece is a viable substitute for the expectedPiece in a recommended outfit.',
+    ...buildBaseAnalysisRules(gender),
+    `You are evaluating whether a candidate ${fashionContext} piece is a viable substitute for the expectedPiece in a recommended outfit.`,
     'Return only structured JSON matching the provided schema.',
     'Base your assessment of the candidate on the uploaded image when present, otherwise on the candidateItem description.',
-    'Verdicts must be one of: Works great, Works okay, Doesn\u2019t work.',
-    'CRITICAL: Your primary task is substitution judgement. If the candidate differs materially from the expectedPiece in garment type, color family, or formality tier, it must receive \u201cDoesn\u2019t work\u201d or at most \u201cWorks okay\u201d \u2014 never \u201cWorks great\u201d unless it genuinely serves the same role in the outfit. An olive field jacket cannot substitute for a navy blazer. A stone overshirt cannot substitute for a dress shirt.',
+    "Verdicts must be one of: Works great, Works okay, Doesn\u2019t work.",
+    "CRITICAL: Your primary task is substitution judgement. If the candidate differs materially from the expectedPiece in garment type, color family, or formality tier, it must receive \u201cDoesn\u2019t work\u201d or at most \u201cWorks okay\u201d \u2014 never \u201cWorks great\u201d unless it genuinely serves the same role in the outfit. An olive field jacket cannot substitute for a navy blazer. A stone overshirt cannot substitute for a dress shirt.",
     'Concerns and alternatives should be concrete, not generic.',
   ].join(' ');
 }
@@ -35,17 +36,18 @@ export function buildCompatibilityUserPrompt(input: {
     `- expectedPiece: ${input.pieceName?.trim() || 'Not provided'}`,
     `- candidateItem: ${input.candidateItemDescription?.trim() || 'Identified from uploaded image'}`,
     `- imageFilename: ${input.imageFilename?.trim() || 'Not provided'}`,
-    'First identify the candidate piece from the image or candidateItem description. Then judge whether it is a viable substitute for the expectedPiece within this outfit context. If the candidate is a clearly different garment type or color family than the expectedPiece, return \u201cDoesn\u2019t work\u201d.',
+    "First identify the candidate piece from the image or candidateItem description. Then judge whether it is a viable substitute for the expectedPiece within this outfit context. If the candidate is a clearly different garment type or color family than the expectedPiece, return \u201cDoesn\u2019t work\u201d.",
   ].join('\n');
 }
 
-export function buildSelfieReviewInstructions() {
+export function buildSelfieReviewInstructions(gender?: string | null) {
+  const fashionContext = gender === 'woman' ? 'womenswear' : 'menswear';
   return [
-    ...buildBaseAnalysisRules(),
-    'You are reviewing a selfie of a menswear outfit against a previously recommended look.',
+    ...buildBaseAnalysisRules(gender),
+    `You are reviewing a selfie of a ${fashionContext} outfit against a previously recommended look.`,
     'Return only structured JSON matching the provided schema.',
     'Base the answer on the uploaded selfie when present, otherwise on the text context only.',
-    'Verdicts must be one of: Works great, Works okay, Doesn\u2019t work.',
+    "Verdicts must be one of: Works great, Works okay, Doesn\u2019t work.",
     'Strengths, issues, and adjustments should evaluate silhouette, polish, and whether the result matches the original recommendation.',
   ].join(' ');
 }

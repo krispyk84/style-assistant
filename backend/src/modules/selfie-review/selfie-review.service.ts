@@ -15,7 +15,7 @@ export const selfieReviewService = {
     const styleGuideContext = await styleGuideService.retrieveGuidance({
       task: 'selfie-review',
       query: [
-        'menswear guidance for evaluating a finished outfit on-body',
+        profile?.gender === 'woman' ? 'womenswear guidance for evaluating a finished outfit on-body' : 'menswear guidance for evaluating a finished outfit on-body',
         input.outfitTitle ? `outfit title: ${input.outfitTitle}` : null,
         input.anchorItemDescription ? `anchor item: ${input.anchorItemDescription}` : null,
         input.tier ? `tier: ${input.tier}` : null,
@@ -51,7 +51,7 @@ export const selfieReviewService = {
         description: 'Selfie-based review of a completed menswear outfit.',
         schema: selfieReviewJsonSchema,
       },
-      instructions: buildSelfieReviewInstructions(),
+      instructions: buildSelfieReviewInstructions(profile?.gender),
       userContent,
       supabaseUserId,
       feature: 'selfie-review',

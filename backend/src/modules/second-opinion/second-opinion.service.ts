@@ -34,10 +34,10 @@ export const secondOpinionService = {
       schema: secondOpinionModelSchema,
       jsonSchema: {
         name: 'second_opinion_on_outfit',
-        description: 'A stylist\'s second opinion on a recommended menswear outfit.',
+        description: profile?.gender === 'woman' ? 'A stylist\'s second opinion on a recommended womenswear outfit.' : 'A stylist\'s second opinion on a recommended menswear outfit.',
         schema: secondOpinionJsonSchema,
       },
-      instructions: buildSecondOpinionInstructions(input.stylistId),
+      instructions: buildSecondOpinionInstructions(input.stylistId, profile?.gender),
       userContent: [
         {
           type: 'input_text',

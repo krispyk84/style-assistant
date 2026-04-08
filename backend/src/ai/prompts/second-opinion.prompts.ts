@@ -16,26 +16,38 @@ const VITTORIO_PERSONA = [
 ];
 
 // Alessandra: culturally aware, cool, socially magnetic, scene-fluent.
-const ALESSANDRA_PERSONA = [
-  'You are Alessandra Sartori, a creative director who has spent two decades moving between Milan, London, and Tokyo.',
-  'You dress people the way an editor curates a magazine: strong point of view, zero interest in playing it safe, total awareness of what the moment calls for.',
-  'You are plugged in. You know what reads well at a dinner, a gallery opening, a rooftop — and you know what falls flat in those same rooms.',
-  'One of the lenses you always apply is attraction. You ask yourself: does this make him more magnetic, more noticeable, more desirable in a room? If not, you say so — specifically and directly.',
-  'You do not lead with praise. If the outfit is safe, you say it is safe. If it is genuinely working, you say why. If one change would make a real difference, you name it.',
-  'Your voice is direct and carries a quiet personal warmth — not the warmth of someone managing a client, but of someone who finds him genuinely interesting and wants to see him at his best.',
-  'There is a faint charge to how you speak about what works on him specifically. You notice the man, not just the outfit.',
-  'No lists. No formal breakdowns. Just honest sentences, like conversation.',
-];
-
-function personaRules(stylistId: StylistId) {
-  return stylistId === 'vittorio' ? VITTORIO_PERSONA : ALESSANDRA_PERSONA;
+// Pronouns are injected dynamically based on the subject's gender.
+function buildAlessandraPersona(subjectPronoun: 'him' | 'her' | 'them', possessivePronoun: 'his' | 'her' | 'their') {
+  return [
+    'You are Alessandra Sartori, a creative director who has spent two decades moving between Milan, London, and Tokyo.',
+    'You dress people the way an editor curates a magazine: strong point of view, zero interest in playing it safe, total awareness of what the moment calls for.',
+    'You are plugged in. You know what reads well at a dinner, a gallery opening, a rooftop — and you know what falls flat in those same rooms.',
+    `One of the lenses you always apply is presence. You ask yourself: does this make ${subjectPronoun} more magnetic, more noticeable, more fully themselves in a room? If not, you say so — specifically and directly.`,
+    'You do not lead with praise. If the outfit is safe, you say it is safe. If it is genuinely working, you say why. If one change would make a real difference, you name it.',
+    `Your voice is direct and carries a quiet personal warmth — not the warmth of someone managing a client, but of someone who finds ${subjectPronoun} genuinely interesting and wants to see ${subjectPronoun} at ${possessivePronoun} best.`,
+    `There is a faint charge to how you speak about what works on ${subjectPronoun} specifically. You notice the person, not just the outfit.`,
+    'No lists. No formal breakdowns. Just honest sentences, like conversation.',
+  ];
 }
 
-export function buildSecondOpinionInstructions(stylistId: StylistId) {
+function personaRules(stylistId: StylistId, gender?: string | null) {
+  if (stylistId === 'vittorio') return VITTORIO_PERSONA;
+
+  if (gender === 'woman') {
+    return buildAlessandraPersona('her', 'her');
+  }
+  if (gender === 'non-binary') {
+    return buildAlessandraPersona('them', 'their');
+  }
+  return buildAlessandraPersona('him', 'his');
+}
+
+export function buildSecondOpinionInstructions(stylistId: StylistId, gender?: string | null) {
+  const outfitType = gender === 'woman' ? 'womenswear' : 'menswear';
   return [
-    ...buildBaseAnalysisRules(),
-    ...personaRules(stylistId),
-    'You are giving a second opinion on a recommended menswear outfit.',
+    ...buildBaseAnalysisRules(gender),
+    ...personaRules(stylistId, gender),
+    `You are giving a second opinion on a recommended ${outfitType} outfit.`,
     'Return only structured JSON matching the provided schema.',
     'perspective must be exactly 2–3 sentences written fully in character.',
     'Be specific to the actual pieces described — generic observations are useless.',

@@ -14,13 +14,14 @@ function formatTierLabel(tier: OutfitTierSlug) {
   return tier.charAt(0).toUpperCase() + tier.slice(1);
 }
 
-async function generateSingleTierSketch(requestId: string, anchorItemDescription: string, recommendation: TierRecommendationDto, supabaseUserId?: string) {
+async function generateSingleTierSketch(requestId: string, anchorItemDescription: string, recommendation: TierRecommendationDto, supabaseUserId?: string, gender?: string | null) {
   try {
     const generatedImage = await openAiClient.generateImage({
       prompt: buildTierSketchPrompt({
         tierLabel: formatTierLabel(recommendation.tier),
         anchorItemDescription,
         recommendation,
+        gender,
       }),
       size: '1024x1536',
       quality: 'medium',
@@ -64,21 +65,21 @@ async function generateSingleTierSketch(requestId: string, anchorItemDescription
 }
 
 export const tierSketchService = {
-  async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string) {
+  async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string, gender?: string | null) {
     await Promise.all(
       outfit.recommendations.map((recommendation) =>
-        generateSingleTierSketch(outfit.requestId, outfit.input.anchorItemDescription, recommendation, supabaseUserId)
+        generateSingleTierSketch(outfit.requestId, outfit.input.anchorItemDescription, recommendation, supabaseUserId, gender)
       )
     );
   },
 
-  async queueSketchForTier(outfit: OutfitResponse, tier: OutfitTierSlug, supabaseUserId?: string) {
+  async queueSketchForTier(outfit: OutfitResponse, tier: OutfitTierSlug, supabaseUserId?: string, gender?: string | null) {
     const recommendation = outfit.recommendations.find((item) => item.tier === tier);
 
     if (!recommendation) {
       return;
     }
 
-    await generateSingleTierSketch(outfit.requestId, outfit.input.anchorItemDescription, recommendation, supabaseUserId);
+    await generateSingleTierSketch(outfit.requestId, outfit.input.anchorItemDescription, recommendation, supabaseUserId, gender);
   },
 };

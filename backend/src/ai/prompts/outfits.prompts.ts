@@ -4,9 +4,31 @@ import { formatProfileContext } from '../prompt-context.js';
 
 type PromptProfile = Parameters<typeof formatProfileContext>[0];
 
-export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[]) {
+/**
+ * Female styling framework drawn from intentional wardrobe-curation principles.
+ *
+ * Applied only when profile.gender === 'woman'. Guides the model toward
+ * womenswear-appropriate outfit logic while still respecting the user's
+ * chosen style direction (minimal, classic, editorial, streetwear, etc.).
+ */
+function buildFemaleStyleFramework(): string {
   return [
-    ...buildBaseOutfitRules(),
+    'FEMALE STYLING FRAMEWORK — apply this for every recommendation:',
+    '- Outfit composition: build each outfit with a deliberate balance of piece types. A strong key piece (versatile, mid-formality workhorse like tailored trousers, a structured jacket, or a quality knit) should anchor the look. Layer in basics (clean, neutral foundations) and at most one statement piece (bold detail, distinctive color, or strong silhouette) per outfit. Avoid stacking multiple statement pieces or filling the look with all basics.',
+    '- Silhouette and proportion: contrast volume deliberately. If the top is relaxed or oversized, the bottom should be more fitted or streamlined (and vice versa). Avoid competing volume at both top and bottom simultaneously. Consider how the overall silhouette reads — A-line, column, hourglass emphasis, relaxed — and make it intentional.',
+    '- Color palette coherence: 2–3 colors per outfit in a deliberate relationship. Establish one dominant tone (often a neutral), one main color that expresses the style direction, and optionally one accent. Colors should feel chosen, not accidental. Warm and cool tones should be mixed deliberately, not arbitrarily.',
+    '- Texture pairing: include at least two distinct fabric textures per outfit to create intentional depth — e.g., a structured knit with tailored wool, matte jersey with a subtle satin-finish slip, crisp cotton with draped crepe, stiff denim with something soft. Texture contrast elevates a look from assembled to styled.',
+    '- Outfit formulas: anchor one strong piece and build outward from it with intention. Examples: wide-leg tailored trousers + fitted rib knit + pointed-toe flat + minimal earring; silk midi skirt + tucked relaxed blouse + block-heel mule + delicate necklace; straight-leg dark jeans + oversized blazer + simple tank + sleek loafer.',
+    '- Style direction applies: a woman selecting streetwear should receive streetwear; classic should receive classic; editorial should receive editorial; minimal should receive minimal. But all should be filtered through a womenswear lens — not defaulted to menswear templates with feminine substitutions.',
+    '- Fit specificity: call out fit details that matter for the wearer — high-rise vs. mid-rise, cropped vs. longline, A-line vs. straight-cut, relaxed vs. fitted shoulder. Each piece should fit the body without pulling, sagging, or requiring constant readjustment.',
+    '- Avoid masculine defaults: do not default to menswear silhouettes, menswear color logic, or menswear piece choices unless the user\'s style profile or vibe keywords explicitly call for androgynous or masculine-influenced dressing.',
+    '- Accessories: treat as deliberate finishing choices that reinforce the outfit\'s direction, not as afterthoughts. One well-chosen accessory (a structured bag, a layered necklace, a statement earring) reads stronger than several undirected ones.',
+  ].join('\n');
+}
+
+export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[], gender?: string | null) {
+  return [
+    ...buildBaseOutfitRules(gender),
     'Return only structured JSON matching the provided schema.',
     `Return only the requested tier recommendations in this order: ${selectedTiers.join(', ')}.`,
     'Anchor the recommendations to the provided item or image evidence.',
@@ -34,9 +56,11 @@ export function buildGenerateOutfitsUserPrompt(
 
   // When vibe keywords are provided they override the profile's saved fit/style for this request
   const vibeOverride = input.vibeKeywords?.trim() || null;
+  const isFemale = profile?.gender === 'woman';
 
   return [
     formatProfileContext(profile, vibeOverride),
+    isFemale ? buildFemaleStyleFramework() : null,
     styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
     'Styling request:',
     ...anchorItems.map(
@@ -54,13 +78,15 @@ export function buildGenerateOutfitsUserPrompt(
     'When vibe keywords are present, visibly reflect them in the recommendations instead of treating them as secondary decoration.',
     'Use only the season to influence fabric weight, layering, palette, and overall styling direction. Do not infer extra constraints from current weather conditions.',
     'If the season is summer and the profile says prefer-trousers for summer bottoms, keep recommending longer bottoms instead of shorts.',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
-export function buildRegenerateTierInstructions() {
+export function buildRegenerateTierInstructions(gender?: string | null) {
   return [
-    ...buildBaseOutfitRules(),
-    'You are regenerating one tier of a menswear styling recommendation.',
+    ...buildBaseOutfitRules(gender),
+    gender === 'woman'
+      ? 'You are regenerating one tier of a womenswear styling recommendation.'
+      : 'You are regenerating one tier of a menswear styling recommendation.',
     'Return only structured JSON matching the schema.',
     'Generate only the requested tier.',
     'The new recommendation must stay faithful to the anchor item and overall wardrobe direction while being materially different from the previous version.',
@@ -79,9 +105,11 @@ export function buildRegenerateTierUserPrompt(input: {
 
   // Apply the same vibe override that was used when the original request was generated
   const vibeOverride = input.existing.input.vibeKeywords?.trim() || null;
+  const isFemale = input.profile?.gender === 'woman';
 
   return [
     formatProfileContext(input.profile, vibeOverride),
+    isFemale ? buildFemaleStyleFramework() : null,
     input.styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
     'Original styling request:',
     ...(input.existing.input.anchorItems?.length
@@ -114,5 +142,5 @@ export function buildRegenerateTierUserPrompt(input: {
     'Return one new recommendation for the requested tier only.',
     'Make the vibe keywords materially visible in the regenerated outfit if they were provided.',
     'Use only the season to shape the styling update. Do not treat current weather details as constraints.',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }

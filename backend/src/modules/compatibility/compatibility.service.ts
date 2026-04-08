@@ -54,7 +54,7 @@ export const compatibilityService = {
         description: 'Compatibility verdict for a candidate menswear piece.',
         schema: compatibilityJsonSchema,
       },
-      instructions: buildCompatibilityInstructions(),
+      instructions: buildCompatibilityInstructions(profile?.gender),
       userContent,
       supabaseUserId,
       feature: 'compatibility-check',

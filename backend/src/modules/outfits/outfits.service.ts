@@ -144,7 +144,7 @@ export const outfitsService = {
     const styleGuideContext = await styleGuideService.retrieveGuidance({
       task: 'outfit-generation',
       query: [
-        'menswear styling guidance',
+        profile?.gender === 'woman' ? 'womenswear styling guidance' : 'menswear styling guidance',
         ...anchorItems.map((item, index) => `anchor item ${index + 1}: ${item.description.trim() || 'image-led reference'}`),
         `requested tiers: ${selectedTiers.join(', ')}`,
         input.weatherContext ? `season: ${input.weatherContext.season}` : null,
@@ -193,10 +193,10 @@ export const outfitsService = {
       schema: tieredOutfitGenerationSchema,
       jsonSchema: {
         name: 'tiered_outfit_generation',
-        description: 'Three menswear outfit tiers for one anchor item.',
+        description: profile?.gender === 'woman' ? 'Three womenswear outfit tiers for one anchor item.' : 'Three menswear outfit tiers for one anchor item.',
         schema: tieredOutfitGenerationJsonSchema,
       },
-      instructions: buildGenerateOutfitsInstructions(selectedTiers),
+      instructions: buildGenerateOutfitsInstructions(selectedTiers, profile?.gender),
       userContent,
       supabaseUserId,
       feature: 'outfit-generation',
@@ -241,7 +241,7 @@ export const outfitsService = {
     };
 
     await outfitsRepository.upsertGeneratedOutfit(input.profileId, response);
-    void tierSketchService.queueSketchesForOutfit(response, supabaseUserId);
+    void tierSketchService.queueSketchesForOutfit(response, supabaseUserId, profile?.gender);
     return response;
   },
 
@@ -263,7 +263,7 @@ export const outfitsService = {
     const styleGuideContext = await styleGuideService.retrieveGuidance({
       task: 'tier-regeneration',
       query: [
-        'menswear styling guidance for regenerating one outfit tier',
+        profile?.gender === 'woman' ? 'womenswear styling guidance for regenerating one outfit tier' : 'menswear styling guidance for regenerating one outfit tier',
         `tier: ${tier}`,
         ...anchorItems.map((item, index) => `anchor item ${index + 1}: ${item.description.trim() || 'image-led reference'}`),
         existing.input.weatherContext ? `season: ${existing.input.weatherContext.season}` : null,
@@ -304,10 +304,10 @@ export const outfitsService = {
       schema: singleTierRegenerationSchema,
       jsonSchema: {
         name: 'single_tier_regeneration',
-        description: 'A single regenerated menswear tier recommendation.',
+        description: profile?.gender === 'woman' ? 'A single regenerated womenswear tier recommendation.' : 'A single regenerated menswear tier recommendation.',
         schema: singleTierRegenerationJsonSchema,
       },
-      instructions: buildRegenerateTierInstructions(),
+      instructions: buildRegenerateTierInstructions(profile?.gender),
       userContent,
       supabaseUserId,
       feature: 'tier-regeneration',
@@ -335,7 +335,7 @@ export const outfitsService = {
     };
 
     await outfitsRepository.upsertGeneratedOutfit(undefined, mergedResponse);
-    void tierSketchService.queueSketchForTier(mergedResponse, tier, supabaseUserId);
+    void tierSketchService.queueSketchForTier(mergedResponse, tier, supabaseUserId, profile?.gender);
     return mergedResponse;
   },
 };
