@@ -710,9 +710,9 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                 {saveError ? <AppText style={{ color: theme.colors.danger, fontSize: 13 }}>{saveError}</AppText> : null}
 
                 <PrimaryButton
-                  label={isSaving ? 'Saving...' : 'Save to Closet'}
+                  label={isSaving ? 'Saving...' : isAnalyzing ? 'AI filling in...' : isGeneratingSketch ? 'Generating sketch...' : 'Save to Closet'}
                   onPress={() => void handleSave()}
-                  disabled={isSaving || !title.trim()}
+                  disabled={isSaving || isAnalyzing || isGeneratingSketch || !title.trim()}
                 />
                 <PrimaryButton
                   label={isInQueue ? 'Cancel Remaining' : 'Cancel'}
