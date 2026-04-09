@@ -49,17 +49,17 @@ async function describeGarmentFromImage(imageUrl: string, supabaseUserId?: strin
         properties: {
           description: {
             type: 'string',
-            description: 'Garment type followed by precise colour (with warm/cool undertone, e.g. "cool grey-taupe" not just "taupe", "warm olive green" not just "green"), fabric, silhouette, and key structural features. Start with colour. 1 sentence.',
+            description: 'Colour-qualified garment type followed by key structural features and silhouette. Colour must be an adjective modifying the garment name — never standalone. Use warm/cool undertone qualifiers (e.g. "cool grey-taupe bomber jacket" not "taupe jacket", "warm olive cargo trousers" not "green trousers"). 1 sentence, comma-separated features.',
           },
         },
         required: ['description'],
         additionalProperties: false,
       },
     },
-    instructions: 'You are a fashion illustrator preparing a brief for a sketch artist. Describe the garment with colour precision — always qualify warm vs cool undertone (e.g. "cool grey-taupe", "warm olive", "icy blue-grey"). Never use ambiguous single-word colour names like "taupe", "beige", or "green" alone — always add an undertone qualifier. Prioritise colour accuracy above all else.',
+    instructions: 'You are a fashion illustrator briefing a sketch artist. Always name the garment type first, with colour as an adjective (e.g. "cool grey-taupe bomber jacket", never just "taupe" or "the fabric"). Qualify every colour with a warm/cool undertone so the artist renders the right hue. Then add structural details.',
     userContent: [
       { type: 'input_image', image_url: dataUrl, detail: 'high' },
-      { type: 'input_text', text: 'Describe this garment for a sketch artist. Be precise about colour — include warm/cool undertone. Then cover fabric, silhouette, and key structural features.' },
+      { type: 'input_text', text: 'Describe this garment in one sentence for a sketch artist: [colour-qualified garment type], [structural features]. Example format: "Cool grey-taupe bomber jacket, ribbed collar, front zip, no lapels, elasticated hem."' },
     ],
     supabaseUserId,
     feature: 'closet-describe',

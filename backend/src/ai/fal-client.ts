@@ -87,7 +87,9 @@ export const falClient = {
         prompt: fullPrompt,
         negative_prompt: NEGATIVE_PROMPT,
         loras: [{ path: loraUrl, scale: 0.9 }],
-        image_size: 'portrait_16_9',
+        // Outfit sketches need extra vertical space for full-body (head to toe including shoes).
+        // Closet single-garment sketches use the wider portrait_4_3 (768×1024).
+        image_size: isCloset ? 'portrait_4_3' : 'portrait_16_9',
         num_inference_steps: 28,
         guidance_scale: 3.5,
         num_images: 1,
