@@ -8,7 +8,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing } from '@/constants/theme';
-import { buildLookResultsHref, parseLookInput } from '@/lib/look-route';
+import { buildLookResultsHref, buildLookRouteParams, parseLookInput } from '@/lib/look-route';
 
 export default function ReviewRequestScreen() {
   const params = useLocalSearchParams<{
@@ -30,6 +30,7 @@ export default function ReviewRequestScreen() {
     weatherStylingHint?: string;
     weatherLocationLabel?: string;
     weatherFetchedAt?: string;
+    addAnchorToCloset?: string;
   }>();
   const input = parseLookInput(params);
 
@@ -69,7 +70,10 @@ export default function ReviewRequestScreen() {
         <View style={{ gap: spacing.sm }}>
           <PrimaryButton
             label="Generate Outfit Recommendations"
-            onPress={() => router.push(buildLookResultsHref(requestId, input))}
+            onPress={() => router.push({
+              pathname: '/results/[requestId]',
+              params: { ...buildLookRouteParams(requestId, input), addAnchorToCloset: params.addAnchorToCloset },
+            })}
           />
           <PrimaryButton label="Edit request" onPress={() => router.back()} variant="secondary" />
         </View>

@@ -1,6 +1,9 @@
 // Pricing as of 2025-04 (USD).
 // gpt-4o-mini: $0.15 / 1M input tokens, $0.60 / 1M output tokens
 // gpt-image-1: per-image cost based on size × quality
+// fal.ai flux-lora: $0.006 per image (standard queue pricing)
+
+export const FAL_FLUX_LORA_COST_USD = 0.006;
 
 export type AiFeature =
   | 'outfit-generation'

@@ -88,6 +88,7 @@ async function generateSingleTierSketch(
         gender,
       }),
       loraType: 'outfit',
+      supabaseUserId,
     });
 
     const storedFile = await storageProvider.storeGeneratedFile({

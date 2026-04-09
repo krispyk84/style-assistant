@@ -1,11 +1,13 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
 import { findBestClosetMatch } from '@/lib/closet-match';
 import type { OutfitPiece } from '@/types/look-request';
+import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
 
 import { LookResultCard } from '@/components/cards/look-result-card';
 import { LookRequestReviewCard } from '@/components/cards/look-request-review-card';
@@ -18,7 +20,7 @@ import { ScreenHeader } from '@/components/ui/screen-header';
 import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser-modal';
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { useToast } from '@/components/ui/toast-provider';
-import { spacing } from '@/constants/theme';
+import { spacing, theme } from '@/constants/theme';
 import { incrementClosetItemCounter } from '@/lib/closet-storage';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
 import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
@@ -91,6 +93,20 @@ export default function ResultDetailsScreen() {
   const countedMatchedIdsRef = useRef<Set<string>>(new Set());
   const { showToast } = useToast();
   const parsedInput = useMemo(() => parseLookInput(stableParams), [stableParams]);
+
+  // Closet-add modal: shown during loading when user ticked "save to closet" in the form.
+  // Results are gated behind closetModalResolved so the user can fill the form in parallel.
+  const shouldOfferClosetAdd = stableParams.addAnchorToCloset === 'true';
+  const [closetModalVisible, setClosetModalVisible] = useState(shouldOfferClosetAdd);
+  const [closetModalResolved, setClosetModalResolved] = useState(!shouldOfferClosetAdd);
+  const [anchorAddedToCloset, setAnchorAddedToCloset] = useState(false);
+
+  function handleClosetModalClose() {
+    setClosetModalVisible(false);
+    setClosetModalResolved(true);
+  }
+
+  const [addToClosetModalVisible, setAddToClosetModalVisible] = useState(false);
 
   async function fetchOutfits(requestId: string, input: typeof parsedInput) {
     setIsLoading(true);
@@ -321,7 +337,7 @@ export default function ResultDetailsScreen() {
     setWeekPickerTier(null);
   }
 
-  if (isLoading) {
+  if (isLoading || !closetModalResolved) {
     return (
       <AppScreen>
         <View style={{ flex: 1, justifyContent: 'center' }}>
@@ -330,6 +346,12 @@ export default function ResultDetailsScreen() {
             messages={extendedFashionLoadingMessages}
           />
         </View>
+        <SaveToClosetModal
+          visible={closetModalVisible}
+          uploadedImage={parsedInput?.uploadedAnchorImage ?? null}
+          onClose={handleClosetModalClose}
+          onSaved={() => { setAnchorAddedToCloset(true); handleClosetModalClose(); }}
+        />
       </AppScreen>
     );
   }
@@ -367,6 +389,34 @@ export default function ResultDetailsScreen() {
           hideInfoBox
           recommendations={response.recommendations}
         />
+        {(() => {
+          const upload = parsedInput?.uploadedAnchorImage ?? null;
+          const canAdd =
+            upload !== null &&
+            upload.storageProvider !== 'closet-ref' &&
+            !shouldOfferClosetAdd &&
+            !anchorAddedToCloset;
+          if (!canAdd) return null;
+          return (
+            <Pressable
+              onPress={() => setAddToClosetModalVisible(true)}
+              style={{
+                alignItems: 'center',
+                backgroundColor: theme.colors.card,
+                borderColor: theme.colors.border,
+                borderRadius: 999,
+                borderWidth: 1,
+                flexDirection: 'row',
+                gap: spacing.sm,
+                justifyContent: 'center',
+                minHeight: 48,
+                paddingHorizontal: spacing.md,
+              }}>
+              <Ionicons color={theme.colors.text} name="shirt-outline" size={18} />
+              <AppText>Add anchor to closet</AppText>
+            </Pressable>
+          );
+        })()}
         {response.recommendations.map((recommendation) => (
           <LookResultCard
             key={`${recommendation.tier}-${recommendation.title}`}
@@ -405,6 +455,12 @@ export default function ResultDetailsScreen() {
           onClose={() => setSecondOpinionTier(null)}
         />
       ) : null}
+      <SaveToClosetModal
+        visible={addToClosetModalVisible}
+        uploadedImage={parsedInput?.uploadedAnchorImage ?? null}
+        onClose={() => setAddToClosetModalVisible(false)}
+        onSaved={() => { setAnchorAddedToCloset(true); setAddToClosetModalVisible(false); }}
+      />
     </AppScreen>
   );
 }

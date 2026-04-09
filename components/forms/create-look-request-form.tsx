@@ -70,6 +70,7 @@ export function CreateLookRequestForm({
   const [anchorItems, setAnchorItems] = useState<LookAnchorItem[]>(() => buildInitialAnchorItems(initialValue));
   const [vibeKeywords, setVibeKeywords] = useState(initialValue.vibeKeywords ?? '');
   const [selectedTiers, setSelectedTiers] = useState<LookTierSlug[]>(initialValue.selectedTiers);
+  const [shouldAddAnchorToCloset, setShouldAddAnchorToCloset] = useState(false);
   // Auto-expand if the form was initialised with pre-filled keywords (e.g. anchor flows)
   const [isKeywordsExpanded, setIsKeywordsExpanded] = useState(() => !!(initialValue.vibeKeywords?.trim()));
   const [anchorError, setAnchorError] = useState<string | null>(null);
@@ -87,6 +88,15 @@ export function CreateLookRequestForm({
   const populatedAnchorItems = anchorItems.filter((item) => item.description.trim() || item.image || item.uploadedImage);
   const hasAnyInput = populatedAnchorItems.length > 0;
   const isUploading = anchorItems.some((item) => item.uploadedImage === null && item.image !== null);
+
+  // Reset checkbox if primary anchor no longer has a photo-based upload
+  const primaryAnchorUpload = anchorItems[0]?.uploadedImage;
+  const showAddToClosetCheckbox =
+    primaryAnchorUpload != null && primaryAnchorUpload.storageProvider !== 'closet-ref';
+  useEffect(() => {
+    if (!showAddToClosetCheckbox) setShouldAddAnchorToCloset(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showAddToClosetCheckbox]);
 
   function toggleTier(tier: LookTierSlug) {
     setSelectedTiers((current) => {
@@ -179,16 +189,19 @@ export function CreateLookRequestForm({
 
     router.push({
       pathname: '/review-request',
-      params: buildLookRouteParams(requestId, {
-        anchorItems: populatedAnchorItems,
-        anchorItemDescription,
-        vibeKeywords: vibeKeywords.trim(),
-        anchorImage: primaryAnchorItem?.image ?? null,
-        uploadedAnchorImage: primaryAnchorItem?.uploadedImage ?? null,
-        photoPending: !populatedAnchorItems.some((item) => item.image || item.uploadedImage),
-        selectedTiers,
-        weatherContext,
-      }),
+      params: {
+        ...buildLookRouteParams(requestId, {
+          anchorItems: populatedAnchorItems,
+          anchorItemDescription,
+          vibeKeywords: vibeKeywords.trim(),
+          anchorImage: primaryAnchorItem?.image ?? null,
+          uploadedAnchorImage: primaryAnchorItem?.uploadedImage ?? null,
+          photoPending: !populatedAnchorItems.some((item) => item.image || item.uploadedImage),
+          selectedTiers,
+          weatherContext,
+        }),
+        addAnchorToCloset: shouldAddAnchorToCloset ? 'true' : undefined,
+      },
     });
   }
 
@@ -213,6 +226,26 @@ export function CreateLookRequestForm({
             onPickFromCloset={closetItems.length > 0 ? () => handlePickFromCloset(item.id) : undefined}
           />
         ))}
+
+        {showAddToClosetCheckbox ? (
+          <Pressable
+            onPress={() => setShouldAddAnchorToCloset((v) => !v)}
+            style={{
+              alignItems: 'center',
+              flexDirection: 'row',
+              gap: spacing.sm,
+              paddingVertical: spacing.xs,
+            }}>
+            <Ionicons
+              color={shouldAddAnchorToCloset ? theme.colors.accent : theme.colors.mutedText}
+              name={shouldAddAnchorToCloset ? 'checkbox' : 'square-outline'}
+              size={22}
+            />
+            <AppText tone="muted" style={{ flex: 1, fontSize: 14 }}>
+              Save anchor photo to my closet after creating look
+            </AppText>
+          </Pressable>
+        ) : null}
 
         {anchorError ? (
           <AppText style={{ color: theme.colors.danger }}>{anchorError}</AppText>

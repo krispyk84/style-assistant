@@ -1,6 +1,8 @@
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { HttpError } from '../lib/http-error.js';
+import { FAL_FLUX_LORA_COST_USD } from './costs.js';
+import { usageService } from '../modules/usage/usage.service.js';
 
 type GenerateImageInput = {
   prompt: string;
@@ -16,6 +18,7 @@ type GenerateImageInput = {
    * (S3 / R2 in production). Skip for localhost / local storage.
    */
   sourceImageUrl?: string;
+  supabaseUserId?: string;
 };
 
 const NEGATIVE_PROMPT =
@@ -136,6 +139,15 @@ export const falClient = {
         throw new HttpError(502, 'FAL_IMAGE_DOWNLOAD_FAILED', 'Could not download the generated sketch image.');
       }
       const arrayBuffer = await imageResponse.arrayBuffer();
+
+      if (input.supabaseUserId) {
+        usageService.record({
+          supabaseUserId: input.supabaseUserId,
+          feature: input.loraType === 'closet' ? 'closet-sketch' : 'outfit-sketch',
+          model: 'fal-ai/flux-lora',
+          costUsd: FAL_FLUX_LORA_COST_USD,
+        });
+      }
 
       return {
         mimeType: contentType,

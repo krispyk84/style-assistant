@@ -129,6 +129,7 @@ async function runSketchGeneration(jobId: string, imageUrl: string, supabaseUser
       // garment's structural geometry while still applying the LoRA style.
       // Skipped for localhost / local storage (not reachable by fal.ai).
       sourceImageUrl: imageUrl.startsWith('https://') ? imageUrl : undefined,
+      supabaseUserId,
     });
 
     // Store image data in DB only (not on the ephemeral filesystem) so sketches

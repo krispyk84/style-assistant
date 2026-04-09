@@ -45,6 +45,7 @@ export type LookRouteParams = {
   weatherStylingHint?: string;
   weatherLocationLabel?: string;
   weatherFetchedAt?: string;
+  addAnchorToCloset?: string;
 };
 
 type SerializedAnchorItem = {
