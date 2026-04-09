@@ -4,42 +4,37 @@ import { HttpError } from '../lib/http-error.js';
 
 type GenerateImageInput = {
   prompt: string;
+  loraType: 'closet' | 'outfit';
   size?: '1024x1024' | '1024x1536' | '1536x1024' | 'auto';
   quality?: 'low' | 'medium' | 'high' | 'auto';
   outputFormat?: 'png' | 'jpeg' | 'webp';
 };
 
-function sizeToAspectRatio(size: string | undefined): string {
-  if (!size || size === 'auto' || size === '1024x1536') return '2:3';
-  if (size === '1024x1024') return '1:1';
-  if (size === '1536x1024') return '3:2';
-  return '2:3';
-}
-
-function qualityToModel(quality: string | undefined): string {
-  return quality === 'low' ? 'V_2_TURBO' : 'V_2';
-}
-
 export const falClient = {
   async generateImage(input: GenerateImageInput): Promise<{ mimeType: string; data: Buffer }> {
+    const isCloset = input.loraType === 'closet';
+    const loraUrl = isCloset ? env.CLOSET_LORA_URL : env.OUTFIT_LORA_URL;
+    const triggerWord = isCloset ? 'VESTURE_ITEM' : 'VESTURE_OUTFIT';
+    const fullPrompt = `${triggerWord}, ${input.prompt}`;
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), env.OPENAI_TIMEOUT_MS);
 
     try {
-      const response = await fetch('https://fal.run/fal-ai/ideogram/v2', {
+      const response = await fetch('https://fal.run/fal-ai/flux-lora', {
         method: 'POST',
         signal: controller.signal,
         headers: {
-          Authorization: `Key ${env.FAL_API_KEY}`,
+          Authorization: `Key ${env.FAL_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt: input.prompt,
-          aspect_ratio: sizeToAspectRatio(input.size),
-          model: qualityToModel(input.quality),
-          style_type: 'ILLUSTRATION',
-          magic_prompt_option: 'OFF',
-          negative_prompt: 'photorealistic, photograph, 3D render, CGI, text, watermark, logo, busy background',
+          prompt: fullPrompt,
+          loras: [{ path: loraUrl, scale: 0.9 }],
+          image_size: 'portrait_4_3',
+          num_inference_steps: 28,
+          guidance_scale: 3.5,
+          num_images: 1,
         }),
       });
 
@@ -49,9 +44,10 @@ export const falClient = {
         logger.error(
           {
             statusCode: response.status,
-            error: payload?.detail ?? payload?.error ?? 'Unknown Ideogram error',
+            loraType: input.loraType,
+            error: payload?.detail ?? payload?.error ?? 'Unknown flux-lora error',
           },
-          'Ideogram v2 image generation failed'
+          'fal.ai flux-lora image generation failed'
         );
         throw new HttpError(502, 'FAL_IMAGE_FAILED', 'The AI provider could not generate the sketch.');
       }
@@ -60,7 +56,7 @@ export const falClient = {
       const contentType = payload?.images?.[0]?.content_type ?? 'image/jpeg';
 
       if (typeof imageUrl !== 'string' || !imageUrl) {
-        logger.error({ payload }, 'Ideogram v2 response did not include image URL');
+        logger.error({ payload, loraType: input.loraType }, 'flux-lora response did not include image URL');
         throw new HttpError(502, 'FAL_IMAGE_INVALID', 'The AI provider returned an invalid sketch response.');
       }
 
@@ -79,11 +75,11 @@ export const falClient = {
       if (error instanceof HttpError) throw error;
 
       if (error instanceof Error && error.name === 'AbortError') {
-        logger.error('Ideogram v2 image request timed out');
+        logger.error({ loraType: input.loraType }, 'fal.ai flux-lora request timed out');
         throw new HttpError(504, 'FAL_IMAGE_TIMEOUT', 'The AI provider timed out while generating the sketch.');
       }
 
-      logger.error({ error }, 'Unexpected Ideogram v2 image generation failure');
+      logger.error({ error, loraType: input.loraType }, 'Unexpected fal.ai flux-lora failure');
       throw new HttpError(502, 'FAL_IMAGE_UNAVAILABLE', 'The AI provider is currently unavailable for sketches.');
     } finally {
       clearTimeout(timeout);

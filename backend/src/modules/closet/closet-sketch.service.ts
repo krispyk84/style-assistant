@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { logger } from '../../config/logger.js';
 import { storageConfig } from '../../config/storage.js';
 import { openAiClient } from '../../ai/openai-client.js';
+import { falClient } from '../../ai/fal-client.js';
 import { buildClosetItemSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
 import { closetRepository } from './closet.repository.js';
 
@@ -71,13 +72,9 @@ async function runSketchGeneration(jobId: string, imageUrl: string, supabaseUser
   try {
     const itemDescription = await describeGarmentFromImage(imageUrl, supabaseUserId);
 
-    const generatedImage = await openAiClient.generateImage({
+    const generatedImage = await falClient.generateImage({
       prompt: buildClosetItemSketchPrompt({ itemDescription }),
-      size: '1024x1536',
-      quality: 'medium',
-      outputFormat: 'jpeg',
-      supabaseUserId,
-      feature: 'closet-sketch',
+      loraType: 'closet',
     });
 
     // Store image data in DB only (not on the ephemeral filesystem) so sketches
