@@ -124,14 +124,45 @@ async function generateSingleTierSketch(
   }
 }
 
+/**
+ * Resolves the best anchor description for sketch generation.
+ *
+ * When multiple anchor items are present (each potentially with its own image),
+ * each item with an image is described independently and the results are joined
+ * with " | " — matching how getCanonicalAnchorDescription handles multi-anchor
+ * text. Items without images fall back to their stored text description.
+ *
+ * The result is computed once per outfit and reused across all tier sketches.
+ */
+async function resolveAnchorDescriptionForSketch(outfit: OutfitResponse, supabaseUserId?: string): Promise<string> {
+  const anchorItems = outfit.input.anchorItems;
+
+  // Multiple anchor items — describe each independently then join
+  if (anchorItems && anchorItems.length > 1) {
+    const descriptions = await Promise.all(
+      anchorItems.map(async (item, index) => {
+        const imageUrl = item.imageUrl ?? null;
+        if (imageUrl) {
+          return (await describeAnchorForSketch(imageUrl, supabaseUserId)) ?? (item.description.trim() || `Anchor item ${index + 1}`);
+        }
+        return item.description.trim() || `Anchor item ${index + 1}`;
+      })
+    );
+    return descriptions.filter(Boolean).join(' | ');
+  }
+
+  // Single anchor — use the primary image URL if available
+  const anchorImageUrl = outfit.input.anchorImageUrl ?? anchorItems?.[0]?.imageUrl ?? null;
+  if (anchorImageUrl) {
+    return (await describeAnchorForSketch(anchorImageUrl, supabaseUserId)) ?? outfit.input.anchorItemDescription;
+  }
+
+  return outfit.input.anchorItemDescription;
+}
+
 export const tierSketchService = {
   async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string, gender?: string | null) {
-    // Describe the anchor image once — reused across all tiers so we don't pay
-    // for N vision calls. Falls back to plain text if no image is available.
-    const anchorImageUrl = outfit.input.anchorImageUrl ?? null;
-    const anchorItemDescription = anchorImageUrl
-      ? (await describeAnchorForSketch(anchorImageUrl, supabaseUserId)) ?? outfit.input.anchorItemDescription
-      : outfit.input.anchorItemDescription;
+    const anchorItemDescription = await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
 
     logger.info(
       { requestId: outfit.requestId, anchorItemDescription },
@@ -152,11 +183,7 @@ export const tierSketchService = {
       return;
     }
 
-    const anchorImageUrl = outfit.input.anchorImageUrl ?? null;
-    const anchorItemDescription = anchorImageUrl
-      ? (await describeAnchorForSketch(anchorImageUrl, supabaseUserId)) ?? outfit.input.anchorItemDescription
-      : outfit.input.anchorItemDescription;
-
+    const anchorItemDescription = await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
     await generateSingleTierSketch(outfit.requestId, anchorItemDescription, recommendation, supabaseUserId, gender);
   },
 };
