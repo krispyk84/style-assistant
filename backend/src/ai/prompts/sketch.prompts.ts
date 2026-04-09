@@ -109,7 +109,7 @@ export function buildTierSketchPrompt(input: {
     : 'accessories beside';
 
   return [
-    `${tier} outfit on headless mannequin`,
+    `${tier} outfit on headless mannequin, full length head to toe`,
     corePieces,
     wornPart,
     besidePart,
