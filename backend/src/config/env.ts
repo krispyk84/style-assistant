@@ -18,7 +18,7 @@ const envSchema = z.object({
   CLOSET_LORA_URL: z.string().url(),
   OUTFIT_LORA_URL: z.string().url(),
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com'),
-  OPENAI_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
+  OPENAI_TIMEOUT_MS: z.coerce.number().int().positive().default(120000),
   STYLE_GUIDE_ENABLED: z.coerce.boolean().default(true),
   STYLE_GUIDE_VECTOR_STORE_ID: z.string().optional(),
   STYLE_GUIDE_SOURCE_PATH: z.string().default('style-guides/source/Esquire-2024.epub'),
