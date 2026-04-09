@@ -61,7 +61,7 @@ function pieceLabel(piece: OutfitPieceDto): string {
 }
 
 export function buildClosetItemSketchPrompt(input: { itemDescription: string; gender?: string | null }) {
-  return `${shortenPieceName(input.itemDescription)}, single garment, warm parchment background`;
+  return `${shortenPieceName(input.itemDescription)}, single garment, flat warm ivory-white background, antique paper tone, no gradient, no vignette`;
 }
 
 export function buildTierSketchPrompt(input: {
@@ -113,7 +113,7 @@ export function buildTierSketchPrompt(input: {
     corePieces,
     wornPart,
     besidePart,
-    'warm watercolor wash background',
+    'warm ivory watercolor wash background, antique paper tone',
   ]
     .filter(Boolean)
     .join(', ');
