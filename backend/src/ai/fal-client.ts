@@ -108,9 +108,11 @@ export const falClient = {
         prompt: fullPrompt,
         negative_prompt: NEGATIVE_PROMPT,
         loras: [{ path: loraUrl, scale: 0.9 }],
-        // Outfit sketches need extra vertical space for full-body (head to toe including shoes).
-        // Closet single-garment sketches use the wider portrait_4_3 (768×1024).
-        image_size: isCloset ? 'portrait_4_3' : 'portrait_16_9',
+        // Outfit sketches use square_hd (1024×1024) — portrait_16_9 was too narrow,
+        // causing the figure to fill the height and clip shoes at the bottom.
+        // Square gives enough canvas for a full-body wide shot with shoes in frame.
+        // Closet single-garment sketches use portrait_4_3 (768×1024).
+        image_size: isCloset ? 'portrait_4_3' : 'square_hd',
         num_inference_steps: 28,
         guidance_scale: 3.5,
         num_images: 1,
