@@ -40,6 +40,8 @@ type LookResultCardProps = {
   matchFeedbackMap?: Record<string, 'up' | 'down' | null>;
   /** Suggestions currently being rematched — shows a loading indicator on that piece row. */
   regeneratingMatches?: Set<string>;
+  /** User-provided anchor item description — shown first in the pieces list, never closet-matched. */
+  anchorDescription?: string;
 };
 
 export function LookResultCard({
@@ -58,6 +60,7 @@ export function LookResultCard({
   onMatchThumbsDown,
   matchFeedbackMap,
   regeneratingMatches,
+  anchorDescription,
 }: LookResultCardProps) {
   const { theme } = useTheme();
   const actionButtonStyle = {
@@ -75,10 +78,11 @@ export function LookResultCard({
   const [matchedPiece, setMatchedPiece] = useState<{ item: ClosetItem; suggestion: string; confidencePercent: number } | null>(null);
 
   const labeledPieces = useMemo(
-    () => buildLabeledPieces(recommendation, closetItems, matchMap),
-    [recommendation, closetItems, matchMap]
+    () => buildLabeledPieces(recommendation, closetItems, matchMap, anchorDescription),
+    [recommendation, closetItems, matchMap, anchorDescription]
   );
-  const hasAnyMatch = labeledPieces.some((p) => p.matchedClosetItem !== null);
+  // Exclude the anchor row from the match legend — it's never closet-matched
+  const hasAnyMatch = labeledPieces.some((p) => !p.isAnchor && p.matchedClosetItem !== null);
 
   if (isRegenerating) {
     return (
@@ -174,7 +178,7 @@ export function LookResultCard({
         ) : null}
 
         {labeledPieces.map((piece) => {
-          const isRematching = regeneratingMatches?.has(piece.value) ?? false;
+          const isRematching = (!piece.isAnchor && regeneratingMatches?.has(piece.value)) ?? false;
           return (
             <View
               key={`${piece.label}-${piece.value}`}
@@ -190,9 +194,9 @@ export function LookResultCard({
                 <AppText variant="sectionTitle">{piece.label}</AppText>
                 <AppText tone="muted">{piece.value}</AppText>
               </View>
-              {isRematching ? (
+              {!piece.isAnchor && isRematching ? (
                 <ActivityIndicator color={theme.colors.accent} size="small" style={{ paddingTop: 2 }} />
-              ) : piece.matchedClosetItem ? (
+              ) : !piece.isAnchor && piece.matchedClosetItem ? (
                 <Pressable
                   accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view and rate.`}
                   accessibilityRole="button"
@@ -286,6 +290,7 @@ type LabeledPiece = {
   value: string;
   matchedClosetItem: ClosetItem | null;
   confidencePercent: number;
+  isAnchor?: boolean;
 };
 
 function resolveMatch(
@@ -315,11 +320,18 @@ function resolveMatch(
 function buildLabeledPieces(
   recommendation: LookRecommendation,
   closetItems: ClosetItem[],
-  matchMap?: Record<string, ClosetItem | null | false>
+  matchMap?: Record<string, ClosetItem | null | false>,
+  anchorDescription?: string
 ): LabeledPiece[] {
   const usedLabels = new Set<string>();
 
-  const pieces: LabeledPiece[] = recommendation.keyPieces.map((piece, index) => {
+  // Anchor piece is always first and never closet-matched
+  const anchorText = anchorDescription?.trim() ?? recommendation.anchorItem?.trim();
+  const pieces: LabeledPiece[] = anchorText
+    ? [{ label: 'Anchor', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true }]
+    : [];
+
+  pieces.push(...recommendation.keyPieces.map((piece, index) => {
     const normalized = normalizePiece(piece);
     const { item, confidencePercent } = resolveMatch(normalized, closetItems, matchMap);
     return {
@@ -328,7 +340,7 @@ function buildLabeledPieces(
       matchedClosetItem: item,
       confidencePercent,
     };
-  });
+  }));
 
   recommendation.shoes.forEach((shoe, index) => {
     const normalized = normalizePiece(shoe);

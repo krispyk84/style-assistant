@@ -22,7 +22,7 @@ type GenerateImageInput = {
 };
 
 const NEGATIVE_PROMPT =
-  'photorealistic, photograph, 3D render, CGI, hyperrealistic, realistic, product photography, studio photo, digital painting, oil painting, anime, cartoon, flat lay, flatlay, lookbook, clothing hanger, product display, clothes folded, styled flat';
+  'photorealistic, photograph, 3D render, CGI, hyperrealistic, realistic, product photography, studio photo, digital painting, oil painting, anime, cartoon, flat lay, flatlay, lookbook, clothing hanger, product display, clothes folded, styled flat, cropped at knees, cropped at ankles, cut-off feet, shoes cut off, partial legs, incomplete figure, torso only';
 
 const QUEUE_BASE = 'https://queue.fal.run/fal-ai/flux-lora';
 const POLL_INTERVAL_MS = 3000;
@@ -111,11 +111,12 @@ export const falClient = {
         prompt: fullPrompt,
         negative_prompt: NEGATIVE_PROMPT,
         loras: [{ path: loraUrl, scale: 0.9 }],
-        // Outfit sketches use square_hd (1024×1024) — portrait_16_9 was too narrow,
-        // causing the figure to fill the height and clip shoes at the bottom.
-        // Square gives enough canvas for a full-body wide shot with shoes in frame.
-        // Closet single-garment sketches use portrait_4_3 (768×1024).
-        image_size: isCloset ? 'portrait_4_3' : 'square_hd',
+        // Outfit sketches use portrait_4_3 (768×1024) — matches the 3:4 display aspect
+        // ratio, giving the model a portrait context that naturally produces a full-body
+        // figure with shoes visible. square_hd (1:1) allowed the model to zoom in and
+        // clip feet; portrait_16_9 was too narrow.
+        // Closet single-garment sketches also use portrait_4_3.
+        image_size: 'portrait_4_3',
         num_inference_steps: 28,
         guidance_scale: 3.5,
         num_images: 1,

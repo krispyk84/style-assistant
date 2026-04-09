@@ -389,6 +389,7 @@ export default function ResultDetailsScreen() {
           input={response.input}
           hideInfoBox
           recommendations={response.recommendations}
+          anchorAddedToCloset={anchorAddedToCloset}
         />
         {(() => {
           const upload = parsedInput?.uploadedAnchorImage ?? null;
@@ -413,7 +414,12 @@ export default function ResultDetailsScreen() {
                 minHeight: 48,
                 paddingHorizontal: spacing.md,
               }}>
-              <Ionicons color={theme.colors.text} name="shirt-outline" size={18} />
+              <View style={{ position: 'relative' }}>
+                <Ionicons color={theme.colors.text} name="shirt-outline" size={18} />
+                <View style={{ alignItems: 'center', backgroundColor: theme.colors.text, borderRadius: 999, height: 11, justifyContent: 'center', position: 'absolute', right: -3, top: -3, width: 11 }}>
+                  <Ionicons color={theme.colors.background} name="add" size={8} />
+                </View>
+              </View>
               <AppText>Add anchor to closet</AppText>
             </Pressable>
           );
@@ -435,6 +441,7 @@ export default function ResultDetailsScreen() {
             regeneratingMatches={regeneratingMatches}
             closetItems={closetItems}
             matchMap={matchMap}
+            anchorDescription={parsedInput?.anchorItemDescription ?? response.input.anchorItemDescription}
             detailHref={buildTierHref(
               recommendation.tier,
               response.requestId,

@@ -153,8 +153,8 @@ export default function TierScreen() {
     );
   }
 
-  const piecesToCheck = buildPiecesToCheck(liveRecommendation, closetItems, matchMap);
-  const hasAnyMatch = piecesToCheck.some((p) => p.matchedClosetItem !== null);
+  const piecesToCheck = buildPiecesToCheck(liveRecommendation, closetItems, matchMap, requestInput?.anchorItemDescription);
+  const hasAnyMatch = piecesToCheck.some((p) => !p.isAnchor && p.matchedClosetItem !== null);
 
   return (
     <AppScreen scrollable floatingBack>
@@ -221,10 +221,10 @@ export default function TierScreen() {
                   <AppText variant="sectionTitle">{piece.label}</AppText>
                   <AppText tone="muted">{piece.value}</AppText>
                 </View>
-                {/* Closet match checkmark — tapping opens ClosetItemSheet with feedback */}
-                {isRematching ? (
+                {/* Closet match checkmark — tapping opens ClosetItemSheet with feedback; never shown for anchor */}
+                {!piece.isAnchor && isRematching ? (
                   <ActivityIndicator color={theme.colors.accent} size="small" />
-                ) : piece.matchedClosetItem ? (
+                ) : !piece.isAnchor && piece.matchedClosetItem ? (
                   <Pressable
                     accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view and rate.`}
                     accessibilityRole="button"
@@ -311,6 +311,7 @@ type LabeledPiece = {
   value: string;
   matchedClosetItem: ClosetItem | null;
   confidencePercent: number;
+  isAnchor?: boolean;
 };
 
 function resolveMatch(
@@ -337,11 +338,18 @@ function resolveMatch(
 function buildPiecesToCheck(
   recommendation: LookRecommendation,
   closetItems: ClosetItem[],
-  matchMap: Record<string, ClosetItem | null | false>
+  matchMap: Record<string, ClosetItem | null | false>,
+  anchorDescription?: string
 ): LabeledPiece[] {
-  const rows = recommendation.keyPieces.map((piece, index) => {
+  // Anchor piece first — never closet-matched
+  const anchorText = anchorDescription?.trim() ?? recommendation.anchorItem?.trim();
+  const rows: LabeledPiece[] = anchorText
+    ? [{ label: 'Anchor', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true }]
+    : [];
+
+  recommendation.keyPieces.forEach((piece, index) => {
     const { item, confidencePercent } = resolveMatch(piece, closetItems, matchMap);
-    return { label: labelForKeyPiece(piece, index), value: piece.display_name, matchedClosetItem: item, confidencePercent };
+    rows.push({ label: labelForKeyPiece(piece, index), value: piece.display_name, matchedClosetItem: item, confidencePercent });
   });
 
   recommendation.shoes.forEach((shoe, index) => {

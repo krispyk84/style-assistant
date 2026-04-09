@@ -13,9 +13,11 @@ type LookRequestReviewCardProps = {
   input: CreateLookInput;
   hideInfoBox?: boolean;
   recommendations?: LookRecommendation[];
+  /** When true, hides the add-to-closet action for anchor items already saved. */
+  anchorAddedToCloset?: boolean;
 };
 
-export function LookRequestReviewCard({ input, hideInfoBox = false, recommendations }: LookRequestReviewCardProps) {
+export function LookRequestReviewCard({ input, hideInfoBox = false, recommendations, anchorAddedToCloset = false }: LookRequestReviewCardProps) {
   const aiAnchorDescription = recommendations?.[0]?.anchorItem ?? null;
   const vibeChips = input.vibeKeywords
     ? input.vibeKeywords.split(',').map((k) => k.trim()).filter(Boolean)
@@ -93,11 +95,27 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
                 </AppText>
               </View>
 
-              {hideInfoBox ? (
+              {hideInfoBox && !anchorAddedToCloset && item.uploadedImage?.storageProvider !== 'closet-ref' ? (
                 <Pressable
                   hitSlop={8}
                   onPress={() => setClosetTarget({ uploadedImage: item.uploadedImage, description: description ?? item.description })}>
-                  <Ionicons color={theme.colors.accent} name="archive-outline" size={22} />
+                  <View style={{ position: 'relative' }}>
+                    <Ionicons color={theme.colors.accent} name="shirt-outline" size={22} />
+                    <View
+                      style={{
+                        alignItems: 'center',
+                        backgroundColor: theme.colors.accent,
+                        borderRadius: 999,
+                        height: 13,
+                        justifyContent: 'center',
+                        position: 'absolute',
+                        right: -4,
+                        top: -4,
+                        width: 13,
+                      }}>
+                      <Ionicons color="#fff" name="add" size={9} />
+                    </View>
+                  </View>
                 </Pressable>
               ) : null}
             </View>
