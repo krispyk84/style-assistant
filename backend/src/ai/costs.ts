@@ -8,6 +8,7 @@ export type AiFeature =
   | 'outfit-sketch'
   | 'closet-analyze'
   | 'closet-describe'
+  | 'anchor-sketch-describe'
   | 'closet-match'
   | 'closet-sketch'
   | 'compatibility-check'
