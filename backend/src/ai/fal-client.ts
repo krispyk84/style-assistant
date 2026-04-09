@@ -100,7 +100,7 @@ export const falClient = {
     // lines, and silhouette while the LoRA still applies the illustration style.
     const img2imgParams =
       input.sourceImageUrl && input.sourceImageUrl.startsWith('https://')
-        ? { image_url: input.sourceImageUrl, strength: 0.6 }
+        ? { image_url: input.sourceImageUrl, strength: 0.45 }
         : {};
 
     try {

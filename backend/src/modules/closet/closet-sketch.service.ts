@@ -70,7 +70,7 @@ async function describeGarmentFromImage(imageUrl: string, supabaseUserId?: strin
               '[closure: type + placement], ' +
               '[collar/neckline: exact construction], ' +
               '[pockets: count + type (zip/flap/welt/patch) + placement for every pocket], ' +
-              '[quilting/texture: channel direction, approximate number of rows, and baffle width (narrow/medium/wide) — e.g. "approx 9 narrow horizontal quilted channels"], ' +
+              '[quilting/texture: channel direction and layout if quilted or puffer], ' +
               '[sleeves/armholes: full sleeves OR sleeveless with bound/ribbed armholes], ' +
               '[seams/panels: describe major visible panel lines], ' +
               '[hem + cuff finish]. ' +
@@ -92,7 +92,7 @@ async function describeGarmentFromImage(imageUrl: string, supabaseUserId?: strin
       '(2) closure — zip, button, snap, press-stud, open, with exact placement; ' +
       '(3) collar or neckline — stand, ribbed band, spread, crew, V, etc.; ' +
       '(4) ALL pockets — count them, name type (zip/flap/welt/patch), and locate each one (chest left, chest right, hip, side seam); ' +
-      '(5) quilting or texture structure if present — count the rows carefully and give the approximate number, note the baffle width (narrow/medium/wide), and the direction (horizontal/vertical/diagonal); ' +
+      '(5) quilting or texture structure if present — direction of channels, number of rows, baffle shape; ' +
       '(6) sleeves or armholes — full sleeves vs sleeveless, and how armholes are finished; ' +
       '(7) visible seam lines and panel divisions; ' +
       '(8) hem and cuff finish (ribbed, straight, drawcord, raw). ' +
@@ -104,7 +104,7 @@ async function describeGarmentFromImage(imageUrl: string, supabaseUserId?: strin
         text:
           'Produce a comma-separated construction inventory of this garment for a sketch artist. ' +
           'Cover: colour (warm/cool undertone), closure, collar, every pocket (count + type + placement), ' +
-          'quilting (count the rows, note baffle width), sleeves or armholes, panels/seams, hem/cuff finish. ' +
+          'quilting structure if present, sleeves or armholes, panels/seams, hem/cuff finish. ' +
           'Do not omit any visible construction detail.',
       },
     ],
