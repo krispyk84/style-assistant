@@ -61,7 +61,15 @@ function pieceLabel(piece: OutfitPieceDto): string {
 }
 
 export function buildClosetItemSketchPrompt(input: { itemDescription: string; gender?: string | null }) {
-  return `${shortenPieceName(input.itemDescription)}, single garment, flat warm ivory-white background, antique paper tone, no gradient, no vignette`;
+  // Use the full description verbatim — do NOT apply shortenPieceName here.
+  // shortenPieceName caps at 6 words and is designed for verbose AI outfit-piece
+  // names, not for the construction-detail inventory produced by describeGarmentFromImage.
+  // Stripping it destroys pocket placement, quilting structure, closure details, etc.
+  return (
+    `${input.itemDescription.trim()}, ` +
+    `single garment, faithful stylized illustration, preserve all construction details, ` +
+    `flat warm ivory-white background, antique paper tone, no gradient, no vignette`
+  );
 }
 
 export function buildTierSketchPrompt(input: {

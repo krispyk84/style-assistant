@@ -5,6 +5,17 @@ import { HttpError } from '../lib/http-error.js';
 type GenerateImageInput = {
   prompt: string;
   loraType: 'closet' | 'outfit';
+  /**
+   * Optional publicly-accessible URL of the source garment image.
+   * When provided the generation runs in img2img mode: Flux starts from
+   * a partially-noised version of the source image (strength ~0.45) so the
+   * output inherits the garment's structural geometry while the LoRA still
+   * applies the Vesture illustration style.
+   *
+   * Only pass URLs that are reachable by fal.ai — i.e. public https:// URLs
+   * (S3 / R2 in production). Skip for localhost / local storage.
+   */
+  sourceImageUrl?: string;
 };
 
 const NEGATIVE_PROMPT =
@@ -80,7 +91,17 @@ export const falClient = {
     const triggerWord = isCloset ? 'VESTURE_ITEM' : 'VESTURE_OUTFIT';
     const fullPrompt = `${triggerWord}, ${input.prompt}`;
 
-    logger.info({ loraType: input.loraType, prompt: fullPrompt }, 'fal.ai sketch generation starting');
+    const img2imgMode = input.sourceImageUrl?.startsWith('https://') ?? false;
+    logger.info({ loraType: input.loraType, prompt: fullPrompt, img2imgMode }, 'fal.ai sketch generation starting');
+
+    // img2img: include source image when a public URL is available.
+    // strength=0.45 → Flux starts from the garment's structural geometry (45%
+    // image noise) so the output inherits pocket placement, quilting, seam
+    // lines, and silhouette while the LoRA still applies the illustration style.
+    const img2imgParams =
+      input.sourceImageUrl && input.sourceImageUrl.startsWith('https://')
+        ? { image_url: input.sourceImageUrl, strength: 0.45 }
+        : {};
 
     try {
       const requestId = await submitToQueue({
@@ -93,6 +114,7 @@ export const falClient = {
         num_inference_steps: 28,
         guidance_scale: 3.5,
         num_images: 1,
+        ...img2imgParams,
       });
 
       logger.info({ requestId, loraType: input.loraType }, 'fal.ai job queued, polling');
