@@ -45,7 +45,7 @@ async function describeAnchorForSketch(imageUrl: string, supabaseUserId?: string
             description: {
               type: 'string',
               description:
-                'Garment type name followed by its defining structural features: collar/neckline construction, closure type (zip/button/open), presence or absence of lapels, hem and cuff construction, external pocket placement and style. 1 sentence, comma-separated features. Example: "Stone bomber jacket, ribbed band collar, front zip closure, no lapels, patch hip pockets, elasticated hem and cuffs."',
+                'Garment type name preceded by precise colour with warm/cool undertone qualifier, followed by structural features: collar/neckline, closure type, lapels present/absent, hem and cuff finish, external pocket placement. 1 sentence, comma-separated. Example: "Cool grey-taupe bomber jacket, ribbed band collar, front zip closure, no lapels, patch hip pockets, elasticated hem and cuffs." Never use ambiguous single-word colours like "taupe" or "beige" alone — always add a warm/cool qualifier.',
             },
           },
           required: ['description'],
@@ -53,12 +53,12 @@ async function describeAnchorForSketch(imageUrl: string, supabaseUserId?: string
         },
       },
       instructions:
-        'You are a fashion illustrator. Describe the garment in the image using only structural and silhouette vocabulary — the kind of detail that tells an artist exactly what shape to draw. Focus on: garment type, collar construction, closure mechanism, lapels (present or absent and style), hem and cuff finish, and external pocket placement. Do not describe colour, fabric, or brand.',
+        'You are a fashion illustrator preparing a brief for a sketch artist. Lead with precise colour — always qualify warm vs cool undertone (e.g. "cool grey-taupe", "warm stone beige", "icy blue-grey"). Never use ambiguous single-word colour names alone. Then describe structural features: garment type, collar construction, closure mechanism, lapels (present or absent), hem and cuff finish, and external pocket placement.',
       userContent: [
         { type: 'input_image', image_url: imageUrl, detail: 'high' },
         {
           type: 'input_text',
-          text: 'Describe this garment\'s silhouette and structural features in one sentence for a fashion sketch artist.',
+          text: 'Describe this garment in one sentence for a sketch artist. Start with precise colour (warm or cool undertone), then cover structural features: garment type, collar, closure, lapels, hem and cuffs, pockets.',
         },
       ],
       supabaseUserId,
