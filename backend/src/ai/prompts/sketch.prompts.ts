@@ -1,26 +1,28 @@
 import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 
+/**
+ * Prompts for fal.ai flux-lora sketch generation.
+ *
+ * Style is handled entirely by the trained LoRA (VESTURE_ITEM / VESTURE_OUTFIT
+ * trigger words are prepended in fal-client.ts). These prompts describe only
+ * the CONTENT — what to draw, not how to draw it. Competing style descriptors
+ * dilute the LoRA's trained aesthetic and must be omitted.
+ */
+
 export function buildClosetItemSketchPrompt(input: { itemDescription: string; gender?: string | null }) {
-  const isFemale = input.gender === 'woman';
-  const fashionContext = isFemale ? 'womenswear' : 'menswear';
   return [
-    `Create a ${fashionContext} editorial fashion illustration of a single garment on a clean presentation.`,
-    `Visual style: luxury ${fashionContext} sketch, hand-rendered marker and watercolor wash, confident ink outlines, refined retail lookbook presentation.`,
-    'Show only this one piece — do not add other garments, people, or accessories.',
-    'Do not add any words, logos, watermarks, UI chrome, or marketing copy.',
-    `Favor a soft neutral or white background with premium ${fashionContext} presentation.`,
-    `Garment: ${input.itemDescription}`,
-    `Compose this as a polished portrait-oriented single-piece ${fashionContext} sketch suitable for a premium wardrobe cataloguing app.`,
-  ].join('\n');
+    input.itemDescription,
+    'single garment only, no other clothing, no people, no text, no logos, neutral background',
+  ].join(', ');
 }
 
 function pieceLabel(piece: OutfitPieceDto): string {
   return piece.display_name;
 }
 
-function formatList(items: OutfitPieceDto[] | string[]) {
-  if (!items.length) return '- none';
-  return items.map((item) => `- ${typeof item === 'string' ? item : pieceLabel(item)}`).join('\n');
+function formatInline(items: OutfitPieceDto[] | string[]) {
+  if (!items.length) return 'none';
+  return items.map((item) => (typeof item === 'string' ? item : pieceLabel(item))).join(', ');
 }
 
 export function buildTierSketchPrompt(input: {
@@ -29,28 +31,20 @@ export function buildTierSketchPrompt(input: {
   recommendation: TierRecommendationDto;
   gender?: string | null;
 }) {
-  const isFemale = input.gender === 'woman';
-  const fashionContext = isFemale ? 'womenswear' : 'menswear';
+  const pieces = [
+    input.recommendation.anchorItem || input.anchorItemDescription,
+    formatInline(input.recommendation.keyPieces),
+    formatInline(input.recommendation.shoes),
+    formatInline(input.recommendation.accessories),
+  ]
+    .filter(Boolean)
+    .join(', ');
+
   return [
-    `Create a ${fashionContext} editorial fashion illustration of a single outfit on a mannequin or laid-out presentation board.`,
-    `Visual style: luxury ${fashionContext} sketch, hand-rendered marker and watercolor wash, confident ink outlines, refined retail lookbook presentation.`,
-    'Do not add any words, logos, sale text, watermarks, UI chrome, or marketing copy.',
-    'Show the full outfit clearly and keep the garments true to the styling details below.',
-    `Favor soft neutral backgrounds and premium ${fashionContext} presentation.`,
-    `Tier: ${input.tierLabel}`,
-    `Anchor item: ${input.anchorItemDescription}`,
-    `Outfit title: ${input.recommendation.title}`,
-    `Anchor piece rendering: ${input.recommendation.anchorItem}`,
-    'Key pieces:',
-    formatList(input.recommendation.keyPieces),
-    'Shoes:',
-    formatList(input.recommendation.shoes),
-    'Accessories:',
-    formatList(input.recommendation.accessories),
-    'Fit notes:',
-    formatList(input.recommendation.fitNotes),
-    `Palette and mood: ${input.recommendation.stylingDirection}`,
-    `Why it works: ${input.recommendation.whyItWorks}`,
-    `Compose this as a polished portrait-oriented ${fashionContext} sketch suitable for a premium styling assistant app.`,
-  ].join('\n');
+    pieces,
+    input.recommendation.stylingDirection,
+    'full outfit, headless mannequin, accessories beside, no text, no logos, neutral background',
+  ]
+    .filter(Boolean)
+    .join(', ');
 }

@@ -30,7 +30,7 @@ export const falClient = {
         },
         body: JSON.stringify({
           prompt: fullPrompt,
-          loras: [{ path: loraUrl, scale: 0.9 }],
+          loras: [{ path: loraUrl, scale: 1.0 }],
           image_size: 'portrait_4_3',
           num_inference_steps: 28,
           guidance_scale: 3.5,
