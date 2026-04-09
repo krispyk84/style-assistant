@@ -15,10 +15,17 @@ import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outf
  * - Limit to ≤5 pieces total to keep the prompt concise
  */
 
-/** Truncate a verbose AI-generated piece name to ≤ 5 words */
+/**
+ * Trim verbose AI piece names down to the core visual description.
+ * Strips trailing "with X" / "— X" / "featuring X" detail clauses (fabric
+ * specifics that add noise), then caps at 6 words to keep the prompt tight.
+ * Fit/silhouette adjectives ("tailored", "slim-fit", "wide-leg", "oversized")
+ * appear early in the name and are preserved.
+ */
 function shortenPieceName(name: string): string {
-  const words = name.trim().split(/\s+/);
-  return words.slice(0, 5).join(' ');
+  const stripped = name.split(/\s+with\s+|\s+—\s+|\s+featuring\s+/i)[0] ?? name;
+  const words = stripped.trim().split(/\s+/);
+  return words.slice(0, 6).join(' ');
 }
 
 function pieceLabel(piece: OutfitPieceDto): string {
