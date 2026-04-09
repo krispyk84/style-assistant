@@ -35,9 +35,11 @@ type SaveToClosetModalProps = {
   onSaved: (item: ClosetItem) => void;
   uploadedImage?: UploadedImageAsset | null;
   description?: string;
+  /** When true, shows a banner indicating outfit generation is happening in the background. */
+  loadingContext?: boolean;
 };
 
-export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, description }: SaveToClosetModalProps) {
+export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, description, loadingContext }: SaveToClosetModalProps) {
   const { theme } = useTheme();
 
   const {
@@ -414,6 +416,27 @@ export function SaveToClosetModal({ visible, onClose, onSaved, uploadedImage, de
                   <Ionicons color={theme.colors.mutedText} name="close" size={22} />
                 </Pressable>
               </View>
+
+              {/* Background-generation context banner */}
+              {loadingContext ? (
+                <View
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: theme.colors.subtleSurface,
+                    borderColor: theme.colors.border,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    flexDirection: 'row',
+                    gap: spacing.sm,
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.sm,
+                  }}>
+                  <Ionicons color={theme.colors.accent} name="sync-outline" size={14} />
+                  <AppText tone="muted" style={{ flex: 1, fontSize: 13 }}>
+                    Your outfit recommendations are generating in the background — save your anchor piece while you wait.
+                  </AppText>
+                </View>
+              ) : null}
 
               {/* Image area */}
               {displayImageUri ? (

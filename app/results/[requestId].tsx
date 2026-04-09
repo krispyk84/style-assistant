@@ -351,6 +351,7 @@ export default function ResultDetailsScreen() {
           uploadedImage={parsedInput?.uploadedAnchorImage ?? null}
           onClose={handleClosetModalClose}
           onSaved={() => { setAnchorAddedToCloset(true); handleClosetModalClose(); }}
+          loadingContext
         />
       </AppScreen>
     );
