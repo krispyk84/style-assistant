@@ -117,7 +117,7 @@ export function buildTierSketchPrompt(input: {
     : 'accessories beside';
 
   return [
-    `${tier} outfit on headless mannequin, full body visible from neck to shoes, shoes on feet, figure fits entirely in frame, wide shot`,
+    `headless mannequin wearing full outfit, full body visible from neck to shoes, shoes on feet, figure fits entirely in frame, wide shot, ${tier} attire`,
     corePieces,
     wornPart,
     besidePart,

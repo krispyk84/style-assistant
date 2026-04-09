@@ -22,7 +22,7 @@ type GenerateImageInput = {
 };
 
 const NEGATIVE_PROMPT =
-  'photorealistic, photograph, 3D render, CGI, hyperrealistic, realistic, product photography, studio photo, digital painting, oil painting, anime, cartoon';
+  'photorealistic, photograph, 3D render, CGI, hyperrealistic, realistic, product photography, studio photo, digital painting, oil painting, anime, cartoon, flat lay, flatlay, lookbook, clothing hanger, product display, clothes folded, styled flat';
 
 const QUEUE_BASE = 'https://queue.fal.run/fal-ai/flux-lora';
 const POLL_INTERVAL_MS = 3000;
