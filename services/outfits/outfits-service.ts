@@ -1,7 +1,7 @@
 import type { ApiResponse, GenerateOutfitsRequest, GenerateOutfitsResponse, OutfitHistoryResponse } from '@/types/api';
 
 export type OutfitsService = {
-  generateOutfits: (request: GenerateOutfitsRequest) => Promise<ApiResponse<GenerateOutfitsResponse>>;
+  generateOutfits: (request: GenerateOutfitsRequest, options?: { signal?: AbortSignal }) => Promise<ApiResponse<GenerateOutfitsResponse>>;
   regenerateTier: (
     requestId: string,
     tier: GenerateOutfitsRequest['selectedTiers'][number]

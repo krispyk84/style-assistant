@@ -104,9 +104,10 @@ function normalizeOutfitResponse(response: GenerateOutfitsResponse): GenerateOut
 
 // Future OpenAI-backed outfit generation responses will be normalized here.
 export const apiOutfitsService: OutfitsService = {
-  async generateOutfits(request) {
+  async generateOutfits(request, options) {
     const response = await createApiClient().request<GenerateOutfitsResponse>('/outfits/generate', {
       method: 'POST',
+      signal: options?.signal,
       body: {
         requestId: request.requestId,
         anchorItems: request.anchorItems.map((item) => ({

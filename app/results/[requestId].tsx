@@ -1,6 +1,7 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { activateKeepAwakeAsync, deactivateKeepAwakeAsync } from 'expo-keep-awake';
 import { Ionicons } from '@expo/vector-icons';
 
 import { closetService } from '@/services/closet';
@@ -112,9 +113,17 @@ export default function ResultDetailsScreen() {
     setIsLoading(true);
     setErrorMessage(null);
 
+    const controller = new AbortController();
+    generateAbortRef.current = controller;
+
     const serviceResponse = input
-      ? await outfitsService.generateOutfits({ ...input, requestId })
+      ? await outfitsService.generateOutfits({ ...input, requestId }, { signal: controller.signal })
       : await outfitsService.getOutfitResult(requestId);
+
+    generateAbortRef.current = null;
+
+    // If the user cancelled, don't update state — navigation back is already handled.
+    if (controller.signal.aborted) return;
 
     if (!serviceResponse.success || !serviceResponse.data) {
       setErrorMessage(serviceResponse.error?.message ?? 'Failed to load outfit results.');
@@ -138,6 +147,11 @@ export default function ResultDetailsScreen() {
     setIsLoading(false);
   }
 
+  function handleCancelGeneration() {
+    generateAbortRef.current?.abort();
+    router.back();
+  }
+
   useEffect(() => {
     if (!stableParams.requestId) {
       setIsLoading(false);
@@ -149,6 +163,18 @@ export default function ResultDetailsScreen() {
   // fetchOutfits is stable within the effect — deps are the actual inputs
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stableParams.requestId, parsedInput]);
+
+  const generateAbortRef = useRef<AbortController | null>(null);
+
+  // Keep screen awake during the initial generation so the loading state stays visible.
+  useEffect(() => {
+    if (isLoading) {
+      void activateKeepAwakeAsync();
+    } else {
+      void deactivateKeepAwakeAsync();
+    }
+    return () => { void deactivateKeepAwakeAsync(); };
+  }, [isLoading]);
 
   // Keep ref in sync so the poll closure always reads the current set without re-creating the interval.
   useEffect(() => {
@@ -340,6 +366,14 @@ export default function ResultDetailsScreen() {
   if (isLoading || !closetModalResolved) {
     return (
       <AppScreen>
+        {parsedInput ? (
+          <Pressable
+            hitSlop={12}
+            onPress={handleCancelGeneration}
+            style={{ alignSelf: 'flex-start', paddingVertical: spacing.xs }}>
+            <AppText tone="muted">Cancel</AppText>
+          </Pressable>
+        ) : null}
         <View style={{ flex: 1, justifyContent: 'center' }}>
           <LoadingState
             label="Generating outfit options..."

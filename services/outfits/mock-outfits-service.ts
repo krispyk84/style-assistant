@@ -4,7 +4,7 @@ import type { ApiResponse, GenerateOutfitsRequest, GenerateOutfitsResponse, Outf
 import type { OutfitsService } from '@/services/outfits/outfits-service';
 
 export const mockOutfitsService: OutfitsService = {
-  async generateOutfits(request: GenerateOutfitsRequest): Promise<ApiResponse<GenerateOutfitsResponse>> {
+  async generateOutfits(request: GenerateOutfitsRequest, _options?: { signal?: AbortSignal }): Promise<ApiResponse<GenerateOutfitsResponse>> {
     return {
       success: true,
       data: buildMockLookResponse(request, request.requestId, request.variantMap),
