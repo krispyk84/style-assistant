@@ -111,7 +111,15 @@ export function buildTierSketchPrompt(input: {
     .slice(0, 1)
     .map(pieceLabel);
 
-  const supporting = [...keyPieces, ...shoes].filter(Boolean).join(', ');
+  const keyPiecesStr = keyPieces.filter(Boolean).join(', ');
+  const shoesStr = shoes.filter(Boolean).join(', ');
+
+  // Label each slot explicitly so the image model cannot substitute archetype defaults.
+  // Tier label is intentionally omitted — it activates model priors (blazer for smart-casual,
+  // brown boots for casual) that override the actual piece descriptions.
+  const keyPiecesPart = keyPiecesStr ? `outfit pieces: ${keyPiecesStr}` : null;
+  // Shoes get their own labeled slot so they are not buried in a comma list.
+  const shoesPart = shoesStr ? `shoes: ${shoesStr}` : null;
 
   const wornPart = wornAccessories.length > 0
     ? `${wornAccessories.join(', ')} visible`
@@ -125,19 +133,15 @@ export function buildTierSketchPrompt(input: {
     ? `${aboveAccessories.join(', ')} floating above the figure`
     : null;
 
-  // Anchor locking:
-  // - Anchor is declared BEFORE the tier label so it occupies high-weight token positions.
-  // - "preserve category and construction exactly" is a direct fidelity instruction to Flux.
-  // - Tier is positioned as "outfit built around the anchor" — a modifier, not a declaration.
-  //   This prevents "business attire" / "smart casual" from activating a tier-appropriate
-  //   garment archetype (blazer, chino-and-overshirt) before the anchor registers.
-  const anchorLock = `anchor: ${anchor}, preserve category and construction exactly`;
+  // Anchor locking: declared first, in the highest-weight token position.
+  // "preserve garment category and construction exactly" is a hard rendering constraint.
+  const anchorLock = `anchor item worn: ${anchor}, preserve garment category and construction exactly`;
 
   return [
     'single figure only, one headless mannequin centered, headless dress form, no head no face, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
     anchorLock,
-    `${tier} outfit built around the anchor item`,
-    supporting,
+    keyPiecesPart,
+    shoesPart,
     wornPart,
     besidePart,
     abovePart,

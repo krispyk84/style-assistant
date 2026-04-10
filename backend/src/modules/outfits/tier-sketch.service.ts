@@ -9,6 +9,43 @@ import type { OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../.
 import { storageProvider } from '../../storage/index.js';
 import { outfitsRepository } from './outfits.repository.js';
 
+/**
+ * Heuristic anti-drift terms for text-only anchors (no image URL provided).
+ * Prevents the image model from substituting the most common tier-archetype default
+ * for the actual anchor garment category.
+ * Returns null for categories that are unlikely to be misidentified.
+ */
+function extractTextBasedAntiDrift(anchorText: string): string | null {
+  const norm = anchorText.toLowerCase();
+  const rules: Array<{ pattern: RegExp; antiDrift: string }> = [
+    // Shirts → prevent blazer/jacket substitution (smart-casual prior)
+    { pattern: /\b(shirt|button.?down|oxford shirt|chambray|denim shirt|western shirt|flannel shirt|dress shirt|overshirt|shacket|chore coat)\b/,
+      antiDrift: 'blazer, suit jacket, sport coat, sports jacket, navy jacket, structured jacket, formal jacket, navy blazer' },
+    // Knitwear/cardigan → prevent blazer substitution
+    { pattern: /\b(cardigan|crewneck|jumper|pullover|sweater|knitwear)\b/,
+      antiDrift: 'blazer, suit jacket, sport coat, structured jacket, woven jacket' },
+    // Sneakers → prevent boot/dress shoe substitution
+    { pattern: /\b(sneaker|trainer|canvas shoe|court shoe|plimsoll|runner|running shoe|low-top|hi-top)\b/,
+      antiDrift: 'boots, chelsea boots, chukka boots, desert boots, dress shoes, oxford shoes, loafers, brown leather boots, brown boots, tan boots' },
+    // Loafers → prevent sneaker/boot substitution
+    { pattern: /\b(loafer|penny loafer|moccasin|slip.?on)\b/,
+      antiDrift: 'boots, sneakers, trainers, runners, oxford shoes' },
+    // Boots → prevent sneaker/loafer substitution
+    { pattern: /\b(chelsea boot|chukka boot|desert boot|ankle boot)\b/,
+      antiDrift: 'sneakers, trainers, white shoes, canvas shoes, loafers' },
+    // Trousers/chinos → prevent jeans substitution
+    { pattern: /\b(trouser|chino|slack|dress pant|gabardine pant)\b/,
+      antiDrift: 'jeans, denim, shorts, sweatpants' },
+    // Denim/jeans → prevent chino substitution
+    { pattern: /\b(denim|jean)\b/,
+      antiDrift: 'chinos, dress trousers, formal trousers, smart trousers, suit trousers' },
+  ];
+  for (const { pattern, antiDrift } of rules) {
+    if (pattern.test(norm)) return antiDrift;
+  }
+  return null;
+}
+
 function formatTierLabel(tier: OutfitTierSlug) {
   if (tier === 'smart-casual') {
     return 'Smart Casual';
@@ -205,12 +242,21 @@ async function resolveAnchorDescriptionForSketch(
   }
 
   const anchorImageUrl = outfit.input.anchorImageUrl ?? anchorItems?.[0]?.imageUrl ?? null;
+  const anchorDescription = outfit.input.anchorItemDescription;
+
   if (anchorImageUrl) {
     const result = await describeAnchorForSketch(anchorImageUrl, supabaseUserId);
-    return result ?? { description: outfit.input.anchorItemDescription, antiDrift: null };
+    if (result) {
+      // Supplement vision-derived antiDrift with text-based terms when available.
+      const textDrift = extractTextBasedAntiDrift(anchorDescription);
+      const combinedAntiDrift = [result.antiDrift || null, textDrift].filter(Boolean).join(', ') || null;
+      return { description: result.description, antiDrift: combinedAntiDrift };
+    }
+    return { description: anchorDescription, antiDrift: extractTextBasedAntiDrift(anchorDescription) };
   }
 
-  return { description: outfit.input.anchorItemDescription, antiDrift: null };
+  // Text-only anchor: always generate heuristic anti-drift terms.
+  return { description: anchorDescription, antiDrift: extractTextBasedAntiDrift(anchorDescription) };
 }
 
 export const tierSketchService = {

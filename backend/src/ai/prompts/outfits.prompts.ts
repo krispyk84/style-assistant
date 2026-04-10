@@ -36,6 +36,8 @@ export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[]
     'If no image is provided, rely only on the text description and profile context.',
     'Do not mention missing information, policy, or the schema in the output.',
     'IMPORTANT — structured piece output: keyPieces, shoes, and accessories must each be objects with display_name (rich human-readable description) and metadata. The metadata.category MUST be one of the exact enum values in the schema — do not invent new categories. Choose the closest match from the enum. metadata.color should be the dominant color (e.g. "Navy", "Stone", "Charcoal"). metadata.formality must match the tier: business → "Formal" or "Refined Casual"; smart-casual → "Smart Casual" or "Refined Casual"; casual → "Casual".',
+    'IMPORTANT — anchor deduplication: the anchor item must NOT appear in keyPieces. keyPieces contains only supporting pieces that complement the anchor. If the anchor is a shirt, do not add the same shirt again as a keyPiece top.',
+    'IMPORTANT — category assignment reflects item TYPE, not material: a merino wool tie is "Tie", not "Knitwear"; a cashmere pocket square is "Scarf" or "Tie", not "Knitwear"; a leather belt is "Belt"; a silk scarf is "Scarf". Never assign "Knitwear" to accessories just because they contain wool, merino, or cashmere.',
   ].join(' ');
 }
 

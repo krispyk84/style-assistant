@@ -78,13 +78,26 @@ export const MATCH_SCORE_MAX = 130;
 // Maps free text to canonical group keys, used when metadata category is absent.
 
 const GARMENT_GROUPS: Record<string, readonly string[]> = {
+  // Specific accessories first — checked before material-named garment groups so that
+  // "merino wool tie", "cashmere pocket square", etc. resolve to the correct category
+  // rather than being absorbed by the knitwear group via material keywords.
+  tie:          ['tie', 'pocket square', 'bow tie'],
+  belt:         ['belt'],
+  watch:        ['watch'],
+  bag:          ['bag', 'tote', 'briefcase', 'backpack', 'satchel'],
+  scarf:        ['scarf'],
+  hat:          ['hat', 'cap', 'beanie', 'bucket hat'],
+  socks:        ['sock'],
   trousers:     ['trouser', 'chino', 'slack', 'cord', 'gabardine'],
   denim:        ['jean', 'denim'],
   shorts:       ['short'],
   shirt:        ['shirt', 'oxford shirt', 'button-down', 'button down', 'chambray', 'flannel', 'dress shirt', 'spread collar', 'french cuff'],
   polo:         ['polo'],
   tee:          ['tee', 't-shirt', 'tshirt', 'long sleeve', 'rash guard', 'performance shirt', 'swim shirt', 'base layer'],
-  knitwear:     ['sweater', 'knit', 'crewneck', 'merino', 'cashmere', 'jumper', 'pullover'],
+  // knitwear: garment-type words only — NOT material terms like merino/cashmere/lambswool.
+  // Those are materials (already in MATERIAL_GROUPS.wool) and must not cause "black merino
+  // wool tie" to classify as knitwear instead of tie.
+  knitwear:     ['sweater', 'knitwear', 'crewneck', 'jumper', 'pullover', 'cable knit', 'ribbed knit'],
   cardigan:     ['cardigan'],
   hoodie:       ['hoodie', 'sweatshirt'],
   blazer:       ['blazer', 'sports jacket', 'sport coat', 'sport jacket', 'sportcoat'],
@@ -95,13 +108,6 @@ const GARMENT_GROUPS: Record<string, readonly string[]> = {
   loafers:      ['loafer', 'penny loafer', 'moccasin', 'slip-on'],
   boots:        ['boot', 'chelsea', 'chukka', 'desert boot'],
   formal_shoes: ['oxford shoe', 'derby shoe', 'brogue', 'monk strap', 'oxford', 'oxfords', 'cap-toe', 'cap toe', 'dress shoe'],
-  belt:         ['belt'],
-  bag:          ['bag', 'tote', 'briefcase', 'backpack', 'satchel'],
-  watch:        ['watch'],
-  scarf:        ['scarf'],
-  hat:          ['hat', 'cap', 'beanie', 'bucket hat'],
-  tie:          ['tie', 'pocket square'],
-  socks:        ['sock'],
 };
 
 // Maps stored ClosetItem.category → garment group key.

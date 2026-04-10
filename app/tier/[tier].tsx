@@ -335,6 +335,19 @@ function resolveMatch(
   };
 }
 
+/**
+ * Returns true if the keyPiece display_name is a duplicate of the anchor text.
+ * Strips parenthetical styling notes before comparing so
+ * "Charcoal Denim Western Shirt (tailored fit)" matches "Charcoal Denim Western Shirt".
+ */
+function isAnchorDuplicate(anchorText: string, pieceDisplayName: string): boolean {
+  const norm = (s: string) =>
+    s.toLowerCase().replace(/\s*\(.*?\)\s*/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const a = norm(anchorText);
+  const p = norm(pieceDisplayName);
+  return Boolean(a && p && (p.startsWith(a) || a.startsWith(p)));
+}
+
 function buildPiecesToCheck(
   recommendation: LookRecommendation,
   closetItems: ClosetItem[],
@@ -348,6 +361,9 @@ function buildPiecesToCheck(
     : [];
 
   recommendation.keyPieces.forEach((piece, index) => {
+    // Safety net: skip any keyPiece that the backend already emitted as the anchor.
+    // The backend deduplicates too, but this guards against stale cached responses.
+    if (anchorText && isAnchorDuplicate(anchorText, piece.display_name)) return;
     const { item, confidencePercent } = resolveMatch(piece, closetItems, matchMap);
     rows.push({ label: labelForKeyPiece(piece, index), value: piece.display_name, matchedClosetItem: item, confidencePercent });
   });

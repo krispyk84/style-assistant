@@ -18,6 +18,27 @@ import { tierSketchService } from './tier-sketch.service.js';
 
 const CANONICAL_TIERS: OutfitTierSlug[] = ['business', 'smart-casual', 'casual'];
 
+/**
+ * Removes keyPieces that duplicate the anchor item.
+ * OpenAI sometimes echoes the anchor into keyPieces as a "top" slot despite
+ * being told not to. Strips parenthetical styling notes before comparing so
+ * "Charcoal Denim Western Shirt (tailored fit)" correctly matches
+ * "Charcoal Denim Western Shirt".
+ */
+function deduplicateKeyPieces<T extends { display_name: string }>(
+  keyPieces: T[],
+  anchorText: string
+): T[] {
+  const norm = (s: string) =>
+    s.toLowerCase().replace(/\s*\(.*?\)\s*/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalizedAnchor = norm(anchorText);
+  if (!normalizedAnchor) return keyPieces;
+  return keyPieces.filter((p) => {
+    const normalizedPiece = norm(p.display_name);
+    return !normalizedPiece.startsWith(normalizedAnchor) && !normalizedAnchor.startsWith(normalizedPiece);
+  });
+}
+
 function buildStableSketchUrl(requestId: string, tier: OutfitTierSlug, version?: string | number) {
   const baseUrl = `${env.STORAGE_PUBLIC_BASE_URL}/outfits/${requestId}/sketch/${tier}`;
   return version === undefined ? baseUrl : `${baseUrl}?v=${encodeURIComponent(String(version))}`;
@@ -226,10 +247,12 @@ export const outfitsService = {
           throw new HttpError(502, 'OPENAI_MISSING_TIER', `The AI provider did not return the ${tier} recommendation.`);
         }
 
+        const anchorText = recommendation.anchorItem.trim() || getCanonicalAnchorDescription(input);
         return {
           ...recommendation,
           tier,
-          anchorItem: recommendation.anchorItem.trim() || getCanonicalAnchorDescription(input),
+          anchorItem: anchorText,
+          keyPieces: deduplicateKeyPieces(recommendation.keyPieces, anchorText),
           sketchStatus: 'pending',
           sketchImageUrl: buildStableSketchUrl(input.requestId, tier, variantMap?.[tier] ?? 0),
           sketchStorageKey: null,
@@ -319,17 +342,21 @@ export const outfitsService = {
       generatedAt: new Date().toISOString(),
       recommendations: existing.recommendations.map((recommendation) =>
         recommendation.tier === tier
-          ? {
-              ...aiOutput.recommendation,
-              tier,
-              anchorItem: aiOutput.recommendation.anchorItem.trim() || existing.input.anchorItemDescription,
-              sketchStatus: 'pending',
+          ? (() => {
+              const anchorText = aiOutput.recommendation.anchorItem.trim() || existing.input.anchorItemDescription;
+              return {
+                ...aiOutput.recommendation,
+                tier,
+                anchorItem: anchorText,
+                keyPieces: deduplicateKeyPieces(aiOutput.recommendation.keyPieces, anchorText),
+                sketchStatus: 'pending',
               sketchImageUrl: buildStableSketchUrl(existing.requestId, tier, nextVariantIndex),
-              sketchStorageKey: null,
-              sketchMimeType: null,
-              sketchImageData: null,
-              variantIndex: nextVariantIndex,
-            }
+                sketchStorageKey: null,
+                sketchMimeType: null,
+                sketchImageData: null,
+                variantIndex: nextVariantIndex,
+              };
+            })()
           : recommendation
       ),
     };
