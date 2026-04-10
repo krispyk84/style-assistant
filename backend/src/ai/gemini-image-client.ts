@@ -64,34 +64,56 @@ function loadOutfitStyleRefs(): Array<{ mimeType: 'image/jpeg'; base64: string }
  * Negative instruction prevents Gemini from blending the reference outfits into
  * the new sketch (the most common failure mode with multi-image conditioning).
  */
+/**
+ * Style attributes to match — positive and negative.
+ * Shared by both outfit and closet prompts so they stay in sync.
+ *
+ * The ANTI_GLOSS block is the critical addition: Google image models default
+ * to smooth, polished, commercial renders. Every line here fights that default.
+ */
+const STYLE_MATCH = `\
+Match these specific visual qualities from the reference images:
+- SURFACE: matte paper — no gloss, no sheen, no plastic highlights, no lacquer finish anywhere
+- PIGMENT: soft watercolor wash absorbed into textured paper grain — not flat digital colour fill
+- FABRIC: all garments look like real cloth, matte and absorbent — not vinyl, not synthetic, not shiny
+- BACKGROUND: warm parchment paper with loose translucent watercolor wash clouds; flat and matte
+- LINES: fine ink contour lines with slight hand-drawn roughness; not clean crisp digital lines
+- LIGHTING: soft diffuse ambient light only — no studio highlights, no specular reflections, no rim light
+- FIGURE: headless dress form or mannequin — no face, no head
+- PALETTE: muted, desaturated earthy tones — not vivid, not saturated
+- FEEL: editorial luxury atelier sketch — restrained, painterly, hand-illustrated`;
+
+const ANTI_GLOSS = `\
+CRITICAL — do NOT produce any of the following:
+- glossy or shiny fabric rendering
+- plastic sheen or synthetic surface highlights
+- specular reflections or studio product-render lighting
+- polished lacquer or varnish finish on any surface
+- commercial concept-art or CGI render look
+- smooth digital gradients that look airbrushed
+- 3D mockup or ecommerce product visualisation aesthetic
+All surfaces — fabric, background, accessories — must look matte, painterly, and hand-illustrated on paper.`;
+
 function buildOutfitPrompt(outfitPrompt: string): string {
   return (
-    'These are style reference images for a luxury menswear fashion illustration app. ' +
-    'Generate a new outfit sketch that EXACTLY replicates the illustration style of these references:\n' +
-    '- same watercolor rendering technique\n' +
-    '- same ink line quality and stroke character\n' +
-    '- same warm parchment background with loose watercolor wash clouds\n' +
-    '- same headless mannequin / dress form presentation\n' +
-    '- same muted, desaturated colour palette\n' +
-    '- same editorial luxury fashion-sketch aesthetic\n\n' +
+    'These are style reference images for a luxury menswear fashion illustration app.\n\n' +
+    STYLE_MATCH + '\n\n' +
+    ANTI_GLOSS + '\n\n' +
     'DO NOT copy any garments, outfits, or accessories from the reference images. ' +
-    'The references control ONLY the visual illustration style.\n\n' +
-    'Draw this specific outfit instead:\n' +
+    'The references control ONLY the visual illustration style and surface quality.\n\n' +
+    'Draw this specific new outfit in that illustration style:\n' +
     outfitPrompt
   );
 }
 
 function buildClosetPrompt(itemPrompt: string): string {
   return (
-    'These are style reference images for a luxury menswear fashion illustration app. ' +
-    'Generate a single-garment fashion sketch that EXACTLY replicates the illustration style of these references:\n' +
-    '- same watercolor rendering technique\n' +
-    '- same ink line quality\n' +
-    '- same warm parchment background\n' +
-    '- same muted, desaturated colour palette\n\n' +
+    'These are style reference images for a luxury menswear fashion illustration app.\n\n' +
+    STYLE_MATCH + '\n\n' +
+    ANTI_GLOSS + '\n\n' +
     'DO NOT copy any garments from the reference images. ' +
-    'The references control ONLY the illustration style.\n\n' +
-    'Draw this specific garment:\n' +
+    'The references control ONLY the illustration style and surface quality.\n\n' +
+    'Draw this specific single garment in that illustration style:\n' +
     itemPrompt
   );
 }
@@ -163,9 +185,10 @@ export const geminiImageClient = {
       {
         provider: 'gemini-image',
         model: env.GEMINI_IMAGE_MODEL,
+        endpoint: 'generativelanguage.googleapis.com/v1beta/:generateContent',
         loraType: input.loraType,
         styleRefCount: styleRefs.length,
-        promptLength: promptText.length,
+        fallbackUsed: false,
       },
       'Gemini style-conditioned sketch generation starting'
     );
@@ -196,7 +219,7 @@ export const geminiImageClient = {
       const { base64, mimeType } = parseResponse(responseData);
 
       logger.info(
-        { provider: 'gemini-image', model: env.GEMINI_IMAGE_MODEL, loraType: input.loraType, latencyMs, mimeType },
+        { provider: 'gemini-image', model: env.GEMINI_IMAGE_MODEL, loraType: input.loraType, latencyMs, mimeType, fallbackUsed: false },
         'Gemini style-conditioned sketch generation completed'
       );
 

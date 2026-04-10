@@ -1,4 +1,5 @@
 import { env } from '../config/env.js';
+import { logger } from '../config/logger.js';
 import { falClient } from './fal-client.js';
 import { imagenClient } from './imagen-client.js';
 import { geminiImageClient } from './gemini-image-client.js';
@@ -29,12 +30,17 @@ export type { GenerateImageInput };
  */
 export const imageGenerationClient = {
   generateImage(input: GenerateImageInput): Promise<{ mimeType: string; data: Buffer }> {
-    if (env.IMAGE_PROVIDER === 'imagen') {
-      return imagenClient.generateImage(input);
-    }
-    if (env.IMAGE_PROVIDER === 'gemini-image') {
-      return geminiImageClient.generateImage(input);
-    }
+    // ─── Provider routing decision — always logged so it is explicitly verifiable ───
+    // Check logs for: provider, loraType, fallbackUsed
+    // IMAGE_PROVIDER env controls this; 'fal' is the default if unset.
+    const provider = env.IMAGE_PROVIDER;
+    logger.info(
+      { provider, loraType: input.loraType, fallbackUsed: false },
+      'Image generation provider selected'
+    );
+
+    if (provider === 'imagen') return imagenClient.generateImage(input);
+    if (provider === 'gemini-image') return geminiImageClient.generateImage(input);
     return falClient.generateImage(input);
   },
 };

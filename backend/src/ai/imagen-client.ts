@@ -51,7 +51,11 @@ const STYLE_WASH =
   'loose transparent watercolor wash fills, ' +
   'visible watercolor bleed at fabric edges, ' +
   'dry-brush texture on fabric surfaces and shadow folds, ' +
-  'soft wet-on-wet colour bleeding in shadow areas';
+  'soft wet-on-wet colour bleeding in shadow areas, ' +
+  'matte paper finish throughout, ' +
+  'pigment absorbed into paper grain, no gloss no sheen on any surface, ' +
+  'soft diffuse ambient light only, no specular highlights, no reflections, no rim lighting, ' +
+  'all fabric and accessories look absorbent and cloth-like, not synthetic not shiny';
 
 const STYLE_BG =
   'warm aged parchment paper background, ' +
@@ -76,7 +80,11 @@ const BASE_NEGATIVE_PROMPT =
   'photorealistic, photograph, 3D render, CGI, hyperrealistic, realistic, ' +
   'product photography, studio photo, ' +
   'digital painting, digital concept art, airbrushed shading, smooth gradient shading, ' +
-  'glossy fabric render, shiny surfaces, clean crisp digital lines, perfectly uniform background, ' +
+  'glossy, shiny, plastic sheen, lacquer finish, varnish, satin finish, ' +
+  'specular highlights, reflective fabric, metallic sheen, rim lighting, ' +
+  'studio product lighting, commercial fashion photography lighting, ray-traced reflections, ' +
+  'synthetic fabric texture, polished surface, high gloss, wet look, ' +
+  'clean crisp digital lines, perfectly uniform background, ' +
   'flat white background, smooth white background, ' +
   'oil painting, anime, cartoon, flat vector illustration, ' +
   'human head, face, facial features, ' +
@@ -178,13 +186,18 @@ export const imagenClient = {
     const prompt = buildPrompt(input);
     const negativePrompt = buildNegativePrompt(input.additionalNegativePrompt);
 
+    const endpoint = env.IMAGEN_AUTH_TYPE === 'serviceaccount'
+      ? `${env.IMAGEN_LOCATION}-aiplatform.googleapis.com/v1/:predict`
+      : 'generativelanguage.googleapis.com/v1beta/:predict';
+
     logger.info(
       {
         provider: 'imagen',
         model: env.IMAGEN_MODEL,
         authType: env.IMAGEN_AUTH_TYPE,
+        endpoint,
         loraType: input.loraType,
-        prompt,
+        fallbackUsed: false,
       },
       'Imagen sketch generation starting'
     );
@@ -218,7 +231,7 @@ export const imagenClient = {
       const { base64, mimeType } = parseResponse(responseData);
 
       logger.info(
-        { provider: 'imagen', model: env.IMAGEN_MODEL, loraType: input.loraType, latencyMs, mimeType },
+        { provider: 'imagen', model: env.IMAGEN_MODEL, loraType: input.loraType, latencyMs, mimeType, fallbackUsed: false },
         'Imagen sketch generation completed'
       );
 
