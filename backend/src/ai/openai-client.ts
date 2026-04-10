@@ -74,108 +74,124 @@ function extractOutputText(payload: any): string | null {
   return null;
 }
 
+const MAX_RETRIES = 2;
+
 export const openAiClient = {
   async createStructuredResponse<TSchema extends z.ZodTypeAny>(
     input: CreateStructuredResponseInput<TSchema>
   ): Promise<z.infer<TSchema>> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), env.OPENAI_TIMEOUT_MS);
+    let lastError: unknown;
 
-    try {
-      const response = await fetch(`${env.OPENAI_BASE_URL}/v1/responses`, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: env.OPENAI_RESPONSES_MODEL,
-          instructions: input.instructions,
-          input: [
-            {
-              role: 'user',
-              content: input.userContent,
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        const delayMs = 1000 * 2 ** (attempt - 1); // 1s, 2s
+        logger.warn({ feature: input.feature, attempt, delayMs }, 'OpenAI request timed out, retrying');
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), env.OPENAI_TIMEOUT_MS);
+
+      try {
+        const response = await fetch(`${env.OPENAI_BASE_URL}/v1/responses`, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: env.OPENAI_RESPONSES_MODEL,
+            instructions: input.instructions,
+            input: [
+              {
+                role: 'user',
+                content: input.userContent,
+              },
+            ],
+            text: {
+              format: {
+                type: 'json_schema',
+                name: input.jsonSchema.name,
+                description: input.jsonSchema.description,
+                strict: true,
+                schema: input.jsonSchema.schema,
+              },
             },
-          ],
-          text: {
-            format: {
-              type: 'json_schema',
-              name: input.jsonSchema.name,
-              description: input.jsonSchema.description,
-              strict: true,
-              schema: input.jsonSchema.schema,
-            },
-          },
-        }),
-      });
-
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        const openAiError = payload?.error?.message ?? JSON.stringify(payload?.error) ?? 'Unknown OpenAI error';
-        logger.error(
-          {
-            statusCode: response.status,
-            responseId: payload?.id,
-            error: openAiError,
-          },
-          'OpenAI Responses API request failed'
-        );
-
-        throw new HttpError(502, 'OPENAI_REQUEST_FAILED', 'The AI provider could not complete the request.');
-      }
-
-      const outputText = extractOutputText(payload);
-      if (!outputText) {
-        logger.error({ responseId: payload?.id }, 'OpenAI response did not include structured output text');
-        throw new HttpError(502, 'OPENAI_INVALID_RESPONSE', 'The AI provider returned an empty response.');
-      }
-
-      const parsed = JSON.parse(outputText);
-      const validated = input.schema.safeParse(parsed);
-
-      if (!validated.success) {
-        logger.error(
-          {
-            responseId: payload?.id,
-            issues: validated.error.flatten(),
-          },
-          'OpenAI response did not match the expected schema'
-        );
-
-        throw new HttpError(502, 'OPENAI_SCHEMA_MISMATCH', 'The AI provider returned an unexpected response shape.');
-      }
-
-      if (input.supabaseUserId && input.feature) {
-        const inputTokens: number = payload?.usage?.input_tokens ?? 0;
-        const outputTokens: number = payload?.usage?.output_tokens ?? 0;
-        usageService.record({
-          supabaseUserId: input.supabaseUserId,
-          feature: input.feature,
-          model: env.OPENAI_RESPONSES_MODEL,
-          costUsd: calcTextCost(inputTokens, outputTokens),
-          inputTokens,
-          outputTokens,
+          }),
         });
-      }
 
-      return validated.data;
-    } catch (error) {
-      if (error instanceof HttpError) {
-        throw error;
-      }
+        const payload = await response.json().catch(() => null);
 
-      if (error instanceof Error && error.name === 'AbortError') {
-        logger.error('OpenAI request timed out');
-        throw new HttpError(504, 'OPENAI_TIMEOUT', 'The AI provider timed out.');
-      }
+        if (!response.ok) {
+          const openAiError = payload?.error?.message ?? JSON.stringify(payload?.error) ?? 'Unknown OpenAI error';
+          logger.error(
+            {
+              statusCode: response.status,
+              responseId: payload?.id,
+              error: openAiError,
+            },
+            'OpenAI Responses API request failed'
+          );
 
-      logger.error({ error }, 'Unexpected OpenAI client failure');
-      throw new HttpError(502, 'OPENAI_UNAVAILABLE', 'The AI provider is currently unavailable.');
-    } finally {
-      clearTimeout(timeout);
+          throw new HttpError(502, 'OPENAI_REQUEST_FAILED', 'The AI provider could not complete the request.');
+        }
+
+        const outputText = extractOutputText(payload);
+        if (!outputText) {
+          logger.error({ responseId: payload?.id }, 'OpenAI response did not include structured output text');
+          throw new HttpError(502, 'OPENAI_INVALID_RESPONSE', 'The AI provider returned an empty response.');
+        }
+
+        const parsed = JSON.parse(outputText);
+        const validated = input.schema.safeParse(parsed);
+
+        if (!validated.success) {
+          logger.error(
+            {
+              responseId: payload?.id,
+              issues: validated.error.flatten(),
+            },
+            'OpenAI response did not match the expected schema'
+          );
+
+          throw new HttpError(502, 'OPENAI_SCHEMA_MISMATCH', 'The AI provider returned an unexpected response shape.');
+        }
+
+        if (input.supabaseUserId && input.feature) {
+          const inputTokens: number = payload?.usage?.input_tokens ?? 0;
+          const outputTokens: number = payload?.usage?.output_tokens ?? 0;
+          usageService.record({
+            supabaseUserId: input.supabaseUserId,
+            feature: input.feature,
+            model: env.OPENAI_RESPONSES_MODEL,
+            costUsd: calcTextCost(inputTokens, outputTokens),
+            inputTokens,
+            outputTokens,
+          });
+        }
+
+        return validated.data;
+      } catch (error) {
+        if (error instanceof HttpError) {
+          throw error;
+        }
+
+        if (error instanceof Error && error.name === 'AbortError') {
+          lastError = error;
+          // Will retry on next loop iteration (if attempts remain)
+          continue;
+        }
+
+        logger.error({ error }, 'Unexpected OpenAI client failure');
+        throw new HttpError(502, 'OPENAI_UNAVAILABLE', 'The AI provider is currently unavailable.');
+      } finally {
+        clearTimeout(timeout);
+      }
     }
+
+    logger.error({ feature: input.feature, attempts: MAX_RETRIES + 1 }, 'OpenAI request timed out after all retries');
+    throw new HttpError(504, 'OPENAI_TIMEOUT', 'The AI provider timed out.');
   },
 
   async generateImage(input: GenerateImageInput) {

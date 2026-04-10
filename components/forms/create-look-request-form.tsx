@@ -224,28 +224,11 @@ export function CreateLookRequestForm({
             onChange={updateAnchorItem}
             onRemove={() => removeAnchorItem(item.id)}
             onPickFromCloset={closetItems.length > 0 ? () => handlePickFromCloset(item.id) : undefined}
+            showSaveToCloset={index === 0 && showAddToClosetCheckbox}
+            saveToCloset={shouldAddAnchorToCloset}
+            onToggleSaveToCloset={() => setShouldAddAnchorToCloset((v) => !v)}
           />
         ))}
-
-        {showAddToClosetCheckbox ? (
-          <Pressable
-            onPress={() => setShouldAddAnchorToCloset((v) => !v)}
-            style={{
-              alignItems: 'center',
-              flexDirection: 'row',
-              gap: spacing.sm,
-              paddingVertical: spacing.xs,
-            }}>
-            <Ionicons
-              color={shouldAddAnchorToCloset ? theme.colors.accent : theme.colors.mutedText}
-              name={shouldAddAnchorToCloset ? 'checkbox' : 'square-outline'}
-              size={22}
-            />
-            <AppText tone="muted" style={{ flex: 1, fontSize: 14 }}>
-              Save anchor photo to my closet after creating look
-            </AppText>
-          </Pressable>
-        ) : null}
 
         {anchorError ? (
           <AppText style={{ color: theme.colors.danger }}>{anchorError}</AppText>
@@ -420,6 +403,9 @@ function AnchorItemCard({
   onChange,
   onRemove,
   onPickFromCloset,
+  showSaveToCloset = false,
+  saveToCloset = false,
+  onToggleSaveToCloset,
 }: {
   item: LookAnchorItem;
   isPrimary: boolean;
@@ -427,6 +413,9 @@ function AnchorItemCard({
   onChange: (item: LookAnchorItem) => void;
   onRemove: () => void;
   onPickFromCloset?: () => void;
+  showSaveToCloset?: boolean;
+  saveToCloset?: boolean;
+  onToggleSaveToCloset?: () => void;
 }) {
   const [description, setDescription] = useState(item.description);
   const {
@@ -589,6 +578,26 @@ function AnchorItemCard({
             value={description}
           />
         </View>
+
+        {showSaveToCloset ? (
+          <Pressable
+            onPress={onToggleSaveToCloset}
+            style={{
+              alignItems: 'center',
+              flexDirection: 'row',
+              gap: spacing.sm,
+              paddingVertical: spacing.xs,
+            }}>
+            <Ionicons
+              color={saveToCloset ? theme.colors.accent : theme.colors.mutedText}
+              name={saveToCloset ? 'checkbox' : 'square-outline'}
+              size={22}
+            />
+            <AppText tone="muted" style={{ flex: 1, fontSize: 14 }}>
+              Save anchor item to my closet
+            </AppText>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
