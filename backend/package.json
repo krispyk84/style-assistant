@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && cp -r src/ai/style-refs dist/ai/style-refs",
     "start": "node dist/index.js",
     "start:migrate": "prisma migrate deploy && node dist/index.js",
     "style-guide:setup": "tsx scripts/setup-style-guide.ts",
