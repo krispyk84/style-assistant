@@ -66,21 +66,73 @@ function buildNegativePrompt(additionalNegativePrompt?: string): string {
     : BASE_NEGATIVE_PROMPT;
 }
 
+// ─── Auth mode: apikey ────────────────────────────────────────────────────────
+// Uses Google AI Studio / Gemini Developer API.
+// Endpoint action: :generateImages (NOT :predict — that is Vertex AI only).
+// Request/response format differs from Vertex AI; no negativePrompt support.
+
+function buildApiKeyRequest(prompt: string) {
+  return {
+    prompt,
+    number_of_images: 1,
+    aspect_ratio: '3:4',
+    safety_filter_level: 'BLOCK_SOME',
+    person_generation: 'ALLOW_ALL',
+  };
+}
+
+function parseApiKeyResponse(data: unknown): { base64: string; mimeType: string } {
+  const image = (data as any)?.generatedImages?.[0]?.image;
+  const base64: unknown = image?.imageBytes;
+  if (typeof base64 !== 'string' || !base64) {
+    throw new HttpError(502, 'IMAGEN_INVALID_RESPONSE', 'The Imagen provider returned an invalid response.');
+  }
+  return { base64, mimeType: 'image/png' };
+}
+
+// ─── Auth mode: serviceaccount ────────────────────────────────────────────────
+// Uses Vertex AI endpoint with OAuth2 Bearer token.
+// Request/response follows the Vertex AI :predict format; supports negativePrompt.
+
+function buildServiceAccountRequest(prompt: string, negativePrompt: string) {
+  return {
+    instances: [{ prompt, negativePrompt }],
+    parameters: {
+      sampleCount: 1,
+      aspectRatio: '3:4',
+      addWatermark: false,
+      safetyFilterLevel: 'block_some',
+      personGeneration: 'allow_all',
+    },
+  };
+}
+
+function parseServiceAccountResponse(data: unknown): { base64: string; mimeType: string } {
+  const prediction = (data as any)?.predictions?.[0];
+  const base64: unknown = prediction?.bytesBase64Encoded;
+  const mimeType: string = prediction?.mimeType ?? 'image/png';
+  if (typeof base64 !== 'string' || !base64) {
+    throw new HttpError(502, 'IMAGEN_INVALID_RESPONSE', 'The Imagen provider returned an invalid response.');
+  }
+  return { base64, mimeType };
+}
+
+// ─── URL + headers ─────────────────────────────────────────────────────────────
+
 function resolveApiUrl(): string {
   if (env.IMAGEN_AUTH_TYPE === 'serviceaccount') {
     const loc = env.IMAGEN_LOCATION;
     const proj = env.IMAGEN_PROJECT_ID;
-    const model = env.IMAGEN_MODEL;
     if (!proj) {
       throw new HttpError(500, 'IMAGEN_CONFIG_MISSING', 'IMAGEN_PROJECT_ID is required when IMAGEN_AUTH_TYPE=serviceaccount.');
     }
-    return `https://${loc}-aiplatform.googleapis.com/v1/projects/${proj}/locations/${loc}/publishers/google/models/${model}:predict`;
+    return `https://${loc}-aiplatform.googleapis.com/v1/projects/${proj}/locations/${loc}/publishers/google/models/${env.IMAGEN_MODEL}:predict`;
   }
-  // apikey mode — Google AI Studio endpoint
   if (!env.IMAGEN_API_KEY) {
     throw new HttpError(500, 'IMAGEN_CONFIG_MISSING', 'IMAGEN_API_KEY is required when IMAGEN_AUTH_TYPE=apikey.');
   }
-  return `https://generativelanguage.googleapis.com/v1beta/models/${env.IMAGEN_MODEL}:predict?key=${env.IMAGEN_API_KEY}`;
+  // Gemini Developer API uses :generateImages, not :predict
+  return `https://generativelanguage.googleapis.com/v1beta/models/${env.IMAGEN_MODEL}:generateImages?key=${env.IMAGEN_API_KEY}`;
 }
 
 function resolveAuthHeaders(): Record<string, string> {
@@ -91,7 +143,6 @@ function resolveAuthHeaders(): Record<string, string> {
     }
     return { ...base, Authorization: `Bearer ${env.IMAGEN_ACCESS_TOKEN}` };
   }
-  // apikey mode: key is in the URL query string — no auth header needed
   return base;
 }
 
@@ -118,23 +169,11 @@ export const imagenClient = {
 
     const startMs = Date.now();
 
-    const requestBody = {
-      instances: [
-        {
-          prompt,
-          negativePrompt,
-        },
-      ],
-      parameters: {
-        sampleCount: 1,
-        // portrait_4_3 equivalent: "3:4" aspect ratio
-        aspectRatio: '3:4',
-        addWatermark: false,
-        // Allow mannequin/figure rendering
-        safetyFilterLevel: 'block_some',
-        personGeneration: 'allow_all',
-      },
-    };
+    // apikey mode (Gemini Developer API) does not support negativePrompt —
+    // style is controlled entirely via the positive prompt prefix.
+    const requestBody = env.IMAGEN_AUTH_TYPE === 'serviceaccount'
+      ? buildServiceAccountRequest(prompt, negativePrompt)
+      : buildApiKeyRequest(prompt);
 
     try {
       const url = resolveApiUrl();
@@ -158,17 +197,9 @@ export const imagenClient = {
       }
 
       const responseData = await res.json();
-      const prediction = (responseData as any)?.predictions?.[0];
-      const base64: unknown = prediction?.bytesBase64Encoded;
-      const mimeType: string = prediction?.mimeType ?? 'image/png';
-
-      if (typeof base64 !== 'string' || !base64) {
-        logger.error(
-          { responseData, provider: 'imagen', latencyMs },
-          'Imagen response missing image data'
-        );
-        throw new HttpError(502, 'IMAGEN_INVALID_RESPONSE', 'The Imagen provider returned an invalid response.');
-      }
+      const { base64, mimeType } = env.IMAGEN_AUTH_TYPE === 'serviceaccount'
+        ? parseServiceAccountResponse(responseData)
+        : parseApiKeyResponse(responseData);
 
       logger.info(
         { provider: 'imagen', model: env.IMAGEN_MODEL, loraType: input.loraType, latencyMs, mimeType },

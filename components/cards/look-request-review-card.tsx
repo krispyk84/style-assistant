@@ -1,29 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
-import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
 import { formatTierLabel } from '@/lib/outfit-utils';
-import type { LookAnchorItem, CreateLookInput, LookRecommendation } from '@/types/look-request';
+import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
 
 type LookRequestReviewCardProps = {
   input: CreateLookInput;
   hideInfoBox?: boolean;
   recommendations?: LookRecommendation[];
-  /** When true, hides the add-to-closet action for anchor items already saved. */
-  anchorAddedToCloset?: boolean;
 };
 
-export function LookRequestReviewCard({ input, hideInfoBox = false, recommendations, anchorAddedToCloset = false }: LookRequestReviewCardProps) {
+export function LookRequestReviewCard({ input, hideInfoBox = false, recommendations }: LookRequestReviewCardProps) {
   const aiAnchorDescription = recommendations?.[0]?.anchorItem ?? null;
   const vibeChips = input.vibeKeywords
     ? input.vibeKeywords.split(',').map((k) => k.trim()).filter(Boolean)
     : [];
-  type ClosetTarget = { uploadedImage: LookAnchorItem['uploadedImage']; description: string };
-  const [closetTarget, setClosetTarget] = useState<ClosetTarget | null>(null);
 
   return (
     <>
@@ -94,30 +88,6 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
                   {description ?? 'Anchor item'}
                 </AppText>
               </View>
-
-              {hideInfoBox && !anchorAddedToCloset && item.uploadedImage?.storageProvider !== 'closet-ref' ? (
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => setClosetTarget({ uploadedImage: item.uploadedImage, description: description ?? item.description })}>
-                  <View style={{ position: 'relative' }}>
-                    <Ionicons color={theme.colors.accent} name="shirt-outline" size={22} />
-                    <View
-                      style={{
-                        alignItems: 'center',
-                        backgroundColor: theme.colors.accent,
-                        borderRadius: 999,
-                        height: 13,
-                        justifyContent: 'center',
-                        position: 'absolute',
-                        right: -4,
-                        top: -4,
-                        width: 13,
-                      }}>
-                      <Ionicons color="#fff" name="add" size={9} />
-                    </View>
-                  </View>
-                </Pressable>
-              ) : null}
             </View>
           );
         })}
@@ -218,14 +188,6 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
         ) : null}
       </View>
     </View>
-
-    <SaveToClosetModal
-      visible={closetTarget !== null}
-      onClose={() => setClosetTarget(null)}
-      onSaved={(_item) => setClosetTarget(null)}
-      uploadedImage={closetTarget?.uploadedImage ?? undefined}
-      description={closetTarget?.description}
-    />
     </>
   );
 }

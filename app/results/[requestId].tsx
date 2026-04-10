@@ -389,7 +389,6 @@ export default function ResultDetailsScreen() {
           input={response.input}
           hideInfoBox
           recommendations={response.recommendations}
-          anchorAddedToCloset={anchorAddedToCloset}
         />
         {(() => {
           const upload = parsedInput?.uploadedAnchorImage ?? null;
