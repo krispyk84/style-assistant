@@ -66,37 +66,17 @@ function buildNegativePrompt(additionalNegativePrompt?: string): string {
     : BASE_NEGATIVE_PROMPT;
 }
 
-// ─── Auth mode: apikey ────────────────────────────────────────────────────────
-// Uses Google AI Studio / Gemini Developer API.
-// Endpoint action: :generateImages (NOT :predict — that is Vertex AI only).
-// Request/response format differs from Vertex AI; no negativePrompt support.
+// ─── Request / response ───────────────────────────────────────────────────────
+// Both auth modes use the same :predict format (instances / parameters).
+// AI Studio (apikey) omits negativePrompt — not supported on the free-tier endpoint.
 
-function buildApiKeyRequest(prompt: string) {
-  return {
-    prompt,
-    number_of_images: 1,
-    aspect_ratio: '3:4',
-    safety_filter_level: 'BLOCK_SOME',
-    person_generation: 'ALLOW_ALL',
-  };
-}
-
-function parseApiKeyResponse(data: unknown): { base64: string; mimeType: string } {
-  const image = (data as any)?.generatedImages?.[0]?.image;
-  const base64: unknown = image?.imageBytes;
-  if (typeof base64 !== 'string' || !base64) {
-    throw new HttpError(502, 'IMAGEN_INVALID_RESPONSE', 'The Imagen provider returned an invalid response.');
+function buildRequest(prompt: string, negativePrompt: string) {
+  const instance: Record<string, string> = { prompt };
+  if (env.IMAGEN_AUTH_TYPE === 'serviceaccount') {
+    instance.negativePrompt = negativePrompt;
   }
-  return { base64, mimeType: 'image/png' };
-}
-
-// ─── Auth mode: serviceaccount ────────────────────────────────────────────────
-// Uses Vertex AI endpoint with OAuth2 Bearer token.
-// Request/response follows the Vertex AI :predict format; supports negativePrompt.
-
-function buildServiceAccountRequest(prompt: string, negativePrompt: string) {
   return {
-    instances: [{ prompt, negativePrompt }],
+    instances: [instance],
     parameters: {
       sampleCount: 1,
       aspectRatio: '3:4',
@@ -107,7 +87,7 @@ function buildServiceAccountRequest(prompt: string, negativePrompt: string) {
   };
 }
 
-function parseServiceAccountResponse(data: unknown): { base64: string; mimeType: string } {
+function parseResponse(data: unknown): { base64: string; mimeType: string } {
   const prediction = (data as any)?.predictions?.[0];
   const base64: unknown = prediction?.bytesBase64Encoded;
   const mimeType: string = prediction?.mimeType ?? 'image/png';
@@ -131,8 +111,7 @@ function resolveApiUrl(): string {
   if (!env.IMAGEN_API_KEY) {
     throw new HttpError(500, 'IMAGEN_CONFIG_MISSING', 'IMAGEN_API_KEY is required when IMAGEN_AUTH_TYPE=apikey.');
   }
-  // Gemini Developer API uses :generateImages, not :predict
-  return `https://generativelanguage.googleapis.com/v1beta/models/${env.IMAGEN_MODEL}:generateImages?key=${env.IMAGEN_API_KEY}`;
+  return `https://generativelanguage.googleapis.com/v1beta/models/${env.IMAGEN_MODEL}:predict?key=${env.IMAGEN_API_KEY}`;
 }
 
 function resolveAuthHeaders(): Record<string, string> {
@@ -169,11 +148,7 @@ export const imagenClient = {
 
     const startMs = Date.now();
 
-    // apikey mode (Gemini Developer API) does not support negativePrompt —
-    // style is controlled entirely via the positive prompt prefix.
-    const requestBody = env.IMAGEN_AUTH_TYPE === 'serviceaccount'
-      ? buildServiceAccountRequest(prompt, negativePrompt)
-      : buildApiKeyRequest(prompt);
+    const requestBody = buildRequest(prompt, negativePrompt);
 
     try {
       const url = resolveApiUrl();
@@ -197,9 +172,7 @@ export const imagenClient = {
       }
 
       const responseData = await res.json();
-      const { base64, mimeType } = env.IMAGEN_AUTH_TYPE === 'serviceaccount'
-        ? parseServiceAccountResponse(responseData)
-        : parseApiKeyResponse(responseData);
+      const { base64, mimeType } = parseResponse(responseData);
 
       logger.info(
         { provider: 'imagen', model: env.IMAGEN_MODEL, loraType: input.loraType, latencyMs, mimeType },

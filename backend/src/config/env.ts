@@ -47,7 +47,7 @@ const envSchema = z.object({
   IMAGEN_ACCESS_TOKEN: z.string().optional(),    // required when IMAGEN_AUTH_TYPE=serviceaccount
   IMAGEN_PROJECT_ID: z.string().optional(),      // required when IMAGEN_AUTH_TYPE=serviceaccount
   IMAGEN_LOCATION: z.string().default('us-central1'),
-  IMAGEN_MODEL: z.string().default('imagen-3.0-generate-001'),
+  IMAGEN_MODEL: z.string().default('imagen-4.0-generate-001'),
 });
 
 export const env = envSchema.parse(process.env);
