@@ -21,6 +21,7 @@ export const generateOutfitsSchema = z.object({
   anchorImageUrl: z.string().url().optional(),
   photoPending: z.boolean(),
   selectedTiers: z.array(outfitTierSchema).min(1),
+  generateOnlyTier: outfitTierSchema.optional(),
   weatherContext: z
     .object({
       temperatureC: z.number(),

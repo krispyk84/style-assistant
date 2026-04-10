@@ -1,0 +1,2 @@
+CLOSET_LORA_URL=https://v3b.fal.media/files/b/0a95608a/6cQl2v4QmOOd-3X4pZOrq_pytorch_lora_weights.safetensors
+OUTFIT_LORA_URL=https://v3b.fal.media/files/b/0a9560ca/6T9r1GYyOFAZ_H8CIw6Jj_pytorch_lora_weights.safetensors

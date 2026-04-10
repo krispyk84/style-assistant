@@ -123,6 +123,7 @@ export const apiOutfitsService: OutfitsService = {
         anchorImageUrl: request.uploadedAnchorImage?.publicUrl,
         photoPending: request.photoPending,
         selectedTiers: request.selectedTiers,
+        generateOnlyTier: request.generateOnlyTier,
         weatherContext: request.weatherContext ?? null,
       },
     });

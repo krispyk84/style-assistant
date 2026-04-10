@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -28,7 +28,8 @@ import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
 import { buildTierHref, parseLookInput, type LookRouteParams } from '@/lib/look-route';
 import type { GenerateOutfitsResponse } from '@/types/api';
 import { outfitsService } from '@/services/outfits';
-import { normalizePiece, type LookTierSlug } from '@/types/look-request';
+import { normalizePiece, LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
+import { formatTierLabel } from '@/lib/outfit-utils';
 import { useMatchFeedback } from '@/hooks/use-match-feedback';
 import { useMatchSensitivity } from '@/hooks/use-match-sensitivity';
 import {
@@ -46,6 +47,8 @@ export default function ResultDetailsScreen() {
   const stableParams = useMemo(() => JSON.parse(routeKey) as LookRouteParams & { requestId: string }, [routeKey]);
   const [response, setResponse] = useState<GenerateOutfitsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Tiers still being fetched from OpenAI (shown as loading placeholders in results view)
+  const [loadingTiers, setLoadingTiers] = useState<LookTierSlug[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [regeneratingTiers, setRegeneratingTiers] = useState<LookTierSlug[]>([]);
   // Ref mirrors state so the sketch-poll callback always sees the current regenerating set
@@ -116,35 +119,77 @@ export default function ResultDetailsScreen() {
     const controller = new AbortController();
     generateAbortRef.current = controller;
 
-    const serviceResponse = input
-      ? await outfitsService.generateOutfits({ ...input, requestId }, { signal: controller.signal })
-      : await outfitsService.getOutfitResult(requestId);
-
-    generateAbortRef.current = null;
-
-    // If the user cancelled, don't update state — navigation back is already handled.
-    if (controller.signal.aborted) return;
-
-    if (!serviceResponse.success || !serviceResponse.data) {
-      setErrorMessage(serviceResponse.error?.message ?? 'Failed to load outfit results.');
-      setResponse(null);
-      if (input) {
-        // Only track failure for generation requests, not re-fetches of existing results
-        trackCreateLookFailed({ error: serviceResponse.error?.code });
-        recordError(
-          new Error(serviceResponse.error?.message ?? 'Outfit generation failed'),
-          'create_look_generation'
-        );
+    if (!input) {
+      // Fetching an existing result — no progressive loading needed.
+      const serviceResponse = await outfitsService.getOutfitResult(requestId);
+      generateAbortRef.current = null;
+      if (controller.signal.aborted) return;
+      if (!serviceResponse.success || !serviceResponse.data) {
+        setErrorMessage(serviceResponse.error?.message ?? 'Failed to load outfit results.');
+      } else {
+        setResponse(serviceResponse.data);
       }
-    } else {
-      setResponse(serviceResponse.data);
-      if (input) {
-        trackCreateLookCompleted({ tier_count: serviceResponse.data.recommendations.length });
-        log(`Look generated: ${requestId} (${serviceResponse.data.recommendations.length} tiers)`);
-      }
+      setIsLoading(false);
+      return;
     }
 
-    setIsLoading(false);
+    // Progressive generation: fire tiers sequentially in canonical order.
+    const tiersInOrder = LOOK_TIER_OPTIONS.filter((t) => input.selectedTiers.includes(t));
+    setLoadingTiers(tiersInOrder);
+
+    let mergedResponse: GenerateOutfitsResponse | null = null;
+
+    for (const tier of tiersInOrder) {
+      if (controller.signal.aborted) return;
+
+      const serviceResponse = await outfitsService.generateOutfits(
+        { ...input, requestId, selectedTiers: tiersInOrder, generateOnlyTier: tier },
+        { signal: controller.signal }
+      );
+
+      if (controller.signal.aborted) return;
+
+      if (!serviceResponse.success || !serviceResponse.data) {
+        setLoadingTiers((prev) => prev.filter((t) => t !== tier));
+        if (!mergedResponse) {
+          // First tier failed — surface the error as a full failure.
+          setErrorMessage(serviceResponse.error?.message ?? 'Failed to generate outfit.');
+          trackCreateLookFailed({ error: serviceResponse.error?.code });
+          recordError(
+            new Error(serviceResponse.error?.message ?? 'Outfit generation failed'),
+            'create_look_generation'
+          );
+          setIsLoading(false);
+          generateAbortRef.current = null;
+          return;
+        }
+        // Subsequent tier failed — skip it, continue with remaining tiers.
+        continue;
+      }
+
+      const tierData = serviceResponse.data;
+      const newRec = tierData.recommendations.find((r) => r.tier === tier);
+
+      if (!mergedResponse) {
+        // First tier done: show results immediately with this tier + placeholders for the rest.
+        mergedResponse = tierData;
+        setResponse(tierData);
+        setIsLoading(false);
+        trackCreateLookCompleted({ tier_count: tiersInOrder.length });
+        log(`Look generated: ${requestId} (first tier: ${tier})`);
+      } else if (newRec) {
+        // Merge subsequent tier into the existing response.
+        mergedResponse = {
+          ...mergedResponse,
+          recommendations: [...mergedResponse.recommendations, newRec],
+        };
+        setResponse({ ...mergedResponse });
+      }
+
+      setLoadingTiers((prev) => prev.filter((t) => t !== tier));
+    }
+
+    generateAbortRef.current = null;
   }
 
   function handleCancelGeneration() {
@@ -166,15 +211,15 @@ export default function ResultDetailsScreen() {
 
   const generateAbortRef = useRef<AbortController | null>(null);
 
-  // Keep screen awake during the initial generation so the loading state stays visible.
+  // Keep screen awake while generating (initial load or remaining tiers still loading).
   useEffect(() => {
-    if (isLoading) {
+    if (isLoading || loadingTiers.length > 0) {
       void activateKeepAwakeAsync();
     } else {
       void deactivateKeepAwake();
     }
     return () => { void deactivateKeepAwake(); };
-  }, [isLoading]);
+  }, [isLoading, loadingTiers.length]);
 
   // Keep ref in sync so the poll closure always reads the current set without re-creating the interval.
   useEffect(() => {
@@ -182,6 +227,11 @@ export default function ResultDetailsScreen() {
   }, [regeneratingTiers]);
 
   useEffect(() => {
+    // Wait until all tiers are loaded before polling for sketches — otherwise the server
+    // response would only contain the tiers already saved (potentially just 1) and would
+    // overwrite the client-merged partial response.
+    if (loadingTiers.length > 0) return;
+
     if (!response?.requestId || !response.recommendations.some((item) => item.sketchStatus === 'pending')) {
       return;
     }
@@ -210,7 +260,7 @@ export default function ResultDetailsScreen() {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [response]);
+  }, [response, loadingTiers.length]);
 
   // Load closet items once on mount so matching runs against current wardrobe
   useEffect(() => {
@@ -457,32 +507,54 @@ export default function ResultDetailsScreen() {
             </Pressable>
           );
         })()}
-        {response.recommendations.map((recommendation) => (
-          <LookResultCard
-            key={`${recommendation.tier}-${recommendation.title}`}
-            recommendation={recommendation}
-            onRegenerate={() => void handleRegenerate(recommendation.tier)}
-            isRegenerating={regeneratingTiers.includes(recommendation.tier)}
-            isSaved={savedOutfitIds.includes(buildSavedOutfitId(response.requestId, recommendation.tier, tierGenerations[recommendation.tier] ?? 0))}
-            isSaving={savingTier === recommendation.tier}
-            onSave={() => void handleSave(recommendation.tier)}
-            onAddToWeek={() => setWeekPickerTier(recommendation.tier)}
-            onSecondOpinion={() => setSecondOpinionTier(recommendation.tier)}
-            onMatchThumbsUp={(suggestion, itemId) => handleMatchThumbsUp(recommendation.tier, suggestion, itemId, recommendation.title)}
-            onMatchThumbsDown={(suggestion, itemId) => handleMatchThumbsDown(recommendation.tier, suggestion, itemId, recommendation.title)}
-            matchFeedbackMap={matchFeedbackMap}
-            regeneratingMatches={regeneratingMatches}
-            closetItems={closetItems}
-            matchMap={matchMap}
-            anchorDescription={parsedInput?.anchorItemDescription ?? response.input.anchorItemDescription}
-            detailHref={buildTierHref(
-              recommendation.tier,
-              response.requestId,
-              response.input,
-              recommendation
-            )}
-          />
-        ))}
+        {LOOK_TIER_OPTIONS.filter((tier) => response.input.selectedTiers.includes(tier)).map((tier) => {
+          const recommendation = response.recommendations.find((r) => r.tier === tier);
+          if (!recommendation) {
+            // Tier is still being generated — show a loading placeholder.
+            return (
+              <View
+                key={tier}
+                style={{
+                  backgroundColor: theme.colors.card,
+                  borderRadius: 12,
+                  padding: spacing.lg,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: spacing.sm,
+                  minHeight: 120,
+                }}>
+                <ActivityIndicator color={theme.colors.text} />
+                <AppText tone="muted">{formatTierLabel(tier)}</AppText>
+              </View>
+            );
+          }
+          return (
+            <LookResultCard
+              key={`${recommendation.tier}-${recommendation.title}`}
+              recommendation={recommendation}
+              onRegenerate={() => void handleRegenerate(recommendation.tier)}
+              isRegenerating={regeneratingTiers.includes(recommendation.tier)}
+              isSaved={savedOutfitIds.includes(buildSavedOutfitId(response.requestId, recommendation.tier, tierGenerations[recommendation.tier] ?? 0))}
+              isSaving={savingTier === recommendation.tier}
+              onSave={() => void handleSave(recommendation.tier)}
+              onAddToWeek={() => setWeekPickerTier(recommendation.tier)}
+              onSecondOpinion={() => setSecondOpinionTier(recommendation.tier)}
+              onMatchThumbsUp={(suggestion, itemId) => handleMatchThumbsUp(recommendation.tier, suggestion, itemId, recommendation.title)}
+              onMatchThumbsDown={(suggestion, itemId) => handleMatchThumbsDown(recommendation.tier, suggestion, itemId, recommendation.title)}
+              matchFeedbackMap={matchFeedbackMap}
+              regeneratingMatches={regeneratingMatches}
+              closetItems={closetItems}
+              matchMap={matchMap}
+              anchorDescription={parsedInput?.anchorItemDescription ?? response.input.anchorItemDescription}
+              detailHref={buildTierHref(
+                recommendation.tier,
+                response.requestId,
+                response.input,
+                recommendation
+              )}
+            />
+          );
+        })}
       </View>
       <WeekPickerModal
         visible={Boolean(weekPickerTier)}

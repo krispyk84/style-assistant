@@ -28,6 +28,8 @@ export type GenerateOutfitsRequest = {
   anchorImageUrl?: string;
   photoPending: boolean;
   selectedTiers: OutfitTierSlug[];
+  /** When set, OpenAI generates only this one tier while selectedTiers is stored as the full set. */
+  generateOnlyTier?: OutfitTierSlug;
   weatherContext?: {
     temperatureC: number;
     apparentTemperatureC: number;

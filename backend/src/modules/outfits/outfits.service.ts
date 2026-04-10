@@ -149,6 +149,10 @@ export const outfitsService = {
 
   async generateOutfits(input: GenerateOutfitsRequest, supabaseUserId: string, variantMap?: Partial<Record<OutfitTierSlug, number>>) {
     const selectedTiers = CANONICAL_TIERS.filter((tier) => input.selectedTiers.includes(tier));
+    // generateOnlyTier: limit what OpenAI generates to one tier while DB stores the full selection.
+    const tiersToGenerate = input.generateOnlyTier
+      ? selectedTiers.filter((t) => t === input.generateOnlyTier)
+      : selectedTiers;
     const anchorItems = getNormalizedAnchorItems(input);
     const profile = await findProfile(supabaseUserId, input.profileId);
     const uploadedAnchorImages = await Promise.all(
@@ -167,7 +171,7 @@ export const outfitsService = {
       query: [
         profile?.gender === 'woman' ? 'womenswear styling guidance' : 'menswear styling guidance',
         ...anchorItems.map((item, index) => `anchor item ${index + 1}: ${item.description.trim() || 'image-led reference'}`),
-        `requested tiers: ${selectedTiers.join(', ')}`,
+        `requested tiers: ${tiersToGenerate.join(', ')}`,
         input.weatherContext ? `season: ${input.weatherContext.season}` : null,
         // Vibe keywords override saved style/fit for retrieval — only one set is used
         vibeKeywords ? `style direction: ${vibeKeywords}` : null,
@@ -185,7 +189,7 @@ export const outfitsService = {
           {
             ...input,
             anchorItems,
-            selectedTiers,
+            selectedTiers: tiersToGenerate,
             anchorItemDescription: getCanonicalAnchorDescription(input),
           },
           profile,
@@ -217,7 +221,7 @@ export const outfitsService = {
         description: profile?.gender === 'woman' ? 'Three womenswear outfit tiers for one anchor item.' : 'Three menswear outfit tiers for one anchor item.',
         schema: tieredOutfitGenerationJsonSchema,
       },
-      instructions: buildGenerateOutfitsInstructions(selectedTiers, profile?.gender),
+      instructions: buildGenerateOutfitsInstructions(tiersToGenerate, profile?.gender),
       userContent,
       supabaseUserId,
       feature: 'outfit-generation',
@@ -240,7 +244,7 @@ export const outfitsService = {
         selectedTiers,
         weatherContext: input.weatherContext ?? null,
       },
-      recommendations: selectedTiers.map((tier) => {
+      recommendations: tiersToGenerate.map((tier) => {
         const recommendation = recommendationMap.get(tier);
 
         if (!recommendation) {
