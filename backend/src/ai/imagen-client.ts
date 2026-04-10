@@ -80,7 +80,6 @@ function buildRequest(prompt: string, negativePrompt: string) {
     parameters: {
       sampleCount: 1,
       aspectRatio: '3:4',
-      addWatermark: false,
       safetyFilterLevel: 'block_some',
       personGeneration: 'allow_all',
     },
