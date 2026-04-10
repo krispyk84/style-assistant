@@ -159,7 +159,7 @@ export const falClient = {
         prompt: fullPrompt,
         negative_prompt: negativePrompt,
         loras: [{ path: loraUrl, scale: loraScale }],
-        image_size: 'portrait_4_3',
+        image_size: { width: 1024, height: 1365 },
         num_inference_steps: 28,
         guidance_scale: guidanceScale,
         num_images: 1,
