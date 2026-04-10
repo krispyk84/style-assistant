@@ -4,7 +4,7 @@ import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { falClient } from '../../ai/fal-client.js';
-import { buildTierSketchPrompt, getAnchorDriftNegatives } from '../../ai/prompts/sketch.prompts.js';
+import { buildTierSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
 import type { OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 import { storageProvider } from '../../storage/index.js';
 import { outfitsRepository } from './outfits.repository.js';
@@ -18,11 +18,11 @@ function formatTierLabel(tier: OutfitTierSlug) {
 }
 
 const anchorSketchDescriptionSchema = z.object({
-  category: z.string(),
   description: z.string(),
+  antiDrift: z.string(),
 });
 
-type AnchorSketchInfo = { category: string; description: string };
+type AnchorSketchInfo = { description: string; antiDrift: string };
 
 /**
  * Calls OpenAI vision to produce a structurally precise description of ANY anchor item
@@ -45,61 +45,67 @@ async function describeAnchorForSketch(imageUrl: string, supabaseUserId?: string
       schema: anchorSketchDescriptionSchema,
       jsonSchema: {
         name: 'anchor_sketch_description',
-        description: 'Category and structural description of any fashion item for sketch generation',
+        description: 'Structural description and drift-suppression terms for any fashion item',
         schema: {
           type: 'object',
           properties: {
-            category: {
-              type: 'string',
-              description:
-                'Most specific lowercase item family name. Use precise names: "bomber jacket" not "jacket", "chelsea boot" not "boot", "tote bag" not "bag", "bucket hat" not "hat", "D-ring canvas belt" not "belt". Examples: "bomber jacket", "overshirt", "blazer", "puffer vest", "chore jacket", "trench coat", "tote bag", "backpack", "briefcase", "derby shoe", "loafer", "chelsea boot", "sneaker", "bucket hat", "baseball cap", "beanie", "fedora", "belt", "watch", "sunglasses".',
-            },
             description: {
               type: 'string',
               description:
-                'One sentence with precise colour (warm/cool qualifier) followed by structural identity features, comma-separated. The description must name the features that distinguish this item from similar items in its family. ' +
-                'Garments: colour + garment family, collar type, closure mechanism, lapels present/absent, hem and cuff finish, pocket placement. ' +
+                'One sentence with precise colour (warm/cool qualifier) followed by structural identity features, comma-separated. ' +
+                'Garments: colour + exact family name, collar type, closure mechanism, lapels present/absent, hem and cuff finish, pocket placement. ' +
                 'Example: "Cool grey-taupe bomber jacket, ribbed band collar, front zip closure, no lapels, patch hip pockets, elasticated hem and cuffs." ' +
-                'Footwear: colour + shoe family, toe shape (round/square/pointed), heel type, closure method (lace/buckle/zip/slip-on). ' +
-                'Example: "Warm tan suede chelsea boot, round toe, stacked block heel, elasticated side gussets, no lace closure." ' +
-                'Bags: colour + material + bag family, handle type (tote handles/shoulder strap/crossbody/top-handle), hardware colour, shape (structured/slouchy). ' +
+                'Footwear: colour + exact family name, toe shape (round/square/pointed), heel type, closure method (lace/buckle/zip/slip-on). ' +
+                'Example: "Warm tan suede chelsea boot, round toe, stacked block heel, elasticated side gussets, slip-on." ' +
+                'Bags: colour + material + exact family name, handle type, hardware colour, shape (structured/slouchy). ' +
                 'Example: "Warm cognac leather tote bag, long rolled top handles, open top, structured base, gold hardware." ' +
-                'Belts: colour + material + belt family, width (narrow/medium/wide), buckle type (D-ring/frame/plate), hardware colour. ' +
-                'Hats: colour + hat family, brim shape and width, crown shape, any band or trim. ' +
-                'Eyewear: frame colour + frame shape (rectangular/round/aviator/cat-eye), lens colour, bridge style. ' +
-                'Watches/jewellery: metal tone + piece type, case shape, strap material and colour. ' +
-                'Never use ambiguous single-word colours like "taupe" or "beige" alone — always add a warm/cool qualifier.',
+                'Belts: colour + material + exact family name, width, buckle type, hardware colour. ' +
+                'Hats: colour + exact family name, brim shape, crown shape, any band or trim. ' +
+                'Eyewear: frame colour + exact frame shape, lens colour. ' +
+                'Watches/jewellery: metal tone + piece type, case shape, strap material. ' +
+                'Never use ambiguous single-word colours — always add warm/cool qualifier.',
+            },
+            antiDrift: {
+              type: 'string',
+              description:
+                'Comma-separated terms for the sketch negative prompt — the wrong item types and structural features a fashion illustration model commonly substitutes for this item. ' +
+                'Think: given a "business" or "smart casual" styling brief, what would the model wrongly draw instead? ' +
+                'Include BOTH the wrong category names AND their most distinctive structural features. ' +
+                'Examples: ' +
+                'overshirt → "blazer, lapels, notched lapels, peaked lapels, suit jacket, tailored jacket" (lapels are the structural signature of a blazer); ' +
+                'bomber jacket → "blazer, lapels, notched lapels, field jacket, tailored jacket"; ' +
+                'tote bag → "briefcase, structured flap handbag, shoulder bag with clasp"; ' +
+                'chelsea boot → "ankle boot with laces, desert boot"; ' +
+                'bucket hat → "baseball cap, peaked brim cap". ' +
+                'If the item is unlikely to be misidentified (e.g. a watch, sunglasses), return empty string.',
             },
           },
-          required: ['category', 'description'],
+          required: ['description', 'antiDrift'],
           additionalProperties: false,
         },
       },
       instructions:
-        'You are a fashion illustrator preparing a precise brief for a sketch artist. Your job is to identify the exact item family and describe its visual construction so the artist can reproduce it faithfully without confusing it with similar items.\n\n' +
-        'CATEGORY: Use the most specific lowercase name available. Examples: "bomber jacket" not "jacket", "chelsea boot" not "boot", "tote bag" not "bag".\n\n' +
-        'DESCRIPTION: One sentence, comma-separated structural features.\n' +
-        'Start with precise colour — always add warm/cool undertone qualifier (e.g. "cool grey-taupe", "warm olive green", "icy blue-grey"). Never use ambiguous single words alone.\n' +
-        'Then describe the structural features that make this item visually distinct from similar items in the same family:\n' +
-        '- Garments: exact family name, collar type, closure mechanism, lapels present/absent, hem and cuff finish, pocket placement.\n' +
-        '- Footwear: exact family name, toe shape (round/square/pointed), heel type, closure method (lace/buckle/zip/slip-on).\n' +
-        '- Bags: exact family name, handle type, hardware colour, shape character (structured/slouchy, tall/wide).\n' +
-        '- Belts: exact family name, width, buckle type (D-ring/frame/plate), material texture.\n' +
-        '- Hats: exact family name, brim shape, crown shape, any band or trim.\n' +
-        '- Eyewear: exact frame shape (rectangular/round/aviator/cat-eye), frame colour, lens colour.\n' +
-        '- Watches/jewellery: exact piece type, case shape, strap material, metal tone.',
+        'You are a fashion illustrator preparing a brief for a sketch artist and a generation system. ' +
+        'Describe the item\'s visual construction precisely (description), then identify what a fashion illustration model would wrongly substitute for it under business/smart-casual styling pressure (antiDrift).\n\n' +
+        'DESCRIPTION: One sentence, comma-separated. Start with precise colour (warm/cool qualifier). ' +
+        'Then list structural features that make this item uniquely identifiable: for garments include collar, closure, lapels present/absent, hem, cuffs, pockets; ' +
+        'for footwear include toe shape, heel, closure; for bags include handle type, hardware, shape; ' +
+        'for belts include width, buckle type; for hats include brim and crown; for eyewear include frame shape and lens colour.\n\n' +
+        'ANTI_DRIFT: What would a model draw INSTEAD of this item when given a formal/business styling prompt? ' +
+        'List those wrong categories AND their distinctive structural features (e.g. lapels for blazers, laces for derby shoes). ' +
+        'This goes directly into the negative prompt so be specific and visual, not abstract.',
       userContent: [
         { type: 'input_image', image_url: imageUrl, detail: 'high' },
         {
           type: 'input_text',
-          text: 'Identify this fashion item\'s exact category and describe its visual construction in one sentence for a sketch artist. Include colour (warm or cool qualifier) and the specific structural features that distinguish it from similar items in the same family.',
+          text: 'Describe this fashion item for a sketch artist (colour + structural features), then list what a fashion illustration model would wrongly draw instead of it under business/formal styling pressure.',
         },
       ],
       supabaseUserId,
       feature: 'anchor-sketch-describe',
     });
 
-    return { category: result.category, description: result.description };
+    return { description: result.description, antiDrift: result.antiDrift };
   } catch (error) {
     logger.warn({ imageUrl, error }, 'Failed to describe anchor image for sketch — using text description fallback');
     return null;
@@ -109,16 +115,12 @@ async function describeAnchorForSketch(imageUrl: string, supabaseUserId?: string
 async function generateSingleTierSketch(
   requestId: string,
   anchorItemDescription: string,
-  anchorCategory: string | null,
+  anchorAntiDrift: string | null,
   recommendation: TierRecommendationDto,
   supabaseUserId?: string,
   gender?: string | null
 ) {
   try {
-    // Inject category-specific drift suppression so Flux cannot substitute a
-    // tier-appropriate archetype (e.g. "blazer" when the anchor is a bomber jacket).
-    const driftNegatives = anchorCategory ? getAnchorDriftNegatives(anchorCategory) : '';
-
     const generatedImage = await falClient.generateImage({
       prompt: buildTierSketchPrompt({
         tierLabel: formatTierLabel(recommendation.tier),
@@ -128,7 +130,7 @@ async function generateSingleTierSketch(
       }),
       loraType: 'outfit',
       supabaseUserId,
-      additionalNegativePrompt: driftNegatives || undefined,
+      additionalNegativePrompt: anchorAntiDrift || undefined,
     });
 
     const storedFile = await storageProvider.storeGeneratedFile({
@@ -166,20 +168,20 @@ async function generateSingleTierSketch(
 }
 
 /**
- * Resolves the best anchor description and category for sketch generation.
+ * Resolves the best anchor description and image-derived anti-drift terms for sketch generation.
  *
- * Returns { description, category } where:
+ * Returns { description, antiDrift } where:
  * - description: used verbatim as the locked anchor in the sketch prompt
- * - category: used to look up category-specific drift negatives for the negative prompt
+ * - antiDrift: comma-separated terms derived from the anchor image by OpenAI vision,
+ *   injected directly into the negative prompt — no hardcoded category lookup table needed.
  *
- * When multiple anchor items are present, each is described independently.
- * Descriptions are joined with " | ". The first anchor's category is used for
- * drift negatives (multi-anchor is uncommon and the primary anchor drives fidelity).
+ * For multi-anchor outfits, descriptions are joined with " | " and antiDrift terms
+ * are merged (the primary anchor's terms dominate since it drives fidelity).
  */
 async function resolveAnchorDescriptionForSketch(
   outfit: OutfitResponse,
   supabaseUserId?: string
-): Promise<{ description: string; category: string | null }> {
+): Promise<{ description: string; antiDrift: string | null }> {
   const anchorItems = outfit.input.anchorItems;
 
   if (anchorItems && anchorItems.length > 1) {
@@ -189,40 +191,41 @@ async function resolveAnchorDescriptionForSketch(
         if (imageUrl) {
           return (
             (await describeAnchorForSketch(imageUrl, supabaseUserId)) ??
-            { category: null, description: item.description.trim() || `Anchor item ${index + 1}` }
+            { antiDrift: null, description: item.description.trim() || `Anchor item ${index + 1}` }
           );
         }
-        return { category: null, description: item.description.trim() || `Anchor item ${index + 1}` };
+        return { antiDrift: null, description: item.description.trim() || `Anchor item ${index + 1}` };
       })
     );
+    const mergedAntiDrift = results.map((r) => r.antiDrift).filter(Boolean).join(', ') || null;
     return {
       description: results.map((r) => r.description).filter(Boolean).join(' | '),
-      category: results[0]?.category ?? null,
+      antiDrift: mergedAntiDrift,
     };
   }
 
   const anchorImageUrl = outfit.input.anchorImageUrl ?? anchorItems?.[0]?.imageUrl ?? null;
   if (anchorImageUrl) {
     const result = await describeAnchorForSketch(anchorImageUrl, supabaseUserId);
-    return result ?? { description: outfit.input.anchorItemDescription, category: null };
+    return result ?? { description: outfit.input.anchorItemDescription, antiDrift: null };
   }
 
-  return { description: outfit.input.anchorItemDescription, category: null };
+  return { description: outfit.input.anchorItemDescription, antiDrift: null };
 }
 
 export const tierSketchService = {
   async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string, gender?: string | null) {
-    const { description: anchorItemDescription, category: anchorCategory } =
+    const { description: anchorItemDescription, antiDrift: anchorAntiDrift } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
 
     logger.info(
-      { requestId: outfit.requestId, anchorItemDescription, anchorCategory },
+      { requestId: outfit.requestId, anchorItemDescription, anchorAntiDrift },
       'Anchor description resolved for tier sketches'
     );
 
     await Promise.all(
       outfit.recommendations.map((recommendation) =>
-        generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorCategory, recommendation, supabaseUserId, gender)
+        generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender)
       )
     );
   },
@@ -234,8 +237,8 @@ export const tierSketchService = {
       return;
     }
 
-    const { description: anchorItemDescription, category: anchorCategory } =
+    const { description: anchorItemDescription, antiDrift: anchorAntiDrift } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
-    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorCategory, recommendation, supabaseUserId, gender);
+    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender);
   },
 };

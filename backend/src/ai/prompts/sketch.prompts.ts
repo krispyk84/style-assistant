@@ -37,56 +37,6 @@ const BESIDE_ACCESSORY_KEYWORDS = [
 ];
 
 /**
- * Per-category terms to add to the negative prompt so Flux cannot substitute a
- * tier-appropriate archetype for the user's actual anchor item.
- *
- * Keys are lowercase canonical item family names matching what `describeAnchorForSketch`
- * returns as `category`. Values are comma-separated suppression terms (no "no " prefix —
- * Flux negative prompts use noun/phrase form, not instruction form).
- */
-const ANCHOR_DRIFT_NEGATIVES: Record<string, string> = {
-  // Jackets — include structural lapel suppression so the model cannot draw
-  // the defining feature of a blazer even when the category name alone isn't matched.
-  'bomber jacket':    'blazer, suit jacket, field jacket, chore jacket, tailored jacket, lapels, notched lapels, peaked lapels, suit lapels',
-  'overshirt':        'blazer, suit jacket, tailored jacket, lapels, notched lapels, peaked lapels, suit lapels, structured jacket collar',
-  'blazer':           'overshirt, bomber jacket, unstructured jacket, track jacket',
-  'chore jacket':     'blazer, suit jacket, field jacket, overshirt, lapels, notched lapels',
-  'field jacket':     'blazer, lapels, notched lapels, peaked lapels, military-style blazer',
-  'puffer jacket':    'quilted blazer, padded overshirt, down vest without sleeves',
-  'puffer vest':      'puffer jacket with full sleeves, body warmer with sleeves',
-  'denim jacket':     'blazer, lapels, notched lapels',
-  'trench coat':      'overcoat, double-breasted peacoat',
-  'peacoat':          'overcoat, trench coat, duffle coat',
-  'leather jacket':   'blazer, lapels, notched lapels, peaked lapels, suit jacket',
-  // Bags
-  'tote bag':         'handbag with flap, clutch, briefcase, backpack',
-  'backpack':         'tote bag, briefcase, duffel bag, messenger bag',
-  'briefcase':        'messenger bag, backpack, tote bag',
-  'messenger bag':    'briefcase, backpack, tote bag',
-  // Footwear
-  'derby shoe':       'loafer, oxford, monk strap',
-  'oxford shoe':      'loafer, derby shoe',
-  'loafer':           'derby shoe, moccasin, boat shoe, monk strap',
-  'chelsea boot':     'ankle boot, desert boot, jodhpur boot',
-  'desert boot':      'chelsea boot, chukka boot, ankle boot',
-  'sneaker':          'dress shoe, loafer, boot',
-  // Hats
-  'bucket hat':       'baseball cap, panama hat, fisherman hat',
-  'baseball cap':     'bucket hat, trucker cap, snapback',
-  'beanie':           'beret, slouchy turban',
-  'fedora':           'panama hat',
-  'beret':            'beanie, bucket hat',
-};
-
-/**
- * Returns category-specific negative prompt terms for the given anchor item category.
- * Returns an empty string for categories not in the table (no additional suppression needed).
- */
-export function getAnchorDriftNegatives(category: string): string {
-  return ANCHOR_DRIFT_NEGATIVES[category.toLowerCase().trim()] ?? '';
-}
-
-/**
  * Trim verbose AI piece names to the core visual description.
  * Strips trailing "with X" / "— X" / "featuring X" clauses, then caps at 6 words.
  * Only used for supporting pieces (keyPieces, shoes, accessories) — NOT the anchor.
