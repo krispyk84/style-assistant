@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { activateKeepAwakeAsync, deactivateKeepAwakeAsync } from 'expo-keep-awake';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { Ionicons } from '@expo/vector-icons';
 
 import { closetService } from '@/services/closet';
@@ -171,9 +171,9 @@ export default function ResultDetailsScreen() {
     if (isLoading) {
       void activateKeepAwakeAsync();
     } else {
-      void deactivateKeepAwakeAsync();
+      void deactivateKeepAwake();
     }
-    return () => { void deactivateKeepAwakeAsync(); };
+    return () => { void deactivateKeepAwake(); };
   }, [isLoading]);
 
   // Keep ref in sync so the poll closure always reads the current set without re-creating the interval.
