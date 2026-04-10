@@ -1,12 +1,9 @@
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { HttpError } from '../lib/http-error.js';
 import { usageService } from '../modules/usage/usage.service.js';
 import type { GenerateImageInput } from './fal-client.js';
+import { OUTFIT_STYLE_REFS } from './style-refs-data.js';
 
 /**
  * Gemini image generation client — uses Google's multimodal generateContent API
@@ -29,28 +26,8 @@ import type { GenerateImageInput } from './fal-client.js';
  * Auth: Google AI Studio API key (IMAGEN_API_KEY — shared with the Imagen path)
  */
 
-// ─── Style reference loading ──────────────────────────────────────────────────
-
-const STYLE_REFS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'style-refs');
-
-const OUTFIT_REF_FILES = [
-  'outfit-style-ref-1.jpg',
-  'outfit-style-ref-2.jpg',
-  'outfit-style-ref-3.jpg',
-];
-
-// Loaded once at module initialisation so generation calls have no file I/O cost.
-let _outfitStyleRefs: Array<{ mimeType: 'image/jpeg'; base64: string }> | null = null;
-
-function loadOutfitStyleRefs(): Array<{ mimeType: 'image/jpeg'; base64: string }> {
-  if (_outfitStyleRefs) return _outfitStyleRefs;
-  _outfitStyleRefs = OUTFIT_REF_FILES.map((filename) => ({
-    mimeType: 'image/jpeg' as const,
-    base64: readFileSync(join(STYLE_REFS_DIR, filename)).toString('base64'),
-  }));
-  logger.info({ count: _outfitStyleRefs.length }, 'Gemini style refs loaded');
-  return _outfitStyleRefs;
-}
+// Style refs are bundled as base64 constants in style-refs-data.ts —
+// no filesystem reads, works in any deployment environment.
 
 // ─── Prompt construction ──────────────────────────────────────────────────────
 
@@ -175,7 +152,7 @@ export const geminiImageClient = {
       throw new HttpError(500, 'GEMINI_IMAGE_CONFIG_MISSING', 'IMAGEN_API_KEY is required for IMAGE_PROVIDER=gemini-image.');
     }
 
-    const styleRefs = loadOutfitStyleRefs();
+    const styleRefs = OUTFIT_STYLE_REFS;
 
     const promptText = input.loraType === 'closet'
       ? buildClosetPrompt(input.prompt)
