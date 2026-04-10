@@ -115,19 +115,22 @@ export const falClient = {
       ? `${NEGATIVE_PROMPT}, ${input.additionalNegativePrompt}`
       : NEGATIVE_PROMPT;
 
+    // Outfit sketches need higher guidance and lower LoRA scale so the anchor
+    // description overrides the LoRA's tier-archetype priors (e.g. "business = blazer").
+    // guidance_scale 6.0 forces strict prompt adherence; LoRA scale 0.75 reduces the
+    // LoRA's garment-archetype influence while keeping the illustration style.
+    // Closet single-item sketches keep 3.5 / 0.9 for maximum style fidelity.
+    const guidanceScale = isCloset ? 3.5 : 6.0;
+    const loraScale = isCloset ? 0.9 : 0.75;
+
     try {
       const requestId = await submitToQueue({
         prompt: fullPrompt,
         negative_prompt: negativePrompt,
-        loras: [{ path: loraUrl, scale: 0.9 }],
-        // Outfit sketches use portrait_4_3 (768×1024) — matches the 3:4 display aspect
-        // ratio, giving the model a portrait context that naturally produces a full-body
-        // figure with shoes visible. square_hd (1:1) allowed the model to zoom in and
-        // clip feet; portrait_16_9 was too narrow.
-        // Closet single-garment sketches also use portrait_4_3.
+        loras: [{ path: loraUrl, scale: loraScale }],
         image_size: 'portrait_4_3',
         num_inference_steps: 28,
-        guidance_scale: 3.5,
+        guidance_scale: guidanceScale,
         num_images: 1,
         ...img2imgParams,
       });

@@ -45,31 +45,36 @@ const BESIDE_ACCESSORY_KEYWORDS = [
  * Flux negative prompts use noun/phrase form, not instruction form).
  */
 const ANCHOR_DRIFT_NEGATIVES: Record<string, string> = {
-  'bomber jacket':    'blazer, suit jacket, field jacket, chore jacket, tailored jacket, flight jacket with lapels',
-  'overshirt':        'blazer, suit jacket, flannel shirt, workwear jacket, shacket misread as blazer',
+  // Jackets — include structural lapel suppression so the model cannot draw
+  // the defining feature of a blazer even when the category name alone isn't matched.
+  'bomber jacket':    'blazer, suit jacket, field jacket, chore jacket, tailored jacket, lapels, notched lapels, peaked lapels, suit lapels',
+  'overshirt':        'blazer, suit jacket, tailored jacket, lapels, notched lapels, peaked lapels, suit lapels, structured jacket collar',
   'blazer':           'overshirt, bomber jacket, unstructured jacket, track jacket',
-  'chore jacket':     'blazer, suit jacket, field jacket, overshirt',
-  'field jacket':     'blazer, chore jacket, military-style blazer, safari jacket with lapels',
+  'chore jacket':     'blazer, suit jacket, field jacket, overshirt, lapels, notched lapels',
+  'field jacket':     'blazer, lapels, notched lapels, peaked lapels, military-style blazer',
   'puffer jacket':    'quilted blazer, padded overshirt, down vest without sleeves',
-  'puffer vest':      'sleeveless body warmer with sleeves, puffer jacket with full sleeves',
-  'denim jacket':     'non-denim jacket, blazer',
-  'trench coat':      'overcoat, double-breasted peacoat, mac coat',
+  'puffer vest':      'puffer jacket with full sleeves, body warmer with sleeves',
+  'denim jacket':     'blazer, lapels, notched lapels',
+  'trench coat':      'overcoat, double-breasted peacoat',
   'peacoat':          'overcoat, trench coat, duffle coat',
-  'leather jacket':   'blazer, biker jacket misread as blazer',
-  'tote bag':         'handbag, shoulder bag with flap, clutch, briefcase, backpack',
+  'leather jacket':   'blazer, lapels, notched lapels, peaked lapels, suit jacket',
+  // Bags
+  'tote bag':         'handbag with flap, clutch, briefcase, backpack',
   'backpack':         'tote bag, briefcase, duffel bag, messenger bag',
-  'briefcase':        'messenger bag, backpack, tote bag, laptop bag',
+  'briefcase':        'messenger bag, backpack, tote bag',
   'messenger bag':    'briefcase, backpack, tote bag',
-  'derby shoe':       'loafer, oxford shoe, monk strap shoe',
+  // Footwear
+  'derby shoe':       'loafer, oxford, monk strap',
   'oxford shoe':      'loafer, derby shoe',
   'loafer':           'derby shoe, moccasin, boat shoe, monk strap',
   'chelsea boot':     'ankle boot, desert boot, jodhpur boot',
   'desert boot':      'chelsea boot, chukka boot, ankle boot',
   'sneaker':          'dress shoe, loafer, boot',
+  // Hats
   'bucket hat':       'baseball cap, panama hat, fisherman hat',
   'baseball cap':     'bucket hat, trucker cap, snapback',
-  'beanie':           'beret, slouchy turban, ski mask',
-  'fedora':           'panama hat, trilby misidentified',
+  'beanie':           'beret, slouchy turban',
+  'fedora':           'panama hat',
   'beret':            'beanie, bucket hat',
 };
 
