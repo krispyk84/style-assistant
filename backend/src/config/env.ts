@@ -36,9 +36,12 @@ const envSchema = z.object({
   AWS_S3_ENDPOINT: z.string().url().optional(),
   AWS_S3_PUBLIC_BASE_URL: z.string().url().optional(),
   // Image generation provider selection
-  // 'fal'   → fal.ai Flux-LoRA (current default)
-  // 'imagen' → Google Imagen on Vertex AI / AI Studio
-  IMAGE_PROVIDER: z.enum(['fal', 'imagen']).default('fal'),
+  // 'fal'          → fal.ai Flux-LoRA (current production default)
+  // 'imagen'       → Google Imagen 4 on Vertex AI / AI Studio (text-only prompts)
+  // 'gemini-image' → Gemini 2.5 Flash Image with visual style-reference conditioning
+  IMAGE_PROVIDER: z.enum(['fal', 'imagen', 'gemini-image']).default('fal'),
+  // Gemini image generation model (used when IMAGE_PROVIDER=gemini-image)
+  GEMINI_IMAGE_MODEL: z.string().default('gemini-2.5-flash-image'),
   // Google Imagen config (required when IMAGE_PROVIDER=imagen)
   // IMAGEN_AUTH_TYPE=apikey  → Google AI Studio API key via generativelanguage.googleapis.com
   // IMAGEN_AUTH_TYPE=serviceaccount → Vertex AI OAuth2 Bearer token via aiplatform.googleapis.com
