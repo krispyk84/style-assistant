@@ -19,6 +19,13 @@ type GenerateImageInput = {
    */
   sourceImageUrl?: string;
   supabaseUserId?: string;
+  /**
+   * Optional anchor-category-specific drift suppression terms.
+   * Appended to the base NEGATIVE_PROMPT so the model cannot substitute a
+   * tier-appropriate archetype for the user's actual anchor item category.
+   * Example: "blazer, suit jacket, field jacket" when anchor is a bomber jacket.
+   */
+  additionalNegativePrompt?: string;
 };
 
 const NEGATIVE_PROMPT =
@@ -97,19 +104,21 @@ export const falClient = {
     const img2imgMode = input.sourceImageUrl?.startsWith('https://') ?? false;
     logger.info({ loraType: input.loraType, prompt: fullPrompt, img2imgMode }, 'fal.ai sketch generation starting');
 
-    // img2img: include source image when a public URL is available.
-    // strength=0.45 → Flux starts from the garment's structural geometry (45%
-    // image noise) so the output inherits pocket placement, quilting, seam
-    // lines, and silhouette while the LoRA still applies the illustration style.
     const img2imgParams =
       input.sourceImageUrl && input.sourceImageUrl.startsWith('https://')
         ? { image_url: input.sourceImageUrl, strength: 0.45 }
         : {};
 
+    // Append anchor-category drift suppression to the base negative prompt so the
+    // model cannot substitute a tier-appropriate archetype (e.g. blazer for bomber).
+    const negativePrompt = input.additionalNegativePrompt
+      ? `${NEGATIVE_PROMPT}, ${input.additionalNegativePrompt}`
+      : NEGATIVE_PROMPT;
+
     try {
       const requestId = await submitToQueue({
         prompt: fullPrompt,
-        negative_prompt: NEGATIVE_PROMPT,
+        negative_prompt: negativePrompt,
         loras: [{ path: loraUrl, scale: 0.9 }],
         // Outfit sketches use portrait_4_3 (768×1024) — matches the 3:4 display aspect
         // ratio, giving the model a portrait context that naturally produces a full-body

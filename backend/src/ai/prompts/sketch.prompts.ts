@@ -3,23 +3,25 @@ import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outf
 /**
  * Prompts for fal.ai flux-lora sketch generation.
  *
- * Format matches the successful local LoRA test:
- *   VESTURE_OUTFIT, [tier] outfit on headless mannequin, [anchor first], [key pieces],
- *   [shoes], [worn accessories] visible, [beside accessories] beside,
- *   warm watercolor wash background
+ * Anchor fidelity design:
+ * - The anchor item is the PRIMARY visual constraint. Tier/style only affects the
+ *   surrounding pieces, not the anchor itself.
+ * - Anchor locking: the anchor is declared first after composition framing, with
+ *   "preserve category and construction exactly" to block archetype substitution.
+ * - Tier is positioned as a modifier ("outfit built around the anchor") rather than
+ *   a declaration — prevents "Business attire" from activating a blazer/suit prior
+ *   before the anchor description registers.
+ * - Category-specific drift negatives (see ANCHOR_DRIFT_NEGATIVES) are injected into
+ *   the negative prompt by the caller (tier-sketch.service.ts) so the model cannot
+ *   substitute a tier-appropriate garment for the user's actual anchor item.
  *
- * Key rules:
- * - Anchor uses the clean raw anchorItemDescription — NOT recommendation.anchorItem
- *   which is an AI narrative ("...as the hero piece, worn open over...") that adds noise
- * - Accessories are split: worn-on-body (belt, watch, tie) vs beside-mannequin (bag, glasses)
- * - Piece names stripped of trailing "with X" / "— X" clauses, capped at 6 words
- * - Fit adjectives (tailored, slim-fit, wide-leg, oversized) appear early and are preserved
- * - No instruction-style negatives — negative_prompt in fal-client handles suppression
+ * Accessories are split: worn-on-body (belt, watch, tie) vs beside-mannequin (bag, glasses).
+ * Piece names stripped of trailing "with X" / "— X" clauses, capped at 6 words.
+ * Fit adjectives (tailored, slim-fit, wide-leg, oversized) appear early and are preserved.
  */
 
 /**
  * Accessories that are worn ON the body and should be visible in the sketch.
- * When present these go into "[X] visible" to explicitly tell the model to render them.
  */
 const WORN_ACCESSORY_KEYWORDS = [
   'belt', 'watch', 'tie', 'scarf', 'pocket square', 'bracelet', 'necklace',
@@ -34,21 +36,55 @@ const BESIDE_ACCESSORY_KEYWORDS = [
   'cap', 'umbrella', 'gloves',
 ];
 
-function classifyAccessory(piece: OutfitPieceDto): 'worn' | 'beside' {
-  const cat = (piece.metadata?.category ?? '').toLowerCase();
-  const name = piece.display_name.toLowerCase();
-  const haystack = `${cat} ${name}`;
+/**
+ * Per-category terms to add to the negative prompt so Flux cannot substitute a
+ * tier-appropriate archetype for the user's actual anchor item.
+ *
+ * Keys are lowercase canonical item family names matching what `describeAnchorForSketch`
+ * returns as `category`. Values are comma-separated suppression terms (no "no " prefix —
+ * Flux negative prompts use noun/phrase form, not instruction form).
+ */
+const ANCHOR_DRIFT_NEGATIVES: Record<string, string> = {
+  'bomber jacket':    'blazer, suit jacket, field jacket, chore jacket, tailored jacket, flight jacket with lapels',
+  'overshirt':        'blazer, suit jacket, flannel shirt, workwear jacket, shacket misread as blazer',
+  'blazer':           'overshirt, bomber jacket, unstructured jacket, track jacket',
+  'chore jacket':     'blazer, suit jacket, field jacket, overshirt',
+  'field jacket':     'blazer, chore jacket, military-style blazer, safari jacket with lapels',
+  'puffer jacket':    'quilted blazer, padded overshirt, down vest without sleeves',
+  'puffer vest':      'sleeveless body warmer with sleeves, puffer jacket with full sleeves',
+  'denim jacket':     'non-denim jacket, blazer',
+  'trench coat':      'overcoat, double-breasted peacoat, mac coat',
+  'peacoat':          'overcoat, trench coat, duffle coat',
+  'leather jacket':   'blazer, biker jacket misread as blazer',
+  'tote bag':         'handbag, shoulder bag with flap, clutch, briefcase, backpack',
+  'backpack':         'tote bag, briefcase, duffel bag, messenger bag',
+  'briefcase':        'messenger bag, backpack, tote bag, laptop bag',
+  'messenger bag':    'briefcase, backpack, tote bag',
+  'derby shoe':       'loafer, oxford shoe, monk strap shoe',
+  'oxford shoe':      'loafer, derby shoe',
+  'loafer':           'derby shoe, moccasin, boat shoe, monk strap',
+  'chelsea boot':     'ankle boot, desert boot, jodhpur boot',
+  'desert boot':      'chelsea boot, chukka boot, ankle boot',
+  'sneaker':          'dress shoe, loafer, boot',
+  'bucket hat':       'baseball cap, panama hat, fisherman hat',
+  'baseball cap':     'bucket hat, trucker cap, snapback',
+  'beanie':           'beret, slouchy turban, ski mask',
+  'fedora':           'panama hat, trilby misidentified',
+  'beret':            'beanie, bucket hat',
+};
 
-  if (WORN_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))) return 'worn';
-  if (BESIDE_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))) return 'beside';
-  return 'beside'; // default
+/**
+ * Returns category-specific negative prompt terms for the given anchor item category.
+ * Returns an empty string for categories not in the table (no additional suppression needed).
+ */
+export function getAnchorDriftNegatives(category: string): string {
+  return ANCHOR_DRIFT_NEGATIVES[category.toLowerCase().trim()] ?? '';
 }
 
 /**
  * Trim verbose AI piece names to the core visual description.
- * Strips trailing "with X" / "— X" / "featuring X" clauses (fabric specifics
- * that add noise), then caps at 6 words. Fit/silhouette adjectives
- * (tailored, slim-fit, wide-leg, oversized) appear early and survive.
+ * Strips trailing "with X" / "— X" / "featuring X" clauses, then caps at 6 words.
+ * Only used for supporting pieces (keyPieces, shoes, accessories) — NOT the anchor.
  */
 function shortenPieceName(name: string): string {
   const stripped = name.split(/\s+with\s+|\s+—\s+|\s+featuring\s+/i)[0] ?? name;
@@ -60,11 +96,17 @@ function pieceLabel(piece: OutfitPieceDto): string {
   return shortenPieceName(piece.display_name);
 }
 
+function classifyAccessory(piece: OutfitPieceDto): 'worn' | 'beside' {
+  const cat = (piece.metadata?.category ?? '').toLowerCase();
+  const name = piece.display_name.toLowerCase();
+  const haystack = `${cat} ${name}`;
+
+  if (WORN_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))) return 'worn';
+  if (BESIDE_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))) return 'beside';
+  return 'beside';
+}
+
 export function buildClosetItemSketchPrompt(input: { itemDescription: string; gender?: string | null }) {
-  // Use the full description verbatim — do NOT apply shortenPieceName here.
-  // shortenPieceName caps at 6 words and is designed for verbose AI outfit-piece
-  // names, not for the construction-detail inventory produced by describeGarmentFromImage.
-  // Stripping it destroys pocket placement, quilting structure, closure details, etc.
   return (
     `${input.itemDescription.trim()}, ` +
     `single garment, faithful stylized illustration, preserve all construction details, ` +
@@ -80,19 +122,17 @@ export function buildTierSketchPrompt(input: {
 }) {
   const tier = input.tierLabel.toLowerCase();
 
-  // Anchor: use the raw input verbatim — NOT recommendation.anchorItem (AI narrative) and
-  // NOT shortenPieceName() which caps at 6 words and can strip silhouette-defining detail.
-  // anchorItemDescription is the original user-provided text ("Stone-taupe bomber jacket")
-  // and must be preserved exactly so Flux cannot substitute a tier-appropriate garment family.
+  // Anchor: use the raw input verbatim — NOT shortenPieceName() (which caps at 6 words
+  // and would strip silhouette-defining detail from the anchor description).
+  // This is either the OpenAI vision-derived structural description from
+  // describeAnchorForSketch, or the plain-text anchorItemDescription as fallback.
   const anchor = input.anchorItemDescription.trim();
 
-  // All key pieces (usually 2–3; cap at 4 to stay concise)
+  // Supporting pieces only (never include the anchor here — it is declared separately
+  // as a locked primary constraint and must not compete with its own description).
   const keyPieces = input.recommendation.keyPieces.slice(0, 4).map(pieceLabel);
-
-  // Primary shoe
   const shoes = input.recommendation.shoes.slice(0, 1).map(pieceLabel);
 
-  // Split accessories: worn on body vs placed beside mannequin
   const wornAccessories = input.recommendation.accessories
     .filter((p) => classifyAccessory(p) === 'worn')
     .slice(0, 3)
@@ -103,22 +143,29 @@ export function buildTierSketchPrompt(input: {
     .slice(0, 2)
     .map(pieceLabel);
 
-  // Build prompt parts
-  const corePieces = [anchor, ...keyPieces, ...shoes].filter(Boolean).join(', ');
+  const supporting = [...keyPieces, ...shoes].filter(Boolean).join(', ');
 
-  // Worn accessories explicitly flagged as "visible" so the model renders them on the body
   const wornPart = wornAccessories.length > 0
     ? `${wornAccessories.join(', ')} visible`
     : null;
 
-  // Beside accessories listed by name so the model places them next to the mannequin
   const besidePart = besideAccessories.length > 0
     ? `${besideAccessories.join(', ')} beside`
     : 'accessories beside';
 
+  // Anchor locking:
+  // - Anchor is declared BEFORE the tier label so it occupies high-weight token positions.
+  // - "preserve category and construction exactly" is a direct fidelity instruction to Flux.
+  // - Tier is positioned as "outfit built around the anchor" — a modifier, not a declaration.
+  //   This prevents "business attire" / "smart casual" from activating a tier-appropriate
+  //   garment archetype (blazer, chino-and-overshirt) before the anchor registers.
+  const anchorLock = `anchor: ${anchor}, preserve category and construction exactly`;
+
   return [
-    `headless mannequin, full-length fashion illustration, complete figure visible from neck to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet, ${tier} attire`,
-    corePieces,
+    'headless mannequin, full-length fashion illustration, complete figure visible from neck to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
+    anchorLock,
+    `${tier} outfit built around the anchor item`,
+    supporting,
     wornPart,
     besidePart,
     'warm ivory watercolor wash background, antique paper tone',
