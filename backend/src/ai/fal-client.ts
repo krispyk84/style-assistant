@@ -48,6 +48,7 @@ export type GenerateImageInput = {
 };
 
 const NEGATIVE_PROMPT =
+  'two figures, multiple figures, two mannequins, multiple mannequins, side by side, outfit comparison, split view, duplicate figure, ' +
   'photorealistic, photograph, 3D render, CGI, hyperrealistic, realistic, product photography, studio photo, digital painting, oil painting, anime, cartoon, flat lay, flatlay, lookbook, clothing hanger, product display, clothes folded, styled flat, cropped at knees, cropped at ankles, cut-off feet, shoes cut off, partial legs, incomplete figure, torso only';
 
 const QUEUE_BASE = 'https://queue.fal.run/fal-ai/flux-lora';

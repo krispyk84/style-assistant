@@ -117,7 +117,7 @@ export function buildTierSketchPrompt(input: {
   const anchorLock = `anchor: ${anchor}, preserve category and construction exactly`;
 
   return [
-    'headless mannequin, full-length fashion illustration, complete figure visible from neck to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
+    'single figure only, one mannequin centered, full-length fashion illustration, complete figure visible from neck to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
     anchorLock,
     `${tier} outfit built around the anchor item`,
     supporting,
