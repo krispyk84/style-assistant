@@ -3,6 +3,25 @@ import { logger } from '../config/logger.js';
 import { HttpError } from '../lib/http-error.js';
 import { FAL_FLUX_LORA_COST_USD } from './costs.js';
 import { usageService } from '../modules/usage/usage.service.js';
+import { OUTFIT_STYLE_REFS } from './style-refs-data.js';
+
+/**
+ * Returns a publicly-accessible URL for one of the 3 Vesture style-reference
+ * sketches, served by the backend itself via /style-refs/:index.jpg.
+ *
+ * FAL fetches this URL as the img2img base image (strength 0.2) so the
+ * reference contributes its palette, texture, and background feel while the
+ * LoRA + text prompt drive the outfit content.
+ *
+ * Returns null when STORAGE_PUBLIC_BASE_URL is not https:// (local dev) —
+ * FAL cannot reach localhost, so we skip style conditioning silently.
+ */
+function pickStyleRefUrl(): string | null {
+  const base = env.STORAGE_PUBLIC_BASE_URL;
+  if (!base.startsWith('https://')) return null;
+  const index = Math.floor(Math.random() * OUTFIT_STYLE_REFS.length);
+  return `${base}/style-refs/${index}.jpg`;
+}
 
 export type GenerateImageInput = {
   prompt: string;
@@ -101,14 +120,27 @@ export const falClient = {
     const triggerWord = isCloset ? 'VESTURE_ITEM' : 'VESTURE_OUTFIT';
     const fullPrompt = `${triggerWord}, ${input.prompt}`;
 
-    const img2imgMode = input.sourceImageUrl?.startsWith('https://') ?? false;
-    const startMs = Date.now();
-    logger.info({ loraType: input.loraType, prompt: fullPrompt, img2imgMode }, 'fal.ai sketch generation starting');
+    // Closet: use the garment photo as img2img base (strength 0.45) so Flux
+    //   inherits the garment's structural geometry from the actual photo.
+    // Outfit: use a randomly-picked Vesture style-reference sketch (strength 0.2)
+    //   so the generation starts from the reference's palette, background, and
+    //   illustration texture. The LoRA + prompt dominate content at this strength.
+    //   Falls back to text-only on localhost (FAL cannot reach http:// URLs).
+    const img2imgParams: Record<string, unknown> = isCloset
+      ? (input.sourceImageUrl?.startsWith('https://')
+          ? { image_url: input.sourceImageUrl, strength: 0.45 }
+          : {})
+      : (() => {
+          const styleRefUrl = pickStyleRefUrl();
+          return styleRefUrl ? { image_url: styleRefUrl, strength: 0.2 } : {};
+        })();
 
-    const img2imgParams =
-      input.sourceImageUrl && input.sourceImageUrl.startsWith('https://')
-        ? { image_url: input.sourceImageUrl, strength: 0.45 }
-        : {};
+    const styleRefUsed = !isCloset && 'image_url' in img2imgParams;
+    const startMs = Date.now();
+    logger.info(
+      { provider: 'fal', loraType: input.loraType, prompt: fullPrompt, styleRefUsed, fallbackUsed: false },
+      'fal.ai sketch generation starting'
+    );
 
     // Append anchor-category drift suppression to the base negative prompt so the
     // model cannot substitute a tier-appropriate archetype (e.g. blazer for bomber).
@@ -116,13 +148,11 @@ export const falClient = {
       ? `${NEGATIVE_PROMPT}, ${input.additionalNegativePrompt}`
       : NEGATIVE_PROMPT;
 
-    // Outfit sketches need higher guidance and lower LoRA scale so the anchor
-    // description overrides the LoRA's tier-archetype priors (e.g. "business = blazer").
-    // guidance_scale 6.0 forces strict prompt adherence; LoRA scale 0.75 reduces the
-    // LoRA's garment-archetype influence while keeping the illustration style.
-    // Closet single-item sketches keep 3.5 / 0.9 for maximum style fidelity.
+    // guidance_scale 6.0 → strict prompt adherence for outfit anchor fidelity.
+    // LoRA scale 0.9 for both paths — anchor drift is suppressed via antiDrift
+    // negative-prompt terms (from OpenAI vision), not by weakening the LoRA.
     const guidanceScale = isCloset ? 3.5 : 6.0;
-    const loraScale = isCloset ? 0.9 : 0.75;
+    const loraScale = 0.9;
 
     try {
       const requestId = await submitToQueue({
@@ -148,7 +178,7 @@ export const falClient = {
       }
 
       const latencyMs = Date.now() - startMs;
-      logger.info({ requestId, loraType: input.loraType, provider: 'fal', latencyMs }, 'fal.ai sketch completed');
+      logger.info({ requestId, provider: 'fal', loraType: input.loraType, latencyMs, styleRefUsed, fallbackUsed: false }, 'fal.ai sketch completed');
 
       // Download the image from the fal.ai CDN
       const imageResponse = await fetch(imageUrl);

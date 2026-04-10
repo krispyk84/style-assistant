@@ -7,6 +7,7 @@ import { promises as fs } from 'node:fs';
 import { env } from './config/env.js';
 import { prisma } from './db/prisma.js';
 import { storageConfig } from './config/storage.js';
+import { OUTFIT_STYLE_REFS } from './ai/style-refs-data.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { requestLogger } from './middleware/request-logger.js';
@@ -70,6 +71,20 @@ export function createApp() {
   );
 
   app.use(healthRouter);
+
+  // Serves style-reference sketch images for FAL img2img style conditioning.
+  // Images are bundled as base64 in style-refs-data.ts — no filesystem dependency.
+  // FAL fetches these at generation time via their public https:// URL.
+  app.get('/style-refs/:index.jpg', (req, res) => {
+    const index = parseInt(req.params.index as string, 10);
+    const ref = OUTFIT_STYLE_REFS[index];
+    if (!ref) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.send(Buffer.from(ref.base64, 'base64'));
+  });
 
   const apiRouter = express.Router();
   apiRouter.use(profileRouter);
