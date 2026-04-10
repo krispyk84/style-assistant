@@ -35,6 +35,19 @@ const envSchema = z.object({
   AWS_S3_BUCKET: z.string().optional(),
   AWS_S3_ENDPOINT: z.string().url().optional(),
   AWS_S3_PUBLIC_BASE_URL: z.string().url().optional(),
+  // Image generation provider selection
+  // 'fal'   → fal.ai Flux-LoRA (current default)
+  // 'imagen' → Google Imagen on Vertex AI / AI Studio
+  IMAGE_PROVIDER: z.enum(['fal', 'imagen']).default('fal'),
+  // Google Imagen config (required when IMAGE_PROVIDER=imagen)
+  // IMAGEN_AUTH_TYPE=apikey  → Google AI Studio API key via generativelanguage.googleapis.com
+  // IMAGEN_AUTH_TYPE=serviceaccount → Vertex AI OAuth2 Bearer token via aiplatform.googleapis.com
+  IMAGEN_AUTH_TYPE: z.enum(['apikey', 'serviceaccount']).default('apikey'),
+  IMAGEN_API_KEY: z.string().optional(),         // required when IMAGEN_AUTH_TYPE=apikey
+  IMAGEN_ACCESS_TOKEN: z.string().optional(),    // required when IMAGEN_AUTH_TYPE=serviceaccount
+  IMAGEN_PROJECT_ID: z.string().optional(),      // required when IMAGEN_AUTH_TYPE=serviceaccount
+  IMAGEN_LOCATION: z.string().default('us-central1'),
+  IMAGEN_MODEL: z.string().default('imagen-3.0-generate-001'),
 });
 
 export const env = envSchema.parse(process.env);

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { openAiClient } from '../../ai/openai-client.js';
-import { falClient } from '../../ai/fal-client.js';
+import { imageGenerationClient } from '../../ai/image-generation-client.js';
 import { buildTierSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
 import type { OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 import { storageProvider } from '../../storage/index.js';
@@ -121,7 +121,7 @@ async function generateSingleTierSketch(
   gender?: string | null
 ) {
   try {
-    const generatedImage = await falClient.generateImage({
+    const generatedImage = await imageGenerationClient.generateImage({
       prompt: buildTierSketchPrompt({
         tierLabel: formatTierLabel(recommendation.tier),
         anchorItemDescription,

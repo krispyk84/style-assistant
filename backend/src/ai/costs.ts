@@ -2,8 +2,15 @@
 // gpt-4o-mini: $0.15 / 1M input tokens, $0.60 / 1M output tokens
 // gpt-image-1: per-image cost based on size × quality
 // fal.ai flux-lora: $0.006 per image (standard queue pricing)
+// Google Imagen 3: $0.04 per image (imagen-3.0-generate-001)
+//                  $0.02 per image (imagen-3.0-fast-generate-001)
 
 export const FAL_FLUX_LORA_COST_USD = 0.006;
+
+// imagen-3.0-generate-001 pricing. If using the fast variant, override by
+// setting IMAGEN_MODEL=imagen-3.0-fast-generate-001 and note the halved cost.
+export const IMAGEN_COST_USD = 0.04;
+export const IMAGEN_FAST_COST_USD = 0.02;
 
 export type AiFeature =
   | 'outfit-generation'

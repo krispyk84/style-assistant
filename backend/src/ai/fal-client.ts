@@ -4,7 +4,7 @@ import { HttpError } from '../lib/http-error.js';
 import { FAL_FLUX_LORA_COST_USD } from './costs.js';
 import { usageService } from '../modules/usage/usage.service.js';
 
-type GenerateImageInput = {
+export type GenerateImageInput = {
   prompt: string;
   loraType: 'closet' | 'outfit';
   /**
@@ -102,6 +102,7 @@ export const falClient = {
     const fullPrompt = `${triggerWord}, ${input.prompt}`;
 
     const img2imgMode = input.sourceImageUrl?.startsWith('https://') ?? false;
+    const startMs = Date.now();
     logger.info({ loraType: input.loraType, prompt: fullPrompt, img2imgMode }, 'fal.ai sketch generation starting');
 
     const img2imgParams =
@@ -135,7 +136,7 @@ export const falClient = {
         ...img2imgParams,
       });
 
-      logger.info({ requestId, loraType: input.loraType }, 'fal.ai job queued, polling');
+      logger.info({ requestId, loraType: input.loraType, provider: 'fal' }, 'fal.ai job queued, polling');
 
       const result = await pollUntilDone(requestId);
       const imageUrl: unknown = (result as any)?.images?.[0]?.url;
@@ -145,6 +146,9 @@ export const falClient = {
         logger.error({ result, loraType: input.loraType }, 'flux-lora result missing image URL');
         throw new HttpError(502, 'FAL_IMAGE_INVALID', 'The AI provider returned an invalid sketch response.');
       }
+
+      const latencyMs = Date.now() - startMs;
+      logger.info({ requestId, loraType: input.loraType, provider: 'fal', latencyMs }, 'fal.ai sketch completed');
 
       // Download the image from the fal.ai CDN
       const imageResponse = await fetch(imageUrl);

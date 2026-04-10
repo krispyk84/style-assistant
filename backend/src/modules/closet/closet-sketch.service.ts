@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { logger } from '../../config/logger.js';
 import { storageConfig } from '../../config/storage.js';
 import { openAiClient } from '../../ai/openai-client.js';
-import { falClient } from '../../ai/fal-client.js';
+import { imageGenerationClient } from '../../ai/image-generation-client.js';
 import { buildClosetItemSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
 import { closetRepository } from './closet.repository.js';
 
@@ -121,7 +121,7 @@ async function runSketchGeneration(jobId: string, imageUrl: string, supabaseUser
 
     logger.info({ jobId, itemDescription }, 'Closet sketch description produced');
 
-    const generatedImage = await falClient.generateImage({
+    const generatedImage = await imageGenerationClient.generateImage({
       prompt: buildClosetItemSketchPrompt({ itemDescription }),
       loraType: 'closet',
       // Pass the original upload URL as img2img source when it is a public https URL
