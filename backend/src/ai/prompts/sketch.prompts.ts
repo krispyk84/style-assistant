@@ -29,11 +29,18 @@ const WORN_ACCESSORY_KEYWORDS = [
 ];
 
 /**
+ * Accessories that float ABOVE the headless figure (hats, caps).
+ * Checked before BESIDE so these don't fall into the beside bucket.
+ */
+const ABOVE_ACCESSORY_KEYWORDS = [
+  'hat', 'cap', 'beanie', 'fedora', 'beret', 'bucket hat', 'snapback', 'baseball cap',
+];
+
+/**
  * Accessories that are placed BESIDE the mannequin (not on-body).
  */
 const BESIDE_ACCESSORY_KEYWORDS = [
-  'bag', 'tote', 'backpack', 'briefcase', 'sunglasses', 'glasses', 'hat',
-  'cap', 'umbrella', 'gloves',
+  'bag', 'tote', 'backpack', 'briefcase', 'sunglasses', 'glasses', 'umbrella', 'gloves',
 ];
 
 /**
@@ -51,11 +58,12 @@ function pieceLabel(piece: OutfitPieceDto): string {
   return shortenPieceName(piece.display_name);
 }
 
-function classifyAccessory(piece: OutfitPieceDto): 'worn' | 'beside' {
+function classifyAccessory(piece: OutfitPieceDto): 'worn' | 'beside' | 'above' {
   const cat = (piece.metadata?.category ?? '').toLowerCase();
   const name = piece.display_name.toLowerCase();
   const haystack = `${cat} ${name}`;
 
+  if (ABOVE_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))) return 'above';
   if (WORN_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))) return 'worn';
   if (BESIDE_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))) return 'beside';
   return 'beside';
@@ -64,7 +72,7 @@ function classifyAccessory(piece: OutfitPieceDto): 'worn' | 'beside' {
 export function buildClosetItemSketchPrompt(input: { itemDescription: string; gender?: string | null }) {
   return (
     `${input.itemDescription.trim()}, ` +
-    `single garment, faithful stylized illustration, preserve all construction details, ` +
+    `single garment on headless dress form, no head no face, faithful stylized illustration, preserve all construction details, ` +
     `flat warm ivory-white background, antique paper tone, no gradient, no vignette`
   );
 }
@@ -98,6 +106,11 @@ export function buildTierSketchPrompt(input: {
     .slice(0, 2)
     .map(pieceLabel);
 
+  const aboveAccessories = input.recommendation.accessories
+    .filter((p) => classifyAccessory(p) === 'above')
+    .slice(0, 1)
+    .map(pieceLabel);
+
   const supporting = [...keyPieces, ...shoes].filter(Boolean).join(', ');
 
   const wornPart = wornAccessories.length > 0
@@ -108,6 +121,10 @@ export function buildTierSketchPrompt(input: {
     ? `${besideAccessories.join(', ')} beside`
     : 'accessories beside';
 
+  const abovePart = aboveAccessories.length > 0
+    ? `${aboveAccessories.join(', ')} floating above the figure`
+    : null;
+
   // Anchor locking:
   // - Anchor is declared BEFORE the tier label so it occupies high-weight token positions.
   // - "preserve category and construction exactly" is a direct fidelity instruction to Flux.
@@ -117,12 +134,13 @@ export function buildTierSketchPrompt(input: {
   const anchorLock = `anchor: ${anchor}, preserve category and construction exactly`;
 
   return [
-    'single figure only, one mannequin centered, full-length fashion illustration, complete figure visible from neck to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
+    'single figure only, one headless mannequin centered, headless dress form, no head no face, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
     anchorLock,
     `${tier} outfit built around the anchor item`,
     supporting,
     wornPart,
     besidePart,
+    abovePart,
     'warm ivory watercolor wash background, antique paper tone',
   ]
     .filter(Boolean)
