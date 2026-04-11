@@ -164,7 +164,7 @@ export function LooksScreen() {
                   }
                 />
               );
-            }))
+            })
           ) : (
             <EmptyState
               title="No generated looks"
