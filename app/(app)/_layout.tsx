@@ -17,7 +17,7 @@ const TAB_ICON_SIZE = 22;
 const TAB_ICONS = {
   home:     { active: 'home',          inactive: 'home-outline' },
   week:     { active: 'calendar',      inactive: 'calendar-outline' },
-  history:  { active: 'heart',         inactive: 'heart-outline' },
+  history:  { active: 'albums',         inactive: 'albums-outline' },
   closet:   { active: 'shirt',         inactive: 'shirt-outline' },
   settings: { active: 'options',       inactive: 'options-outline' },
 } as const;
@@ -138,7 +138,7 @@ export default function AppTabsLayout() {
         <Tabs.Screen
           name="history"
           options={{
-            title: 'Favorites',
+            title: 'Looks',
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 color={color}

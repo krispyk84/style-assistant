@@ -147,8 +147,11 @@ export const apiOutfitsService: OutfitsService = {
   async getOutfitHistory() {
     const response = await createApiClient().request<OutfitHistoryResponse>('/outfits/history');
 
-    if (response.success) {
-      return response;
+    if (response.success && response.data) {
+      return {
+        ...response,
+        data: { items: response.data.items.map(normalizeOutfitResponse) },
+      };
     }
 
     if (response.error?.code === 'HTTP_ERROR' || response.error?.code === 'NETWORK_ERROR' || response.error?.code === 'NOT_FOUND') {
@@ -156,6 +159,12 @@ export const apiOutfitsService: OutfitsService = {
     }
 
     return response;
+  },
+
+  async deleteOutfitFromHistory(requestId: string) {
+    return createApiClient().request<{ deleted: boolean }>(`/outfits/${requestId}`, {
+      method: 'DELETE',
+    });
   },
 
   async getOutfitResult(requestId) {

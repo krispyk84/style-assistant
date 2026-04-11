@@ -37,6 +37,25 @@ outfitsRouter.get(
 );
 
 outfitsRouter.get(
+  '/outfits/history',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const result = await outfitsService.getOutfitHistory(request.userId!);
+    return sendSuccess(response, result);
+  })
+);
+
+outfitsRouter.delete(
+  '/outfits/:id',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const requestId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+    await outfitsService.deleteOutfit(requestId, request.userId!);
+    return sendSuccess(response, { deleted: true });
+  })
+);
+
+outfitsRouter.get(
   '/outfits/:id',
   asyncHandler(async (request, response) => {
     const requestId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;

@@ -14,9 +14,11 @@ type OutfitResultCardProps = {
   result: SavedOutfit;
   onDelete?: () => void;
   onAddToWeek?: () => void;
+  /** Overrides the default "Saved [date]" line — e.g. "Created April 10". */
+  dateLabel?: string;
 };
 
-export function OutfitResultCard({ result, onDelete, onAddToWeek }: OutfitResultCardProps) {
+export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: OutfitResultCardProps) {
   const { theme } = useTheme();
   const sketchUri = result.recommendation.sketchImageUrl;
   const detailHref = buildTierHref(
@@ -41,7 +43,7 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek }: OutfitResult
           <AppText variant="meta">
             {formatTierLabel(result.recommendation.tier)} tier
           </AppText>
-          <AppText tone="subtle">Saved {formatSavedAt(result.savedAt)}</AppText>
+          <AppText tone="subtle">{dateLabel ?? `Saved ${formatSavedAt(result.savedAt)}`}</AppText>
         </View>
         {onDelete ? (
           <Pressable

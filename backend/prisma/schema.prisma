@@ -52,6 +52,7 @@ model UserProfile {
 model OutfitRequest {
   id                    String         @id
   profileId             String?
+  supabaseUserId        String?
   anchorImageId         String?
   anchorItemDescription String
   anchorImageUrl        String?
@@ -65,6 +66,8 @@ model OutfitRequest {
   profile               UserProfile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
   anchorImage           UploadedImage? @relation("AnchorItemImage", fields: [anchorImageId], references: [id], onDelete: SetNull)
   result                OutfitResult?
+
+  @@index([supabaseUserId])
 }
 
 model OutfitResult {

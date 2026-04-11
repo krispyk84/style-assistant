@@ -1,5 +1,4 @@
 import { buildMockLookResponse, getSampleLookResponse } from '@/lib/look-mock-data';
-import { outfitResults } from '@/lib/mock-data';
 import type { ApiResponse, GenerateOutfitsRequest, GenerateOutfitsResponse, OutfitHistoryResponse } from '@/types/api';
 import type { OutfitsService } from '@/services/outfits/outfits-service';
 
@@ -40,11 +39,11 @@ export const mockOutfitsService: OutfitsService = {
   },
 
   async getOutfitHistory(): Promise<ApiResponse<OutfitHistoryResponse>> {
-    return {
-      success: true,
-      data: { items: outfitResults },
-      error: null,
-    };
+    return { success: true, data: { items: [] }, error: null };
+  },
+
+  async deleteOutfitFromHistory(_requestId: string): Promise<ApiResponse<{ deleted: boolean }>> {
+    return { success: true, data: { deleted: true }, error: null };
   },
 
   async getOutfitResult(requestId: string): Promise<ApiResponse<GenerateOutfitsResponse>> {

@@ -33,8 +33,63 @@ function toSlug(tier: OutfitTier): OutfitTierSlug {
   return 'casual';
 }
 
+/**
+ * Maps a DB result row (with request + tierResults) to the OutfitResponse contract.
+ * Extracted so both findGeneratedOutfit and findOutfitHistory can share the same mapping.
+ */
+function mapToOutfitResponse(result: any): OutfitResponse {
+  const requestRecord = result.request as any;
+  const tierResults = result.tierResults as any[];
+  const rawResponse = result.rawResponse as any;
+  const rawAnchorItems = Array.isArray(rawResponse?.input?.anchorItems) ? rawResponse.input.anchorItems : null;
+
+  return {
+    requestId: result.requestId,
+    status: 'completed',
+    provider: result.provider === 'openai' ? 'openai' : 'mock',
+    generatedAt: result.generatedAt.toISOString(),
+    input: {
+      anchorItems:
+        rawAnchorItems ??
+        [
+          {
+            description: requestRecord.anchorItemDescription,
+            imageId: requestRecord.anchorImageId ?? undefined,
+            imageUrl: requestRecord.anchorImageUrl ?? undefined,
+          },
+        ].filter((item: any) => item.description?.trim() || item.imageId || item.imageUrl),
+      anchorItemDescription: rawResponse?.input?.anchorItemDescription ?? requestRecord.anchorItemDescription,
+      vibeKeywords: rawResponse?.input?.vibeKeywords ?? undefined,
+      anchorImageId: requestRecord.anchorImageId ?? null,
+      anchorImageUrl: requestRecord.anchorImageUrl,
+      photoPending: requestRecord.photoPending,
+      selectedTiers: requestRecord.selectedTiers.map(toSlug),
+      weatherContext: requestRecord.weatherContext ?? null,
+    },
+    recommendations: tierResults.map((tier) => ({
+      tier: toSlug(tier.tier),
+      title: tier.title,
+      anchorItem: tier.anchorItem,
+      keyPieces: (tier.keyPieces as string[]).map(deserializePiece),
+      shoes: (tier.shoes as string[]).map(deserializePiece),
+      accessories: (tier.accessories as string[]).map(deserializePiece),
+      fitNotes: tier.fitNotes as string[],
+      whyItWorks: tier.whyItWorks,
+      stylingDirection: tier.stylingDirection,
+      detailNotes: tier.detailNotes as string[],
+      sketchStatus:
+        tier.sketchStatus === 'ready' || tier.sketchStatus === 'failed' ? tier.sketchStatus : 'pending',
+      sketchImageUrl: tier.sketchImageUrl ?? null,
+      sketchStorageKey: tier.sketchStorageKey ?? null,
+      sketchMimeType: tier.sketchMimeType ?? null,
+      sketchImageData: tier.sketchImageData ?? null,
+      variantIndex: tier.variantIndex,
+    })),
+  };
+}
+
 export const outfitsRepository = {
-  async upsertGeneratedOutfit(profileId: string | undefined, output: OutfitResponse) {
+  async upsertGeneratedOutfit(profileId: string | undefined, output: OutfitResponse, supabaseUserId?: string) {
     const result = await prisma.$transaction(async (tx) => {
       const db = tx as any;
 
@@ -42,6 +97,7 @@ export const outfitsRepository = {
         where: { id: output.requestId },
         update: {
           profileId,
+          supabaseUserId: supabaseUserId ?? null,
           anchorImageId: output.input.anchorImageId,
           anchorItemDescription: output.input.anchorItemDescription,
           anchorImageUrl: output.input.anchorImageUrl,
@@ -53,6 +109,7 @@ export const outfitsRepository = {
         create: {
           id: output.requestId,
           profileId,
+          supabaseUserId: supabaseUserId ?? null,
           anchorImageId: output.input.anchorImageId,
           anchorItemDescription: output.input.anchorItemDescription,
           anchorImageUrl: output.input.anchorImageUrl,
@@ -142,11 +199,7 @@ export const outfitsRepository = {
       where: { requestId },
       include: {
         request: true,
-        tierResults: {
-          orderBy: {
-            createdAt: 'asc',
-          },
-        },
+        tierResults: { orderBy: { createdAt: 'asc' } },
       },
     });
 
@@ -154,56 +207,38 @@ export const outfitsRepository = {
       return null;
     }
 
-    const requestRecord = result.request as any;
-    const tierResults = result.tierResults as any[];
-    const rawResponse = result.rawResponse as any;
-    const rawAnchorItems = Array.isArray(rawResponse?.input?.anchorItems) ? rawResponse.input.anchorItems : null;
+    return mapToOutfitResponse(result);
+  },
 
-    const output: OutfitResponse = {
-      requestId: result.requestId,
-      status: 'completed',
-      provider: result.provider === 'openai' ? 'openai' : 'mock',
-      generatedAt: result.generatedAt.toISOString(),
-      input: {
-        anchorItems:
-          rawAnchorItems ??
-          [
-            {
-              description: requestRecord.anchorItemDescription,
-              imageId: requestRecord.anchorImageId ?? undefined,
-              imageUrl: requestRecord.anchorImageUrl ?? undefined,
-            },
-          ].filter((item) => item.description?.trim() || item.imageId || item.imageUrl),
-        anchorItemDescription: rawResponse?.input?.anchorItemDescription ?? requestRecord.anchorItemDescription,
-        vibeKeywords: rawResponse?.input?.vibeKeywords ?? undefined,
-        anchorImageId: requestRecord.anchorImageId ?? null,
-        anchorImageUrl: requestRecord.anchorImageUrl,
-        photoPending: requestRecord.photoPending,
-        selectedTiers: requestRecord.selectedTiers.map(toSlug),
-        weatherContext: requestRecord.weatherContext ?? null,
+  async findOutfitHistory(supabaseUserId: string): Promise<OutfitResponse[]> {
+    const results = await prisma.outfitResult.findMany({
+      where: {
+        request: { supabaseUserId },
       },
-      recommendations: tierResults.map((tier) => ({
-        tier: toSlug(tier.tier),
-        title: tier.title,
-        anchorItem: tier.anchorItem,
-        keyPieces: (tier.keyPieces as string[]).map(deserializePiece),
-        shoes: (tier.shoes as string[]).map(deserializePiece),
-        accessories: (tier.accessories as string[]).map(deserializePiece),
-        fitNotes: tier.fitNotes as string[],
-        whyItWorks: tier.whyItWorks,
-        stylingDirection: tier.stylingDirection,
-        detailNotes: tier.detailNotes as string[],
-        sketchStatus:
-          tier.sketchStatus === 'ready' || tier.sketchStatus === 'failed' ? tier.sketchStatus : 'pending',
-        sketchImageUrl: tier.sketchImageUrl ?? null,
-        sketchStorageKey: tier.sketchStorageKey ?? null,
-        sketchMimeType: tier.sketchMimeType ?? null,
-        sketchImageData: tier.sketchImageData ?? null,
-        variantIndex: tier.variantIndex,
-      })),
-    };
+      include: {
+        request: true,
+        tierResults: { orderBy: { createdAt: 'asc' } },
+      },
+      orderBy: { generatedAt: 'desc' },
+      take: 100,
+    });
 
-    return output;
+    return results
+      .filter((r) => r.request)
+      .map(mapToOutfitResponse);
+  },
+
+  async deleteOutfit(requestId: string, supabaseUserId: string): Promise<boolean> {
+    const request = await prisma.outfitRequest.findUnique({
+      where: { id: requestId },
+      select: { supabaseUserId: true },
+    });
+    // Only delete if the record belongs to this user (or has no user set — legacy rows)
+    if (!request || (request.supabaseUserId !== null && request.supabaseUserId !== supabaseUserId)) {
+      return false;
+    }
+    await prisma.outfitRequest.delete({ where: { id: requestId } });
+    return true;
   },
 
   async updateTierSketch(

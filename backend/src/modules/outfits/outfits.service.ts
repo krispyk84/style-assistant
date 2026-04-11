@@ -267,7 +267,7 @@ export const outfitsService = {
       }),
     };
 
-    await outfitsRepository.upsertGeneratedOutfit(input.profileId, response);
+    await outfitsRepository.upsertGeneratedOutfit(input.profileId, response, supabaseUserId);
     void tierSketchService.queueSketchesForOutfit(response, supabaseUserId, profile?.gender);
     return response;
   },
@@ -368,5 +368,28 @@ export const outfitsService = {
     await outfitsRepository.upsertGeneratedOutfit(undefined, mergedResponse);
     void tierSketchService.queueSketchForTier(mergedResponse, tier, supabaseUserId, profile?.gender);
     return mergedResponse;
+  },
+
+  async getOutfitHistory(supabaseUserId: string) {
+    const results = await outfitsRepository.findOutfitHistory(supabaseUserId);
+    return {
+      items: results.map((outfit) => ({
+        ...outfit,
+        recommendations: outfit.recommendations.map((rec) => ({
+          ...rec,
+          sketchImageUrl:
+            rec.sketchStatus === 'ready'
+              ? buildStableSketchUrl(outfit.requestId, rec.tier, `${outfit.generatedAt}-${rec.variantIndex}`)
+              : null,
+        })),
+      })),
+    };
+  },
+
+  async deleteOutfit(requestId: string, supabaseUserId: string) {
+    const deleted = await outfitsRepository.deleteOutfit(requestId, supabaseUserId);
+    if (!deleted) {
+      throw new HttpError(404, 'OUTFIT_NOT_FOUND', 'No outfit exists for the provided id or you do not have permission to delete it.');
+    }
   },
 };
