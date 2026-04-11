@@ -143,24 +143,28 @@ export function LooksScreen() {
           ) : historyHook.historyError ? (
             <ErrorState title="History unavailable" message={historyHook.historyError} />
           ) : historyHook.historyCards.length ? (
-            historyHook.historyCards.map((card) => (
-              <OutfitResultCard
-                key={card.id}
-                result={{
-                  id: card.id,
-                  requestId: card.requestId,
-                  savedAt: card.createdAt,
-                  input: card.input as any,
-                  recommendation: card.recommendation,
-                }}
-                dateLabel={`Created ${formatDate(card.createdAt)}`}
-                onDelete={
-                  historyHook.deletingHistoryRequestId === card.requestId
-                    ? undefined
-                    : () => void historyHook.handleDelete(card.requestId)
-                }
-              />
-            ))
+            historyHook.historyCards.map((card) => {
+              const result = {
+                id: card.id,
+                requestId: card.requestId,
+                savedAt: card.createdAt,
+                input: card.input as any,
+                recommendation: card.recommendation,
+              };
+              return (
+                <OutfitResultCard
+                  key={card.id}
+                  result={result}
+                  dateLabel={`Created ${formatDate(card.createdAt)}`}
+                  onAddToWeek={() => actionsHook.setWeekPickerItem(result)}
+                  onDelete={
+                    historyHook.deletingHistoryRequestId === card.requestId
+                      ? undefined
+                      : () => void historyHook.handleDelete(card.requestId)
+                  }
+                />
+              );
+            }))
           ) : (
             <EmptyState
               title="No generated looks"
