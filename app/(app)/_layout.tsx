@@ -174,12 +174,24 @@ export default function AppTabsLayout() {
             ),
           }}
         />
-        <Tabs.Screen
-          name="profile"
-          options={{
-            href: null,
-          }}
-        />
+        <Tabs.Screen name="profile"             options={{ href: null }} />
+        {/* ── Hidden: modularization artifacts — not tabs ──────────────── */}
+        <Tabs.Screen name="ClosetScreenView"    options={{ href: null }} />
+        <Tabs.Screen name="LooksScreen"         options={{ href: null }} />
+        <Tabs.Screen name="SettingsScreen"      options={{ href: null }} />
+        <Tabs.Screen name="WeekScreen"          options={{ href: null }} />
+        <Tabs.Screen name="useClosetData"       options={{ href: null }} />
+        <Tabs.Screen name="useClosetNavigation" options={{ href: null }} />
+        <Tabs.Screen name="useClosetAnimations" options={{ href: null }} />
+        <Tabs.Screen name="closet-grid-utils"   options={{ href: null }} />
+        <Tabs.Screen name="useFavouritesData"   options={{ href: null }} />
+        <Tabs.Screen name="useHistoryData"      options={{ href: null }} />
+        <Tabs.Screen name="useHistoryActions"   options={{ href: null }} />
+        <Tabs.Screen name="useHomeData"         options={{ href: null }} />
+        <Tabs.Screen name="useLogout"           options={{ href: null }} />
+        <Tabs.Screen name="useSettings"         options={{ href: null }} />
+        <Tabs.Screen name="useWeekPlan"         options={{ href: null }} />
+        <Tabs.Screen name="useWeekPlanActions"  options={{ href: null }} />
       </Tabs>
     </View>
   );
