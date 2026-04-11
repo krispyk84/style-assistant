@@ -21,6 +21,38 @@ import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outf
  */
 
 /**
+ * Outerwear piece categories — when present in keyPieces, the piece gets its own
+ * "outermost layer" slot rather than being buried in the generic outfit pieces list.
+ */
+const OUTERWEAR_KEYWORDS = [
+  'blazer', 'jacket', 'coat', 'overcoat', 'topcoat', 'trench', 'parka',
+  'anorak', 'peacoat', 'chore coat', 'bomber', 'windbreaker', 'sport coat',
+  'suit jacket', 'fleece jacket', 'down jacket', 'quilted jacket',
+];
+
+/**
+ * Anchor item categories that are mid-layers (worn UNDER outerwear).
+ * When the anchor matches one of these AND outerwear is in keyPieces, the anchor
+ * lock is reframed as "inner layer" so the model doesn't render it as the outermost piece.
+ */
+const MIDLAYER_ANCHOR_KEYWORDS = [
+  'sweater', 'pullover', 'quarter zip', 'half zip', 'jumper',
+  'sweatshirt', 'hoodie', 'cardigan', 'knitwear', 'turtleneck', 'crewneck',
+];
+
+function isOuterwear(piece: OutfitPieceDto): boolean {
+  const cat = (piece.metadata?.category ?? '').toLowerCase();
+  const name = piece.display_name.toLowerCase();
+  const haystack = `${cat} ${name}`;
+  return OUTERWEAR_KEYWORDS.some((kw) => haystack.includes(kw));
+}
+
+function anchorIsMidLayer(anchorDescription: string): boolean {
+  const desc = anchorDescription.toLowerCase();
+  return MIDLAYER_ANCHOR_KEYWORDS.some((kw) => desc.includes(kw));
+}
+
+/**
  * Accessories that are worn ON the body and should be visible in the sketch.
  */
 const WORN_ACCESSORY_KEYWORDS = [
@@ -93,9 +125,17 @@ export function buildTierSketchPrompt(input: {
   // describeAnchorForSketch, or the plain-text anchorItemDescription as fallback.
   const anchor = input.anchorItemDescription.trim();
 
-  // Supporting pieces only (never include the anchor here — it is declared separately
-  // as a locked primary constraint and must not compete with its own description).
-  const keyPieces = input.recommendation.keyPieces.slice(0, 4).map(pieceLabel);
+  // Split keyPieces into outerwear and non-outerwear.
+  // Outerwear gets its own labeled slot (outermost layer) so the model understands
+  // layering order. When the anchor is a mid-layer (sweater, hoodie, etc.) and
+  // outerwear is present, the anchor lock is reframed as "inner layer" to prevent
+  // the model from rendering the mid-layer anchor as the outermost visible garment.
+  const allKeyPieces = input.recommendation.keyPieces.slice(0, 4);
+  const outerwearPieces = allKeyPieces.filter(isOuterwear);
+  const remainingKeyPieces = allKeyPieces.filter((p) => !isOuterwear(p));
+
+  const hasOuterwear = outerwearPieces.length > 0;
+  const anchorMidLayer = anchorIsMidLayer(anchor);
   const shoes = input.recommendation.shoes.slice(0, 1).map(pieceLabel);
 
   const wornAccessories = input.recommendation.accessories
@@ -113,7 +153,7 @@ export function buildTierSketchPrompt(input: {
     .slice(0, 1)
     .map(pieceLabel);
 
-  const keyPiecesStr = keyPieces.filter(Boolean).join(', ');
+  const keyPiecesStr = remainingKeyPieces.map(pieceLabel).filter(Boolean).join(', ');
   const shoesStr = shoes.filter(Boolean).join(', ');
 
   // Label each slot explicitly so the image model cannot substitute archetype defaults.
@@ -136,12 +176,24 @@ export function buildTierSketchPrompt(input: {
     : null;
 
   // Anchor locking: declared first, in the highest-weight token position.
-  // "preserve garment category and construction exactly" is a hard rendering constraint.
-  const anchorLock = `anchor item worn: ${anchor}, preserve garment category and construction exactly`;
+  // When the anchor is a mid-layer (sweater, hoodie, etc.) AND outerwear is present,
+  // reframe as "inner layer" so the model doesn't render the sweater as the outermost
+  // garment and suppress or misplace the outerwear piece.
+  const anchorLock = hasOuterwear && anchorMidLayer
+    ? `inner layer worn: ${anchor}, preserve garment category and construction exactly, worn under outerwear`
+    : `anchor item worn: ${anchor}, preserve garment category and construction exactly`;
+
+  // Outerwear gets its own explicit slot immediately after the anchor lock.
+  // Positioned here (high token weight) so the model registers the layering order:
+  // anchor/inner layers → outerwear → the figure reads as fully dressed.
+  const outerwearPart = hasOuterwear
+    ? `outerwear outermost layer: ${outerwearPieces.map(pieceLabel).join(', ')}, worn over all inner layers`
+    : null;
 
   return [
     'single figure only, one headless mannequin centered, headless dress form, no head no face, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
     anchorLock,
+    outerwearPart,
     keyPiecesPart,
     shoesPart,
     wornPart,
