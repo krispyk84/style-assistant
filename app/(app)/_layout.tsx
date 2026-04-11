@@ -17,7 +17,7 @@ const TAB_ICON_SIZE = 22;
 const TAB_ICONS = {
   home:     { active: 'home',          inactive: 'home-outline' },
   week:     { active: 'calendar',      inactive: 'calendar-outline' },
-  history:  { active: 'albums',         inactive: 'albums-outline' },
+  history:  { active: 'body',            inactive: 'body-outline' },
   closet:   { active: 'shirt',         inactive: 'shirt-outline' },
   settings: { active: 'options',       inactive: 'options-outline' },
 } as const;
