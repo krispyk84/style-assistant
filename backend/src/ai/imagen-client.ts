@@ -4,6 +4,7 @@ import { HttpError } from '../lib/http-error.js';
 import { IMAGEN_COST_USD, IMAGEN_FAST_COST_USD } from './costs.js';
 import { usageService } from '../modules/usage/usage.service.js';
 import type { GenerateImageInput } from './fal-client.js';
+import { BASE_NEGATIVE_PROMPT, OUTFIT_STYLE_PREFIX, CLOSET_STYLE_PREFIX } from './imagen-style-vocabulary.js';
 
 /**
  * Google Imagen on Vertex AI / AI Studio — image generation client.
@@ -27,89 +28,8 @@ import type { GenerateImageInput } from './fal-client.js';
  *   words are replaced with explicit fashion-illustration style instructions.
  *   Output quality and aesthetic will differ from the fal.ai Flux-LoRA path —
  *   this difference is the whole point of evaluation.
+ * Style vocabulary: see imagen-style-vocabulary.ts.
  */
-
-// ─── Vesture style vocabulary for Imagen ─────────────────────────────────────
-//
-// Imagen 4 defaults to clean, polished digital illustration when given generic
-// style terms. These constants fight that default with specific texture cues that
-// push output toward the Vesture editorial watercolor-sketch aesthetic (the same
-// look the fal.ai Flux LoRA produces natively via trigger-word fine-tuning).
-//
-// Each constant targets a distinct visual layer:
-//   STYLE_LINES    — ink contour quality (hand-drawn vs perfect digital)
-//   STYLE_WASH     — watercolor fill behaviour (loose vs airbrushed)
-//   STYLE_BG       — background texture (parchment with watercolor clouds vs flat white)
-//   STYLE_PALETTE  — color register (muted/aged vs vivid/saturated)
-//   STYLE_FRAME    — editorial register (luxury atelier sketch vs ecommerce render)
-
-const STYLE_LINES =
-  'precise ink contour lines with slight hand-drawn roughness, ' +
-  'thin-to-thick brush-pen line variation, visible ink stroke texture';
-
-const STYLE_WASH =
-  'loose transparent watercolor wash fills, ' +
-  'visible watercolor bleed at fabric edges, ' +
-  'dry-brush texture on fabric surfaces and shadow folds, ' +
-  'soft wet-on-wet colour bleeding in shadow areas, ' +
-  'matte paper finish throughout, ' +
-  'pigment absorbed into paper grain, no gloss no sheen on any surface, ' +
-  'soft diffuse ambient light only, no specular highlights, no reflections, no rim lighting, ' +
-  'all fabric and accessories look absorbent and cloth-like, not synthetic not shiny';
-
-const STYLE_BG =
-  'warm aged parchment paper background, ' +
-  'loose translucent watercolor wash pools and soft clouds behind figure, ' +
-  'warm ivory and pale ochre paper tone, subtle paper grain texture';
-
-const STYLE_PALETTE =
-  'desaturated muted earthy colour palette, ' +
-  'aged toned-down fabric pigments, restrained tonal values, not vivid not saturated';
-
-const STYLE_FRAME =
-  'luxury menswear editorial fashion sketch, ' +
-  'fashion atelier illustration, refined lookbook illustration';
-
-/**
- * Negative prompt — blocks Imagen 4's default clean-digital and photorealistic
- * tendencies. Sent for both auth modes (negativePrompt lives in the instances
- * object which AI Studio supports; only parameters fields like addWatermark are
- * restricted to Vertex AI).
- */
-const BASE_NEGATIVE_PROMPT =
-  'photorealistic, photograph, 3D render, CGI, hyperrealistic, realistic, ' +
-  'product photography, studio photo, ' +
-  'digital painting, digital concept art, airbrushed shading, smooth gradient shading, ' +
-  'glossy, shiny, plastic sheen, lacquer finish, varnish, satin finish, ' +
-  'specular highlights, reflective fabric, metallic sheen, rim lighting, ' +
-  'studio product lighting, commercial fashion photography lighting, ray-traced reflections, ' +
-  'synthetic fabric texture, polished surface, high gloss, wet look, ' +
-  'clean crisp digital lines, perfectly uniform background, ' +
-  'flat white background, smooth white background, ' +
-  'oil painting, anime, cartoon, flat vector illustration, ' +
-  'human head, face, facial features, ' +
-  'flat lay, flatlay, clothing hanger, product display, clothes folded, styled flat, ' +
-  'cropped at knees, cropped at ankles, cut-off feet, shoes cut off, partial legs, incomplete figure, torso only';
-
-/**
- * Style prefix for outfit sketches.
- * All five style layers combined, plus figure framing.
- * The Flux LoRA achieves this aesthetic via trigger-word fine-tuning; Imagen
- * requires explicit layered cues to reach the same visual register.
- */
-const OUTFIT_STYLE_PREFIX =
-  `${STYLE_LINES}, ${STYLE_WASH}, ${STYLE_BG}, ${STYLE_PALETTE}, ${STYLE_FRAME}, ` +
-  'headless tailor\'s dress form, no head, small round neck finial only, ' +
-  'full-length figure from neck finial to shoes';
-
-/**
- * Style prefix for closet single-garment sketches.
- * Same ink/wash/background vocabulary, framed for a single centered item.
- */
-const CLOSET_STYLE_PREFIX =
-  `${STYLE_LINES}, ${STYLE_WASH}, ${STYLE_BG}, ${STYLE_PALETTE}, ` +
-  'single garment fashion sketch, faithful construction rendering, ' +
-  'centered single item, no gradient, no vignette';
 
 function buildPrompt(input: GenerateImageInput): string {
   const prefix = input.loraType === 'closet' ? CLOSET_STYLE_PREFIX : OUTFIT_STYLE_PREFIX;

@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 const tierEnum = z.enum(['business', 'smart-casual', 'casual']);
-const verdictEnum = z.enum(['Works great', 'Works okay', "Doesn't work"]);
 
 const OUTFIT_PIECE_CATEGORIES = [
   'Bag', 'Belt', 'Blazer', 'Boots', 'Cardigan', 'Coat', 'Denim', 'Gloves',
@@ -47,24 +46,8 @@ export const singleTierRegenerationSchema = z.object({
   recommendation: outfitRecommendationSchema,
 });
 
-export const compatibilityModelSchema = z.object({
-  verdict: verdictEnum,
-  explanation: z.string().min(1),
-  concerns: z.array(z.string().min(1)).min(1).max(4),
-  suggestedAlternatives: z.array(z.string().min(1)).min(1).max(4),
-});
-
-export const selfieReviewModelSchema = z.object({
-  verdict: verdictEnum,
-  strengths: z.array(z.string().min(1)).min(1).max(4),
-  issues: z.array(z.string().min(1)).min(1).max(4),
-  recommendedAdjustments: z.array(z.string().min(1)).min(1).max(4),
-});
-
 export type TieredOutfitGeneration = z.infer<typeof tieredOutfitGenerationSchema>;
 export type SingleTierRegeneration = z.infer<typeof singleTierRegenerationSchema>;
-export type CompatibilityModelOutput = z.infer<typeof compatibilityModelSchema>;
-export type SelfieReviewModelOutput = z.infer<typeof selfieReviewModelSchema>;
 
 const outfitPieceMetaJsonSchema = {
   type: 'object',
@@ -172,78 +155,4 @@ export const singleTierRegenerationJsonSchema = {
     recommendation: outfitRecommendationJsonSchema,
   },
   required: ['recommendation'],
-} as const;
-
-export const compatibilityJsonSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    verdict: {
-      type: 'string',
-      enum: verdictEnum.options,
-    },
-    explanation: {
-      type: 'string',
-    },
-    concerns: {
-      type: 'array',
-      items: {
-        type: 'string',
-      },
-    },
-    suggestedAlternatives: {
-      type: 'array',
-      items: {
-        type: 'string',
-      },
-    },
-  },
-  required: ['verdict', 'explanation', 'concerns', 'suggestedAlternatives'],
-} as const;
-
-export const selfieReviewJsonSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    verdict: {
-      type: 'string',
-      enum: verdictEnum.options,
-    },
-    strengths: {
-      type: 'array',
-      items: {
-        type: 'string',
-      },
-    },
-    issues: {
-      type: 'array',
-      items: {
-        type: 'string',
-      },
-    },
-    recommendedAdjustments: {
-      type: 'array',
-      items: {
-        type: 'string',
-      },
-    },
-  },
-  required: ['verdict', 'strengths', 'issues', 'recommendedAdjustments'],
-} as const;
-
-export const secondOpinionModelSchema = z.object({
-  perspective: z.string().min(1),
-});
-
-export type SecondOpinionModelOutput = z.infer<typeof secondOpinionModelSchema>;
-
-export const secondOpinionJsonSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    perspective: {
-      type: 'string',
-    },
-  },
-  required: ['perspective'],
 } as const;

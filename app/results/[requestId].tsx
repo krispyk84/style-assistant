@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -511,22 +511,7 @@ export default function ResultDetailsScreen() {
           const recommendation = response.recommendations.find((r) => r.tier === tier);
           if (!recommendation) {
             // Tier is still being generated — show a loading placeholder.
-            return (
-              <View
-                key={tier}
-                style={{
-                  backgroundColor: theme.colors.card,
-                  borderRadius: 12,
-                  padding: spacing.lg,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: spacing.sm,
-                  minHeight: 120,
-                }}>
-                <ActivityIndicator color={theme.colors.text} />
-                <AppText tone="muted">{formatTierLabel(tier)}</AppText>
-              </View>
-            );
+            return <LoadingState key={tier} label={formatTierLabel(tier)} />;
           }
           return (
             <LookResultCard

@@ -72,8 +72,10 @@ function classifyAccessory(piece: OutfitPieceDto): 'worn' | 'beside' | 'above' {
 export function buildClosetItemSketchPrompt(input: { itemDescription: string; gender?: string | null }) {
   return (
     `${input.itemDescription.trim()}, ` +
-    `single garment on headless dress form, no head no face, faithful stylized illustration, preserve all construction details, ` +
-    `flat warm ivory-white background, antique paper tone, no gradient, no vignette`
+    `single garment on headless dress form, no head no face, preserve all construction details, ` +
+    `fine-line hand-drawn ink contour sketch, slight line-weight variation, soft transparent watercolor wash fill with visible pigment variation, ` +
+    `loose watercolor bleed at garment edges, matte paper finish, warm aged parchment background, antique paper tone, ` +
+    `muted desaturated editorial palette, no gradient, no vignette`
   );
 }
 
@@ -145,7 +147,16 @@ export function buildTierSketchPrompt(input: {
     wornPart,
     besidePart,
     abovePart,
-    'warm ivory watercolor wash background, antique paper tone',
+    // Style block — placed last so it modifies the full outfit description rather
+    // than competing with the anchor lock in the high-weight leading tokens.
+    // For the fal LoRA path this reinforces the trigger-word style toward softer
+    // hand-rendered output; for Imagen this supplements its own style prefix.
+    'fine-line hand-drawn ink contour sketch, slight line-weight variation and gentle roughness in outlines, ' +
+    'soft transparent watercolor wash fills with visible pigment variation across fabric surfaces, ' +
+    'loose watercolor bleed at garment edges, dry-brush texture on shadow folds, ' +
+    'matte paper finish throughout, pigment absorbed into paper grain, no gloss no sheen on any surface, ' +
+    'warm aged parchment background with loose translucent watercolor wash clouds, antique paper tone, ' +
+    'muted desaturated editorial palette, soft organic edges not crisp digital lines',
   ]
     .filter(Boolean)
     .join(', ');

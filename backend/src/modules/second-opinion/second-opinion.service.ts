@@ -1,5 +1,5 @@
 import { openAiClient } from '../../ai/openai-client.js';
-import { secondOpinionJsonSchema, secondOpinionModelSchema } from '../../ai/openai.schemas.js';
+import { secondOpinionJsonSchema, secondOpinionModelSchema } from './second-opinion.schemas.js';
 import { buildSecondOpinionInstructions, buildSecondOpinionUserPrompt, type StylistId } from '../../ai/prompts/second-opinion.prompts.js';
 import { profileRepository } from '../profile/profile.repository.js';
 

@@ -9,7 +9,8 @@ import { ToastProvider } from '@/components/ui/toast-provider';
 import { AuthProvider } from '@/contexts/auth-context';
 import { AppThemeProvider, useTheme } from '@/contexts/theme-context';
 import { buildNavTheme } from '@/constants/themes';
-import { AppSessionProvider, useAppSession } from '@/hooks/use-app-session';
+import { AppSessionProvider } from '@/contexts/app-session-provider';
+import { useAppSession } from '@/hooks/use-app-session';
 import { ScreenTracker } from '@/lib/analytics';
 
 function AppNavigation() {

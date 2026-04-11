@@ -1,7 +1,7 @@
 import type { AnalysisRequest, AnalysisResponse } from '../../contracts/analysis.contracts.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildModelImageInput, resolveImageUrlForAI } from '../../ai/image-input.js';
-import { selfieReviewJsonSchema, selfieReviewModelSchema } from '../../ai/openai.schemas.js';
+import { selfieReviewJsonSchema, selfieReviewModelSchema } from '../compatibility/analysis.schemas.js';
 import { buildSelfieReviewInstructions, buildSelfieReviewUserPrompt } from '../../ai/prompts/analysis.prompts.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';

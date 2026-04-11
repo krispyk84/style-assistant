@@ -8,6 +8,7 @@ import { storageConfig } from '../../config/storage.js';
 import { HttpError } from '../../lib/http-error.js';
 import { closetRepository } from './closet.repository.js';
 import { closetSketchService } from './closet-sketch.service.js';
+import { mapClosetItem } from './closet-response-mapper.js';
 import type {
   AnalyzeClosetItemPayload,
   ClosetMatchPayload,
@@ -185,52 +186,6 @@ Be generous: if the color is in the general direction of the suggestion (e.g., b
 Only return null when the colors are clearly on opposite ends of the spectrum (e.g., black vs white, navy vs orange).`;
 }
 
-function mapItem(item: {
-  id: string;
-  title: string;
-  brand: string;
-  size: string;
-  category: string;
-  uploadedImageUrl: string | null;
-  sketchImageUrl: string | null;
-  sketchStatus: string;
-  savedAt: Date;
-  subcategory?: string | null;
-  primaryColor?: string | null;
-  colorFamily?: string | null;
-  material?: string | null;
-  formality?: string | null;
-  silhouette?: string | null;
-  season?: string | null;
-  weight?: string | null;
-  pattern?: string | null;
-  notes?: string | null;
-  fitStatus?: string | null;
-}) {
-  return {
-    id: item.id,
-    title: item.title,
-    brand: item.brand,
-    size: item.size,
-    category: item.category,
-    uploadedImageUrl: item.uploadedImageUrl,
-    sketchImageUrl: item.sketchImageUrl,
-    sketchStatus: item.sketchStatus,
-    savedAt: item.savedAt.toISOString(),
-    subcategory: item.subcategory ?? undefined,
-    primaryColor: item.primaryColor ?? undefined,
-    colorFamily: item.colorFamily ?? undefined,
-    material: item.material ?? undefined,
-    formality: item.formality ?? undefined,
-    silhouette: item.silhouette ?? undefined,
-    season: item.season ?? undefined,
-    weight: item.weight ?? undefined,
-    pattern: item.pattern ?? undefined,
-    notes: item.notes ?? undefined,
-    fitStatus: item.fitStatus ?? undefined,
-  };
-}
-
 // ── analyzeItem prompt vocabulary (static — defined once at module scope) ──────
 
 const ANALYZE_CATEGORY_LIST = 'Suit, Blazer, Sports Jacket, Coat, Shirt, Polo, Knitwear, Cardigan, Hoodie, Trousers, Denim, Shorts, Shoes, Sneakers, Loafers, Boots, Belt, Bag, Watch, Scarf, Hat, Tie, Socks, Clothing';
@@ -345,18 +300,18 @@ export const closetService = {
       notes: payload.notes,
       fitStatus: payload.fitStatus,
     });
-    return mapItem(item);
+    return mapClosetItem(item);
   },
 
   async getItems(supabaseUserId: string) {
     const items = await closetRepository.getItems(supabaseUserId);
-    return { items: items.map(mapItem) };
+    return { items: items.map(mapClosetItem) };
   },
 
   async getItem(id: string, supabaseUserId: string) {
     const item = await closetRepository.getItem(id, supabaseUserId);
     if (!item) throw new HttpError(404, 'NOT_FOUND', 'Item not found.');
-    return mapItem(item);
+    return mapClosetItem(item);
   },
 
   async updateItem(id: string, supabaseUserId: string, payload: UpdateClosetItemPayload) {
@@ -382,7 +337,7 @@ export const closetService = {
     // Re-fetch to return the updated row (updateMany doesn't return records)
     const updated = await closetRepository.getItem(id, supabaseUserId);
     if (!updated) throw new HttpError(404, 'NOT_FOUND', 'Item not found after update.');
-    return mapItem(updated);
+    return mapClosetItem(updated);
   },
 
   async deleteItem(id: string, supabaseUserId: string) {

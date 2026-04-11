@@ -8,8 +8,10 @@ import {
   singleTierRegenerationSchema,
   tieredOutfitGenerationJsonSchema,
   tieredOutfitGenerationSchema,
-} from '../../ai/openai.schemas.js';
+} from './outfits.schemas.js';
 import { buildGenerateOutfitsInstructions, buildGenerateOutfitsUserPrompt, buildRegenerateTierInstructions, buildRegenerateTierUserPrompt } from '../../ai/prompts/outfits.prompts.js';
+import { getNormalizedAnchorItems, getCanonicalAnchorDescription } from './outfits-prompt-builders.js';
+import { buildStableSketchUrl, mapOutfitRecommendation } from './outfits-response-mapper.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';
 import { outfitsRepository } from './outfits.repository.js';
 import { profileRepository } from '../profile/profile.repository.js';
@@ -18,84 +20,6 @@ import { tierSketchService } from './tier-sketch.service.js';
 
 const CANONICAL_TIERS: OutfitTierSlug[] = ['business', 'smart-casual', 'casual'];
 
-/**
- * Removes keyPieces that duplicate the anchor item.
- * OpenAI sometimes echoes the anchor into keyPieces as a "top" slot despite
- * being told not to. Strips parenthetical styling notes before comparing so
- * "Charcoal Denim Western Shirt (tailored fit)" correctly matches
- * "Charcoal Denim Western Shirt".
- */
-function deduplicateKeyPieces<T extends { display_name: string }>(
-  keyPieces: T[],
-  anchorText: string
-): T[] {
-  const norm = (s: string) =>
-    s.toLowerCase().replace(/\s*\(.*?\)\s*/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-  const normalizedAnchor = norm(anchorText);
-  if (!normalizedAnchor) return keyPieces;
-  return keyPieces.filter((p) => {
-    const normalizedPiece = norm(p.display_name);
-    return !normalizedPiece.startsWith(normalizedAnchor) && !normalizedAnchor.startsWith(normalizedPiece);
-  });
-}
-
-function buildStableSketchUrl(requestId: string, tier: OutfitTierSlug, version?: string | number) {
-  const baseUrl = `${env.STORAGE_PUBLIC_BASE_URL}/outfits/${requestId}/sketch/${tier}`;
-  return version === undefined ? baseUrl : `${baseUrl}?v=${encodeURIComponent(String(version))}`;
-}
-
-function getNormalizedAnchorItems(
-  input: {
-    anchorItems?: GenerateOutfitsRequest['anchorItems'];
-    anchorItemDescription: string;
-    anchorImageId?: string | null;
-    anchorImageUrl?: string | null;
-  }
-) {
-  if (input.anchorItems?.length) {
-    return input.anchorItems
-      .filter((item) => item.description.trim() || item.imageId || item.imageUrl)
-      .map((item) => ({
-        description: item.description,
-        ...(item.imageId ? { imageId: item.imageId } : {}),
-        ...(item.imageUrl ? { imageUrl: item.imageUrl } : {}),
-      }));
-  }
-
-  return [
-    {
-      description: input.anchorItemDescription,
-      ...(input.anchorImageId ? { imageId: input.anchorImageId } : {}),
-      ...(input.anchorImageUrl ? { imageUrl: input.anchorImageUrl } : {}),
-    },
-  ].filter((item) => item.description.trim() || item.imageId || item.imageUrl);
-}
-
-function getCanonicalAnchorDescription(input: {
-  anchorItems?: GenerateOutfitsRequest['anchorItems'];
-  anchorItemDescription: string;
-  anchorImageId?: string | null;
-  anchorImageUrl?: string | null;
-}) {
-  const anchorItems = getNormalizedAnchorItems(input);
-
-  if (anchorItems.length > 1) {
-    return anchorItems
-      .map((item, index) => item.description.trim() || `Anchor item ${index + 1} identified from uploaded image`)
-      .join(' | ');
-  }
-
-  const description = input.anchorItemDescription.trim();
-  if (description) {
-    return description;
-  }
-
-  if (input.anchorImageId || input.anchorImageUrl) {
-    return 'Anchor item identified from uploaded image';
-  }
-
-  return 'Anchor item not provided';
-}
 
 async function findProfile(supabaseUserId: string, profileId?: string) {
   if (profileId) {
@@ -118,7 +42,7 @@ export const outfitsService = {
         ...recommendation,
         sketchImageUrl:
           recommendation.sketchStatus === 'ready'
-            ? buildStableSketchUrl(requestId, recommendation.tier, `${existing.generatedAt}-${recommendation.variantIndex}`)
+            ? buildStableSketchUrl(env.STORAGE_PUBLIC_BASE_URL, requestId, recommendation.tier, `${existing.generatedAt}-${recommendation.variantIndex}`)
             : null,
       })),
     };
@@ -251,19 +175,13 @@ export const outfitsService = {
           throw new HttpError(502, 'OPENAI_MISSING_TIER', `The AI provider did not return the ${tier} recommendation.`);
         }
 
-        const anchorText = recommendation.anchorItem.trim() || getCanonicalAnchorDescription(input);
-        return {
-          ...recommendation,
+        return mapOutfitRecommendation(
+          recommendation,
           tier,
-          anchorItem: anchorText,
-          keyPieces: deduplicateKeyPieces(recommendation.keyPieces, anchorText),
-          sketchStatus: 'pending',
-          sketchImageUrl: buildStableSketchUrl(input.requestId, tier, variantMap?.[tier] ?? 0),
-          sketchStorageKey: null,
-          sketchMimeType: null,
-          sketchImageData: null,
-          variantIndex: variantMap?.[tier] ?? 0,
-        };
+          buildStableSketchUrl(env.STORAGE_PUBLIC_BASE_URL, input.requestId, tier, variantMap?.[tier] ?? 0),
+          variantMap?.[tier] ?? 0,
+          getCanonicalAnchorDescription(input),
+        );
       }),
     };
 
@@ -346,21 +264,13 @@ export const outfitsService = {
       generatedAt: new Date().toISOString(),
       recommendations: existing.recommendations.map((recommendation) =>
         recommendation.tier === tier
-          ? (() => {
-              const anchorText = aiOutput.recommendation.anchorItem.trim() || existing.input.anchorItemDescription;
-              return {
-                ...aiOutput.recommendation,
-                tier,
-                anchorItem: anchorText,
-                keyPieces: deduplicateKeyPieces(aiOutput.recommendation.keyPieces, anchorText),
-                sketchStatus: 'pending',
-              sketchImageUrl: buildStableSketchUrl(existing.requestId, tier, nextVariantIndex),
-                sketchStorageKey: null,
-                sketchMimeType: null,
-                sketchImageData: null,
-                variantIndex: nextVariantIndex,
-              };
-            })()
+          ? mapOutfitRecommendation(
+              aiOutput.recommendation,
+              tier,
+              buildStableSketchUrl(env.STORAGE_PUBLIC_BASE_URL, existing.requestId, tier, nextVariantIndex),
+              nextVariantIndex,
+              existing.input.anchorItemDescription,
+            )
           : recommendation
       ),
     };
@@ -379,7 +289,7 @@ export const outfitsService = {
           ...rec,
           sketchImageUrl:
             rec.sketchStatus === 'ready'
-              ? buildStableSketchUrl(outfit.requestId, rec.tier, `${outfit.generatedAt}-${rec.variantIndex}`)
+              ? buildStableSketchUrl(env.STORAGE_PUBLIC_BASE_URL, outfit.requestId, rec.tier, `${outfit.generatedAt}-${rec.variantIndex}`)
               : null,
         })),
       })),

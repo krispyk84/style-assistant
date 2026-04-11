@@ -1,4 +1,4 @@
-import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { useAuth } from '@/contexts/auth-context';
@@ -6,19 +6,8 @@ import { defaultProfile } from '@/lib/default-profile';
 import { loadSession as loadStoredSession, saveProfile as saveStoredProfile } from '@/lib/profile-storage';
 import type { Profile } from '@/types/profile';
 import { profileService } from '@/services/profile';
+import { AppSessionContext } from '@/contexts/app-session-context';
 
-type AppSessionValue = {
-  appInstanceKey: number;
-  hasCompletedOnboarding: boolean;
-  isHydrated: boolean;
-  isReconnecting: boolean;
-  isSaving: boolean;
-  profile: Profile;
-  errorMessage: string | null;
-  saveProfile: (profile: Profile, completeOnboarding?: boolean) => Promise<boolean>;
-};
-
-const AppSessionContext = createContext<AppSessionValue | null>(null);
 const APP_RELAUNCH_RESET_MS = 1000 * 60 * 10; // 10 minutes
 const STALE_THRESHOLD_MS = 1000 * 60 * 10; // 10 min — server may have spun down
 
@@ -215,14 +204,4 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
       {children}
     </AppSessionContext.Provider>
   );
-}
-
-export function useAppSession() {
-  const context = useContext(AppSessionContext);
-
-  if (!context) {
-    throw new Error('useAppSession must be used within AppSessionProvider');
-  }
-
-  return context;
 }
