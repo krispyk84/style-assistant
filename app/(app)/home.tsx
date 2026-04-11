@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { router } from 'expo-router';
 import { Animated, Pressable, View } from 'react-native';
 
 import { WeatherCard } from '@/components/cards/weather-card';
@@ -9,12 +8,9 @@ import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import { useAppSession } from '@/hooks/use-app-session';
-import { useCurrentWeather } from '@/hooks/use-current-weather';
-import { loadSavedOutfits } from '@/lib/saved-outfits-storage';
+import { useHomeData } from './useHomeData';
 
-const CAROUSEL_INTERVAL_MS = 10000;
-const FADE_DURATION_MS = 600;
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -23,65 +19,12 @@ function getGreeting() {
   return 'Good evening';
 }
 
+// ── Screen ─────────────────────────────────────────────────────────────────────
+
 export default function HomeScreen() {
-  const { weather, isLoading, errorMessage } = useCurrentWeather();
-  const { profile } = useAppSession();
+  const { weather, weatherLoading, weatherError, profile, hasRealImages, currentImageUrl, fadeAnim } = useHomeData();
   const { theme } = useTheme();
   const firstName = profile.name.trim() || 'there';
-
-  const [carouselImages, setCarouselImages] = useState<string[]>([]);
-  const [carouselIndex, setCarouselIndex] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  // Track focus so the carousel animation is skipped when on another tab
-  const isFocusedRef = useRef(true);
-
-  useFocusEffect(
-    useCallback(() => {
-      isFocusedRef.current = true;
-      return () => {
-        isFocusedRef.current = false;
-      };
-    }, []),
-  );
-
-  useEffect(() => {
-    async function loadImages() {
-      const saved = await loadSavedOutfits();
-      const urls = saved
-        .map((s) => s.recommendation.sketchImageUrl)
-        .filter((url): url is string => Boolean(url));
-      // Shuffle so a different outfit leads each session
-      const shuffled = [...urls].sort(() => Math.random() - 0.5);
-      setCarouselImages(shuffled);
-    }
-    void loadImages();
-  }, []);
-
-  useEffect(() => {
-    if (carouselImages.length <= 1) return;
-
-    const interval = setInterval(() => {
-      // Skip animation work when the home tab is not visible
-      if (!isFocusedRef.current) return;
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: FADE_DURATION_MS,
-        useNativeDriver: true,
-      }).start(() => {
-        setCarouselIndex((i) => (i + 1) % carouselImages.length);
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: FADE_DURATION_MS,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, CAROUSEL_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [carouselImages, fadeAnim]);
-
-  const hasRealImages = carouselImages.length > 0;
-  const currentImageUrl = carouselImages[carouselIndex] ?? null;
 
   return (
     <AppScreen scrollable>
@@ -116,67 +59,67 @@ export default function HomeScreen() {
         <Pressable
           onPress={() => router.push({ pathname: '/create-look', params: { fresh: String(Date.now()) } })}
           style={{ borderRadius: 24, overflow: 'hidden' }}>
-            <View style={{ minHeight: 320 }}>
-              {/* Dark base */}
-              <View
+          <View style={{ minHeight: 320 }}>
+            {/* Dark base */}
+            <View
+              style={{
+                backgroundColor: '#2A1F14',
+                bottom: 0,
+                left: 0,
+                position: 'absolute',
+                right: 0,
+                top: 0,
+              }}
+            />
+
+            {/* Default placeholder image — shown only when no saved outfits; gender-aware */}
+            {!hasRealImages ? (
+              <Image
+                contentFit="cover"
+                source={
+                  profile.gender === 'woman'
+                    ? require('../../assets/images/defaultoutfit-female.jpg')
+                    : require('../../assets/images/defaultoutfit.png')
+                }
+                style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, height: '100%', width: '100%' }}
+              />
+            ) : null}
+
+            {/* Carousel image — shown only when real saved outfits exist */}
+            {hasRealImages && currentImageUrl ? (
+              <Animated.View
                 style={{
-                  backgroundColor: '#2A1F14',
                   bottom: 0,
                   left: 0,
+                  opacity: fadeAnim,
                   position: 'absolute',
                   right: 0,
                   top: 0,
-                }}
-              />
-
-              {/* Default placeholder image — shown only when no saved outfits; gender-aware */}
-              {!hasRealImages ? (
+                }}>
                 <Image
                   contentFit="cover"
-                  source={
-                    profile.gender === 'woman'
-                      ? require('../../assets/images/defaultoutfit-female.jpg')
-                      : require('../../assets/images/defaultoutfit.png')
-                  }
-                  style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, height: '100%', width: '100%' }}
+                  source={{ uri: currentImageUrl }}
+                  style={{ height: '100%', width: '100%' }}
                 />
-              ) : null}
+              </Animated.View>
+            ) : null}
 
-              {/* Carousel image — shown only when real saved outfits exist */}
-              {hasRealImages && currentImageUrl ? (
-                <Animated.View
-                  style={{
-                    bottom: 0,
-                    left: 0,
-                    opacity: fadeAnim,
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                  }}>
-                  <Image
-                    contentFit="cover"
-                    source={{ uri: currentImageUrl }}
-                    style={{ height: '100%', width: '100%' }}
-                  />
-                </Animated.View>
-              ) : null}
+            {/* Dark gradient overlay for readability */}
+            <View
+              style={{
+                backgroundColor: 'rgba(18, 12, 6, 0.40)',
+                bottom: 0,
+                left: 0,
+                position: 'absolute',
+                right: 0,
+                top: 0,
+              }}
+            />
 
-              {/* Dark gradient overlay for readability */}
-              <View
-                style={{
-                  backgroundColor: 'rgba(18, 12, 6, 0.40)',
-                  bottom: 0,
-                  left: 0,
-                  position: 'absolute',
-                  right: 0,
-                  top: 0,
-                }}
-              />
-
-              {/* Content */}
-              <HeroCardContent />
-            </View>
-          </Pressable>
+            {/* Content */}
+            <HeroCardContent />
+          </View>
+        </Pressable>
 
         {/* Weather section */}
         <View style={{ gap: spacing.md }}>
@@ -185,8 +128,8 @@ export default function HomeScreen() {
           </AppText>
           <WeatherCard
             weather={weather}
-            isLoading={isLoading}
-            errorMessage={errorMessage}
+            isLoading={weatherLoading}
+            errorMessage={weatherError}
           />
         </View>
 
@@ -202,6 +145,8 @@ export default function HomeScreen() {
     </AppScreen>
   );
 }
+
+// ── Private components ─────────────────────────────────────────────────────────
 
 function HeroCardContent() {
   const { theme } = useTheme();

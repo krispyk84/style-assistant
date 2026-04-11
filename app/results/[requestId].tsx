@@ -1,15 +1,9 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { Ionicons } from '@expo/vector-icons';
 
-import { closetService } from '@/services/closet';
-import type { ClosetItem } from '@/types/closet';
-import { findBestClosetMatch } from '@/lib/closet-match';
-import type { OutfitPiece } from '@/types/look-request';
 import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
-
 import { LookResultCard } from '@/components/cards/look-result-card';
 import { LookRequestReviewCard } from '@/components/cards/look-request-review-card';
 import { AppScreen } from '@/components/ui/app-screen';
@@ -20,83 +14,68 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser-modal';
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
-import { useToast } from '@/components/ui/toast-provider';
 import { spacing, theme } from '@/constants/theme';
-import { incrementClosetItemCounter } from '@/lib/closet-storage';
-import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
-import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
-import { buildTierHref, parseLookInput, type LookRouteParams } from '@/lib/look-route';
-import type { GenerateOutfitsResponse } from '@/types/api';
-import { outfitsService } from '@/services/outfits';
-import { normalizePiece, LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
+import { buildSavedOutfitId } from '@/lib/saved-outfits-storage';
+import { buildTierHref, type LookRouteParams } from '@/lib/look-route';
+import { LOOK_TIER_OPTIONS } from '@/types/look-request';
 import { formatTierLabel } from '@/lib/outfit-utils';
-import { useMatchFeedback } from '@/hooks/use-match-feedback';
-import { useMatchSensitivity } from '@/hooks/use-match-sensitivity';
-import {
-  trackCreateLookCompleted,
-  trackCreateLookFailed,
-  trackClosetMatchShown,
-  trackSaveOutfit,
-  trackAddToWeek,
-} from '@/lib/analytics';
-import { recordError, log } from '@/lib/crashlytics';
+
+import { useResultsData } from './useResultsData';
+import { useResultsPolling } from './useResultsPolling';
+import { useResultsMatchFeedback } from './useResultsMatchFeedback';
+import { useResultsActions } from './useResultsActions';
 
 export default function ResultDetailsScreen() {
   const params = useLocalSearchParams<LookRouteParams & { requestId: string }>();
   const routeKey = JSON.stringify(params);
   const stableParams = useMemo(() => JSON.parse(routeKey) as LookRouteParams & { requestId: string }, [routeKey]);
-  const [response, setResponse] = useState<GenerateOutfitsResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  // Tiers still being fetched from OpenAI (shown as loading placeholders in results view)
-  const [loadingTiers, setLoadingTiers] = useState<LookTierSlug[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [regeneratingTiers, setRegeneratingTiers] = useState<LookTierSlug[]>([]);
-  // Ref mirrors state so the sketch-poll callback always sees the current regenerating set
-  // without needing to re-create the interval on every state change.
-  const regeneratingTiersRef = useRef<LookTierSlug[]>([]);
-  const [tierGenerations, setTierGenerations] = useState<Partial<Record<LookTierSlug, number>>>({});
-  const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
-  const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
-  // suggestion string → ClosetItem | null (LLM no match, fallback runs) | false (rematch exhausted, no fallback)
-  const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null | false>>({});
-  const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
-  const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
-  const [secondOpinionTier, setSecondOpinionTier] = useState<LookTierSlug | null>(null);
-  // Stable across sketch-poll response updates (memoized on requestId only)
-  const uniquePieces = useMemo((): OutfitPiece[] => {
-    if (!response) return [];
-    const allPieces = response.recommendations.flatMap((r) => [
-      ...r.keyPieces,
-      ...r.shoes,
-      ...r.accessories,
-    ]);
-    const seen = new Set<string>();
-    return allPieces
-      .map((p) => normalizePiece(p))
-      .filter((piece) => {
-        if (seen.has(piece.display_name)) return false;
-        seen.add(piece.display_name);
-        return true;
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [response?.requestId]);
 
-  const sensitivity = useMatchSensitivity();
+  const {
+    response,
+    setResponse,
+    isLoading,
+    loadingTiers,
+    errorMessage,
+    setErrorMessage,
+    regeneratingTiers,
+    setRegeneratingTiers,
+    regeneratingTiersRef,
+    tierGenerations,
+    setTierGenerations,
+    parsedInput,
+    handleCancelGeneration,
+    handleRetry,
+  } = useResultsData(stableParams);
 
-  const { matchFeedbackMap, regeneratingMatches, handleMatchThumbsUp, handleMatchThumbsDown } =
-    useMatchFeedback({
-      requestId: stableParams.requestId ?? '',
-      closetItems,
-      pieces: uniquePieces,
-      sensitivity,
-      onSlotRematched: (suggestion, item) =>
-        // null from rematch means all candidates exhausted → false sentinel prevents local-scoring fallback
-        setMatchMap((prev) => ({ ...prev, [suggestion]: item ?? false })),
-    });
-  // Tracks which closet item IDs have already had matchedToRecommendationCount incremented
-  const countedMatchedIdsRef = useRef<Set<string>>(new Set());
-  const { showToast } = useToast();
-  const parsedInput = useMemo(() => parseLookInput(stableParams), [stableParams]);
+  useResultsPolling({ response, loadingTiers, regeneratingTiersRef, setResponse });
+
+  const {
+    closetItems,
+    matchMap,
+    matchFeedbackMap,
+    regeneratingMatches,
+    handleMatchThumbsUp,
+    handleMatchThumbsDown,
+  } = useResultsMatchFeedback(stableParams.requestId ?? '', response);
+
+  const {
+    savedOutfitIds,
+    savingTier,
+    weekPickerTier,
+    setWeekPickerTier,
+    secondOpinionTier,
+    setSecondOpinionTier,
+    handleRegenerate,
+    handleSave,
+    handleAssignToWeek,
+  } = useResultsActions({
+    response,
+    setResponse,
+    tierGenerations,
+    setTierGenerations,
+    setRegeneratingTiers,
+    setErrorMessage,
+  });
 
   // Closet-add modal: shown during loading when user ticked "save to closet" in the form.
   // Results are gated behind closetModalResolved so the user can fill the form in parallel.
@@ -111,307 +90,6 @@ export default function ResultDetailsScreen() {
   }
 
   const [addToClosetModalVisible, setAddToClosetModalVisible] = useState(false);
-
-  async function fetchOutfits(requestId: string, input: typeof parsedInput) {
-    setIsLoading(true);
-    setErrorMessage(null);
-
-    const controller = new AbortController();
-    generateAbortRef.current = controller;
-
-    if (!input) {
-      // Fetching an existing result — no progressive loading needed.
-      const serviceResponse = await outfitsService.getOutfitResult(requestId);
-      generateAbortRef.current = null;
-      if (controller.signal.aborted) return;
-      if (!serviceResponse.success || !serviceResponse.data) {
-        setErrorMessage(serviceResponse.error?.message ?? 'Failed to load outfit results.');
-      } else {
-        setResponse(serviceResponse.data);
-      }
-      setIsLoading(false);
-      return;
-    }
-
-    // Progressive generation: fire tiers sequentially in canonical order.
-    const tiersInOrder = LOOK_TIER_OPTIONS.filter((t) => input.selectedTiers.includes(t));
-    setLoadingTiers(tiersInOrder);
-
-    let mergedResponse: GenerateOutfitsResponse | null = null;
-
-    for (const tier of tiersInOrder) {
-      if (controller.signal.aborted) return;
-
-      const serviceResponse = await outfitsService.generateOutfits(
-        { ...input, requestId, selectedTiers: tiersInOrder, generateOnlyTier: tier },
-        { signal: controller.signal }
-      );
-
-      if (controller.signal.aborted) return;
-
-      if (!serviceResponse.success || !serviceResponse.data) {
-        setLoadingTiers((prev) => prev.filter((t) => t !== tier));
-        if (!mergedResponse) {
-          // First tier failed — surface the error as a full failure.
-          setErrorMessage(serviceResponse.error?.message ?? 'Failed to generate outfit.');
-          trackCreateLookFailed({ error: serviceResponse.error?.code });
-          recordError(
-            new Error(serviceResponse.error?.message ?? 'Outfit generation failed'),
-            'create_look_generation'
-          );
-          setIsLoading(false);
-          generateAbortRef.current = null;
-          return;
-        }
-        // Subsequent tier failed — skip it, continue with remaining tiers.
-        continue;
-      }
-
-      const tierData = serviceResponse.data;
-      const newRec = tierData.recommendations.find((r) => r.tier === tier);
-
-      if (!mergedResponse) {
-        // First tier done: show results immediately with this tier + placeholders for the rest.
-        mergedResponse = tierData;
-        setResponse(tierData);
-        setIsLoading(false);
-        trackCreateLookCompleted({ tier_count: tiersInOrder.length });
-        log(`Look generated: ${requestId} (first tier: ${tier})`);
-      } else if (newRec) {
-        // Merge subsequent tier into the existing response.
-        mergedResponse = {
-          ...mergedResponse,
-          recommendations: [...mergedResponse.recommendations, newRec],
-        };
-        setResponse({ ...mergedResponse });
-      }
-
-      setLoadingTiers((prev) => prev.filter((t) => t !== tier));
-    }
-
-    generateAbortRef.current = null;
-  }
-
-  function handleCancelGeneration() {
-    generateAbortRef.current?.abort();
-    router.back();
-  }
-
-  useEffect(() => {
-    if (!stableParams.requestId) {
-      setIsLoading(false);
-      setErrorMessage('Missing request id.');
-      return;
-    }
-
-    void fetchOutfits(stableParams.requestId, parsedInput);
-  // fetchOutfits is stable within the effect — deps are the actual inputs
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stableParams.requestId, parsedInput]);
-
-  const generateAbortRef = useRef<AbortController | null>(null);
-
-  // Keep screen awake while generating (initial load or remaining tiers still loading).
-  useEffect(() => {
-    if (isLoading || loadingTiers.length > 0) {
-      void activateKeepAwakeAsync();
-    } else {
-      void deactivateKeepAwake();
-    }
-    return () => { void deactivateKeepAwake(); };
-  }, [isLoading, loadingTiers.length]);
-
-  // Keep ref in sync so the poll closure always reads the current set without re-creating the interval.
-  useEffect(() => {
-    regeneratingTiersRef.current = regeneratingTiers;
-  }, [regeneratingTiers]);
-
-  useEffect(() => {
-    // Wait until all tiers are loaded before polling for sketches — otherwise the server
-    // response would only contain the tiers already saved (potentially just 1) and would
-    // overwrite the client-merged partial response.
-    if (loadingTiers.length > 0) return;
-
-    if (!response?.requestId || !response.recommendations.some((item) => item.sketchStatus === 'pending')) {
-      return;
-    }
-
-    const interval = setInterval(async () => {
-      const serviceResponse = await outfitsService.getOutfitResult(response.requestId);
-
-      if (serviceResponse.success && serviceResponse.data) {
-        setResponse((current) => {
-          if (!current || !serviceResponse.data) return current;
-          const protecting = regeneratingTiersRef.current;
-          // If no tiers are mid-regeneration, apply the full server response as-is.
-          if (protecting.length === 0) return serviceResponse.data;
-          // Otherwise preserve the in-flight state for any tier currently being regenerated
-          // so stale server data doesn't overwrite a pending regeneration.
-          return {
-            ...serviceResponse.data,
-            recommendations: serviceResponse.data.recommendations.map((newRec) =>
-              protecting.includes(newRec.tier)
-                ? (current.recommendations.find((r) => r.tier === newRec.tier) ?? newRec)
-                : newRec
-            ),
-          };
-        });
-      }
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [response, loadingTiers.length]);
-
-  // Load closet items once on mount so matching runs against current wardrobe
-  useEffect(() => {
-    void closetService.getItems().then((response) => {
-      if (response.success && response.data) {
-        setClosetItems(response.data.items);
-      }
-    });
-  }, []);
-
-  // Once both outfit response and closet items are ready, run local deterministic matching
-  useEffect(() => {
-    if (!uniquePieces.length || !closetItems.length) return;
-
-    const resolved: Record<string, ClosetItem | null> = {};
-    const newlyMatchedIds: string[] = [];
-
-    for (const piece of uniquePieces) {
-      const item = findBestClosetMatch(piece, closetItems, undefined, sensitivity);
-      resolved[piece.display_name] = item;
-      if (item && !countedMatchedIdsRef.current.has(item.id)) {
-        countedMatchedIdsRef.current.add(item.id);
-        newlyMatchedIds.push(item.id);
-      }
-    }
-
-    setMatchMap(resolved);
-    const matchCount = Object.values(resolved).filter(Boolean).length;
-    if (matchCount > 0) {
-      trackClosetMatchShown({ match_count: matchCount, tier: 'results' });
-    }
-    for (const id of newlyMatchedIds) {
-      void incrementClosetItemCounter(id, 'matchedToRecommendationCount');
-    }
-  // uniquePieces is stable across sketch-poll updates (memoized on requestId)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uniquePieces, closetItems]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadSavedState() {
-      const savedOutfits = await loadSavedOutfits();
-
-      if (!isMounted) {
-        return;
-      }
-
-      setSavedOutfitIds(savedOutfits.map((item) => item.id));
-    }
-
-    void loadSavedState();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [response?.requestId]);
-
-  async function handleRegenerate(tier: LookTierSlug) {
-    if (!response) {
-      return;
-    }
-
-    // Capture the current generation BEFORE incrementing so we can remove its save ID.
-    const currentGen = tierGenerations[tier] ?? 0;
-    const oldSaveId = buildSavedOutfitId(response.requestId, tier, currentGen);
-
-    setTierGenerations((prev) => ({ ...prev, [tier]: currentGen + 1 }));
-    setRegeneratingTiers((current) => (current.includes(tier) ? current : [...current, tier]));
-    setErrorMessage(null);
-    setResponse((current) =>
-      current
-        ? {
-            ...current,
-            recommendations: current.recommendations.map((item) =>
-              item.tier === tier
-                ? {
-                    ...item,
-                    sketchStatus: 'pending',
-                    sketchImageUrl: null,
-                  }
-                : item
-            ),
-          }
-        : current
-    );
-
-    const serviceResponse = await outfitsService.regenerateTier(response.requestId, tier);
-
-    if (!serviceResponse.success || !serviceResponse.data) {
-      setErrorMessage(serviceResponse.error?.message ?? 'Failed to regenerate this tier.');
-    } else {
-      const latestResponse = await outfitsService.getOutfitResult(response.requestId);
-      setResponse(latestResponse.success && latestResponse.data ? latestResponse.data : serviceResponse.data);
-      // Remove the old generation's save marker — the regenerated outfit is a new entity.
-      setSavedOutfitIds((current) => current.filter((id) => id !== oldSaveId));
-    }
-
-    setRegeneratingTiers((current) => current.filter((item) => item !== tier));
-  }
-
-  async function handleSave(tier: LookTierSlug) {
-    if (!response) {
-      return;
-    }
-
-    const recommendation = response.recommendations.find((item) => item.tier === tier);
-    if (!recommendation) {
-      return;
-    }
-
-    const savedOutfitId = buildSavedOutfitId(response.requestId, tier, tierGenerations[tier] ?? 0);
-    if (savedOutfitIds.includes(savedOutfitId)) {
-      return;
-    }
-
-    setSavingTier(tier);
-
-    try {
-      // Deep-copy the recommendation snapshot so later regenerations can't mutate what was saved.
-      await saveSavedOutfit(response.input, { ...recommendation }, response.requestId, tierGenerations[tier] ?? 0);
-      setSavedOutfitIds((current) => [...current, savedOutfitId]);
-      trackSaveOutfit({ tier });
-      showToast('Outfit saved to history.');
-    } catch {
-      showToast('Could not save this outfit.', 'error');
-    }
-
-    setSavingTier(null);
-  }
-
-  async function handleAssignToWeek(dayKey: string, dayLabel: string) {
-    if (!response || !weekPickerTier) {
-      return;
-    }
-
-    const recommendation = response.recommendations.find((item) => item.tier === weekPickerTier);
-    if (!recommendation) {
-      return;
-    }
-
-    try {
-      await assignOutfitToWeekDay(dayKey, dayLabel, response.input, { ...recommendation }, response.requestId);
-      trackAddToWeek({ tier: weekPickerTier, day_label: dayLabel });
-      showToast(`Added to ${dayLabel}.`);
-    } catch {
-      showToast('Could not add this outfit to your week.', 'error');
-    }
-
-    setWeekPickerTier(null);
-  }
 
   if (isLoading || !closetModalResolved) {
     return (
@@ -453,7 +131,7 @@ export default function ResultDetailsScreen() {
           />
           <PrimaryButton
             label="Retry"
-            onPress={() => stableParams.requestId ? void fetchOutfits(stableParams.requestId, parsedInput) : undefined}
+            onPress={handleRetry}
             variant="secondary"
           />
         </View>
@@ -535,7 +213,7 @@ export default function ResultDetailsScreen() {
                 recommendation.tier,
                 response.requestId,
                 response.input,
-                recommendation
+                recommendation,
               )}
             />
           );

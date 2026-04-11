@@ -1,0 +1,124 @@
+project:
+  name: Vesture
+  description: AI-powered personal style assistant — closet management, outfit generation, sketch creation, and weekly planning.
+
+purpose: >
+  Users photograph and catalogue their wardrobe, then request AI-generated outfit recommendations for a given occasion, formality, weather, and budget tier. The AI produces three tiers per request (Budget / Regular / Premium or equivalent). Each tier includes a fashion sketch rendered by an image model. Users can save outfits, plan them to a weekly calendar, and get a second opinion from one of two AI stylist personas.
+
+major_parts:
+  - name: Outfit generation pipeline
+    description: >
+      User submits a look request (anchor item, occasion, body type, weather context, profile).
+      Backend builds an OpenAI prompt via outfits-prompt-builders, calls OpenAI, parses the
+      structured response, then queues sketch generation for each tier via the image generation client.
+    key_files:
+      - backend/src/modules/outfits/outfits.service.ts
+      - backend/src/modules/outfits/outfits-prompt-builders.ts
+      - backend/src/modules/outfits/outfits-response-mapper.ts
+      - backend/src/modules/outfits/anchor-description.service.ts
+      - backend/src/modules/outfits/tier-sketch.service.ts
+      - backend/src/ai/openai-client.ts
+      - backend/src/ai/openai-request-builder.ts
+      - backend/src/ai/openai-response-parser.ts
+      - backend/src/ai/openai-retry-handler.ts
+      - backend/src/ai/openai-usage-tracker.ts
+      - backend/src/ai/prompts/outfits.prompts.ts
+      - backend/src/ai/prompts/base-stylist-rules.ts
+
+  - name: Sketch generation pipeline
+    description: >
+      Tier sketch service dispatches image generation requests to the active image client
+      (Fal, Gemini, or Imagen). Fal uses a queue-based flow with polling; Gemini and Imagen
+      are synchronous. Style reference images and LoRA URLs are injected at prompt build time.
+    key_files:
+      - backend/src/ai/image-generation-client.ts
+      - backend/src/ai/fal-client.ts
+      - backend/src/ai/fal-queue-client.ts
+      - backend/src/ai/fal-prompt-builder.ts
+      - backend/src/ai/fal-style-reference-handler.ts
+      - backend/src/ai/gemini-image-client.ts
+      - backend/src/ai/gemini-prompt-builder.ts
+      - backend/src/ai/imagen-client.ts
+      - backend/src/ai/imagen-style-vocabulary.ts
+      - backend/src/ai/prompts/sketch.prompts.ts
+      - backend/src/ai/style-refs-data.ts
+
+  - name: Closet analysis
+    description: >
+      User submits a closet item image. Backend calls OpenAI vision to extract structured
+      metadata (category, color family, silhouette, formality, etc.) and returns it for
+      non-destructive pre-fill of the item editor form.
+    key_files:
+      - backend/src/modules/closet/closet-analysis.service.ts
+      - backend/src/modules/closet/closet-response-mapper.ts
+      - backend/src/modules/closet/closet-prompt-builders.ts
+      - backend/src/ai/prompts/analysis.prompts.ts
+
+  - name: Closet matching
+    description: >
+      Client-side pipeline that scores each closet item against an outfit piece suggestion.
+      Scoring uses category taxonomy, fuzzy color matching, and configurable sensitivity weights.
+      Match feedback (thumbs up/down) triggers a targeted re-match for that slot.
+    key_files:
+      - lib/closet-match.ts
+      - lib/closet-match-scoring.ts
+      - lib/closet-match-fuzzy.ts
+      - lib/closet-match-taxonomy.ts
+      - lib/closet-match-weights.ts
+      - backend/src/modules/closet/closet-matcher.ts
+      - backend/src/modules/closet/closet-sensitivity-rules.ts
+      - backend/src/modules/closet/closet-matching-vocabulary.ts
+
+  - name: Second opinion
+    description: >
+      User selects one of two AI stylist personas (Alessandra / Vittorio). Backend builds a
+      persona-aware prompt with the full outfit context and returns a first-person perspective.
+    key_files:
+      - backend/src/modules/second-opinion/second-opinion.service.ts
+      - backend/src/ai/prompts/second-opinion.prompts.ts
+      - components/second-opinion/useSecondOpinionRequest.ts
+      - components/second-opinion/StylistChooserModalView.tsx
+      - components/second-opinion/StylistOpinionResultView.tsx
+      - lib/stylists.ts
+
+  - name: Compatibility check
+    description: >
+      User submits a candidate piece (photo or closet item) for analysis against their
+      current outfit context. Returns a compatibility score and reasoning.
+    key_files:
+      - backend/src/modules/compatibility/compatibility.service.ts
+      - app/CheckPieceScreen.tsx
+      - app/useCheckPieceAnalysis.ts
+      - app/useCheckPieceImage.ts
+
+  - name: Selfie review
+    description: >
+      User submits a selfie wearing an outfit. Backend analyses fit, proportion, and styling
+      against the original recommendation.
+    key_files:
+      - backend/src/modules/selfie-review/selfie-review.service.ts
+      - app/selfie-review.tsx
+
+  - name: Frontend state layer
+    description: >
+      React Native app using expo-router for navigation. Each screen is split into a hook
+      layer (data + logic) and a view layer (UI only). Cross-hook state coordination is
+      assembled in the screen component via coordinator functions.
+    key_files:
+      - app/(app)/
+      - components/
+      - hooks/
+      - services/
+      - lib/
+
+ai_providers:
+  - OpenAI (GPT-4o) — outfit generation, second opinions, closet analysis, compatibility, selfie review
+  - Fal — primary sketch image generation (queue-based)
+  - Google Gemini — sketch image generation (synchronous, fallback/alternative)
+  - Google Imagen — sketch image generation (synchronous, fallback/alternative)
+
+database: Supabase PostgreSQL via Prisma ORM
+
+storage: Supabase Storage (uploaded images, sketches, anchor item photos)
+
+auth: Supabase Auth (email/password + session management)

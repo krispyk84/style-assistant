@@ -1,0 +1,101 @@
+active_issues: []
+# No active blocking issues. Pre-existing TS errors exist (see open_debt) but do not block builds.
+
+open_debt:
+  - area: Unmodularised screens
+    description: >
+      app/create-look.tsx, app/review-request.tsx, app/selfie-review.tsx,
+      app/camera-capture.tsx, and app/(app)/profile.tsx have not been reviewed
+      or split. They likely contain mixed concerns. app/results/[requestId].tsx
+      has hooks extracted but the screen file itself has not been reviewed.
+    priority: medium
+
+  - area: useLogout.ts placeholder
+    description: >
+      Currently wraps useAuth().signOut with no additional cleanup.
+      Needs AsyncStorage clearing, cache wipe, and analytics flush
+      when the logout flow expands.
+    priority: low
+
+  - area: Pre-existing TypeScript errors
+    description: >
+      Four files have pre-existing TS errors unrelated to modularisation:
+      SettingsScreen.tsx:233,244 (SensitivitySlider percent strings in ViewStyle),
+      results/useResultsData.ts:112 (spread on non-object type),
+      hooks/use-image-picker.ts:95 (allowsMultipleSelection not in type),
+      lib/user-data-sync.ts:19 (multiRemove not in AsyncStorage type).
+      None were introduced by recent work.
+    priority: low
+
+lessons_learned:
+  - context: Component modularisation — creation order
+    lesson: >
+      Always create hooks before views. Views import hooks; creating in the wrong
+      order produces immediate TypeScript errors. Order: hook files → view file → entry re-export.
+
+  - context: Component modularisation — entry files
+    lesson: >
+      Entry files at Expo Router paths (e.g. app/(app)/week.tsx) must be kept as
+      single re-export lines. Never put logic in them. They exist only to satisfy
+      file-based routing.
+
+  - context: Rules of Hooks
+    lesson: >
+      All hook calls must appear before any conditional return in a screen component.
+      Early returns (for loading/error states) go after all hook calls. Violating this
+      causes a React runtime error that is not caught by TypeScript.
+
+  - context: useFocusEffect vs useEffect([isFocused])
+    lesson: >
+      useFocusEffect(useCallback(...)) fires only on focus gain. useEffect([isFocused])
+      fires on both gain and loss, creating two concurrent async hydration calls with
+      racing isMounted closures. Always use useFocusEffect for screen-focus side effects.
+
+  - context: Cross-hook state coordination
+    lesson: >
+      Hooks must not import each other. When hook A needs to update state owned by hook B,
+      the screen assembles a coordinator function. Hook B passes its state setter out;
+      the screen wires them together inline. This is the "coordinator function" pattern.
+
+  - context: State setter params
+    lesson: >
+      Submit and action hooks receive state setters as constructor params when they need
+      to mutate state owned by a sibling hook. E.g. useWeekPlanActions receives setItems
+      and setSavedOutfitIds from useWeekPlan. This avoids circular hook dependencies.
+
+  - context: getFields() snapshot pattern
+    lesson: >
+      Form hooks expose a getFields() function that snapshots all field values at call time.
+      Submit hooks call handleSave(editor.getFields()) rather than holding a persistent
+      reference to the editor hook. This keeps the submit hook independent of form state.
+
+  - context: Circular dependency prevention in lib/
+    lesson: >
+      buildLookResultsHref was kept in look-route.ts rather than moved to
+      look-route-serializers.ts because it calls buildLookRouteParams (also in look-route.ts).
+      Moving it would create look-route.ts → look-route-serializers.ts → look-route.ts.
+      When splitting a lib file, verify the dependency direction is strictly one-way.
+
+  - context: Static theme vs useTheme
+    lesson: >
+      Components that use the static theme object (imported from @/constants/theme) do not
+      need useTheme(). Only import useTheme() when the component must react to appearance
+      mode changes at runtime. The original codebase mixes both styles; prefer static imports
+      for components that don't need reactivity.
+
+  - context: Animation refs in hooks
+    lesson: >
+      Animated.Value refs (fadeAnim, backdropOpacity, sheetTranslateY) can live in hooks
+      when the animation logic and the Animated.timing calls are co-located there.
+      The hook returns the ref; the view passes it to Animated.View style props.
+      This is safe because Animated.Value is a ref, not reactive state.
+
+risks:
+  - useFocusEffect pattern: risk of regression if a developer adds a new screen focus
+    effect using useEffect([isFocused]). The bug is subtle (double-fetch, race condition)
+    and will not cause a visible error in most cases.
+  - Rules of Hooks: screens with early returns are susceptible to future violations if
+    someone adds a new hook call below a conditional return during feature work.
+  - useLogout cleanup gap: if logout is triggered without clearing local state (AsyncStorage,
+    match feedback, saved outfits), the next user session may see stale data from the
+    previous user on the same device.

@@ -3,14 +3,15 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { HttpError } from '../lib/http-error.js';
-import { calcImageCost, calcTextCost, type AiFeature } from './costs.js';
-import { usageService } from '../modules/usage/usage.service.js';
+import type { AiFeature } from './costs.js';
+import { buildStructuredRequestBody, buildImageRequestBody } from './openai-request-builder.js';
+import type { InputContent, JsonSchemaConfig } from './openai-request-builder.js';
+import { parseStructuredResponse, parseImageResponse } from './openai-response-parser.js';
+import type { RawHttpResponse } from './openai-response-parser.js';
+import { withRetry, MAX_RETRIES } from './openai-retry-handler.js';
+import { trackTextUsage, trackImageUsage } from './openai-usage-tracker.js';
 
-type JsonSchemaConfig = {
-  name: string;
-  description?: string;
-  schema: Record<string, unknown>;
-};
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type OpenAiVectorStoreSearchResult = {
   score?: number;
@@ -20,17 +21,6 @@ type OpenAiVectorStoreSearchResult = {
     text: string;
   }>;
 };
-
-type InputContent =
-  | {
-      type: 'input_text';
-      text: string;
-    }
-  | {
-      type: 'input_image';
-      image_url: string;
-      detail?: 'low' | 'high' | 'auto';
-    };
 
 type CreateStructuredResponseInput<TSchema extends z.ZodTypeAny> = {
   schema: TSchema;
@@ -50,219 +40,106 @@ type GenerateImageInput = {
   feature?: AiFeature;
 };
 
-function extractOutputText(payload: any): string | null {
-  if (typeof payload?.output_text === 'string' && payload.output_text.trim()) {
-    return payload.output_text;
-  }
+// ── Transport ─────────────────────────────────────────────────────────────────
+// Executes a JSON POST and returns the raw response shape for the parser.
+// Does not throw on non-2xx — that is the parser's responsibility.
+// May throw AbortError (caught by withRetry) or network errors.
 
-  if (!Array.isArray(payload?.output)) {
-    return null;
-  }
-
-  for (const item of payload.output) {
-    if (!Array.isArray(item?.content)) {
-      continue;
-    }
-
-    for (const content of item.content) {
-      if ((content?.type === 'output_text' || content?.type === 'text') && typeof content?.text === 'string' && content.text.trim()) {
-        return content.text;
-      }
-    }
-  }
-
-  return null;
+async function dispatch(url: string, body: object, signal: AbortSignal): Promise<RawHttpResponse> {
+  const response = await fetch(url, {
+    method: 'POST',
+    signal,
+    headers: {
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => null);
+  return { ok: response.ok, status: response.status, payload };
 }
 
-const MAX_RETRIES = 2;
+// ── Client ────────────────────────────────────────────────────────────────────
 
 export const openAiClient = {
   async createStructuredResponse<TSchema extends z.ZodTypeAny>(
-    input: CreateStructuredResponseInput<TSchema>
+    input: CreateStructuredResponseInput<TSchema>,
   ): Promise<z.infer<TSchema>> {
-    let lastError: unknown;
-
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      if (attempt > 0) {
-        const delayMs = 1000 * 2 ** (attempt - 1); // 1s, 2s
-        logger.warn({ feature: input.feature, attempt, delayMs }, 'OpenAI request timed out, retrying');
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), env.OPENAI_TIMEOUT_MS);
-
-      try {
-        const response = await fetch(`${env.OPENAI_BASE_URL}/v1/responses`, {
-          method: 'POST',
-          signal: controller.signal,
-          headers: {
-            Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+    const result = await withRetry(
+      {
+        maxRetries: MAX_RETRIES,
+        timeoutMs: env.OPENAI_TIMEOUT_MS,
+        feature: input.feature,
+        timeoutCode: 'OPENAI_TIMEOUT',
+        timeoutMessage: 'The AI provider timed out.',
+        unavailableCode: 'OPENAI_UNAVAILABLE',
+        unavailableMessage: 'The AI provider is currently unavailable.',
+      },
+      (signal) =>
+        dispatch(
+          `${env.OPENAI_BASE_URL}/v1/responses`,
+          buildStructuredRequestBody({
             model: env.OPENAI_RESPONSES_MODEL,
             instructions: input.instructions,
-            input: [
-              {
-                role: 'user',
-                content: input.userContent,
-              },
-            ],
-            text: {
-              format: {
-                type: 'json_schema',
-                name: input.jsonSchema.name,
-                description: input.jsonSchema.description,
-                strict: true,
-                schema: input.jsonSchema.schema,
-              },
-            },
+            userContent: input.userContent,
+            jsonSchema: input.jsonSchema,
           }),
-        });
+          signal,
+        ).then((raw) => parseStructuredResponse(raw, input.schema)),
+    );
 
-        const payload = await response.json().catch(() => null);
-
-        if (!response.ok) {
-          const openAiError = payload?.error?.message ?? JSON.stringify(payload?.error) ?? 'Unknown OpenAI error';
-          logger.error(
-            {
-              statusCode: response.status,
-              responseId: payload?.id,
-              error: openAiError,
-            },
-            'OpenAI Responses API request failed'
-          );
-
-          throw new HttpError(502, 'OPENAI_REQUEST_FAILED', 'The AI provider could not complete the request.');
-        }
-
-        const outputText = extractOutputText(payload);
-        if (!outputText) {
-          logger.error({ responseId: payload?.id }, 'OpenAI response did not include structured output text');
-          throw new HttpError(502, 'OPENAI_INVALID_RESPONSE', 'The AI provider returned an empty response.');
-        }
-
-        const parsed = JSON.parse(outputText);
-        const validated = input.schema.safeParse(parsed);
-
-        if (!validated.success) {
-          logger.error(
-            {
-              responseId: payload?.id,
-              issues: validated.error.flatten(),
-            },
-            'OpenAI response did not match the expected schema'
-          );
-
-          throw new HttpError(502, 'OPENAI_SCHEMA_MISMATCH', 'The AI provider returned an unexpected response shape.');
-        }
-
-        if (input.supabaseUserId && input.feature) {
-          const inputTokens: number = payload?.usage?.input_tokens ?? 0;
-          const outputTokens: number = payload?.usage?.output_tokens ?? 0;
-          usageService.record({
-            supabaseUserId: input.supabaseUserId,
-            feature: input.feature,
-            model: env.OPENAI_RESPONSES_MODEL,
-            costUsd: calcTextCost(inputTokens, outputTokens),
-            inputTokens,
-            outputTokens,
-          });
-        }
-
-        return validated.data;
-      } catch (error) {
-        if (error instanceof HttpError) {
-          throw error;
-        }
-
-        if (error instanceof Error && error.name === 'AbortError') {
-          lastError = error;
-          // Will retry on next loop iteration (if attempts remain)
-          continue;
-        }
-
-        logger.error({ error }, 'Unexpected OpenAI client failure');
-        throw new HttpError(502, 'OPENAI_UNAVAILABLE', 'The AI provider is currently unavailable.');
-      } finally {
-        clearTimeout(timeout);
-      }
+    if (input.supabaseUserId && input.feature) {
+      trackTextUsage({
+        supabaseUserId: input.supabaseUserId,
+        feature: input.feature,
+        model: env.OPENAI_RESPONSES_MODEL,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+      });
     }
 
-    logger.error({ feature: input.feature, attempts: MAX_RETRIES + 1 }, 'OpenAI request timed out after all retries');
-    throw new HttpError(504, 'OPENAI_TIMEOUT', 'The AI provider timed out.');
+    return result.data;
   },
 
   async generateImage(input: GenerateImageInput) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), env.OPENAI_TIMEOUT_MS);
+    const result = await withRetry(
+      {
+        maxRetries: 0, // single attempt — no retry for image generation
+        timeoutMs: env.OPENAI_TIMEOUT_MS,
+        feature: input.feature,
+        timeoutCode: 'OPENAI_IMAGE_TIMEOUT',
+        timeoutMessage: 'The AI provider timed out while generating the sketch.',
+        unavailableCode: 'OPENAI_IMAGE_UNAVAILABLE',
+        unavailableMessage: 'The AI provider is currently unavailable for sketches.',
+      },
+      (signal) =>
+        dispatch(
+          `${env.OPENAI_BASE_URL}/v1/images/generations`,
+          buildImageRequestBody({
+            model: env.OPENAI_IMAGE_MODEL,
+            prompt: input.prompt,
+            size: input.size ?? '1024x1536',
+            quality: input.quality ?? 'medium',
+            outputFormat: input.outputFormat ?? 'jpeg',
+          }),
+          signal,
+        ).then((raw) => parseImageResponse(raw)),
+    );
 
-    try {
-      const response = await fetch(`${env.OPENAI_BASE_URL}/v1/images/generations`, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: env.OPENAI_IMAGE_MODEL,
-          prompt: input.prompt,
-          size: input.size ?? '1024x1536',
-          quality: input.quality ?? 'medium',
-          output_format: input.outputFormat ?? 'jpeg',
-        }),
+    if (input.supabaseUserId && input.feature) {
+      trackImageUsage({
+        supabaseUserId: input.supabaseUserId,
+        feature: input.feature,
+        model: env.OPENAI_IMAGE_MODEL,
+        size: input.size ?? '1024x1536',
+        quality: input.quality ?? 'medium',
       });
-
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        logger.error(
-          {
-            statusCode: response.status,
-            error: payload?.error?.message ?? payload?.error ?? 'Unknown OpenAI image generation error',
-          },
-          'OpenAI image generation failed'
-        );
-
-        throw new HttpError(502, 'OPENAI_IMAGE_FAILED', 'The AI provider could not generate the sketch.');
-      }
-
-      const imageBase64 = payload?.data?.[0]?.b64_json;
-      if (typeof imageBase64 !== 'string' || !imageBase64) {
-        logger.error({ payload }, 'OpenAI image generation response did not include image data');
-        throw new HttpError(502, 'OPENAI_IMAGE_INVALID', 'The AI provider returned an invalid sketch response.');
-      }
-
-      if (input.supabaseUserId && input.feature) {
-        usageService.record({
-          supabaseUserId: input.supabaseUserId,
-          feature: input.feature,
-          model: env.OPENAI_IMAGE_MODEL,
-          costUsd: calcImageCost(input.size ?? '1024x1536', input.quality ?? 'medium'),
-        });
-      }
-
-      return {
-        mimeType: `image/${input.outputFormat ?? 'jpeg'}`,
-        data: Buffer.from(imageBase64, 'base64'),
-      };
-    } catch (error) {
-      if (error instanceof HttpError) {
-        throw error;
-      }
-
-      if (error instanceof Error && error.name === 'AbortError') {
-        logger.error('OpenAI image request timed out');
-        throw new HttpError(504, 'OPENAI_IMAGE_TIMEOUT', 'The AI provider timed out while generating the sketch.');
-      }
-
-      logger.error({ error }, 'Unexpected OpenAI image generation failure');
-      throw new HttpError(502, 'OPENAI_IMAGE_UNAVAILABLE', 'The AI provider is currently unavailable for sketches.');
-    } finally {
-      clearTimeout(timeout);
     }
+
+    return {
+      mimeType: `image/${input.outputFormat ?? 'jpeg'}`,
+      data: Buffer.from(result.imageBase64, 'base64'),
+    };
   },
 
   async uploadFile(input: { filename: string; mimeType: string; content: Uint8Array | Buffer | string }) {
@@ -294,9 +171,8 @@ export const openAiClient = {
           statusCode: response.status,
           error: payload?.error?.message ?? payload?.error ?? 'Unknown OpenAI file upload error',
         },
-        'OpenAI file upload failed'
+        'OpenAI file upload failed',
       );
-
       throw new HttpError(502, 'OPENAI_FILE_UPLOAD_FAILED', 'The style guide file could not be uploaded.');
     }
 
@@ -322,9 +198,8 @@ export const openAiClient = {
           statusCode: response.status,
           error: payload?.error?.message ?? payload?.error ?? 'Unknown vector store creation error',
         },
-        'OpenAI vector store creation failed'
+        'OpenAI vector store creation failed',
       );
-
       throw new HttpError(502, 'OPENAI_VECTOR_STORE_CREATE_FAILED', 'The style guide vector store could not be created.');
     }
 
@@ -350,9 +225,8 @@ export const openAiClient = {
           statusCode: response.status,
           error: payload?.error?.message ?? payload?.error ?? 'Unknown vector store batch error',
         },
-        'OpenAI vector store file batch failed'
+        'OpenAI vector store file batch failed',
       );
-
       throw new HttpError(502, 'OPENAI_VECTOR_STORE_ATTACH_FAILED', 'The style guide file could not be linked to the vector store.');
     }
 
@@ -376,9 +250,8 @@ export const openAiClient = {
           statusCode: response.status,
           error: payload?.error?.message ?? payload?.error ?? 'Unknown vector store retrieval error',
         },
-        'OpenAI vector store retrieval failed'
+        'OpenAI vector store retrieval failed',
       );
-
       throw new HttpError(502, 'OPENAI_VECTOR_STORE_RETRIEVE_FAILED', 'The style guide vector store could not be checked.');
     }
 
@@ -417,9 +290,8 @@ export const openAiClient = {
           statusCode: response.status,
           error: payload?.error?.message ?? payload?.error ?? 'Unknown vector store search error',
         },
-        'OpenAI vector store search failed'
+        'OpenAI vector store search failed',
       );
-
       throw new HttpError(502, 'OPENAI_VECTOR_STORE_SEARCH_FAILED', 'The style guide could not be searched.');
     }
 

@@ -1,0 +1,389 @@
+root_dirs:
+
+  - path: app/
+    purpose: Expo Router screens. Every file is a route. Logic lives in co-located hooks; views are pure UI.
+    modules:
+      - name: Authenticated tab screens
+        files:
+          - app/(app)/_layout.tsx
+          - app/(app)/closet.tsx
+          - app/(app)/ClosetScreenView.tsx
+          - app/(app)/useClosetData.ts
+          - app/(app)/useClosetNavigation.ts
+          - app/(app)/useClosetAnimations.ts
+          - app/(app)/closet-grid-utils.ts
+          - app/(app)/history.tsx
+          - app/(app)/LooksScreen.tsx
+          - app/(app)/useFavouritesData.ts
+          - app/(app)/useHistoryData.ts
+          - app/(app)/useHistoryActions.ts
+          - app/(app)/home.tsx
+          - app/(app)/useHomeData.ts
+          - app/(app)/settings.tsx
+          - app/(app)/SettingsScreen.tsx
+          - app/(app)/useSettings.ts
+          - app/(app)/useLogout.ts
+          - app/(app)/week.tsx
+          - app/(app)/WeekScreen.tsx
+          - app/(app)/useWeekPlan.ts
+          - app/(app)/useWeekPlanActions.ts
+          - app/(app)/profile.tsx
+        owns: Tab screen UIs, their data hooks, and their action hooks
+
+      - name: Tier detail
+        files:
+          - app/tier/[tier].tsx
+          - app/tier/TierDetailScreen.tsx
+          - app/tier/useTierDetailData.ts
+          - app/tier/useTierDetailMatching.ts
+          - app/tier/useTierDetailActions.ts
+          - app/tier/tier-detail-helpers.ts
+        owns: Full-screen tier view, closet matching overlay, second opinion trigger
+
+      - name: Results
+        files:
+          - app/results/[requestId].tsx
+          - app/results/useResultsData.ts
+          - app/results/useResultsPolling.ts
+          - app/results/useResultsActions.ts
+          - app/results/useResultsMatchFeedback.ts
+        owns: Outfit results display (partially split — screen file not yet reviewed)
+
+      - name: Check piece
+        files:
+          - app/check-piece.tsx
+          - app/CheckPieceScreen.tsx
+          - app/useCheckPieceImage.ts
+          - app/useCheckPieceAnalysis.ts
+          - app/useCheckPieceSave.ts
+        owns: Piece compatibility check flow (image pick → upload → AI analysis → save)
+
+      - name: Onboarding
+        files:
+          - app/onboarding.tsx
+          - app/OnboardingScreen.tsx
+          - app/useOnboardingFlow.ts
+          - app/useOnboardingForms.ts
+          - app/onboarding-mappers.ts
+        owns: Multi-step onboarding flow
+
+      - name: Unsplit screens
+        files:
+          - app/create-look.tsx
+          - app/review-request.tsx
+          - app/selfie-review.tsx
+          - app/camera-capture.tsx
+        owns: These screens have not been reviewed or modularised yet
+
+      - name: Auth screens
+        files:
+          - app/auth/_layout.tsx
+          - app/auth/index.tsx
+          - app/auth/sign-in.tsx
+          - app/auth/sign-up.tsx
+          - app/auth/forgot-password.tsx
+        owns: Unauthenticated auth flows
+
+  - path: components/
+    purpose: Shared React components. Complex ones follow the hook + view + entry pattern.
+    modules:
+      - name: cards
+        files:
+          - components/cards/look-result-card.tsx
+          - components/cards/LookResultCardView.tsx
+          - components/cards/useLookResultCard.ts
+          - components/cards/look-result-card-helpers.ts
+          - components/cards/TierPieceListView.tsx
+          - components/cards/outfit-result-card.tsx
+          - components/cards/look-tier-detail-card.tsx
+          - components/cards/action-card.tsx
+          - components/cards/look-request-review-card.tsx
+          - components/cards/mock-analysis-card.tsx
+          - components/cards/profile-card.tsx
+          - components/cards/profile-summary-card.tsx
+          - components/cards/tier-card.tsx
+          - components/cards/weather-card.tsx
+        owns: All card-style display components
+
+      - name: closet
+        files:
+          - components/closet/closet-item-sheet.tsx
+          - components/closet/ClosetItemSheetView.tsx
+          - components/closet/useClosetItemEditor.ts
+          - components/closet/useClosetItemSubmit.ts
+          - components/closet/save-to-closet-modal.tsx
+          - components/closet/SaveToClosetModalContainer.tsx
+          - components/closet/SaveToClosetForm.tsx
+          - components/closet/useSaveToClosetForm.ts
+          - components/closet/useSaveToClosetSubmit.ts
+          - components/closet/closet-picker-modal.tsx
+          - components/closet/closet-form-mappers.ts
+          - components/closet/color-family-picker.tsx
+          - components/closet/fit-status-picker.tsx
+          - components/closet/formality-picker.tsx
+          - components/closet/pattern-picker.tsx
+          - components/closet/pill-picker.tsx
+          - components/closet/season-picker.tsx
+          - components/closet/silhouette-picker.tsx
+          - components/closet/weight-picker.tsx
+        owns: Closet item view/edit sheet, save-to-closet modal, all metadata picker components
+
+      - name: forms
+        files:
+          - components/forms/create-look-request-form.tsx
+          - components/forms/CreateLookRequestFormContainer.tsx
+          - components/forms/CreateLookRequestFormView.tsx
+          - components/forms/useCreateLookRequestForm.ts
+          - components/forms/useAnchorItemsForm.ts
+          - components/forms/createLookRequest-mappers.ts
+          - components/forms/profile-form.tsx
+          - components/forms/ProfileFormView.tsx
+          - components/forms/useProfileForm.ts
+          - components/forms/useProfileFormSubmit.ts
+          - components/forms/profile-form-mappers.ts
+          - components/forms/prompt-composer.tsx
+          - components/forms/image-picker-field.tsx
+        owns: Look request form, profile form, prompt composer, image picker field
+
+      - name: second-opinion
+        files:
+          - components/second-opinion/stylist-chooser-modal.tsx
+          - components/second-opinion/StylistChooserModalView.tsx
+          - components/second-opinion/StylistOpinionResultView.tsx
+          - components/second-opinion/useSecondOpinionRequest.ts
+        owns: AI stylist selection modal, opinion result display, HTTP request hook
+
+      - name: ui
+        files:
+          - components/ui/app-screen.tsx
+          - components/ui/app-text.tsx
+          - components/ui/bottom-sheet-modal.tsx
+          - components/ui/brand-splash.tsx
+          - components/ui/empty-state.tsx
+          - components/ui/error-state.tsx
+          - components/ui/form-field.tsx
+          - components/ui/loading-state.tsx
+          - components/ui/primary-button.tsx
+          - components/ui/remote-image-panel.tsx
+          - components/ui/screen-header.tsx
+          - components/ui/section-header.tsx
+          - components/ui/segmented-control.tsx
+          - components/ui/selector-card.tsx
+          - components/ui/selector-grid.tsx
+          - components/ui/text-input.tsx
+          - components/ui/toast-provider.tsx
+        owns: Design system primitives — no business logic
+
+      - name: weather
+        files:
+          - components/weather/weather-forecast-modal.tsx
+        owns: Weather forecast modal overlay
+
+      - name: week
+        files:
+          - components/week/week-picker-modal.tsx
+        owns: Day-of-week picker for assigning outfits
+
+  - path: hooks/
+    purpose: Reusable React hooks shared across multiple screens.
+    modules:
+      - name: hooks
+        files:
+          - hooks/use-app-session.ts
+          - hooks/use-current-weather.ts
+          - hooks/use-image-picker.ts
+          - hooks/use-uploaded-image.ts
+          - hooks/use-match-feedback.ts
+          - hooks/use-match-sensitivity.ts
+          - hooks/use-home-preview.ts
+        owns: >
+          Session/profile access, weather fetch, image picker + upload composite,
+          match feedback state, sensitivity setting read
+
+  - path: lib/
+    purpose: Pure utilities, storage helpers, and client-side business logic.
+    modules:
+      - name: routing
+        files:
+          - lib/look-route.ts
+          - lib/look-route-serializers.ts
+          - lib/look-route-params.ts
+        owns: >
+          URL param serialization/deserialization for look and tier routes.
+          look-route.ts owns buildLookRouteParams, parseLookInput, buildTierHref, buildLookResultsHref.
+          look-route-serializers.ts owns encode/decode helpers and legacy compat.
+          look-route-params.ts owns type definitions.
+
+      - name: closet matching (client)
+        files:
+          - lib/closet-match.ts
+          - lib/closet-match-scoring.ts
+          - lib/closet-match-fuzzy.ts
+          - lib/closet-match-taxonomy.ts
+          - lib/closet-match-weights.ts
+        owns: Client-side closet item scoring against outfit piece suggestions
+
+      - name: storage (AsyncStorage)
+        files:
+          - lib/app-settings-storage.ts
+          - lib/saved-outfits-storage.ts
+          - lib/week-plan-storage.ts
+          - lib/closet-storage.ts
+          - lib/weather-storage.ts
+          - lib/match-feedback-storage.ts
+          - lib/profile-storage.ts
+          - lib/recommendation-feedback-storage.ts
+        owns: All local AsyncStorage read/write operations
+
+      - name: utilities
+        files:
+          - lib/analytics.ts
+          - lib/crashlytics.ts
+          - lib/outfit-utils.ts
+          - lib/temperature-format.ts
+          - lib/profile-validation.ts
+          - lib/default-profile.ts
+          - lib/stylists.ts
+          - lib/media-utils.ts
+          - lib/camera-capture-result.ts
+          - lib/user-data-sync.ts
+          - lib/supabase.ts
+          - lib/supabase-data.ts
+          - lib/api/api-client.ts
+        owns: Analytics wrappers, formatters, validators, Supabase client, API client
+
+      - name: mocks and dev
+        files:
+          - lib/image-analysis-mock.ts
+          - lib/look-mock-data.ts
+          - lib/mock-data.ts
+        owns: Mock data for development and testing
+
+  - path: services/
+    purpose: >
+      API service layer. Each domain has an interface file (*-service.ts), a real
+      implementation (api-*-service.ts), a mock (mock-*-service.ts), and an index.ts
+      that exports the active implementation based on env flag.
+    modules:
+      - name: services
+        files:
+          - services/closet/
+          - services/compatibility/
+          - services/outfits/
+          - services/profile/
+          - services/second-opinion/
+          - services/selfie-review/
+          - services/uploads/
+          - services/usage/
+          - services/weather/
+        owns: All HTTP calls to the backend API
+
+  - path: types/
+    purpose: Shared TypeScript type definitions used across frontend.
+    modules:
+      - name: types
+        files:
+          - types/api.ts
+          - types/closet.ts
+          - types/look-request.ts
+          - types/style.ts
+        owns: API contracts, domain types, option constant arrays
+
+  - path: constants/
+    purpose: Static design tokens and app-wide configuration.
+    modules:
+      - name: constants
+        files:
+          - constants/theme.ts
+          - constants/themes.ts
+          - constants/config.ts
+        owns: Color palettes, spacing, typography, light/dark themes, feature flags
+
+  - path: contexts/
+    purpose: React context providers for auth, theme, and session state.
+    modules:
+      - name: contexts
+        files:
+          - contexts/auth-context.tsx
+          - contexts/theme-context.tsx
+          - contexts/app-session-context.tsx
+          - contexts/app-session-provider.tsx
+          - contexts/useSupabaseAuth.ts
+          - contexts/useAuthSideEffects.ts
+        owns: Auth state, appearance mode, user profile/session hydration
+
+  - path: backend/src/
+    purpose: Express API server. Organised into feature modules.
+    modules:
+      - name: AI clients
+        files:
+          - backend/src/ai/openai-client.ts
+          - backend/src/ai/openai-request-builder.ts
+          - backend/src/ai/openai-response-parser.ts
+          - backend/src/ai/openai-retry-handler.ts
+          - backend/src/ai/openai-usage-tracker.ts
+          - backend/src/ai/fal-client.ts
+          - backend/src/ai/fal-queue-client.ts
+          - backend/src/ai/fal-prompt-builder.ts
+          - backend/src/ai/fal-style-reference-handler.ts
+          - backend/src/ai/fal-types.ts
+          - backend/src/ai/gemini-image-client.ts
+          - backend/src/ai/gemini-prompt-builder.ts
+          - backend/src/ai/imagen-client.ts
+          - backend/src/ai/imagen-style-vocabulary.ts
+          - backend/src/ai/image-generation-client.ts
+          - backend/src/ai/image-input.ts
+          - backend/src/ai/prompt-context.ts
+          - backend/src/ai/costs.ts
+          - backend/src/ai/style-refs-data.ts
+        owns: >
+          All AI provider integrations. OpenAI is split into transport (client),
+          builder, parser, retry, and usage tracker. Image generation has a unified
+          interface (image-generation-client) dispatching to Fal, Gemini, or Imagen.
+
+      - name: prompts
+        files:
+          - backend/src/ai/prompts/outfits.prompts.ts
+          - backend/src/ai/prompts/analysis.prompts.ts
+          - backend/src/ai/prompts/second-opinion.prompts.ts
+          - backend/src/ai/prompts/sketch.prompts.ts
+          - backend/src/ai/prompts/base-stylist-rules.ts
+        owns: All prompt templates, persona definitions, and base rules
+
+      - name: feature modules
+        files:
+          - backend/src/modules/outfits/
+          - backend/src/modules/closet/
+          - backend/src/modules/compatibility/
+          - backend/src/modules/second-opinion/
+          - backend/src/modules/selfie-review/
+          - backend/src/modules/profile/
+          - backend/src/modules/uploads/
+          - backend/src/modules/usage/
+          - backend/src/modules/style-guides/
+          - backend/src/modules/health/
+        owns: >
+          Each module owns routes, service, repository, validation, and any
+          domain-specific prompt builders or response mappers.
+
+      - name: infrastructure
+        files:
+          - backend/src/middleware/auth.ts
+          - backend/src/middleware/error-handler.ts
+          - backend/src/middleware/not-found.ts
+          - backend/src/middleware/request-logger.ts
+          - backend/src/lib/api-response.ts
+          - backend/src/lib/async-handler.ts
+          - backend/src/lib/http-error.ts
+          - backend/src/lib/validation.ts
+          - backend/src/config/env.ts
+          - backend/src/config/logger.ts
+          - backend/src/config/storage.ts
+          - backend/src/storage/index.ts
+          - backend/src/storage/local-storage-provider.ts
+          - backend/src/storage/s3-storage-provider.ts
+          - backend/src/storage/storage-provider.ts
+          - backend/src/db/prisma.ts
+          - backend/src/app.ts
+          - backend/src/index.ts
+        owns: Auth middleware, error handling, request logging, storage abstraction, Prisma client
