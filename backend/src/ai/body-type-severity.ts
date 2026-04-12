@@ -1,15 +1,10 @@
 /**
  * BMI-derived severity calibration for sketch figure descriptions.
  *
- * Combines the user's height, weight, and selected body type to produce a
- * plain-English figure description and matching negative prompt that are
- * injected directly into the sketch generation prompt.
- *
- * Design intent:
- * - Higher BMI within a body type category = more pronounced rendering
- * - athletic at high BMI reads as powerfully built, NOT overweight
- * - oval at high BMI reads as very large and heavy, NOT athletic
- * - Falls back to a static description when height/weight are unavailable
+ * Uses concrete, visual, image-model-friendly language — no abstract phrases.
+ * Diffusion models respond to specific physical descriptors ("thick massive arms")
+ * not editorial concepts ("powerfully built frame"). Em-dashes avoided as they
+ * break CLIP tokenization in Flux.
  */
 
 type SeverityResult = {
@@ -18,17 +13,17 @@ type SeverityResult = {
 };
 
 const FALLBACK_DESCRIPTIONS: Record<string, string> = {
-  slim: 'lean slight man, narrow frame, slim arms and legs, minimal muscle mass, slender torso',
-  oval: 'large heavy-set man, overweight, full rounded belly protruding forward, wide torso, heavy arms and legs, clothing draped over a big frame',
-  rectangle: 'average-build man, straight silhouette, shoulders and hips similar width, minimal waist definition, medium frame',
-  athletic: 'muscular well-built man, defined arms and chest, visibly toned and fit, broad shoulders, tapered waist, strong physique',
+  slim: 'slim lean man, narrow frame, slim arms and legs, light build',
+  oval: 'large overweight man, visible rounded belly, wide torso, heavy arms and legs',
+  rectangle: 'average-build man, straight silhouette, even proportions, medium frame',
+  athletic: 'muscular man, broad shoulders, large arm muscles, wide chest, strong frame',
 };
 
 const NEGATIVE_PROMPTS: Record<string, string> = {
-  slim: 'muscular, heavy-set, overweight, thick, bulky',
-  oval: 'slim, thin, athletic, toned, fit body, lean, muscular, narrow waist, flat stomach',
-  rectangle: 'muscular, overweight, heavy-set, V-shaped torso',
-  athletic: 'slim, thin, lean, overweight, fat, flabby, soft',
+  slim: 'muscular, bulky, heavy, thick arms, wide shoulders, large build, overweight',
+  oval: 'slim body, thin body, skinny, lean, toned, athletic, muscular, narrow waist, flat stomach, fashion model body, slim mannequin',
+  rectangle: 'muscular, overweight, fat belly, very wide shoulders, slim, skinny',
+  athletic: 'slim body, thin body, skinny, lean, slender, narrow frame, fashion model body, average build, slim mannequin, thin arms, narrow shoulders, small frame',
 };
 
 const FALLBACK_DEFAULT: SeverityResult = {
@@ -41,32 +36,32 @@ function bmi(heightCm: number, weightKg: number): number {
   return weightKg / (heightM * heightM);
 }
 
-function severityForOval(bmiValue: number): string {
-  if (bmiValue < 27) return 'slightly fuller build, mild roundness through the midsection, soft frame';
-  if (bmiValue < 33) return 'noticeably heavy-set man, visible rounded belly, fuller frame throughout';
-  if (bmiValue < 38) return 'large heavy-set man, prominent rounded belly, wide torso, heavy arms and legs';
-  return 'very large heavy-set man, very prominent rounded belly, extremely heavy frame throughout, wide torso, heavy arms and legs, clothing visibly stretched and draped over a very big body';
+function severityForAthletic(bmiValue: number): string {
+  if (bmiValue < 24) return 'lean athletic man, defined visible muscles, toned arms and shoulders, fit physique';
+  if (bmiValue < 27) return 'athletic muscular man, visibly broad shoulders, large arm muscles, wide chest, strong solid frame';
+  if (bmiValue < 30) return 'very muscular man, very broad shoulders, thick arms, large chest, big strong frame, large muscular figure';
+  return 'extremely large and muscular man, very broad powerful shoulders, thick massive arms, massive chest, heavy muscular build, heavyweight powerlifter physique, NFL linebacker body, very wide frame, clothing stretched over enormous muscles';
 }
 
-function severityForAthletic(bmiValue: number): string {
-  if (bmiValue < 24) return 'lean athletic man, defined but not bulky, fit and trim, visible muscle tone';
-  if (bmiValue < 27) return 'athletic and solid man, visible muscle mass, fit and well-built, strong frame';
-  if (bmiValue < 30) return 'powerfully built man, large muscular frame, thick arms and chest, visibly strong and heavy with muscle not fat';
-  return 'very large muscular man, extremely broad and powerful frame, heavily built with dense muscle mass, big powerful man — muscle not fat, not overweight, not flabby';
+function severityForOval(bmiValue: number): string {
+  if (bmiValue < 27) return 'slightly overweight man, mild belly, soft midsection, slightly fuller frame';
+  if (bmiValue < 33) return 'overweight man, visible rounded belly, heavy frame, fuller arms and legs, noticeably large build';
+  if (bmiValue < 38) return 'large overweight man, prominent hanging belly, wide torso, heavy arms and thick legs, big man with substantial body mass';
+  return 'very large obese man, very prominent large belly, extremely wide torso, heavy thick arms and legs, massive frame, clothing pulled tight and stretched over a very large body';
 }
 
 function severityForRectangle(bmiValue: number): string {
-  if (bmiValue < 22) return 'slim-average man, straight frame, minimal bulk, even proportions';
-  if (bmiValue < 26) return 'average-build man, straight silhouette, shoulders and hips similar width, minimal waist definition';
-  if (bmiValue < 30) return 'stocky straight-built man, heavier average build, solid wide frame';
-  return 'heavy average-build man, wide straight frame, fuller throughout, substantial frame';
+  if (bmiValue < 22) return 'slim-average man, straight frame, even proportions top to bottom, minimal bulk';
+  if (bmiValue < 26) return 'average-build man, straight silhouette, similar shoulder and hip width, unremarkable proportions';
+  if (bmiValue < 30) return 'stocky average man, wider solid frame, heavier build, straight silhouette with more bulk';
+  return 'heavy stocky man, wide solid frame, thick torso, heavier arms and legs, substantial average build';
 }
 
 function severityForSlim(bmiValue: number): string {
-  if (bmiValue < 19) return 'very lean slight man, minimal mass, narrow frame throughout, almost no bulk';
-  if (bmiValue < 22) return 'lean slim man, light frame, minimal mass, slender arms and legs';
-  if (bmiValue < 25) return 'slim man, light build, present but lean';
-  return 'slim-leaning man, lighter build with slightly more presence than expected';
+  if (bmiValue < 19) return 'very thin slight man, very narrow frame, very slim arms and legs, minimal mass throughout';
+  if (bmiValue < 22) return 'slim lean man, light build, narrow frame, slim arms and legs';
+  if (bmiValue < 25) return 'slim man, light to medium frame, lean build';
+  return 'slim to average man, light frame with some presence';
 }
 
 export function buildBodyTypeSeverity(

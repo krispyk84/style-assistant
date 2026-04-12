@@ -208,7 +208,7 @@ export function buildTierSketchPrompt(input: {
 
   return [
     figureProportionsPart,
-    'single figure only, one headless mannequin centered, headless dress form, no head no face, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
+    'single headless figure, no head no face, no facial features, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
     anchorLock,
     outerwearPart,
     keyPiecesPart,
@@ -216,6 +216,10 @@ export function buildTierSketchPrompt(input: {
     wornPart,
     besidePart,
     abovePart,
+    // Body type reinforcement — repeated near end to counteract style-block dilution
+    // of the figureProportionsPart. First clause only (max 8 words) to avoid
+    // over-counting tokens, but enough to re-anchor body size before rendering.
+    bodyTypeDescription.split(',').slice(0, 2).join(','),
     // Style block — placed last so it modifies the full outfit description rather
     // than competing with the anchor lock in the high-weight leading tokens.
     // For the fal LoRA path this reinforces the trigger-word style toward softer
