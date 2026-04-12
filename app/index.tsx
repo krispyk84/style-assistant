@@ -1,56 +1,36 @@
-import { Redirect } from 'expo-router';
+import { router } from 'expo-router';
+import { useEffect } from 'react';
 
 import { BrandSplash } from '@/components/ui/brand-splash';
 import { useAuth } from '@/contexts/auth-context';
 import { useAppSession } from '@/hooks/use-app-session';
 
 const ONBOARDING_TEST_MODE = true;
-let onboardingTestShown = false;
 
 export default function LandingScreen() {
   const { user, isAuthLoading } = useAuth();
   const { hasCompletedOnboarding, isHydrated } = useAppSession();
 
-  // 1. Auth session restoring from storage — show splash while Supabase hydrates.
-  if (isAuthLoading) {
-    return (
-      <BrandSplash
-        messages={[
-          'Loading your Vesture workspace.',
-          'Checking your credentials.',
-          'Preparing your styling tools.',
-        ]}
-      />
-    );
-  }
+  const ready = !isAuthLoading && !!user && isHydrated;
 
-  // 2. Not authenticated — send to auth flow.
-  if (!user) {
-    return <Redirect href="/auth" />;
-  }
+  useEffect(() => {
+    if (!ready) return;
 
-  // 3. Authenticated but app-level session (profile from backend) still loading.
-  if (!isHydrated) {
-    return (
-      <BrandSplash
-        messages={[
-          'Loading your profile.',
-          'Fetching your style settings.',
-          'Almost ready.',
-        ]}
-      />
-    );
-  }
+    if (!hasCompletedOnboarding || ONBOARDING_TEST_MODE) {
+      router.replace('/onboarding');
+    } else {
+      router.replace('/(app)/home');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 
-  // Authenticated + hydrated — route based on onboarding state.
-  if (!hasCompletedOnboarding) {
-    return <Redirect href="/onboarding" />;
-  }
-
-  if (ONBOARDING_TEST_MODE && !onboardingTestShown) {
-    onboardingTestShown = true;
-    return <Redirect href="/onboarding" />;
-  }
-
-  return <Redirect href="/(app)/home" />;
+  return (
+    <BrandSplash
+      messages={[
+        'Loading your Vesture workspace.',
+        'Checking your credentials.',
+        'Preparing your styling tools.',
+      ]}
+    />
+  );
 }
