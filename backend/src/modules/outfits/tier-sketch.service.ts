@@ -1,7 +1,8 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { imageGenerationClient } from '../../ai/image-generation-client.js';
-import { buildBodyTypeNegativePrompt, buildTierSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
+import { buildTierSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
+import { buildBodyTypeSeverity } from '../../ai/body-type-severity.js';
 import type { OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 import { storageProvider } from '../../storage/index.js';
 import { outfitsRepository } from './outfits.repository.js';
@@ -23,11 +24,13 @@ async function generateSingleTierSketch(
   supabaseUserId?: string,
   gender?: string | null,
   bodyType?: string | null,
-  fitTendency?: string | null
+  fitTendency?: string | null,
+  heightCm?: number | null,
+  weightKg?: number | null,
 ) {
   try {
-    const bodyTypeNegative = buildBodyTypeNegativePrompt(bodyType);
-    const combinedNegative = [bodyTypeNegative, anchorAntiDrift].filter(Boolean).join(', ') || undefined;
+    const severity = buildBodyTypeSeverity(heightCm, weightKg, bodyType);
+    const combinedNegative = [severity.negativePrompt, anchorAntiDrift].filter(Boolean).join(', ') || undefined;
 
     const generatedImage = await imageGenerationClient.generateImage({
       prompt: buildTierSketchPrompt({
@@ -35,7 +38,7 @@ async function generateSingleTierSketch(
         anchorItemDescription,
         recommendation,
         gender,
-        bodyType,
+        bodyTypeDescription: severity.description,
         fitTendency,
       }),
       loraType: 'outfit',
@@ -78,7 +81,7 @@ async function generateSingleTierSketch(
 }
 
 export const tierSketchService = {
-  async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null) {
+  async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null, heightCm?: number | null, weightKg?: number | null) {
     const { description: anchorItemDescription, antiDrift: anchorAntiDrift } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
 
@@ -89,12 +92,12 @@ export const tierSketchService = {
 
     await Promise.all(
       outfit.recommendations.map((recommendation) =>
-        generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType, fitTendency)
+        generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType, fitTendency, heightCm, weightKg)
       )
     );
   },
 
-  async queueSketchForTier(outfit: OutfitResponse, tier: OutfitTierSlug, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null) {
+  async queueSketchForTier(outfit: OutfitResponse, tier: OutfitTierSlug, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null, heightCm?: number | null, weightKg?: number | null) {
     const recommendation = outfit.recommendations.find((item) => item.tier === tier);
 
     if (!recommendation) {
@@ -103,6 +106,6 @@ export const tierSketchService = {
 
     const { description: anchorItemDescription, antiDrift: anchorAntiDrift } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
-    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType, fitTendency);
+    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType, fitTendency, heightCm, weightKg);
   },
 };

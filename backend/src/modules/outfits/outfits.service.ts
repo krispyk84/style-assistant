@@ -186,7 +186,7 @@ export const outfitsService = {
     };
 
     await outfitsRepository.upsertGeneratedOutfit(input.profileId, response, supabaseUserId);
-    void tierSketchService.queueSketchesForOutfit(response, supabaseUserId, profile?.gender, (profile as any)?.bodyType ?? null, (profile as any)?.fitTendency ?? null);
+    void tierSketchService.queueSketchesForOutfit(response, supabaseUserId, profile?.gender, (profile as any)?.bodyType ?? null, (profile as any)?.fitTendency ?? null, profile?.heightCm ?? null, profile?.weightKg ?? null);
     return response;
   },
 
@@ -276,7 +276,7 @@ export const outfitsService = {
     };
 
     await outfitsRepository.upsertGeneratedOutfit(undefined, mergedResponse);
-    void tierSketchService.queueSketchForTier(mergedResponse, tier, supabaseUserId, profile?.gender, (profile as any)?.bodyType ?? null, (profile as any)?.fitTendency ?? null);
+    void tierSketchService.queueSketchForTier(mergedResponse, tier, supabaseUserId, profile?.gender, (profile as any)?.bodyType ?? null, (profile as any)?.fitTendency ?? null, profile?.heightCm ?? null, profile?.weightKg ?? null);
     return mergedResponse;
   },
 

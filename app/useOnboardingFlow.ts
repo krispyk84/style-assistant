@@ -34,7 +34,7 @@ export function useOnboardingFlow({
 
   const [stepIndex, setStepIndex] = useState(0);
 
-  const MEN_ONLY_STEPS = ['bottoms', 'body-type', 'fit-tendency'] as const;
+  const MEN_ONLY_STEPS = ['bottoms', 'body-type'] as const;
   const steps = profile.gender === 'man' ? STEPS : STEPS.filter((s) => !(MEN_ONLY_STEPS as readonly string[]).includes(s));
   const totalSteps = steps.length;
   const step = steps[stepIndex]!;

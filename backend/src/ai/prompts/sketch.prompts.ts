@@ -111,25 +111,6 @@ export function buildClosetItemSketchPrompt(input: { itemDescription: string; ge
   );
 }
 
-const BODY_TYPE_DESCRIPTIONS: Record<string, string> = {
-  slim: 'lean slight man, narrow frame, slim arms and legs, minimal muscle mass, slender torso',
-  oval: 'large heavy-set man, overweight, full rounded belly protruding forward, wide torso, heavy arms and legs, clothing draped over a big frame',
-  rectangle: 'average-build man, straight silhouette, shoulders and hips similar width, minimal waist definition, medium frame',
-  athletic: 'muscular well-built man, defined arms and chest, visibly toned and fit, broad shoulders, tapered waist, strong physique',
-};
-
-const DEFAULT_BODY_TYPE_DESCRIPTION = 'average-build man, medium frame, moderate proportions';
-
-const BODY_TYPE_NEGATIVE_PROMPTS: Record<string, string> = {
-  slim: 'muscular, heavy-set, overweight, thick, bulky',
-  oval: 'slim, thin, athletic, toned, fit body, lean, muscular, narrow waist, flat stomach',
-  rectangle: 'muscular, overweight, heavy-set, V-shaped torso',
-  athletic: 'slim, thin, lean, overweight, heavy-set',
-};
-
-export function buildBodyTypeNegativePrompt(bodyType?: string | null): string {
-  return (bodyType && BODY_TYPE_NEGATIVE_PROMPTS[bodyType]) ?? '';
-}
 
 const FIT_TENDENCY_FIGURE_DESCRIPTIONS: Record<string, string> = {
   tight_chest_loose_below:
@@ -143,7 +124,7 @@ export function buildTierSketchPrompt(input: {
   anchorItemDescription: string;
   recommendation: TierRecommendationDto;
   gender?: string | null;
-  bodyType?: string | null;
+  bodyTypeDescription?: string;
   fitTendency?: string | null;
 }) {
   const tier = input.tierLabel.toLowerCase();
@@ -219,7 +200,7 @@ export function buildTierSketchPrompt(input: {
     ? `outerwear outermost layer: ${outerwearPieces.map(pieceLabel).join(', ')}, worn over all inner layers`
     : null;
 
-  const bodyTypeDescription = (input.bodyType && BODY_TYPE_DESCRIPTIONS[input.bodyType]) ?? DEFAULT_BODY_TYPE_DESCRIPTION;
+  const bodyTypeDescription = input.bodyTypeDescription ?? 'average-build man, medium frame, moderate proportions';
   const fitTendencyClause = input.fitTendency ? FIT_TENDENCY_FIGURE_DESCRIPTIONS[input.fitTendency] : null;
   const figureProportionsPart = fitTendencyClause
     ? `${bodyTypeDescription}, render with these proportions throughout, this defines the base figure, ${fitTendencyClause}`

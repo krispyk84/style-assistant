@@ -7,7 +7,6 @@ export const STEPS = [
   'gender',
   'measurements',
   'body-type',
-  'fit-tendency',
   'fit',
   'style',
   'budget',

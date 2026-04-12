@@ -17,7 +17,6 @@ import {
   BODY_TYPE_OPTIONS,
   BUDGET_OPTIONS,
   FIT_PREFERENCE_OPTIONS,
-  FIT_TENDENCY_OPTIONS,
   HAIR_COLOR_OPTIONS,
   SKIN_TONE_OPTIONS,
   STYLE_PREFERENCE_OPTIONS,
@@ -39,7 +38,6 @@ const STEP_TITLES: Record<Step, string> = {
   skin: "What's your\nskin tone?",
   bottoms: 'Warm weather\nbottoms.',
   'body-type': 'Your\nbody type.',
-  'fit-tendency': 'How clothes fit\noff the rack.',
   temperature: 'Temperature\npreference.',
   notes: 'Anything\nelse?',
 };
@@ -55,7 +53,6 @@ const STEP_HINTS: Record<Step, string> = {
   skin: 'Used for color guidance.',
   bottoms: 'Choose whether summer looks can include shorts.',
   'body-type': 'Used to personalise outfit sketches.',
-  'fit-tendency': 'Helps us recommend the right cuts and note alterations.',
   temperature: 'Your preferred unit across the app.',
   notes: 'Optional context like profession or climate.',
 };
@@ -133,17 +130,6 @@ const BODY_TYPE_LABELS: Record<string, string> = {
   athletic: 'Athletic',
 };
 
-const FIT_TENDENCY_IMAGES = {
-  fits_well: require('@/assets/images/menswear_fittendency_fitswell.png'),
-  tight_chest_loose_below: require('@/assets/images/menswear_fittendency_tightchestloosebelow.png'),
-  loose_chest_tight_below: require('@/assets/images/menswear_fittendency_loosechesttightbelow.png'),
-};
-
-const FIT_TENDENCY_LABELS: Record<string, string> = {
-  fits_well: 'Fits well in most places',
-  tight_chest_loose_below: 'Too tight in shoulders/chest, loose below',
-  loose_chest_tight_below: 'Too loose in shoulders/chest, tight below',
-};
 
 // ── Thumbnail helpers ──────────────────────────────────────────────────────────
 
@@ -486,21 +472,6 @@ export function OnboardingScreen() {
         );
       }
 
-      case 'fit-tendency': {
-        const fitTendencyOptions = FIT_TENDENCY_OPTIONS.map((v) => ({
-          value: v,
-          label: FIT_TENDENCY_LABELS[v],
-          image: FIT_TENDENCY_IMAGES[v],
-        }));
-        return (
-          <SelectorGrid
-            options={fitTendencyOptions}
-            value={profile.fitTendency ?? null}
-            onChange={(v) => selectAndAdvance('fitTendency', v)}
-            thumbnailHeight={220}
-          />
-        );
-      }
 
       case 'temperature':
         return (
