@@ -123,7 +123,6 @@ const BODY_TYPE_IMAGES = {
   slim: require('@/assets/images/menswear_bodytype_slim.png'),
   oval: require('@/assets/images/menswear_bodytype_oval.png'),
   rectangle: require('@/assets/images/menswear_bodytype_rectangle.png'),
-  inverted_triangle: require('@/assets/images/menswear_bodytype_invertedtriangle.png'),
   athletic: require('@/assets/images/menswear_bodytype_athletic.png'),
 };
 
@@ -131,7 +130,6 @@ const BODY_TYPE_LABELS: Record<string, string> = {
   slim: 'Slim',
   oval: 'Oval',
   rectangle: 'Rectangle',
-  inverted_triangle: 'Inverted Triangle',
   athletic: 'Athletic',
 };
 

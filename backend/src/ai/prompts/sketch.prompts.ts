@@ -115,7 +115,6 @@ const BODY_TYPE_DESCRIPTIONS: Record<string, string> = {
   slim: 'lean slight man, narrow frame, slim arms and legs, minimal muscle mass, slender torso',
   oval: 'large heavy-set man, overweight, full rounded belly protruding forward, wide torso, heavy arms and legs, clothing draped over a big frame',
   rectangle: 'average-build man, straight silhouette, shoulders and hips similar width, minimal waist definition, medium frame',
-  inverted_triangle: 'broad wide-shouldered man, V-shaped torso tapering to narrow hips and waist, visibly wider at shoulders than hips',
   athletic: 'muscular well-built man, defined arms and chest, visibly toned and fit, broad shoulders, tapered waist, strong physique',
 };
 
@@ -125,7 +124,6 @@ const BODY_TYPE_NEGATIVE_PROMPTS: Record<string, string> = {
   slim: 'muscular, heavy-set, overweight, thick, bulky',
   oval: 'slim, thin, athletic, toned, fit body, lean, muscular, narrow waist, flat stomach',
   rectangle: 'muscular, overweight, heavy-set, V-shaped torso',
-  inverted_triangle: 'overweight, heavy-set, wide hips, rectangular torso',
   athletic: 'slim, thin, lean, overweight, heavy-set',
 };
 
