@@ -210,22 +210,30 @@ export const outfitsRepository = {
     return mapToOutfitResponse(result);
   },
 
-  async findOutfitHistory(supabaseUserId: string): Promise<OutfitResponse[]> {
-    const results = await prisma.outfitResult.findMany({
-      where: {
-        request: { supabaseUserId },
-      },
-      include: {
-        request: true,
-        tierResults: { orderBy: { createdAt: 'asc' } },
-      },
-      orderBy: { generatedAt: 'desc' },
-      take: 100,
-    });
+  async findOutfitHistory(
+    supabaseUserId: string,
+    { page, limit }: { page: number; limit: number },
+  ): Promise<{ items: OutfitResponse[]; total: number }> {
+    const where = { request: { supabaseUserId } };
 
-    return results
-      .filter((r) => r.request)
-      .map(mapToOutfitResponse);
+    const [results, total] = await Promise.all([
+      prisma.outfitResult.findMany({
+        where,
+        include: {
+          request: true,
+          tierResults: { orderBy: { createdAt: 'asc' } },
+        },
+        orderBy: { generatedAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.outfitResult.count({ where }),
+    ]);
+
+    return {
+      items: results.filter((r) => r.request).map(mapToOutfitResponse),
+      total,
+    };
   },
 
   async deleteOutfit(requestId: string, supabaseUserId: string): Promise<boolean> {

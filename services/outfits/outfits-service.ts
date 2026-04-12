@@ -6,7 +6,7 @@ export type OutfitsService = {
     requestId: string,
     tier: GenerateOutfitsRequest['selectedTiers'][number]
   ) => Promise<ApiResponse<GenerateOutfitsResponse>>;
-  getOutfitHistory: () => Promise<ApiResponse<OutfitHistoryResponse>>;
+  getOutfitHistory: (params?: { page?: number; limit?: number }) => Promise<ApiResponse<OutfitHistoryResponse>>;
   deleteOutfitFromHistory: (requestId: string) => Promise<ApiResponse<{ deleted: boolean }>>;
   getOutfitResult: (requestId: string) => Promise<ApiResponse<GenerateOutfitsResponse>>;
 };

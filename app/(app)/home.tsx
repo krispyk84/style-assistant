@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Animated, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { WeatherCard } from '@/components/cards/weather-card';
 import { AppScreen } from '@/components/ui/app-screen';
@@ -22,7 +22,7 @@ function getGreeting() {
 // ── Screen ─────────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const { weather, weatherLoading, weatherError, profile, hasRealImages, currentImageUrl, fadeAnim } = useHomeData();
+  const { weather, weatherLoading, weatherError, profile, hasRealImages, currentImageUrl } = useHomeData();
   const { theme } = useTheme();
   const firstName = profile.name.trim() || 'there';
 
@@ -87,21 +87,12 @@ export default function HomeScreen() {
 
             {/* Carousel image — shown only when real saved outfits exist */}
             {hasRealImages && currentImageUrl ? (
-              <Animated.View
-                style={{
-                  bottom: 0,
-                  left: 0,
-                  opacity: fadeAnim,
-                  position: 'absolute',
-                  right: 0,
-                  top: 0,
-                }}>
-                <Image
-                  contentFit="cover"
-                  source={{ uri: currentImageUrl }}
-                  style={{ height: '100%', width: '100%' }}
-                />
-              </Animated.View>
+              <Image
+                contentFit="cover"
+                source={{ uri: currentImageUrl }}
+                style={{ bottom: 0, height: '100%', left: 0, position: 'absolute', right: 0, top: 0, width: '100%' }}
+                transition={600}
+              />
             ) : null}
 
             {/* Dark gradient overlay for readability */}

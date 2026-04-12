@@ -280,10 +280,10 @@ export const outfitsService = {
     return mergedResponse;
   },
 
-  async getOutfitHistory(supabaseUserId: string) {
-    const results = await outfitsRepository.findOutfitHistory(supabaseUserId);
+  async getOutfitHistory(supabaseUserId: string, { page, limit }: { page: number; limit: number }) {
+    const { items, total } = await outfitsRepository.findOutfitHistory(supabaseUserId, { page, limit });
     return {
-      items: results.map((outfit) => ({
+      items: items.map((outfit) => ({
         ...outfit,
         recommendations: outfit.recommendations.map((rec) => ({
           ...rec,
@@ -293,6 +293,9 @@ export const outfitsService = {
               : null,
         })),
       })),
+      total,
+      page,
+      hasMore: page * limit < total,
     };
   },
 

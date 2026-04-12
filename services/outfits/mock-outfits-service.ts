@@ -38,8 +38,8 @@ export const mockOutfitsService: OutfitsService = {
     };
   },
 
-  async getOutfitHistory(): Promise<ApiResponse<OutfitHistoryResponse>> {
-    return { success: true, data: { items: [] }, error: null };
+  async getOutfitHistory(_params?: { page?: number; limit?: number }): Promise<ApiResponse<OutfitHistoryResponse>> {
+    return { success: true, data: { items: [], total: 0, page: 1, hasMore: false }, error: null };
   },
 
   async deleteOutfitFromHistory(_requestId: string): Promise<ApiResponse<{ deleted: boolean }>> {

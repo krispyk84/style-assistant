@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, type PropsWithChildren, type RefObject, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/ui/app-text';
@@ -15,20 +15,25 @@ type AppScreenProps = PropsWithChildren<{
   floatingBack?: boolean;
   /** Optional ref forwarded to the inner ScrollView (only meaningful when scrollable=true). */
   scrollRef?: RefObject<ScrollView>;
+  /** Optional scroll handler forwarded to the inner ScrollView. */
+  onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }>;
 
 const FLOATING_BACK_THRESHOLD = 80;
 
-export function AppScreen({ children, scrollable = false, topInset = true, floatingBack = false, scrollRef }: AppScreenProps) {
+export function AppScreen({ children, scrollable = false, topInset = true, floatingBack = false, scrollRef, onScroll }: AppScreenProps) {
   const [showFloatingBack, setShowFloatingBack] = useState(false);
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
 
   const handleScroll = useCallback(
-    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
-      setShowFloatingBack(e.nativeEvent.contentOffset.y > FLOATING_BACK_THRESHOLD);
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (floatingBack) {
+        setShowFloatingBack(e.nativeEvent.contentOffset.y > FLOATING_BACK_THRESHOLD);
+      }
+      onScroll?.(e);
     },
-    [],
+    [floatingBack, onScroll],
   );
 
   const content = (
@@ -43,7 +48,7 @@ export function AppScreen({ children, scrollable = false, topInset = true, float
     </View>
   );
 
-  const floatingScrollProps = floatingBack
+  const scrollProps = floatingBack || onScroll
     ? { onScroll: handleScroll, scrollEventThrottle: 16 }
     : {};
 
@@ -59,7 +64,7 @@ export function AppScreen({ children, scrollable = false, topInset = true, float
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          {...floatingScrollProps}>
+          {...scrollProps}>
           {content}
         </ScrollView>
       ) : (

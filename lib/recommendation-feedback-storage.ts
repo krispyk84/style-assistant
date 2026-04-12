@@ -10,8 +10,12 @@ export type RecommendationFeedback = {
   tier: string;
   /** Title of the outfit at the time of feedback. */
   outfitTitle: string;
-  /** User rating. */
-  thumb: 'up' | 'down';
+  /**
+   * User rating.
+   * 'up' / 'down' — closet match feedback (piece-level)
+   * 'love' / 'hate' — outfit-level feedback from the tier detail screen
+   */
+  thumb: 'up' | 'down' | 'love' | 'hate';
   /** Whether thumbs-down triggered a regeneration. */
   regenerated: boolean;
   createdAt: string;

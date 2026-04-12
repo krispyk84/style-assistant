@@ -40,7 +40,9 @@ outfitsRouter.get(
   '/outfits/history',
   requireAuth,
   asyncHandler(async (request, response) => {
-    const result = await outfitsService.getOutfitHistory(request.userId!);
+    const page = Math.max(1, parseInt(String(request.query.page ?? '1'), 10) || 1);
+    const limit = Math.min(20, Math.max(1, parseInt(String(request.query.limit ?? '5'), 10) || 5));
+    const result = await outfitsService.getOutfitHistory(request.userId!, { page, limit });
     return sendSuccess(response, result);
   })
 );

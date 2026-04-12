@@ -1,11 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { router } from 'expo-router';
 
+import { useToast } from '@/components/ui/toast-provider';
+import {
+  loadRecommendationFeedback,
+  saveRecommendationFeedback,
+} from '@/lib/recommendation-feedback-storage';
 import type { CreateLookInput } from '@/types/look-request';
 import type { LookRecommendation } from '@/types/look-request';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+
+type OutfitFeedback = 'love' | 'hate' | null;
 
 type UseTierDetailActionsParams = {
   requestId?: string;
@@ -22,6 +29,47 @@ export function useTierDetailActions({
   requestInput,
 }: UseTierDetailActionsParams) {
   const [secondOpinionVisible, setSecondOpinionVisible] = useState(false);
+  const [outfitFeedback, setOutfitFeedback] = useState<OutfitFeedback>(null);
+
+  const { showToast } = useToast();
+
+  // Load existing outfit-level feedback for this request+tier on mount
+  useEffect(() => {
+    if (!requestId || !liveRecommendation?.tier) return;
+    void loadRecommendationFeedback().then((all) => {
+      const existing = all.find(
+        (f) =>
+          f.requestId === requestId &&
+          f.tier === liveRecommendation.tier &&
+          (f.thumb === 'love' || f.thumb === 'hate'),
+      );
+      if (existing) {
+        setOutfitFeedback(existing.thumb as OutfitFeedback);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleOutfitFeedback(thumb: 'love' | 'hate') {
+    if (!requestId || !liveRecommendation) return;
+    // Tapping the already-selected state deselects (clears feedback — not persisted as a removal,
+    // just resets local state; a new save would overwrite on next selection)
+    if (outfitFeedback === thumb) {
+      setOutfitFeedback(null);
+      return;
+    }
+    setOutfitFeedback(thumb);
+    await saveRecommendationFeedback({
+      id: `${requestId}:${liveRecommendation.tier}:outfit`,
+      requestId,
+      tier: liveRecommendation.tier,
+      outfitTitle: liveRecommendation.title,
+      thumb,
+      regenerated: false,
+      createdAt: new Date().toISOString(),
+    });
+    showToast(thumb === 'love' ? 'Noted — glad you love it.' : 'Noted — we\'ll keep that in mind.');
+  }
 
   function handleCheckPiece(pieceName: string) {
     if (!liveRecommendation) return;
@@ -51,5 +99,12 @@ export function useTierDetailActions({
     });
   }
 
-  return { secondOpinionVisible, setSecondOpinionVisible, handleCheckPiece, handleSelfieCheck };
+  return {
+    secondOpinionVisible,
+    setSecondOpinionVisible,
+    outfitFeedback,
+    handleOutfitFeedback,
+    handleCheckPiece,
+    handleSelfieCheck,
+  };
 }

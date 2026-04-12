@@ -37,8 +37,14 @@ export function TierDetailScreen() {
     closetItems,
   });
 
-  const { secondOpinionVisible, setSecondOpinionVisible, handleCheckPiece, handleSelfieCheck } =
-    useTierDetailActions({
+  const {
+    secondOpinionVisible,
+    setSecondOpinionVisible,
+    outfitFeedback,
+    handleOutfitFeedback,
+    handleCheckPiece,
+    handleSelfieCheck,
+  } = useTierDetailActions({
       requestId: stableParams.requestId,
       liveRecommendation,
       requestInput,
@@ -48,6 +54,11 @@ export function TierDetailScreen() {
 
   // Early return placed after all hook calls to satisfy Rules of Hooks
   if (!matchedTier || !liveRecommendation) {
+    // Diagnostic log — helps identify whether the failure is matchedTier or liveRecommendation
+    console.warn(
+      '[TierDetailScreen] early return:',
+      JSON.stringify({ tier: stableParams.tier, hasMatchedTier: Boolean(matchedTier), hasLiveRecommendation: Boolean(liveRecommendation), hasTitle: Boolean(stableParams.recommendationTitle) }),
+    );
     return (
       <AppScreen>
         <ErrorState
@@ -107,6 +118,43 @@ export function TierDetailScreen() {
           <Ionicons color={theme.colors.accent} name="chatbubble-ellipses-outline" size={18} />
           <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
         </Pressable>
+
+        {/* Outfit-level feedback */}
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {(['love', 'hate'] as const).map((thumb) => {
+            const isSelected = outfitFeedback === thumb;
+            return (
+              <Pressable
+                key={thumb}
+                onPress={() => void handleOutfitFeedback(thumb)}
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: isSelected ? theme.colors.text : 'transparent',
+                  borderColor: isSelected ? theme.colors.text : theme.colors.border,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  flex: 1,
+                  flexDirection: 'row',
+                  gap: spacing.xs,
+                  justifyContent: 'center',
+                  paddingVertical: spacing.sm,
+                }}>
+                <Ionicons
+                  color={isSelected ? theme.colors.inverseText : theme.colors.mutedText}
+                  name={thumb === 'love' ? 'heart-outline' : 'thumbs-down-outline'}
+                  size={16}
+                />
+                <AppText
+                  style={{
+                    color: isSelected ? theme.colors.inverseText : theme.colors.mutedText,
+                    fontSize: 13,
+                  }}>
+                  {thumb === 'love' ? 'Love it' : 'Hate it'}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </View>
 
         <View style={{ gap: spacing.md }}>
           <AppText variant="sectionTitle">Check recommended pieces</AppText>

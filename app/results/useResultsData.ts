@@ -93,11 +93,19 @@ export function useResultsData(stableParams: LookRouteParams & { requestId: stri
           return;
         }
         // Subsequent tier failed — skip it, continue with remaining tiers.
+        log(`[tier-generation] tier '${tier}' failed: ${serviceResponse.error?.code} — ${serviceResponse.error?.message}`);
+        recordError(
+          new Error(`Tier generation failed: ${tier} — ${serviceResponse.error?.message ?? 'unknown'}`),
+          'tier_generation_failure',
+        );
         continue;
       }
 
       const tierData = serviceResponse.data;
       const newRec = tierData.recommendations.find((r) => r.tier === tier);
+      if (!newRec) {
+        log(`[tier-generation] tier '${tier}' succeeded but recommendation not found in response. Returned tiers: ${tierData.recommendations.map((r) => r.tier).join(', ')}`);
+      }
 
       if (!mergedResponse) {
         // First tier done: show results immediately with this tier + placeholders for the rest.

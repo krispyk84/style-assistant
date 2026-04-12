@@ -46,18 +46,27 @@ export const apiOutfitsService: OutfitsService = {
       : response;
   },
 
-  async getOutfitHistory() {
-    const response = await createApiClient().request<OutfitHistoryResponse>('/outfits/history');
+  async getOutfitHistory(params?: { page?: number; limit?: number }) {
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 5;
+    const response = await createApiClient().request<OutfitHistoryResponse>(
+      `/outfits/history?page=${page}&limit=${limit}`
+    );
 
     if (response.success && response.data) {
       return {
         ...response,
-        data: { items: response.data.items.map(normalizeOutfitResponse) },
+        data: {
+          items: response.data.items.map(normalizeOutfitResponse),
+          total: response.data.total,
+          page: response.data.page,
+          hasMore: response.data.hasMore,
+        },
       };
     }
 
     if (response.error?.code === 'HTTP_ERROR' || response.error?.code === 'NETWORK_ERROR' || response.error?.code === 'NOT_FOUND') {
-      return mockOutfitsService.getOutfitHistory();
+      return mockOutfitsService.getOutfitHistory(params);
     }
 
     return response;

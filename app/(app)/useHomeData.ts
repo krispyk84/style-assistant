@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated } from 'react-native';
+import { Image } from 'expo-image';
 import { useFocusEffect } from 'expo-router';
 
 import { useAppSession } from '@/hooks/use-app-session';
@@ -9,7 +9,6 @@ import { loadSavedOutfits } from '@/lib/saved-outfits-storage';
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const CAROUSEL_INTERVAL_MS = 10000;
-const FADE_DURATION_MS = 600;
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
@@ -19,8 +18,7 @@ export function useHomeData() {
 
   const [carouselImages, setCarouselImages] = useState<string[]>([]);
   const [carouselIndex, setCarouselIndex] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  // Track focus so the carousel animation is skipped when on another tab
+  // Track focus so the carousel is skipped when on another tab
   const isFocusedRef = useRef(true);
 
   useFocusEffect(
@@ -40,6 +38,10 @@ export function useHomeData() {
         .filter((url): url is string => Boolean(url));
       // Shuffle so a different outfit leads each session
       const shuffled = [...urls].sort(() => Math.random() - 0.5);
+      // Prefetch all images into expo-image's cache so carousel transitions are instant
+      if (shuffled.length > 0) {
+        void Image.prefetch(shuffled);
+      }
       setCarouselImages(shuffled);
     }
     void loadImages();
@@ -49,24 +51,12 @@ export function useHomeData() {
     if (carouselImages.length <= 1) return;
 
     const interval = setInterval(() => {
-      // Skip animation work when the home tab is not visible
       if (!isFocusedRef.current) return;
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: FADE_DURATION_MS,
-        useNativeDriver: true,
-      }).start(() => {
-        setCarouselIndex((i) => (i + 1) % carouselImages.length);
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: FADE_DURATION_MS,
-          useNativeDriver: true,
-        }).start();
-      });
+      setCarouselIndex((i) => (i + 1) % carouselImages.length);
     }, CAROUSEL_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [carouselImages, fadeAnim]);
+  }, [carouselImages]);
 
   const hasRealImages = carouselImages.length > 0;
   const currentImageUrl = carouselImages[carouselIndex] ?? null;
@@ -78,6 +68,5 @@ export function useHomeData() {
     profile,
     hasRealImages,
     currentImageUrl,
-    fadeAnim,
   };
 }

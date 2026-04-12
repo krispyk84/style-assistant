@@ -35,13 +35,18 @@ function flattenToHistoryCards(items: GenerateOutfitsResponse[]): HistoryCard[] 
   return cards;
 }
 
+const PAGE_LIMIT = 5;
+
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
 export function useHistoryData() {
   const [historyCards, setHistoryCards] = useState<HistoryCard[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyFetched, setHistoryFetched] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
   const [deletingHistoryRequestId, setDeletingHistoryRequestId] = useState<string | null>(null);
 
   const { showToast } = useToast();
@@ -52,13 +57,15 @@ export function useHistoryData() {
 
     void (async () => {
       try {
-        const res = await outfitsService.getOutfitHistory();
+        const res = await outfitsService.getOutfitHistory({ page: 1, limit: PAGE_LIMIT });
         if (!res.success || !res.data) {
           setHistoryError(res.error?.message ?? 'Failed to load history.');
           setHistoryLoading(false);
           return;
         }
         setHistoryCards(flattenToHistoryCards(res.data.items));
+        setHistoryPage(1);
+        setHistoryHasMore(res.data.hasMore);
         setHistoryFetched(true);
         setHistoryLoading(false);
       } catch {
@@ -68,9 +75,34 @@ export function useHistoryData() {
     })();
   }
 
+  function loadMore() {
+    if (historyLoadingMore || !historyHasMore) return;
+    const nextPage = historyPage + 1;
+    setHistoryLoadingMore(true);
+
+    void (async () => {
+      try {
+        const res = await outfitsService.getOutfitHistory({ page: nextPage, limit: PAGE_LIMIT });
+        if (!res.success || !res.data) {
+          setHistoryLoadingMore(false);
+          return;
+        }
+        setHistoryCards((prev) => [...prev, ...flattenToHistoryCards(res.data!.items)]);
+        setHistoryPage(nextPage);
+        setHistoryHasMore(res.data.hasMore);
+        setHistoryLoadingMore(false);
+      } catch {
+        setHistoryLoadingMore(false);
+      }
+    })();
+  }
+
   // Called by the screen's useFocusEffect to mark history stale on next focus
   function resetFetch() {
     setHistoryFetched(false);
+    setHistoryPage(1);
+    setHistoryCards([]);
+    setHistoryHasMore(false);
   }
 
   async function handleDelete(requestId: string) {
@@ -90,10 +122,13 @@ export function useHistoryData() {
   return {
     historyCards,
     historyLoading,
+    historyLoadingMore,
     historyError,
     historyFetched,
+    historyHasMore,
     deletingHistoryRequestId,
     load,
+    loadMore,
     resetFetch,
     handleDelete,
   };

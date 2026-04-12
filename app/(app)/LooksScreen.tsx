@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { Pressable, ScrollView, View, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
 import { OutfitResultCard } from '@/components/cards/outfit-result-card';
@@ -11,6 +11,8 @@ import { ErrorState } from '@/components/ui/error-state';
 import { LoadingState } from '@/components/ui/loading-state';
 import { spacing, theme as staticTheme } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
+import { formatTierLabel } from '@/lib/outfit-utils';
 import { useFavouritesData } from './useFavouritesData';
 import { useHistoryData } from './useHistoryData';
 import { useHistoryActions } from './useHistoryActions';
@@ -18,6 +20,14 @@ import { useHistoryActions } from './useHistoryActions';
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type ActiveTab = 'favourites' | 'history';
+type TierFilter = 'all' | LookTierSlug;
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const TIER_FILTER_OPTIONS: { value: TierFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  ...LOOK_TIER_OPTIONS.map((t) => ({ value: t as TierFilter, label: formatTierLabel(t) })),
+];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +43,10 @@ function formatDate(iso: string): string {
 
 export function LooksScreen() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('favourites');
+  const [favouritesFilter, setFavouritesFilter] = useState<TierFilter>('all');
+  const [historyFilter, setHistoryFilter] = useState<TierFilter>('all');
+  // Ref guards against duplicate loadMore calls on the same scroll event burst
+  const loadingMoreRef = useRef(false);
 
   const favouritesHook = useFavouritesData();
   const historyHook = useHistoryData();
@@ -57,8 +71,23 @@ export function LooksScreen() {
     }
   }
 
+  const handleScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (activeTab !== 'history' || historyHook.historyLoadingMore || !historyHook.historyHasMore) return;
+      const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+      const nearEnd = contentOffset.y + layoutMeasurement.height >= contentSize.height - 300;
+      if (nearEnd && !loadingMoreRef.current) {
+        loadingMoreRef.current = true;
+        historyHook.loadMore();
+        // Reset guard after a short delay to allow the next batch to settle
+        setTimeout(() => { loadingMoreRef.current = false; }, 1000);
+      }
+    },
+    [activeTab, historyHook],
+  );
+
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable onScroll={handleScroll}>
       <View style={{ gap: spacing.xl }}>
 
         {/* Header */}
@@ -107,14 +136,53 @@ export function LooksScreen() {
           })}
         </View>
 
+        {/* Tier filter pills */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: spacing.xs }}
+          style={{ flexShrink: 0 }}>
+          {TIER_FILTER_OPTIONS.map(({ value, label }) => {
+            const activeFilter = activeTab === 'favourites' ? favouritesFilter : historyFilter;
+            const setFilter = activeTab === 'favourites' ? setFavouritesFilter : setHistoryFilter;
+            const isActive = activeFilter === value;
+            return (
+              <Pressable
+                key={value}
+                onPress={() => setFilter(value)}
+                style={{
+                  backgroundColor: isActive ? theme.colors.text : 'transparent',
+                  borderColor: isActive ? theme.colors.text : theme.colors.border,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.xs,
+                }}>
+                <AppText
+                  style={{
+                    color: isActive ? theme.colors.inverseText : theme.colors.mutedText,
+                    fontFamily: staticTheme.fonts.sansMedium,
+                    fontSize: 12,
+                    letterSpacing: 0.3,
+                  }}>
+                  {label}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
         {/* Favourites tab content */}
-        {activeTab === 'favourites' ? (
-          favouritesHook.favouritesLoading ? (
+        {activeTab === 'favourites' ? (() => {
+          const filtered = favouritesFilter === 'all'
+            ? favouritesHook.favourites
+            : favouritesHook.favourites.filter((r) => r.recommendation.tier === favouritesFilter);
+          return favouritesHook.favouritesLoading ? (
             <LoadingState label="Loading saved outfits..." />
           ) : favouritesHook.favouritesError ? (
             <ErrorState title="Favourites unavailable" message={favouritesHook.favouritesError} />
-          ) : favouritesHook.favourites.length ? (
-            favouritesHook.favourites.map((result) => (
+          ) : filtered.length ? (
+            filtered.map((result) => (
               <OutfitResultCard
                 key={result.id}
                 result={result}
@@ -126,6 +194,11 @@ export function LooksScreen() {
                 }
               />
             ))
+          ) : favouritesHook.favourites.length ? (
+            <EmptyState
+              title="No matches"
+              message={`No saved outfits for ${formatTierLabel(favouritesFilter as LookTierSlug)}.`}
+            />
           ) : (
             <EmptyState
               title="No saved outfits"
@@ -133,17 +206,20 @@ export function LooksScreen() {
               actionLabel="Create a look"
               actionHref="/create-look"
             />
-          )
-        ) : null}
+          );
+        })() : null}
 
         {/* History tab content */}
-        {activeTab === 'history' ? (
-          historyHook.historyLoading ? (
+        {activeTab === 'history' ? (() => {
+          const filtered = historyFilter === 'all'
+            ? historyHook.historyCards
+            : historyHook.historyCards.filter((c) => c.recommendation.tier === historyFilter);
+          return historyHook.historyLoading ? (
             <LoadingState label="Loading history..." />
           ) : historyHook.historyError ? (
             <ErrorState title="History unavailable" message={historyHook.historyError} />
-          ) : historyHook.historyCards.length ? (
-            historyHook.historyCards.map((card) => {
+          ) : filtered.length ? (
+            filtered.map((card) => {
               const result = {
                 id: card.id,
                 requestId: card.requestId,
@@ -165,6 +241,11 @@ export function LooksScreen() {
                 />
               );
             })
+          ) : historyHook.historyCards.length ? (
+            <EmptyState
+              title="No matches"
+              message={`No generated looks for ${formatTierLabel(historyFilter as LookTierSlug)}.`}
+            />
           ) : (
             <EmptyState
               title="No generated looks"
@@ -172,7 +253,20 @@ export function LooksScreen() {
               actionLabel="Create a look"
               actionHref="/create-look"
             />
-          )
+          );
+        })() : null}
+
+        {/* Pagination indicators — only rendered when history tab is active and has content */}
+        {activeTab === 'history' && !historyHook.historyLoading && historyHook.historyCards.length > 0 ? (
+          historyHook.historyLoadingMore ? (
+            <LoadingState label="Loading more..." />
+          ) : !historyHook.historyHasMore ? (
+            <AppText
+              tone="muted"
+              style={{ fontSize: 12, letterSpacing: 0.5, paddingVertical: spacing.sm, textAlign: 'center' }}>
+              All looks loaded
+            </AppText>
+          ) : null
         ) : null}
 
       </View>

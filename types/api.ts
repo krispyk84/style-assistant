@@ -49,6 +49,9 @@ export type AnalysisResponse = {
 
 export type OutfitHistoryResponse = {
   items: GenerateOutfitsResponse[];
+  total: number;
+  page: number;
+  hasMore: boolean;
 };
 
 export type CompatibilityCheckRequest = {
