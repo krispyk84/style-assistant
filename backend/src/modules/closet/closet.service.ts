@@ -140,29 +140,51 @@ export const closetService = {
       throw new HttpError(422, 'INSUFFICIENT_ITEMS', 'Add at least 3 eligible pieces (tops, outerwear, or bottoms) to use Help Me Pick.');
     }
 
-    // Build rejected set — include most recently anchored item as a same-item-twice guard
+    // Build rejected set from explicit client-side rejections (in-session "Pick Again" history)
     const rejectedSet = new Set(payload.rejectedIds ?? []);
-    const mostRecentlyAnchored = eligible
+
+    // Cross-session exclusion: last 5 most recently anchored items act as soft "recently chosen" hints.
+    // These are passed to the LLM prompt as context, not hard-excluded, so the LLM can still
+    // fall back to them if the closet is small.
+    const recentlyPickedIds = eligible
       .filter((item) => item.lastAnchoredAt !== null)
-      .sort((a, b) => (b.lastAnchoredAt!.getTime()) - (a.lastAnchoredAt!.getTime()))[0];
-    if (mostRecentlyAnchored && rejectedSet.size === 0) {
-      rejectedSet.add(mostRecentlyAnchored.id);
+      .sort((a, b) => b.lastAnchoredAt!.getTime() - a.lastAnchoredAt!.getTime())
+      .slice(0, 5)
+      .map((item) => item.id)
+      .filter((id) => !rejectedSet.has(id));
+
+    // Weighted shuffle — ensures the LLM sees a different ordering on every call:
+    //   Group A: never anchored (timesAnchored === 0) — shuffled → front
+    //   Group B: anchored but last anchor > 7 days ago — shuffled → middle
+    //   Group C: anchored within last 7 days — shuffled → back
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    function shuffle<T>(arr: T[]): T[] {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j]!, arr[i]!];
+      }
+      return arr;
     }
 
-    const index = eligible
-      .filter((item) => !rejectedSet.has(item.id))
-      .map((item) => ({
-        id: item.id,
-        name: item.title,
-        category: item.category,
-        color_family: item.colorFamily ?? null,
-        formality: item.formality ?? null,
-        silhouette: item.silhouette ?? null,
-        season: item.season ?? null,
-        material: item.material ?? null,
-        brand: item.brand || null,
-        times_anchored: item.timesAnchored,
-      }));
+    const available = eligible.filter((item) => !rejectedSet.has(item.id));
+    const groupA = shuffle(available.filter((i) => i.timesAnchored === 0));
+    const groupB = shuffle(available.filter((i) => i.timesAnchored > 0 && (!i.lastAnchoredAt || i.lastAnchoredAt < sevenDaysAgo)));
+    const groupC = shuffle(available.filter((i) => i.timesAnchored > 0 && i.lastAnchoredAt !== null && i.lastAnchoredAt >= sevenDaysAgo));
+
+    const sorted = [...groupA, ...groupB, ...groupC];
+
+    const index = sorted.map((item) => ({
+      id: item.id,
+      name: item.title,
+      category: item.category,
+      color_family: item.colorFamily ?? null,
+      formality: item.formality ?? null,
+      silhouette: item.silhouette ?? null,
+      season: item.season ?? null,
+      material: item.material ?? null,
+      brand: item.brand || null,
+      times_anchored: item.timesAnchored,
+    }));
 
     if (index.length === 0) {
       throw new HttpError(422, 'INSUFFICIENT_ITEMS', 'No eligible pieces remaining after exclusions.');
@@ -177,7 +199,7 @@ export const closetService = {
         schema: helpMePickResponseSchema,
         jsonSchema: HELP_ME_PICK_JSON_SCHEMA,
         instructions: buildHelpMePickSystemPrompt(payload.stylistId),
-        userContent: [{ type: 'input_text' as const, text: buildHelpMePickUserPrompt({ index, dayType: payload.dayType, vibe: payload.vibe, risk: payload.risk }) }],
+        userContent: [{ type: 'input_text' as const, text: buildHelpMePickUserPrompt({ index, dayType: payload.dayType, vibe: payload.vibe, risk: payload.risk, recentlyPickedIds }) }],
         supabaseUserId,
         feature: 'help-me-pick',
       });
@@ -189,7 +211,7 @@ export const closetService = {
     }
 
     if (!lastResult || !indexById.has(lastResult.itemId)) {
-      // Fallback: pick the least-anchored item
+      // Fallback: pick the first item in the shuffled index (least recently anchored)
       const fallback = index[0]!;
       lastResult = { itemId: fallback.id, reason: 'A strong starting point for your look.' };
     }

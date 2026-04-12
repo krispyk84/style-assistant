@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Animated, Keyboard, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { useRef } from 'react';
+import { Animated, Keyboard, PanResponder, Pressable, ScrollView, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/ui/app-text';
 import { FitStatusPicker } from '@/components/closet/fit-status-picker';
@@ -138,6 +139,47 @@ export function SaveToClosetForm({
 }: SaveToClosetFormProps) {
   const { theme } = useTheme();
 
+  // Two-image carousel — PanResponder instead of nested horizontal ScrollView.
+  // A nested horizontal ScrollView inside a vertical ScrollView causes gesture
+  // responder conflicts on iOS: the outer vertical ScrollView claims the touch
+  // before the inner horizontal one can respond, requiring multiple swipe attempts.
+  // PanResponder claims the gesture only when dx clearly exceeds dy, letting
+  // the outer vertical ScrollView handle everything else normally.
+  const carouselSlide = useRef(new Animated.Value(0)).current;
+  const carouselIndex = useRef(0);
+  const carouselPan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, { dx, dy }) =>
+        Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8,
+      onPanResponderMove: (_, { dx }) => {
+        const base = carouselIndex.current === 0 ? 0 : -cellWidth;
+        carouselSlide.setValue(base + dx);
+      },
+      onPanResponderRelease: (_, { dx, vx }) => {
+        const threshold = cellWidth * 0.3;
+        const goNext = carouselIndex.current === 0 && (dx < -threshold || vx < -0.5);
+        const goPrev = carouselIndex.current === 1 && (dx > threshold || vx > 0.5);
+        if (goNext) {
+          carouselIndex.current = 1;
+          Animated.spring(carouselSlide, { toValue: -cellWidth, useNativeDriver: true, overshootClamping: true }).start();
+        } else if (goPrev) {
+          carouselIndex.current = 0;
+          Animated.spring(carouselSlide, { toValue: 0, useNativeDriver: true, overshootClamping: true }).start();
+        } else {
+          Animated.spring(carouselSlide, { toValue: carouselIndex.current === 0 ? 0 : -cellWidth, useNativeDriver: true, overshootClamping: true }).start();
+        }
+      },
+    })
+  ).current;
+
+  // Reset carousel to first slide whenever a new sketch appears
+  const prevSketchUrl = useRef<string | null>(null);
+  if (sketchImageUrl !== prevSketchUrl.current) {
+    prevSketchUrl.current = sketchImageUrl;
+    carouselIndex.current = 0;
+    carouselSlide.setValue(0);
+  }
+
   const inputStyle = {
     backgroundColor: theme.colors.surface,
     borderColor: theme.colors.border,
@@ -209,14 +251,12 @@ export function SaveToClosetForm({
               }}>
               {hasBothImages && cellWidth > 0 ? (
                 <>
-                  <ScrollView
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    style={{ width: cellWidth, flex: 1 }}>
-                    <Image contentFit="cover" source={{ uri: sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-                    <Image contentFit="cover" source={{ uri: displayImageUri }} style={{ width: cellWidth, flex: 1 }} />
-                  </ScrollView>
+                  <View style={{ width: cellWidth, flex: 1, overflow: 'hidden' }} {...carouselPan.panHandlers}>
+                    <Animated.View style={{ flexDirection: 'row', width: cellWidth * 2, transform: [{ translateX: carouselSlide }] }}>
+                      <Image contentFit="cover" source={{ uri: sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
+                      <Image contentFit="cover" source={{ uri: displayImageUri }} style={{ width: cellWidth, flex: 1 }} />
+                    </Animated.View>
+                  </View>
                   <View style={{ bottom: 8, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center' }}>
                     <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.9 }} />
                     <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 6, width: 6, opacity: 0.45 }} />

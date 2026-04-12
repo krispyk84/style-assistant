@@ -95,7 +95,8 @@ export const closetRepository = {
         sketchImageUrl: true,
         fitStatus: true,
       },
-      orderBy: [{ timesAnchored: 'asc' }, { savedAt: 'desc' }],
+      // No orderBy — the service applies a weighted shuffle so the LLM sees
+      // a different ordering on every call. DB ordering here would make it deterministic.
     });
   },
 

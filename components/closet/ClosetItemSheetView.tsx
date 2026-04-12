@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, Platform,
+  Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, PanResponder, Platform,
   Pressable, ScrollView, TextInput, View,
 } from 'react-native';
 
@@ -113,6 +113,35 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
   const hasBoth = Boolean(item?.sketchImageUrl) && Boolean(item?.uploadedImageUrl);
   const primaryUri = item?.sketchImageUrl ?? item?.uploadedImageUrl ?? null;
 
+  // Two-image carousel using PanResponder — avoids nested horizontal ScrollView
+  // conflict with the outer vertical ScrollView in the sheet.
+  const carouselSlide = useRef(new Animated.Value(0)).current;
+  const carouselIndex = useRef(0);
+  const carouselPan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, { dx, dy }) =>
+        Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8,
+      onPanResponderMove: (_, { dx }) => {
+        const base = carouselIndex.current === 0 ? 0 : -cellWidth;
+        carouselSlide.setValue(base + dx);
+      },
+      onPanResponderRelease: (_, { dx, vx }) => {
+        const threshold = cellWidth * 0.3;
+        const goNext = carouselIndex.current === 0 && (dx < -threshold || vx < -0.5);
+        const goPrev = carouselIndex.current === 1 && (dx > threshold || vx > 0.5);
+        if (goNext) {
+          carouselIndex.current = 1;
+          Animated.spring(carouselSlide, { toValue: -cellWidth, useNativeDriver: true, overshootClamping: true }).start();
+        } else if (goPrev) {
+          carouselIndex.current = 0;
+          Animated.spring(carouselSlide, { toValue: 0, useNativeDriver: true, overshootClamping: true }).start();
+        } else {
+          Animated.spring(carouselSlide, { toValue: carouselIndex.current === 0 ? 0 : -cellWidth, useNativeDriver: true, overshootClamping: true }).start();
+        }
+      },
+    })
+  ).current;
+
   return (
     <Modal animationType="none" transparent visible onRequestClose={dismissAndClose}>
       {/* Backdrop: absolute fill, only opacity animates — never slides */}
@@ -186,14 +215,12 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
               }}>
               {hasBoth && cellWidth > 0 ? (
                 <>
-                  <ScrollView
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    style={{ width: cellWidth, flex: 1 }}>
-                    <Image contentFit="contain" source={{ uri: item!.sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-                    <Image contentFit="contain" source={{ uri: item!.uploadedImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-                  </ScrollView>
+                  <View style={{ width: cellWidth, flex: 1, overflow: 'hidden' }} {...carouselPan.panHandlers}>
+                    <Animated.View style={{ flexDirection: 'row', width: cellWidth * 2, transform: [{ translateX: carouselSlide }] }}>
+                      <Image contentFit="contain" source={{ uri: item!.sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
+                      <Image contentFit="contain" source={{ uri: item!.uploadedImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
+                    </Animated.View>
+                  </View>
                   <View style={{ bottom: 10, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center' }}>
                     <View style={{ backgroundColor: theme.colors.accent, borderRadius: 999, height: 6, width: 6, opacity: 0.9 }} />
                     <View style={{ backgroundColor: theme.colors.accent, borderRadius: 999, height: 6, width: 6, opacity: 0.45 }} />
