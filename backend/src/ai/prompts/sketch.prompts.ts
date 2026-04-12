@@ -15,8 +15,10 @@ import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outf
  *   the negative prompt by the caller (tier-sketch.service.ts) so the model cannot
  *   substitute a tier-appropriate garment for the user's actual anchor item.
  *
- * Accessories are split: worn-on-body (belt, watch, tie) vs beside-mannequin (bag, glasses).
- * Piece names stripped of trailing "with X" / "— X" clauses, capped at 6 words.
+ * Accessories are split: worn-on-body (belt, watch, tie) vs beside-figure (bag, glasses).
+ * Footwear in accessories (Loafers, Boots, etc.) is always classified as worn to prevent
+ * phantom flat-lay shoes appearing beside the figure.
+ * Piece names stripped of trailing "with X" / "— X" clauses, capped at 8 words.
  * Fit adjectives (tailored, slim-fit, wide-leg, oversized) appear early and are preserved.
  */
 
@@ -69,29 +71,52 @@ const ABOVE_ACCESSORY_KEYWORDS = [
 ];
 
 /**
- * Accessories that are placed BESIDE the mannequin (not on-body).
+ * Accessories that are placed beside the figure (bags, eyewear).
+ * These are rendered as "styled with the look" rather than "beside" to avoid
+ * flat-lay ground placement in the generated sketch.
  */
 const BESIDE_ACCESSORY_KEYWORDS = [
   'bag', 'tote', 'backpack', 'briefcase', 'sunglasses', 'glasses', 'umbrella', 'gloves',
 ];
 
 /**
+ * Footwear schema categories — always rendered ON the figure, never beside or above.
+ * Prevents loafers/boots in the accessories array from appearing as flat-lay props.
+ */
+const FOOTWEAR_CATEGORIES = ['Boots', 'Loafers', 'Shoes', 'Sneakers'] as const;
+
+/**
  * Trim verbose AI piece names to the core visual description.
- * Strips trailing "with X" / "— X" / "featuring X" clauses, then caps at 6 words.
+ * Strips trailing "with X" / "— X" / "featuring X" clauses, then caps at 8 words
+ * (increased from 6 to preserve fit adjectives: tailored, slim-cut, wide-leg, etc.)
  * Only used for supporting pieces (keyPieces, shoes, accessories) — NOT the anchor.
  */
 function shortenPieceName(name: string): string {
   const stripped = name.split(/\s+with\s+|\s+—\s+|\s+featuring\s+/i)[0] ?? name;
   const words = stripped.trim().split(/\s+/);
-  return words.slice(0, 6).join(' ');
+  return words.slice(0, 8).join(' ');
 }
 
+/**
+ * Produces the prompt token for a single piece.
+ * Prepends metadata.color so the color word leads the token, preventing the model
+ * from inheriting color from the dominant anchor item instead of the piece's own spec.
+ */
 function pieceLabel(piece: OutfitPieceDto): string {
-  return shortenPieceName(piece.display_name);
+  const shortened = shortenPieceName(piece.display_name);
+  const color = piece.metadata?.color ?? '';
+  if (color && !shortened.toLowerCase().startsWith(color.toLowerCase())) {
+    return `${color} ${shortened}`;
+  }
+  return shortened;
 }
 
 function classifyAccessory(piece: OutfitPieceDto): 'worn' | 'beside' | 'above' {
-  const cat = (piece.metadata?.category ?? '').toLowerCase();
+  // Footwear that ends up in the accessories array must still render ON the figure.
+  const category = piece.metadata?.category ?? '';
+  if ((FOOTWEAR_CATEGORIES as readonly string[]).includes(category)) return 'worn';
+
+  const cat = category.toLowerCase();
   const name = piece.display_name.toLowerCase();
   const haystack = `${cat} ${name}`;
 
@@ -126,6 +151,7 @@ export function buildTierSketchPrompt(input: {
   gender?: string | null;
   bodyTypeDescription?: string;
   fitTendency?: string | null;
+  fitPreference?: string | null;
 }) {
   const tier = input.tierLabel.toLowerCase();
 
@@ -177,9 +203,11 @@ export function buildTierSketchPrompt(input: {
     ? `${wornAccessories.join(', ')} visible`
     : null;
 
+  // "styled with the look" avoids "beside" which diffusion models interpret as
+  // ground placement (flat-lay). No fallback — omit entirely when none present.
   const besidePart = besideAccessories.length > 0
-    ? `${besideAccessories.join(', ')} beside`
-    : 'accessories beside';
+    ? `${besideAccessories.join(', ')} styled with the look`
+    : null;
 
   const abovePart = aboveAccessories.length > 0
     ? `${aboveAccessories.join(', ')} floating above the figure`
@@ -190,8 +218,8 @@ export function buildTierSketchPrompt(input: {
   // reframe as "inner layer" so the model doesn't render the sweater as the outermost
   // garment and suppress or misplace the outerwear piece.
   const anchorLock = hasOuterwear && anchorMidLayer
-    ? `inner layer worn: ${anchor}, preserve garment category and construction exactly, worn under outerwear`
-    : `anchor item worn: ${anchor}, preserve garment category and construction exactly`;
+    ? `inner layer worn: ${anchor}, preserve garment category and all construction details exactly, render all pockets seams hardware and structural features fully visible, worn under outerwear`
+    : `anchor item worn: ${anchor}, preserve garment category and all construction details exactly, render all pockets seams hardware and structural features fully visible`;
 
   // Outerwear gets its own explicit slot immediately after the anchor lock.
   // Positioned here (high token weight) so the model registers the layering order:
@@ -200,13 +228,27 @@ export function buildTierSketchPrompt(input: {
     ? `outerwear outermost layer: ${outerwearPieces.map(pieceLabel).join(', ')}, worn over all inner layers`
     : null;
 
-  const bodyTypeDescription = input.bodyTypeDescription ?? 'average-build man, medium frame, moderate proportions';
+  const bodyTypeDescription = input.bodyTypeDescription ?? 'average build, medium frame, moderate proportions';
   const fitTendencyClause = input.fitTendency ? FIT_TENDENCY_FIGURE_DESCRIPTIONS[input.fitTendency] : null;
-  const figureProportionsPart = fitTendencyClause
-    ? `${bodyTypeDescription}, render with these proportions throughout, this defines the base figure, ${fitTendencyClause}`
-    : `${bodyTypeDescription}, render with these proportions throughout, this defines the base figure`;
+  const fitPreferenceClause = input.fitPreference === 'tailored'
+    ? 'tailored close-fitting silhouette throughout'
+    : input.fitPreference === 'relaxed' || input.fitPreference === 'oversized'
+      ? 'relaxed easy silhouette throughout'
+      : null;
+  const figureProportionsPart = [
+    bodyTypeDescription,
+    'render with these proportions throughout, this defines the base figure',
+    fitTendencyClause,
+    fitPreferenceClause,
+  ].filter(Boolean).join(', ');
+
+  // Placed at slot 0 — before any body-proportion language — so the headless
+  // constraint is the highest-weight token in the sequence. Body descriptors at
+  // slot 1 then modify a headless figure rather than activating a full-human prior.
+  const headlessGuard = 'headless figure only, no head, no face, no facial features, no hair, no neck, no human head';
 
   return [
+    headlessGuard,
     figureProportionsPart,
     'single headless figure, no head no face, no facial features, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
     anchorLock,

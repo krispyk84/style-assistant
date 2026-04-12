@@ -29,6 +29,9 @@ export const outfitRecommendationSchema = z.object({
   tier: tierEnum,
   title: z.string().min(1),
   anchorItem: z.string().min(1),
+  // Optional for backwards compatibility — old stored responses parse without it.
+  // Always required in the OpenAI JSON schema so new responses always include it.
+  anchorPiece: outfitPieceSchema.optional(),
   keyPieces: z.array(outfitPieceSchema).min(2).max(5),
   shoes: z.array(outfitPieceSchema).min(1).max(3),
   accessories: z.array(outfitPieceSchema).min(1).max(4),
@@ -102,6 +105,10 @@ const outfitRecommendationJsonSchema = {
     anchorItem: {
       type: 'string',
     },
+    anchorPiece: {
+      ...outfitPieceJsonSchema,
+      description: 'The anchor item as a structured piece — display_name matches anchorItem text, metadata reflects the anchor\'s category, dominant color, material, and formality.',
+    },
     keyPieces: {
       type: 'array',
       items: outfitPieceJsonSchema,
@@ -133,7 +140,7 @@ const outfitRecommendationJsonSchema = {
       },
     },
   },
-  required: ['tier', 'title', 'anchorItem', 'keyPieces', 'shoes', 'accessories', 'fitNotes', 'whyItWorks', 'stylingDirection', 'detailNotes'],
+  required: ['tier', 'title', 'anchorItem', 'anchorPiece', 'keyPieces', 'shoes', 'accessories', 'fitNotes', 'whyItWorks', 'stylingDirection', 'detailNotes'],
 } as const;
 
 export const tieredOutfitGenerationJsonSchema = {

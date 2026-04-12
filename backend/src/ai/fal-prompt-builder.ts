@@ -10,6 +10,8 @@ const NEGATIVE_PROMPT =
   'digital painting, oil painting, anime, cartoon, ' +
   // ── Composition guards ─────────────────────────────────────────────────────
   'flat lay, flatlay, lookbook, clothing hanger, product display, clothes folded, styled flat, ' +
+  'accessories on ground, accessories beside feet, items on floor beside figure, flat-lay accessories, ' +
+  'second pair of shoes, extra footwear beside figure, shoes beside, loafers beside, boots beside, ' +
   'cropped at knees, cropped at ankles, cut-off feet, shoes cut off, partial legs, incomplete figure, torso only, ' +
   // ── Anti-polish / anti-digital-clean — these fight the LoRA's default clean mode ──
   'glossy, shiny, plastic sheen, lacquer finish, varnish, satin finish, ' +
