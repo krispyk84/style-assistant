@@ -6,6 +6,7 @@ const NEGATIVE_PROMPT =
   'two figures, multiple figures, two mannequins, multiple mannequins, side by side, outfit comparison, split view, duplicate figure, ' +
   'face, human face, head, human head, portrait, facial features, eyes, nose, mouth, ears, hair, neck, realistic face, anime face, ' +
   'person with head, realistic human, bald head, skull, forehead, chin, cheekbones, ' +
+  'neck above collar line, exposed neck skin, jawline, chin above collar, visible neck, bare neck, ' +
   // ── Realism / render guards ────────────────────────────────────────────────
   'photorealistic, photograph, 3D render, CGI, hyperrealistic, realistic, product photography, studio photo, ' +
   'digital painting, oil painting, anime, cartoon, ' +

@@ -9,9 +9,11 @@ const ANTI_DRIFT_RULES: Array<{ pattern: RegExp; antiDrift: string }> = [
   // Shirts → prevent blazer/jacket substitution (smart-casual prior)
   { pattern: /\b(shirt|button.?down|oxford shirt|chambray|denim shirt|western shirt|flannel shirt|dress shirt|overshirt|shacket|chore coat)\b/,
     antiDrift: 'blazer, suit jacket, sport coat, sports jacket, navy jacket, structured jacket, formal jacket, navy blazer' },
-  // Knitwear/cardigan → prevent blazer substitution
-  { pattern: /\b(cardigan|crewneck|jumper|pullover|sweater|knitwear)\b/,
-    antiDrift: 'blazer, suit jacket, sport coat, structured jacket, woven jacket' },
+  // Knitwear → prevent blazer AND bomber/chore/field jacket substitution.
+  // The expanded negative covers the full range of "black zip garment" archetypes
+  // the model defaults to under Smart Casual pressure (INC-009: quarter-zip → bomber/chore coat).
+  { pattern: /\b(cardigan|crewneck|jumper|pullover|sweater|knitwear|quarter.?zip|half.?zip|turtleneck)\b/,
+    antiDrift: 'blazer, suit jacket, sport coat, structured jacket, woven jacket, bomber jacket, chore jacket, chore coat, field jacket, overshirt, zip-front jacket, outerwear jacket' },
   // Sneakers → prevent boot/dress shoe substitution
   { pattern: /\b(sneaker|trainer|canvas shoe|court shoe|plimsoll|runner|running shoe|low-top|hi-top)\b/,
     antiDrift: 'boots, chelsea boots, chukka boots, desert boots, dress shoes, oxford shoes, loafers, brown leather boots, brown boots, tan boots' },

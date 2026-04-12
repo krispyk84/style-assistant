@@ -15,7 +15,8 @@ import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outf
 const HEADLESS_OPENING =
   'Headless mannequin figure only. No head. No face. No hair. No neck above the collar line. Fashion illustration on a dress form.';
 
-const HEADLESS_CLOSING = 'Remember: headless mannequin only, no head, no face, no hair.';
+const HEADLESS_CLOSING =
+  'Headless mannequin only — absolutely no head, face, eyes, nose, mouth, ears, or hair anywhere in the image.';
 
 /**
  * Prompts for fal.ai flux-lora sketch generation.
@@ -55,8 +56,11 @@ const OUTERWEAR_KEYWORDS = [
  * lock is reframed as "inner layer" so the model doesn't render it as the outermost piece.
  */
 const MIDLAYER_ANCHOR_KEYWORDS = [
+  // Knitwear
   'sweater', 'pullover', 'quarter zip', 'half zip', 'jumper',
   'sweatshirt', 'hoodie', 'cardigan', 'knitwear', 'turtleneck', 'crewneck',
+  // Shirts and tops — always mid-layers when outerwear is present
+  'shirt', 't-shirt', 'polo', 'button-down',
 ];
 
 function isOuterwear(piece: OutfitPieceDto): boolean {
@@ -69,6 +73,39 @@ function isOuterwear(piece: OutfitPieceDto): boolean {
 function anchorIsMidLayer(anchorDescription: string): boolean {
   const desc = anchorDescription.toLowerCase();
   return MIDLAYER_ANCHOR_KEYWORDS.some((kw) => desc.includes(kw));
+}
+
+/**
+ * Returns an explicit garment-category declaration for the anchor lock token.
+ * Names the garment type AND the common wrong substitutes to prohibit, preventing
+ * the image model from replacing the anchor with a tier-appropriate archetype
+ * (e.g. quarter-zip pullover → bomber jacket under "Smart Casual" pressure).
+ */
+function categoryHint(anchor: string): string {
+  const a = anchor.toLowerCase();
+  if (/quarter.?zip|half.?zip/.test(a))
+    return 'knit quarter-zip pullover (soft knitwear with short front zip and ribbed collar — NOT a jacket, NOT a bomber jacket, NOT a chore coat, NOT outerwear)';
+  if (/pullover|sweater|knitwear|jumper/.test(a))
+    return 'knit pullover (soft knitwear — NOT a jacket, NOT outerwear)';
+  if (/crewneck/.test(a))
+    return 'crewneck sweatshirt or sweater (round-neck top — NOT a jacket)';
+  if (/turtleneck/.test(a))
+    return 'turtleneck (high-neck knit top — NOT a jacket)';
+  if (/hoodie/.test(a))
+    return 'hoodie (jersey sweatshirt with hood — NOT a jacket)';
+  if (/sweatshirt/.test(a))
+    return 'sweatshirt (soft jersey top — NOT a jacket)';
+  if (/cardigan/.test(a))
+    return 'cardigan (open-front knitwear — NOT a blazer, NOT a jacket)';
+  if (/dress shirt|button.?down|oxford/.test(a))
+    return 'woven dress shirt (collared woven shirt, base layer — NOT a jacket, NOT a blazer, NOT outerwear)';
+  if (/shirt/.test(a))
+    return 'woven shirt (collared shirt, base layer — NOT a jacket, NOT outerwear)';
+  if (/t-shirt|tee\b/.test(a))
+    return 'T-shirt (jersey top, base layer — NOT a jacket)';
+  if (/polo/.test(a))
+    return 'polo shirt (collared jersey top — NOT a blazer, NOT a jacket)';
+  return 'garment exactly as described above — do not substitute garment category';
 }
 
 /**
@@ -104,14 +141,26 @@ const FOOTWEAR_CATEGORIES = ['Boots', 'Loafers', 'Shoes', 'Sneakers'] as const;
 
 /**
  * Trim verbose AI piece names to the core visual description.
- * Strips trailing "with X" / "— X" / "featuring X" clauses, then caps at 8 words
- * (increased from 6 to preserve fit adjectives: tailored, slim-cut, wide-leg, etc.)
+ * Preserves "with X" / "featuring X" clauses when the clause describes a structural
+ * feature (pockets, hardware, zips, etc.) — stripping these removes visually defining
+ * details (e.g. "cargo pants with large side cargo pockets" → "cargo pants").
+ * "— X" clauses are always stripped (styling notes, not structural).
  * Only used for supporting pieces (keyPieces, shoes, accessories) — NOT the anchor.
  */
 function shortenPieceName(name: string): string {
-  const stripped = name.split(/\s+with\s+|\s+—\s+|\s+featuring\s+/i)[0] ?? name;
-  const words = stripped.trim().split(/\s+/);
-  return words.slice(0, 8).join(' ');
+  const STRUCTURAL_FEATURE = /pocket|zip|button|buckle|strap|lace|hook|panel|patch|pleat|cuff|collar|hardware|seam/i;
+  // Strip "— X" styling notes entirely, then split on "with" / "featuring"
+  const withoutDash = name.split(/\s+—\s+/)[0] ?? name;
+  const parts = withoutDash.split(/\s+(?:with|featuring)\s+/i);
+  const kept = parts.reduce<string[]>((acc, part, i) => {
+    if (i === 0) { acc.push(part); return acc; }
+    // Re-attach only clauses that name structural features
+    if (STRUCTURAL_FEATURE.test(part)) acc.push(`with ${part}`);
+    return acc;
+  }, []);
+  const words = kept.join(' ').trim().split(/\s+/);
+  // Cap at 10 to preserve fit adjectives AND a kept structural clause
+  return words.slice(0, 10).join(' ');
 }
 
 /**
@@ -294,12 +343,17 @@ export function buildTierSketchPrompt(input: {
     : null;
 
   // Anchor locking: declared first, in the highest-weight token position.
-  // When the anchor is a mid-layer (sweater, hoodie, etc.) AND outerwear is present,
-  // reframe as "inner layer" so the model doesn't render the sweater as the outermost
-  // garment and suppress or misplace the outerwear piece.
+  // categoryHint() names the garment type and explicitly prohibits common substitutions
+  // (e.g. quarter-zip → bomber jacket, dress shirt → blazer under tier pressure).
+  // When the anchor is a mid-layer AND outerwear is present, reframe as "inner layer"
+  // so the model layers correctly and doesn't render the mid-layer as outermost.
   const anchorLock = hasOuterwear && anchorMidLayer
-    ? `inner layer worn: ${anchor}, preserve garment category and all construction details exactly, render all pockets seams hardware and structural features fully visible, worn under outerwear`
-    : `anchor item worn: ${anchor}, preserve garment category and all construction details exactly, render all pockets seams hardware and structural features fully visible`;
+    ? `ANCHOR INNER LAYER — must be rendered exactly as described, visible under outerwear: ${anchor}. ` +
+      `This is a ${categoryHint(anchor)}, worn under the outermost layer. ` +
+      `Preserve exact collar type, closure mechanism, fabric, and all structural details.`
+    : `ANCHOR PIECE — this garment is non-negotiable: ${anchor}. ` +
+      `This is a ${categoryHint(anchor)}. ` +
+      `Do not replace, substitute, or change this garment. Preserve category, collar, closure, and construction exactly.`;
 
   // Outerwear gets its own explicit slot immediately after the anchor lock.
   // Positioned here (high token weight) so the model registers the layering order:
@@ -307,6 +361,15 @@ export function buildTierSketchPrompt(input: {
   const outerwearPart = hasOuterwear
     ? `outerwear outermost layer: ${outerwearPieces.map(pieceLabel).join(', ')}, worn over all inner layers`
     : null;
+
+  // Color contrast guard: when anchor and outerwear differ in color, declare both
+  // colors explicitly so the anchor's color cannot bleed into the outerwear layer.
+  const outerwearColor = outerwearPieces[0]?.metadata?.color?.toLowerCase() ?? '';
+  const anchorColorWord = anchor.split(/[\s,]/)[0]?.toLowerCase() ?? '';
+  const colorContrastClause =
+    hasOuterwear && outerwearColor && anchorColorWord && outerwearColor !== anchorColorWord
+      ? `color distinction — anchor is ${anchorColorWord}, outerwear is ${outerwearColor}: render each layer in its own specified color, do not transfer anchor color to outerwear`
+      : null;
 
   const bodyTypeDescription = input.bodyTypeDescription ?? 'average build, medium frame, moderate proportions';
   const fitTendencyClause = input.fitTendency ? FIT_TENDENCY_FIGURE_DESCRIPTIONS[input.fitTendency] : null;
@@ -322,6 +385,10 @@ export function buildTierSketchPrompt(input: {
     fitPreferenceClause,
   ].filter(Boolean).join(', ');
 
+  // Single-figure composition constraint — all garments on the figure, no flat-lay or split.
+  const compositionInstruction =
+    'ALL listed garments must be shown ON the single figure as a complete worn outfit — no floating items, no flat lay, no second figure, no garments beside or behind the figure';
+
   return [
     // ── Headless constraint: OPENING — slot 0, hardcoded, cannot be omitted ──────
     // Uses periods (hard semantic boundary in CLIP) and object-framing ("mannequin",
@@ -332,8 +399,10 @@ export function buildTierSketchPrompt(input: {
     'single headless figure, no head no face, no facial features, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
     anchorLock,
     outerwearPart,
+    colorContrastClause,
     keyPiecesPart,
     shoesPart,
+    compositionInstruction,
     wornPart,
     besidePart,
     abovePart,
@@ -341,18 +410,17 @@ export function buildTierSketchPrompt(input: {
     // of the figureProportionsPart. First clause only (max 8 words) to avoid
     // over-counting tokens, but enough to re-anchor body size before rendering.
     bodyTypeDescription.split(',').slice(0, 2).join(','),
-    // ── Headless constraint: CLOSING — hardcoded reminder before style block ──────
-    HEADLESS_CLOSING,
-    // Style block — placed last so it modifies the full outfit description rather
-    // than competing with the anchor lock in the high-weight leading tokens.
-    // For the fal LoRA path this reinforces the trigger-word style toward softer
-    // hand-rendered output; for Imagen this supplements its own style prefix.
+    // Style block — placed before closing headless reminder so all garment tokens
+    // register before the style modifier fires.
     'fine-line hand-drawn ink contour sketch, slight line-weight variation and gentle roughness in outlines, ' +
     'soft transparent watercolor wash fills with visible pigment variation across fabric surfaces, ' +
     'loose watercolor bleed at garment edges, dry-brush texture on shadow folds, ' +
     'matte paper finish throughout, pigment absorbed into paper grain, no gloss no sheen on any surface, ' +
     'warm aged parchment background with loose translucent watercolor wash clouds, antique paper tone, ' +
     'muted desaturated editorial palette, soft organic edges not crisp digital lines',
+    // ── Headless constraint: CLOSING — last token position, reinforces after all
+    // style and garment tokens have fired, preventing late-sequence face generation ──
+    HEADLESS_CLOSING,
   ]
     .filter(Boolean)
     .join(', ');

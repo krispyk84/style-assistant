@@ -65,16 +65,31 @@ export function buildLabeledPieces(
     { label: 'Anchor', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true },
   ];
 
-  pieces.push(...recommendation.keyPieces.map((piece, index) => {
-    const normalized = normalizePiece(piece);
-    const { item, confidencePercent } = resolveMatch(normalized, closetItems, matchMap);
-    return {
-      label: uniqueLabel(labelForKeyPiece(normalized, index), usedLabels),
-      value: normalized.display_name,
-      matchedClosetItem: item,
-      confidencePercent,
-    };
-  }));
+  // Normalizer used to deduplicate anchor from keyPieces.
+  const normStr = (s: string) =>
+    s.toLowerCase().replace(/\s*\(.*?\)\s*/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalizedAnchor = normStr(anchorText);
+
+  // Safety net: skip any keyPiece that duplicates the anchor.
+  // The backend already deduplicates (see deduplicateKeyPieces in outfits-response-mapper),
+  // but this guards against stale cached responses where the anchor appears in both
+  // anchorItem and keyPieces, which would cause it to show up twice in the piece list.
+  pieces.push(...recommendation.keyPieces
+    .filter((piece) => {
+      if (!normalizedAnchor) return true;
+      const p = normStr(normalizePiece(piece).display_name);
+      return !(p.startsWith(normalizedAnchor) || normalizedAnchor.startsWith(p));
+    })
+    .map((piece, index) => {
+      const normalized = normalizePiece(piece);
+      const { item, confidencePercent } = resolveMatch(normalized, closetItems, matchMap);
+      return {
+        label: uniqueLabel(labelForKeyPiece(normalized, index), usedLabels),
+        value: normalized.display_name,
+        matchedClosetItem: item,
+        confidencePercent,
+      };
+    }));
 
   recommendation.shoes.forEach((shoe, index) => {
     const normalized = normalizePiece(shoe);
