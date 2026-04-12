@@ -17,6 +17,7 @@ type BackendProfileDto = {
   summerBottomPreference: string;
   temperatureUnit: string;
   bodyType: string | null;
+  weightDistribution: string | null;
   fitTendency: string | null;
   notes: string | null;
   onboardingCompleted: boolean;
@@ -36,6 +37,7 @@ function toProfile(dto: BackendProfileDto): Profile {
     summerBottomPreference: dto.summerBottomPreference as Profile['summerBottomPreference'],
     temperatureUnit: (dto.temperatureUnit as Profile['temperatureUnit']) ?? 'celsius',
     bodyType: (dto.bodyType as Profile['bodyType']) ?? undefined,
+    weightDistribution: (dto.weightDistribution as Profile['weightDistribution']) ?? undefined,
     fitTendency: (dto.fitTendency as Profile['fitTendency']) ?? undefined,
     notes: dto.notes ?? '',
   };
@@ -90,6 +92,7 @@ export const apiProfileService: ProfileService = {
         summerBottomPreference: request.profile.summerBottomPreference,
         temperatureUnit: request.profile.temperatureUnit,
         bodyType: request.profile.bodyType,
+        weightDistribution: request.profile.weightDistribution,
         fitTendency: request.profile.fitTendency,
         notes: request.profile.notes,
         onboardingCompleted: request.onboardingCompleted,
