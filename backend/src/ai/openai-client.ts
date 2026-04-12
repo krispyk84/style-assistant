@@ -285,7 +285,9 @@ export const openAiClient = {
     const payload = await response.json().catch(() => null);
 
     if (!response.ok || !Array.isArray(payload?.data)) {
-      logger.error(
+      // 401 = project lacks vector_store.read — config issue, not a runtime error
+      const logFn = response.status === 401 ? logger.warn.bind(logger) : logger.error.bind(logger);
+      logFn(
         {
           statusCode: response.status,
           error: payload?.error?.message ?? payload?.error ?? 'Unknown vector store search error',
