@@ -11,6 +11,9 @@ import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
 
+const ONBOARDING_TEST_MODE = true;
+let onboardingTestDone = false;
+
 const TAB_ICON_SIZE = 22;
 
 // Icon names for selected/unselected states
@@ -67,6 +70,13 @@ export default function AppTabsLayout() {
       router.replace('/auth');
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!ONBOARDING_TEST_MODE || onboardingTestDone) return;
+    onboardingTestDone = true;
+    router.replace('/onboarding');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!isHydrated) {
     return (
