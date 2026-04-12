@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, router, Tabs } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -58,12 +58,13 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
 }
 
 const ONBOARDING_TEST_MODE = true;
+// Module-level: survives component remounts within the same JS session
+let onboardingTestRedirectDone = false;
 
 export default function AppTabsLayout() {
   const { hasCompletedOnboarding, isHydrated } = useAppSession();
   const { user } = useAuth();
   const { theme } = useTheme();
-  const didRedirectForTestRef = useRef(false);
 
   useEffect(() => {
     if (!user) {
@@ -73,8 +74,8 @@ export default function AppTabsLayout() {
 
   useEffect(() => {
     if (!isHydrated || !ONBOARDING_TEST_MODE) return;
-    if (didRedirectForTestRef.current) return;
-    didRedirectForTestRef.current = true;
+    if (onboardingTestRedirectDone) return;
+    onboardingTestRedirectDone = true;
     router.replace('/onboarding');
   }, [isHydrated]);
 
