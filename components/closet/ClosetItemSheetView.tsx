@@ -12,6 +12,7 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme as staticTheme } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { incrementClosetItemCounter } from '@/lib/closet-storage';
+import { closetService } from '@/services/closet';
 import { ColorFamilyPicker } from './color-family-picker';
 import { FitStatusPicker } from './fit-status-picker';
 import { FormalityPicker } from './formality-picker';
@@ -80,6 +81,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
     const id = item.id;
     const anchorImageUrl = item.sketchImageUrl ?? item.uploadedImageUrl ?? '';
     void incrementClosetItemCounter(id, 'anchorToOutfitCount');
+    void closetService.recordAnchorUsed(id);
     onClose();
     // Defer navigation until after the modal close state update has flushed
     setTimeout(() => {
@@ -385,6 +387,18 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
                   { label: 'Personal Fit', value: CLOSET_FIT_STATUS_OPTIONS.find((o) => o.value === item?.fitStatus)?.label },
                 ]} />
                 {item?.notes ? <LabelRow label="Notes" value={item.notes} /> : null}
+
+                {/* Usage counters */}
+                {(item?.anchorCount !== undefined || item?.matchCount !== undefined) ? (
+                  <View style={{ borderTopColor: theme.colors.border, borderTopWidth: 1, paddingTop: spacing.md, flexDirection: 'row', gap: spacing.sm }}>
+                    <View style={{ flex: 1 }}>
+                      <LabelRow label="Anchored" value={String(item?.anchorCount ?? 0)} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <LabelRow label="Matched" value={String(item?.matchCount ?? 0)} />
+                    </View>
+                  </View>
+                ) : null}
               </View>
             )}
           </ScrollView>

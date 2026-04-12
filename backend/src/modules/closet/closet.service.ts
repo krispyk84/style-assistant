@@ -208,4 +208,9 @@ export const closetService = {
     await closetRepository.recordAnchorUsed(id, supabaseUserId);
     return { recorded: true };
   },
+
+  async recordMatchUsed(id: string, supabaseUserId: string) {
+    await closetRepository.recordMatchUsed(id, supabaseUserId);
+    return { recorded: true };
+  },
 };

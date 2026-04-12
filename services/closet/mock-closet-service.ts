@@ -191,4 +191,8 @@ export const mockClosetService: ClosetService = {
   async recordAnchorUsed(_id: string): Promise<ApiResponse<{ recorded: boolean }>> {
     return { success: true, data: { recorded: true }, error: null };
   },
+
+  async recordMatchUsed(_id: string): Promise<ApiResponse<{ recorded: boolean }>> {
+    return { success: true, data: { recorded: true }, error: null };
+  },
 };

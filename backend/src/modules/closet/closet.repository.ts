@@ -108,6 +108,15 @@ export const closetRepository = {
     });
   },
 
+  async recordMatchUsed(id: string, supabaseUserId: string) {
+    const item = await prisma.closetItem.findFirst({ where: { id, supabaseUserId } });
+    if (!item) return null;
+    return prisma.closetItem.update({
+      where: { id },
+      data: { matchCount: { increment: 1 } },
+    });
+  },
+
   async createSketchJob() {
     return prisma.closetSketchJob.create({ data: { status: 'pending' } });
   },

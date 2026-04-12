@@ -21,6 +21,8 @@ type ClosetItemRow = {
   fitStatus?: string | null;
   lensShape?: string | null;
   frameColor?: string | null;
+  timesAnchored?: number | null;
+  matchCount?: number | null;
 };
 
 export function mapClosetItem(item: ClosetItemRow) {
@@ -47,5 +49,7 @@ export function mapClosetItem(item: ClosetItemRow) {
     fitStatus: item.fitStatus ?? undefined,
     lensShape: item.lensShape ?? undefined,
     frameColor: item.frameColor ?? undefined,
+    anchorCount: item.timesAnchored ?? 0,
+    matchCount: item.matchCount ?? 0,
   };
 }

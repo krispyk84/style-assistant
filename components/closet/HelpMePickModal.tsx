@@ -1,12 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { ActivityIndicator, Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { ActivityIndicator, Animated, Easing, Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 
 import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
 import { STYLISTS, type StylistId } from '@/lib/stylists';
+import { closetService } from '@/services/closet';
 import type { useHelpMePick } from './useHelpMePick';
 
 // ── Option constants ───────────────────────────────────────────────────────────
@@ -44,10 +46,32 @@ type HelpMePickModalProps = {
 
 export function HelpMePickModal({ hook, onUseItem }: HelpMePickModalProps) {
   const { height: screenHeight } = useWindowDimensions();
-  const modalMaxHeight = screenHeight * 0.9;
+
+  // Separate animation channels — backdrop fades, sheet slides (matches ClosetItemSheetView pattern)
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const sheetTranslateY = useRef(new Animated.Value(600)).current;
+
+  // Animate in when modal opens
+  useEffect(() => {
+    if (!hook.isOpen) return;
+    backdropOpacity.setValue(0);
+    sheetTranslateY.setValue(600);
+    Animated.parallel([
+      Animated.timing(backdropOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.timing(sheetTranslateY, { toValue: 0, duration: 300, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]).start();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hook.isOpen]);
+
+  function dismissAndClose() {
+    Animated.parallel([
+      Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+      Animated.timing(sheetTranslateY, { toValue: 600, duration: 240, useNativeDriver: true }),
+    ]).start(() => hook.close());
+  }
 
   const {
-    isOpen, close, modalState, error,
+    isOpen, modalState, error,
     result, stylistId, setStylistId,
     dayType, setDayType, vibe, setVibe, risk, setRisk,
     handlePick, handlePickAgain,
@@ -56,77 +80,88 @@ export function HelpMePickModal({ hook, onUseItem }: HelpMePickModalProps) {
   const selectedStylist = STYLISTS.find((s) => s.id === stylistId) ?? STYLISTS[0]!;
 
   return (
-    <Modal animationType="slide" transparent visible={isOpen} onRequestClose={close}>
-      <Pressable
-        onPress={close}
+    <Modal animationType="none" transparent visible={isOpen} onRequestClose={dismissAndClose}>
+      {/* Backdrop: absolute fill, opacity only — never slides */}
+      <Animated.View
+        pointerEvents="none"
         style={{
-          flex: 1,
-          backgroundColor: 'rgba(24, 18, 14, 0.55)',
-          justifyContent: 'flex-end',
-        }}>
-        <Pressable
-          onPress={() => undefined}
+          backgroundColor: 'rgba(24, 18, 14, 0.52)',
+          bottom: 0,
+          left: 0,
+          opacity: backdropOpacity,
+          position: 'absolute',
+          right: 0,
+          top: 0,
+        }}
+      />
+      {/* Tap-to-dismiss layer */}
+      <Pressable style={{ flex: 1, justifyContent: 'flex-end' }} onPress={dismissAndClose}>
+        {/* Sheet: translateY only */}
+        <Animated.View
           style={{
             backgroundColor: theme.colors.surface,
             borderTopLeftRadius: 32,
             borderTopRightRadius: 32,
-            maxHeight: modalMaxHeight,
+            maxHeight: screenHeight * 0.9,
             overflow: 'hidden',
+            transform: [{ translateY: sheetTranslateY }],
           }}>
-
-          {/* Drag handle */}
-          <View style={{ alignItems: 'center', paddingTop: spacing.md, paddingBottom: spacing.xs }}>
-            <View style={{ backgroundColor: theme.colors.border, borderRadius: 999, height: 4, width: 36 }} />
-          </View>
-
-          <ScrollView
-            bounces={false}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingTop: spacing.md }}>
-
-            {/* Header */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <View style={{ gap: 2 }}>
-                <AppText variant="sectionTitle">Help Me Pick</AppText>
-                <AppText tone="muted" style={{ fontSize: 13 }}>Let a stylist choose your anchor piece</AppText>
-              </View>
-              <Pressable hitSlop={8} onPress={close}>
-                <Ionicons color={theme.colors.mutedText} name="close" size={22} />
-              </Pressable>
+          {/* Stop taps on the card from dismissing the modal */}
+          <Pressable onPress={() => undefined}>
+            {/* Drag handle */}
+            <View style={{ alignItems: 'center', paddingTop: spacing.md, paddingBottom: spacing.xs }}>
+              <View style={{ backgroundColor: theme.colors.border, borderRadius: 999, height: 4, width: 36 }} />
             </View>
 
-            {/* Loading state */}
-            {modalState === 'loading' ? (
-              <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xl }}>
-                <ActivityIndicator color={theme.colors.accent} size="large" />
-                <AppText tone="muted" style={{ textAlign: 'center' }}>
-                  {selectedStylist.name} is scanning your wardrobe...
-                </AppText>
+            <ScrollView
+              bounces={false}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingTop: spacing.md }}>
+
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ gap: 2 }}>
+                  <AppText variant="sectionTitle">Help Me Pick</AppText>
+                  <AppText tone="muted" style={{ fontSize: 13 }}>Let a stylist choose your anchor piece</AppText>
+                </View>
+                <Pressable hitSlop={8} onPress={dismissAndClose}>
+                  <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+                </Pressable>
               </View>
-            ) : modalState === 'result' && result ? (
-              <ResultCard
-                result={result}
-                onUseItem={onUseItem}
-                onPickAgain={handlePickAgain}
-                onClose={close}
-              />
-            ) : (
-              <IntentForm
-                stylistId={stylistId}
-                onStylistChange={(id) => setStylistId(id)}
-                dayType={dayType}
-                onDayTypeChange={setDayType}
-                vibe={vibe}
-                onVibeChange={setVibe}
-                risk={risk}
-                onRiskChange={setRisk}
-                error={error}
-                onPick={() => void handlePick()}
-              />
-            )}
-          </ScrollView>
-        </Pressable>
+
+              {/* Content */}
+              {modalState === 'loading' ? (
+                <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xl }}>
+                  <ActivityIndicator color={theme.colors.accent} size="large" />
+                  <AppText tone="muted" style={{ textAlign: 'center' }}>
+                    {selectedStylist.name} is scanning your wardrobe...
+                  </AppText>
+                </View>
+              ) : modalState === 'result' && result ? (
+                <ResultCard
+                  result={result}
+                  onUseItem={onUseItem}
+                  onPickAgain={handlePickAgain}
+                  onClose={dismissAndClose}
+                />
+              ) : (
+                <IntentForm
+                  stylistId={stylistId}
+                  onStylistChange={(id) => setStylistId(id)}
+                  dayType={dayType}
+                  onDayTypeChange={setDayType}
+                  vibe={vibe}
+                  onVibeChange={setVibe}
+                  risk={risk}
+                  onRiskChange={setRisk}
+                  error={error}
+                  onPick={() => void handlePick()}
+                />
+              )}
+            </ScrollView>
+          </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
@@ -294,6 +329,7 @@ function ResultCard({ result, onUseItem, onPickAgain, onClose }: ResultCardProps
   const stylist = STYLISTS.find((s) => s.id === result.stylistId) ?? STYLISTS[0]!;
 
   function handleUseItem() {
+    void closetService.recordAnchorUsed(result.itemId);
     onClose();
     onUseItem({
       closetItemId: result.itemId,
@@ -348,11 +384,13 @@ function ResultCard({ result, onUseItem, onPickAgain, onClose }: ResultCardProps
           overflow: 'hidden',
         }}>
         {result.itemImageUrl ? (
-          <Image
-            contentFit="cover"
-            source={{ uri: result.itemImageUrl }}
-            style={{ height: 200, width: '100%' }}
-          />
+          <View style={{ backgroundColor: theme.colors.card, height: 320 }}>
+            <Image
+              contentFit="contain"
+              source={{ uri: result.itemImageUrl }}
+              style={{ height: '100%', width: '100%' }}
+            />
+          </View>
         ) : (
           <View
             style={{

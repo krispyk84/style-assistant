@@ -192,7 +192,11 @@ export type ClosetItem = {
   lensShape?: ClosetItemLensShape | null;
   frameColor?: ClosetItemFrameColor | null;
 
-  // ── Usage counters (AsyncStorage only, not persisted to DB) ───────────────
+  // ── Usage counters (local AsyncStorage) ───────────────────────────────────
   anchorToOutfitCount?: number;
   matchedToRecommendationCount?: number;
+
+  // ── Usage counters (backend DB) ────────────────────────────────────────────
+  anchorCount?: number;
+  matchCount?: number;
 };

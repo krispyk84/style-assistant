@@ -78,6 +78,7 @@ export function useResultsMatchFeedback(requestId: string, response: GenerateOut
     }
     for (const id of newlyMatchedIds) {
       void incrementClosetItemCounter(id, 'matchedToRecommendationCount');
+      void closetService.recordMatchUsed(id);
     }
     // uniquePieces is stable across sketch-poll updates (memoized on requestId)
     // eslint-disable-next-line react-hooks/exhaustive-deps

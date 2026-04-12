@@ -108,4 +108,10 @@ export const apiClosetService: ClosetService = {
       method: 'POST',
     });
   },
+
+  async recordMatchUsed(id: string): Promise<ApiResponse<{ recorded: boolean }>> {
+    return createApiClient().request<{ recorded: boolean }>(`/closet/items/${id}/record-match`, {
+      method: 'POST',
+    });
+  },
 };

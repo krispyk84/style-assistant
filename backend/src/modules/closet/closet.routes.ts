@@ -132,3 +132,14 @@ closetRouter.post(
     return sendSuccess(response, result);
   })
 );
+
+closetRouter.post(
+  '/closet/items/:id/record-match',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const id = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+    if (!id) throw new HttpError(400, 'INVALID_REQUEST', 'Item ID is required.');
+    const result = await closetService.recordMatchUsed(id, request.userId!);
+    return sendSuccess(response, result);
+  })
+);

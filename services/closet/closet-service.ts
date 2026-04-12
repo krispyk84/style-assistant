@@ -27,4 +27,5 @@ export type ClosetService = {
   matchItems: (request: ClosetMatchRequest) => Promise<ApiResponse<ClosetMatchResponse>>;
   helpMePick: (request: HelpMePickRequest) => Promise<ApiResponse<HelpMePickResponse>>;
   recordAnchorUsed: (id: string) => Promise<ApiResponse<{ recorded: boolean }>>;
+  recordMatchUsed: (id: string) => Promise<ApiResponse<{ recorded: boolean }>>;
 };
