@@ -111,11 +111,22 @@ export function buildClosetItemSketchPrompt(input: { itemDescription: string; ge
   );
 }
 
+const BODY_TYPE_DESCRIPTIONS: Record<string, string> = {
+  slim: 'lean, narrow-framed figure with slim torso and limbs, minimal bulk throughout',
+  oval: 'fuller rounded midsection that widens at the belly, narrower shoulders relative to midriff, softer overall silhouette',
+  rectangle: 'even shoulder and hip width, minimal waist definition, straight-column silhouette with consistent proportions top to bottom',
+  inverted_triangle: 'notably broad shoulders and wide chest tapering decisively to narrow hips and waist',
+  athletic: 'visibly developed musculature, broad shoulders and chest, defined waist, muscular arms and legs',
+};
+
+const DEFAULT_BODY_TYPE_DESCRIPTION = 'balanced medium-build male figure with moderate proportions';
+
 export function buildTierSketchPrompt(input: {
   tierLabel: string;
   anchorItemDescription: string;
   recommendation: TierRecommendationDto;
   gender?: string | null;
+  bodyType?: string | null;
 }) {
   const tier = input.tierLabel.toLowerCase();
 
@@ -190,8 +201,12 @@ export function buildTierSketchPrompt(input: {
     ? `outerwear outermost layer: ${outerwearPieces.map(pieceLabel).join(', ')}, worn over all inner layers`
     : null;
 
+  const bodyTypeDescription = (input.bodyType && BODY_TYPE_DESCRIPTIONS[input.bodyType]) ?? DEFAULT_BODY_TYPE_DESCRIPTION;
+  const figureProportionsPart = `figure proportions: ${bodyTypeDescription}, render with these proportions throughout, this defines the base figure silhouette`;
+
   return [
     'single figure only, one headless mannequin centered, headless dress form, no head no face, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
+    figureProportionsPart,
     anchorLock,
     outerwearPart,
     keyPiecesPart,

@@ -6,7 +6,7 @@ function mapProfile(profile: Awaited<ReturnType<typeof profileRepository.findByU
     return null;
   }
 
-  const profileRecord = profile as typeof profile & { summerBottomPreference?: string; temperatureUnit?: string; name?: string };
+  const profileRecord = profile as typeof profile & { summerBottomPreference?: string; temperatureUnit?: string; name?: string; bodyType?: string | null };
   const dto: ProfileDto = {
     id: profileRecord.id,
     name: profileRecord.name ?? '',
@@ -20,6 +20,7 @@ function mapProfile(profile: Awaited<ReturnType<typeof profileRepository.findByU
     skinTone: profileRecord.skinTone,
     summerBottomPreference: profileRecord.summerBottomPreference ?? 'prefer-trousers',
     temperatureUnit: profileRecord.temperatureUnit ?? 'celsius',
+    bodyType: profileRecord.bodyType ?? null,
     notes: profileRecord.notes,
     onboardingCompleted: profileRecord.onboardingCompleted,
     createdAt: profileRecord.createdAt.toISOString(),

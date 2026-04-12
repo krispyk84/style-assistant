@@ -20,6 +20,8 @@ function normalizeSession(raw: PersistedSession): PersistedSession {
       ...raw.profile,
       // Migrate profiles stored before 'name' was added
       name: raw.profile.name ?? '',
+      // bodyType is optional — undefined for women and users who haven't re-onboarded
+      bodyType: raw.profile.bodyType ?? undefined,
     },
   };
 }

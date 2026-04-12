@@ -14,6 +14,7 @@ import { spacing, theme } from '@/constants/theme';
 import { trackOnboardingStarted } from '@/lib/analytics';
 import type { Profile } from '@/types/profile';
 import {
+  BODY_TYPE_OPTIONS,
   BUDGET_OPTIONS,
   FIT_PREFERENCE_OPTIONS,
   HAIR_COLOR_OPTIONS,
@@ -36,6 +37,7 @@ const STEP_TITLES: Record<Step, string> = {
   hair: "What's your\nhair color?",
   skin: "What's your\nskin tone?",
   bottoms: 'Warm weather\nbottoms.',
+  'body-type': 'Your\nbody type.',
   temperature: 'Temperature\npreference.',
   notes: 'Anything\nelse?',
 };
@@ -50,6 +52,7 @@ const STEP_HINTS: Record<Step, string> = {
   hair: 'Useful for palette and contrast cues.',
   skin: 'Used for color guidance.',
   bottoms: 'Choose whether summer looks can include shorts.',
+  'body-type': 'Used to personalise outfit sketches.',
   temperature: 'Your preferred unit across the app.',
   notes: 'Optional context like profession or climate.',
 };
@@ -111,6 +114,22 @@ const BUDGET_IMAGES_WOMEN = {
 const TEMP_IMAGES = {
   celsius: require('@/assets/images/degrees_c.png'),
   fahrenheit: require('@/assets/images/degrees_f.png'),
+};
+
+const BODY_TYPE_IMAGES = {
+  slim: require('@/assets/images/menswear_bodytype_slim.png'),
+  oval: require('@/assets/images/menswear_bodytype_oval.png'),
+  rectangle: require('@/assets/images/menswear_bodytype_rectangle.png'),
+  inverted_triangle: require('@/assets/images/menswear_bodytype_invertedtriangle.png'),
+  athletic: require('@/assets/images/menswear_bodytype_athletic.png'),
+};
+
+const BODY_TYPE_LABELS: Record<string, string> = {
+  slim: 'Slim',
+  oval: 'Oval',
+  rectangle: 'Rectangle',
+  inverted_triangle: 'Inverted Triangle',
+  athletic: 'Athletic',
 };
 
 // ── Thumbnail helpers ──────────────────────────────────────────────────────────
@@ -437,6 +456,22 @@ export function OnboardingScreen() {
             thumbnailHeight={220}
           />
         );
+
+      case 'body-type': {
+        const bodyTypeOptions = BODY_TYPE_OPTIONS.map((v) => ({
+          value: v,
+          label: BODY_TYPE_LABELS[v],
+          image: BODY_TYPE_IMAGES[v],
+        }));
+        return (
+          <SelectorGrid
+            options={bodyTypeOptions}
+            value={profile.bodyType ?? null}
+            onChange={(v) => selectAndAdvance('bodyType', v)}
+            thumbnailHeight={220}
+          />
+        );
+      }
 
       case 'temperature':
         return (

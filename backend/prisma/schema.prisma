@@ -39,6 +39,7 @@ model UserProfile {
   skinTone             String
   summerBottomPreference String           @default("prefer-trousers")
   temperatureUnit      String              @default("celsius")
+  bodyType             String?
   notes                String?
   onboardingCompleted  Boolean              @default(false)
   createdAt            DateTime             @default(now())

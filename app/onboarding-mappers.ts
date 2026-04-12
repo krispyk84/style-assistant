@@ -12,6 +12,7 @@ export const STEPS = [
   'hair',
   'skin',
   'bottoms',
+  'body-type',
   'temperature',
   'notes',
 ] as const;
@@ -84,5 +85,6 @@ export function buildProfile(
         : 'prefer-trousers',
     temperatureUnit: wizard.temperatureUnit ?? 'celsius',
     notes: wizard.notes,
+    bodyType: wizard.gender === 'man' ? wizard.bodyType : undefined,
   };
 }

@@ -34,8 +34,8 @@ export function useOnboardingFlow({
 
   const [stepIndex, setStepIndex] = useState(0);
 
-  // 'bottoms' is only shown to men
-  const steps = profile.gender === 'man' ? STEPS : STEPS.filter((s) => s !== 'bottoms');
+  const MEN_ONLY_STEPS = ['bottoms', 'body-type'] as const;
+  const steps = profile.gender === 'man' ? STEPS : STEPS.filter((s) => !(MEN_ONLY_STEPS as readonly string[]).includes(s));
   const totalSteps = steps.length;
   const step = steps[stepIndex]!;
 

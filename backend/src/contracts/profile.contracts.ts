@@ -11,6 +11,7 @@ export type ProfileDto = {
   skinTone: string;
   summerBottomPreference: string;
   temperatureUnit: string;
+  bodyType: string | null;
   notes: string | null;
   onboardingCompleted: boolean;
   createdAt: string;
@@ -31,6 +32,7 @@ export type UpsertProfileRequest = {
   skinTone: string;
   summerBottomPreference: string;
   temperatureUnit: string;
+  bodyType?: string;
   notes?: string;
   onboardingCompleted: boolean;
 };
