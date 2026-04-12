@@ -1,7 +1,7 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { imageGenerationClient } from '../../ai/image-generation-client.js';
-import { buildTierSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
+import { buildBodyTypeNegativePrompt, buildTierSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
 import type { OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 import { storageProvider } from '../../storage/index.js';
 import { outfitsRepository } from './outfits.repository.js';
@@ -26,6 +26,9 @@ async function generateSingleTierSketch(
   fitTendency?: string | null
 ) {
   try {
+    const bodyTypeNegative = buildBodyTypeNegativePrompt(bodyType);
+    const combinedNegative = [bodyTypeNegative, anchorAntiDrift].filter(Boolean).join(', ') || undefined;
+
     const generatedImage = await imageGenerationClient.generateImage({
       prompt: buildTierSketchPrompt({
         tierLabel: formatTierLabel(recommendation.tier),
@@ -37,7 +40,7 @@ async function generateSingleTierSketch(
       }),
       loraType: 'outfit',
       supabaseUserId,
-      additionalNegativePrompt: anchorAntiDrift || undefined,
+      additionalNegativePrompt: combinedNegative,
     });
 
     const storedFile = await storageProvider.storeGeneratedFile({

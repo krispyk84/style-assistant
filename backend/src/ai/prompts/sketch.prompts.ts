@@ -112,14 +112,26 @@ export function buildClosetItemSketchPrompt(input: { itemDescription: string; ge
 }
 
 const BODY_TYPE_DESCRIPTIONS: Record<string, string> = {
-  slim: 'lean, narrow-framed figure with slim torso and limbs, minimal bulk throughout',
-  oval: 'fuller rounded midsection that widens at the belly, narrower shoulders relative to midriff, softer overall silhouette',
-  rectangle: 'even shoulder and hip width, minimal waist definition, straight-column silhouette with consistent proportions top to bottom',
-  inverted_triangle: 'notably broad shoulders and wide chest tapering decisively to narrow hips and waist',
-  athletic: 'visibly developed musculature, broad shoulders and chest, defined waist, muscular arms and legs',
+  slim: 'lean slight man, narrow frame, slim arms and legs, minimal muscle mass, slender torso',
+  oval: 'large heavy-set man, overweight, full rounded belly protruding forward, wide torso, heavy arms and legs, clothing draped over a big frame',
+  rectangle: 'average-build man, straight silhouette, shoulders and hips similar width, minimal waist definition, medium frame',
+  inverted_triangle: 'broad wide-shouldered man, V-shaped torso tapering to narrow hips and waist, visibly wider at shoulders than hips',
+  athletic: 'muscular well-built man, defined arms and chest, visibly toned and fit, broad shoulders, tapered waist, strong physique',
 };
 
-const DEFAULT_BODY_TYPE_DESCRIPTION = 'balanced medium-build male figure with moderate proportions';
+const DEFAULT_BODY_TYPE_DESCRIPTION = 'average-build man, medium frame, moderate proportions';
+
+const BODY_TYPE_NEGATIVE_PROMPTS: Record<string, string> = {
+  slim: 'muscular, heavy-set, overweight, thick, bulky',
+  oval: 'slim, thin, athletic, toned, fit body, lean, muscular, narrow waist, flat stomach',
+  rectangle: 'muscular, overweight, heavy-set, V-shaped torso',
+  inverted_triangle: 'overweight, heavy-set, wide hips, rectangular torso',
+  athletic: 'slim, thin, lean, overweight, heavy-set',
+};
+
+export function buildBodyTypeNegativePrompt(bodyType?: string | null): string {
+  return (bodyType && BODY_TYPE_NEGATIVE_PROMPTS[bodyType]) ?? '';
+}
 
 const FIT_TENDENCY_FIGURE_DESCRIPTIONS: Record<string, string> = {
   tight_chest_loose_below:
@@ -212,12 +224,12 @@ export function buildTierSketchPrompt(input: {
   const bodyTypeDescription = (input.bodyType && BODY_TYPE_DESCRIPTIONS[input.bodyType]) ?? DEFAULT_BODY_TYPE_DESCRIPTION;
   const fitTendencyClause = input.fitTendency ? FIT_TENDENCY_FIGURE_DESCRIPTIONS[input.fitTendency] : null;
   const figureProportionsPart = fitTendencyClause
-    ? `figure proportions: ${bodyTypeDescription}, render with these proportions throughout, this defines the base figure silhouette, ${fitTendencyClause}`
-    : `figure proportions: ${bodyTypeDescription}, render with these proportions throughout, this defines the base figure silhouette`;
+    ? `${bodyTypeDescription}, render with these proportions throughout, this defines the base figure, ${fitTendencyClause}`
+    : `${bodyTypeDescription}, render with these proportions throughout, this defines the base figure`;
 
   return [
-    'single figure only, one headless mannequin centered, headless dress form, no head no face, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
     figureProportionsPart,
+    'single figure only, one headless mannequin centered, headless dress form, no head no face, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
     anchorLock,
     outerwearPart,
     keyPiecesPart,
