@@ -13,6 +13,7 @@ export const upsertProfileSchema = z.object({
   summerBottomPreference: z.string().min(1),
   temperatureUnit: z.string().min(1),
   bodyType: z.string().optional(),
+  fitTendency: z.string().optional(),
   notes: z.string().max(240).optional(),
   onboardingCompleted: z.boolean(),
 });

@@ -121,12 +121,20 @@ const BODY_TYPE_DESCRIPTIONS: Record<string, string> = {
 
 const DEFAULT_BODY_TYPE_DESCRIPTION = 'balanced medium-build male figure with moderate proportions';
 
+const FIT_TENDENCY_FIGURE_DESCRIPTIONS: Record<string, string> = {
+  tight_chest_loose_below:
+    'fit tendency: broad chest and shoulders with fabric taut across the upper chest and arms, shirt or jacket appears strained slightly at the chest seams, fabric relaxes and drapes with extra volume through the midsection and below the waist',
+  loose_chest_tight_below:
+    'fit tendency: narrower upper body with modest shoulder width, shirt or jacket draping with extra volume through the torso, fuller and more defined thighs with fabric pulling close through the lower body',
+};
+
 export function buildTierSketchPrompt(input: {
   tierLabel: string;
   anchorItemDescription: string;
   recommendation: TierRecommendationDto;
   gender?: string | null;
   bodyType?: string | null;
+  fitTendency?: string | null;
 }) {
   const tier = input.tierLabel.toLowerCase();
 
@@ -202,7 +210,10 @@ export function buildTierSketchPrompt(input: {
     : null;
 
   const bodyTypeDescription = (input.bodyType && BODY_TYPE_DESCRIPTIONS[input.bodyType]) ?? DEFAULT_BODY_TYPE_DESCRIPTION;
-  const figureProportionsPart = `figure proportions: ${bodyTypeDescription}, render with these proportions throughout, this defines the base figure silhouette`;
+  const fitTendencyClause = input.fitTendency ? FIT_TENDENCY_FIGURE_DESCRIPTIONS[input.fitTendency] : null;
+  const figureProportionsPart = fitTendencyClause
+    ? `figure proportions: ${bodyTypeDescription}, render with these proportions throughout, this defines the base figure silhouette, ${fitTendencyClause}`
+    : `figure proportions: ${bodyTypeDescription}, render with these proportions throughout, this defines the base figure silhouette`;
 
   return [
     'single figure only, one headless mannequin centered, headless dress form, no head no face, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',

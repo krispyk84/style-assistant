@@ -22,6 +22,7 @@ function normalizeSession(raw: PersistedSession): PersistedSession {
       name: raw.profile.name ?? '',
       // bodyType is optional — undefined for women and users who haven't re-onboarded
       bodyType: raw.profile.bodyType ?? undefined,
+      fitTendency: raw.profile.fitTendency ?? undefined,
     },
   };
 }

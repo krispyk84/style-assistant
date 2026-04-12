@@ -6,6 +6,7 @@ import {
   BODY_TYPE_OPTIONS,
   BUDGET_OPTIONS,
   FIT_PREFERENCE_OPTIONS,
+  FIT_TENDENCY_OPTIONS,
   HAIR_COLOR_OPTIONS,
   SKIN_TONE_OPTIONS,
   STYLE_PREFERENCE_OPTIONS,
@@ -25,6 +26,7 @@ import {
 
 export type PickerFieldKey =
   | 'bodyType'
+  | 'fitTendency'
   | 'fitPreference'
   | 'stylePreference'
   | 'budget'
@@ -114,6 +116,12 @@ export function useProfileForm(initialValue: Profile = defaultProfile) {
         options: BODY_TYPE_OPTIONS,
         value: profile.bodyType ?? '',
         onChange: (value) => updateField('bodyType', value as Profile['bodyType']),
+      },
+      fitTendency: {
+        label: 'How clothes typically fit',
+        options: FIT_TENDENCY_OPTIONS,
+        value: profile.fitTendency ?? '',
+        onChange: (value) => updateField('fitTendency', value as Profile['fitTendency']),
       },
       fitPreference: {
         label: 'Fit preference',

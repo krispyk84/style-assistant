@@ -7,6 +7,7 @@ export const SKIN_TONE_OPTIONS = ['fair', 'light', 'medium', 'olive', 'deep', 'b
 export const SUMMER_BOTTOM_OPTIONS = ['shorts-ok', 'prefer-trousers'] as const;
 export const TEMPERATURE_UNIT_OPTIONS = ['celsius', 'fahrenheit'] as const;
 export const BODY_TYPE_OPTIONS = ['slim', 'oval', 'rectangle', 'inverted_triangle', 'athletic'] as const;
+export const FIT_TENDENCY_OPTIONS = ['fits_well', 'tight_chest_loose_below', 'loose_chest_tight_below'] as const;
 
 export type Gender = (typeof GENDER_OPTIONS)[number];
 export type FitPreference = (typeof FIT_PREFERENCE_OPTIONS)[number];
@@ -17,6 +18,7 @@ export type SkinTone = (typeof SKIN_TONE_OPTIONS)[number];
 export type SummerBottomPreference = (typeof SUMMER_BOTTOM_OPTIONS)[number];
 export type TemperatureUnit = (typeof TEMPERATURE_UNIT_OPTIONS)[number];
 export type BodyType = (typeof BODY_TYPE_OPTIONS)[number];
+export type FitTendency = (typeof FIT_TENDENCY_OPTIONS)[number];
 
 export type Profile = {
   name: string;
@@ -32,6 +34,7 @@ export type Profile = {
   temperatureUnit: TemperatureUnit;
   notes: string;
   bodyType?: BodyType;
+  fitTendency?: FitTendency;
 };
 
 export type PersistedSession = {

@@ -22,7 +22,8 @@ async function generateSingleTierSketch(
   recommendation: TierRecommendationDto,
   supabaseUserId?: string,
   gender?: string | null,
-  bodyType?: string | null
+  bodyType?: string | null,
+  fitTendency?: string | null
 ) {
   try {
     const generatedImage = await imageGenerationClient.generateImage({
@@ -32,6 +33,7 @@ async function generateSingleTierSketch(
         recommendation,
         gender,
         bodyType,
+        fitTendency,
       }),
       loraType: 'outfit',
       supabaseUserId,
@@ -73,7 +75,7 @@ async function generateSingleTierSketch(
 }
 
 export const tierSketchService = {
-  async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string, gender?: string | null, bodyType?: string | null) {
+  async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null) {
     const { description: anchorItemDescription, antiDrift: anchorAntiDrift } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
 
@@ -84,12 +86,12 @@ export const tierSketchService = {
 
     await Promise.all(
       outfit.recommendations.map((recommendation) =>
-        generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType)
+        generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType, fitTendency)
       )
     );
   },
 
-  async queueSketchForTier(outfit: OutfitResponse, tier: OutfitTierSlug, supabaseUserId?: string, gender?: string | null, bodyType?: string | null) {
+  async queueSketchForTier(outfit: OutfitResponse, tier: OutfitTierSlug, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null) {
     const recommendation = outfit.recommendations.find((item) => item.tier === tier);
 
     if (!recommendation) {
@@ -98,6 +100,6 @@ export const tierSketchService = {
 
     const { description: anchorItemDescription, antiDrift: anchorAntiDrift } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
-    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType);
+    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType, fitTendency);
   },
 };
