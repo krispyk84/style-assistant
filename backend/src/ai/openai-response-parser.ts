@@ -14,35 +14,13 @@ export type RawHttpResponse = {
 };
 
 // ── Output text extraction ────────────────────────────────────────────────────
-// Handles two response shapes from the Responses API:
-//   1. Top-level output_text string (fast path)
-//   2. Nested output[*].content[*] walk for type=output_text|text
+// Reads the Chat Completions response shape: choices[0].message.content
 
 export function extractOutputText(payload: unknown): string | null {
-  if (typeof (payload as any)?.output_text === 'string' && (payload as any).output_text.trim()) {
-    return (payload as any).output_text;
+  const content = (payload as any)?.choices?.[0]?.message?.content;
+  if (typeof content === 'string' && content.trim()) {
+    return content;
   }
-
-  if (!Array.isArray((payload as any)?.output)) {
-    return null;
-  }
-
-  for (const item of (payload as any).output) {
-    if (!Array.isArray(item?.content)) {
-      continue;
-    }
-
-    for (const content of item.content) {
-      if (
-        (content?.type === 'output_text' || content?.type === 'text') &&
-        typeof content?.text === 'string' &&
-        content.text.trim()
-      ) {
-        return content.text;
-      }
-    }
-  }
-
   return null;
 }
 
@@ -83,8 +61,8 @@ export function parseStructuredResponse<TSchema extends z.ZodTypeAny>(
     throw new HttpError(502, 'OPENAI_SCHEMA_MISMATCH', 'The AI provider returned an unexpected response shape.');
   }
 
-  const inputTokens: number = payload?.usage?.input_tokens ?? 0;
-  const outputTokens: number = payload?.usage?.output_tokens ?? 0;
+  const inputTokens: number = payload?.usage?.prompt_tokens ?? 0;
+  const outputTokens: number = payload?.usage?.completion_tokens ?? 0;
 
   return { data: validated.data, inputTokens, outputTokens };
 }

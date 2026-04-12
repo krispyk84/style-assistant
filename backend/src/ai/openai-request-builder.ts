@@ -10,6 +10,22 @@ export type JsonSchemaConfig = {
   schema: Record<string, unknown>;
 };
 
+// ── Internal mapping ──────────────────────────────────────────────────────────
+// Map Responses API content types to Chat Completions content part types.
+
+function toCompletionsContent(content: InputContent): object {
+  if (content.type === 'input_text') {
+    return { type: 'text', text: content.text };
+  }
+  return {
+    type: 'image_url',
+    image_url: {
+      url: content.image_url,
+      ...(content.detail ? { detail: content.detail } : {}),
+    },
+  };
+}
+
 // ── Request body builders ─────────────────────────────────────────────────────
 // Pure functions — no env reads, no side effects.
 
@@ -21,16 +37,13 @@ export function buildStructuredRequestBody(params: {
 }): object {
   return {
     model: params.model,
-    instructions: params.instructions,
-    input: [
-      {
-        role: 'user',
-        content: params.userContent,
-      },
+    messages: [
+      { role: 'system', content: params.instructions },
+      { role: 'user', content: params.userContent.map(toCompletionsContent) },
     ],
-    text: {
-      format: {
-        type: 'json_schema',
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
         name: params.jsonSchema.name,
         description: params.jsonSchema.description,
         strict: true,

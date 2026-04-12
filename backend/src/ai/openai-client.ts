@@ -77,7 +77,7 @@ export const openAiClient = {
       },
       (signal) =>
         dispatch(
-          `${env.OPENAI_BASE_URL}/v1/responses`,
+          `${env.OPENAI_BASE_URL}/v1/chat/completions`,
           buildStructuredRequestBody({
             model: env.OPENAI_RESPONSES_MODEL,
             instructions: input.instructions,
