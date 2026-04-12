@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const upsertProfileSchema = z.object({
+  name: z.string().max(100).default(''),
   gender: z.string().min(1),
   heightCm: z.number().positive(),
   weightKg: z.number().positive(),

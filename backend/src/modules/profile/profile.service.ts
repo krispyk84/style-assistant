@@ -9,6 +9,7 @@ function mapProfile(profile: Awaited<ReturnType<typeof profileRepository.findByU
   const profileRecord = profile as typeof profile & { summerBottomPreference?: string; temperatureUnit?: string };
   const dto: ProfileDto = {
     id: profileRecord.id,
+    name: (profileRecord as typeof profileRecord & { name?: string }).name ?? '',
     gender: profileRecord.gender,
     heightCm: profileRecord.heightCm,
     weightKg: profileRecord.weightKg,

@@ -1,5 +1,6 @@
 export type ProfileDto = {
   id: string;
+  name: string;
   gender: string;
   heightCm: number;
   weightKg: number;
@@ -19,6 +20,7 @@ export type ProfileDto = {
 export type GetProfileResponse = ProfileDto | null;
 
 export type UpsertProfileRequest = {
+  name: string;
   gender: string;
   heightCm: number;
   weightKg: number;

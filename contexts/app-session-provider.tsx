@@ -41,15 +41,10 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
     const backendProfile = response.data?.profile ?? defaultProfile;
     const nextOnboardingCompleted = response.data?.onboardingCompleted ?? false;
 
-    // 'name' is frontend-only — the backend does not persist it.
-    // Read it from the local cache so backend refreshes never clear it.
-    const storedSession = await loadStoredSession();
-    const nextProfile = { ...backendProfile, name: storedSession.profile?.name ?? '' };
-
     setErrorMessage(null);
-    setProfile(nextProfile);
+    setProfile(backendProfile);
     setHasCompletedOnboarding(nextOnboardingCompleted);
-    await saveStoredProfile(nextProfile, nextOnboardingCompleted);
+    await saveStoredProfile(backendProfile, nextOnboardingCompleted);
   }
 
   useEffect(() => {
@@ -170,12 +165,11 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
 
     if (response.success && response.data) {
       const backendProfile = response.data.profile ?? defaultProfile;
-      const mergedProfile = { ...backendProfile, name: nextProfile.name };
       const nextOnboardingCompleted = response.data.onboardingCompleted;
 
-      setProfile(mergedProfile);
+      setProfile(backendProfile);
       setHasCompletedOnboarding(nextOnboardingCompleted);
-      await saveStoredProfile(mergedProfile, nextOnboardingCompleted);
+      await saveStoredProfile(backendProfile, nextOnboardingCompleted);
       setIsSaving(false);
       return true;
     } else {

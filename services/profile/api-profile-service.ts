@@ -5,7 +5,7 @@ import type { ProfileService } from '@/services/profile/profile-service';
 
 type BackendProfileDto = {
   id: string;
-  // name is frontend-only for now — backend does not persist it
+  name: string;
   gender: string;
   heightCm: number;
   weightKg: number;
@@ -22,7 +22,7 @@ type BackendProfileDto = {
 
 function toProfile(dto: BackendProfileDto): Profile {
   return {
-    name: '', // populated from AsyncStorage by use-app-session after backend merge
+    name: dto.name ?? '',
     gender: dto.gender as Profile['gender'],
     heightCm: String(Math.round(dto.heightCm)),
     weightKg: String(Math.round(dto.weightKg)),
@@ -74,6 +74,7 @@ export const apiProfileService: ProfileService = {
     const response = await createApiClient().request<BackendProfileDto>('/profile', {
       method: 'POST',
       body: {
+        name: request.profile.name,
         gender: request.profile.gender,
         heightCm: parseFloat(request.profile.heightCm) || 0,
         weightKg: parseFloat(request.profile.weightKg) || 0,
