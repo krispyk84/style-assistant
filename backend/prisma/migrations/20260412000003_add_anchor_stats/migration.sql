@@ -1,0 +1,2 @@
+ALTER TABLE "ClosetItem" ADD COLUMN "timesAnchored" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "ClosetItem" ADD COLUMN "lastAnchoredAt" TIMESTAMP(3);

@@ -9,6 +9,8 @@ import type {
   GenerateClosetSketchResponse,
   GetClosetItemsResponse,
   GetClosetSketchResponse,
+  HelpMePickRequest,
+  HelpMePickResponse,
   SaveClosetItemRequest,
   UpdateClosetItemRequest,
 } from '@/types/api';
@@ -91,6 +93,19 @@ export const apiClosetService: ClosetService = {
     return createApiClient().request<ClosetMatchResponse>('/closet/match', {
       method: 'POST',
       body: request,
+    });
+  },
+
+  async helpMePick(request: HelpMePickRequest): Promise<ApiResponse<HelpMePickResponse>> {
+    return createApiClient().request<HelpMePickResponse>('/closet/help-me-pick', {
+      method: 'POST',
+      body: request,
+    });
+  },
+
+  async recordAnchorUsed(id: string): Promise<ApiResponse<{ recorded: boolean }>> {
+    return createApiClient().request<{ recorded: boolean }>(`/closet/items/${id}/record-anchor`, {
+      method: 'POST',
     });
   },
 };

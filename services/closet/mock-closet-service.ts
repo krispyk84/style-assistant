@@ -9,6 +9,8 @@ import type {
   GenerateClosetSketchResponse,
   GetClosetItemsResponse,
   GetClosetSketchResponse,
+  HelpMePickRequest,
+  HelpMePickResponse,
   SaveClosetItemRequest,
   UpdateClosetItemRequest,
 } from '@/types/api';
@@ -176,5 +178,17 @@ export const mockClosetService: ClosetService = {
       },
       error: null,
     };
+  },
+
+  async helpMePick(_request: HelpMePickRequest): Promise<ApiResponse<HelpMePickResponse>> {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'UNAVAILABLE', message: 'Help Me Pick is not available right now.' },
+    };
+  },
+
+  async recordAnchorUsed(_id: string): Promise<ApiResponse<{ recorded: boolean }>> {
+    return { success: true, data: { recorded: true }, error: null };
   },
 };

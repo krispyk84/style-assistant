@@ -73,6 +73,7 @@ export function useAnchorItemsForm(initialValue: CreateLookInput) {
   }
 
   function handleClosetItemSelected(closetItem: ClosetItem) {
+    void closetService.recordAnchorUsed(closetItem.id);
     const imageUrl = closetItem.sketchImageUrl ?? closetItem.uploadedImageUrl ?? '';
     setAnchorItems((current) =>
       current.map((item) => {

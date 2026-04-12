@@ -23,7 +23,8 @@ export type AiFeature =
   | 'closet-sketch'
   | 'compatibility-check'
   | 'selfie-review'
-  | 'second-opinion';
+  | 'second-opinion'
+  | 'help-me-pick';
 
 const TEXT_INPUT_COST_PER_TOKEN = 0.15 / 1_000_000;
 const TEXT_OUTPUT_COST_PER_TOKEN = 0.60 / 1_000_000;

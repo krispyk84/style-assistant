@@ -10,11 +10,22 @@ import {
   analyzeClosetItemSchema,
   closetMatchSchema,
   generateClosetSketchSchema,
+  helpMePickSchema,
   saveClosetItemSchema,
   updateClosetItemSchema,
 } from './closet.validation.js';
 
 export const closetRouter = Router();
+
+closetRouter.post(
+  '/closet/help-me-pick',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(helpMePickSchema, request.body);
+    const result = await closetService.helpMePick(payload, request.userId!);
+    return sendSuccess(response, result);
+  })
+);
 
 closetRouter.post(
   '/closet/match',
@@ -107,6 +118,17 @@ closetRouter.delete(
     const id = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
     if (!id) throw new HttpError(400, 'INVALID_REQUEST', 'Item ID is required.');
     const result = await closetService.deleteItem(id, request.userId!);
+    return sendSuccess(response, result);
+  })
+);
+
+closetRouter.post(
+  '/closet/items/:id/record-anchor',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const id = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+    if (!id) throw new HttpError(400, 'INVALID_REQUEST', 'Item ID is required.');
+    const result = await closetService.recordAnchorUsed(id, request.userId!);
     return sendSuccess(response, result);
   })
 );

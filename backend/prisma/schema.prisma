@@ -209,6 +209,10 @@ model ClosetItem {
   lensShape        String?
   frameColor       String?
 
+  // ── Anchor stats (Help Me Pick) ───────────────────────────────────────────
+  timesAnchored    Int       @default(0)
+  lastAnchoredAt   DateTime?
+
   @@index([supabaseUserId])
 }
 

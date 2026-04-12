@@ -23,6 +23,7 @@ export type ClosetScreenViewProps = {
   // Data
   isLoading: boolean;
   itemCount: number;
+  eligibleItemCount: number;
   categories: CategoryEntry[];
   sections: ClosetSection[];
   // Navigation / filter
@@ -37,6 +38,8 @@ export type ClosetScreenViewProps = {
   onAddPress: () => void;
   onAddModalClose: () => void;
   onNewItemSaved: (item: ClosetItem) => void;
+  // Help Me Pick
+  onHelpMePickPress: () => void;
   // Grid
   cellWidth: number;
   onPressItem: (item: ClosetItem) => void;
@@ -51,6 +54,7 @@ export type ClosetScreenViewProps = {
 export function ClosetScreenView({
   isLoading,
   itemCount,
+  eligibleItemCount,
   categories,
   sections,
   selectedCategory,
@@ -63,6 +67,7 @@ export function ClosetScreenView({
   onAddPress,
   onAddModalClose,
   onNewItemSaved,
+  onHelpMePickPress,
   cellWidth,
   onPressItem,
   flatListRef,
@@ -159,6 +164,34 @@ export function ClosetScreenView({
           <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>{activeLabel}</AppText>
           <Ionicons color={theme.colors.mutedText} name="chevron-down" size={14} />
         </Pressable>
+      ) : null}
+
+      {/* Help Me Pick */}
+      {!isLoading && eligibleItemCount >= 10 ? (
+        <Pressable
+          onPress={onHelpMePickPress}
+          style={{
+            alignItems: 'center',
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            borderRadius: 16,
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.sm,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.md,
+          }}>
+          <Ionicons color={theme.colors.accent} name="sparkles" size={18} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Help me pick an anchor</AppText>
+            <AppText tone="muted" style={{ fontSize: 12 }}>Let a stylist choose your starting piece</AppText>
+          </View>
+          <Ionicons color={theme.colors.subtleText} name="chevron-forward" size={16} />
+        </Pressable>
+      ) : !isLoading && eligibleItemCount > 0 && eligibleItemCount < 10 ? (
+        <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>
+          Add {10 - eligibleItemCount} more top{10 - eligibleItemCount === 1 ? '' : 's'}, bottom{10 - eligibleItemCount === 1 ? '' : 's'}, or outerwear to unlock Help Me Pick
+        </AppText>
       ) : null}
 
       {/* Empty state */}

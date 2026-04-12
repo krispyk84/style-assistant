@@ -79,9 +79,19 @@ export const closetMatchSchema = z.object({
   excludeItemIds: z.array(z.string()).optional(),
 });
 
+export const helpMePickSchema = z.object({
+  stylistId: z.enum(['vittorio', 'alessandra']),
+  dayType: z.string().min(1),
+  vibe: z.string().min(1),
+  risk: z.string().min(1),
+  rejectedIds: z.array(z.string()).optional(),
+});
+
+export type StylistId = 'vittorio' | 'alessandra';
 export type AnalyzeClosetItemPayload = z.infer<typeof analyzeClosetItemSchema>;
 export type SaveClosetItemPayload = z.infer<typeof saveClosetItemSchema>;
 export type UpdateClosetItemPayload = z.infer<typeof updateClosetItemSchema>;
 export type GenerateClosetSketchPayload = z.infer<typeof generateClosetSketchSchema>;
 export type GenerateClosetSketchOptions = Pick<GenerateClosetSketchPayload, 'category' | 'lensShape' | 'frameColor'>;
 export type ClosetMatchPayload = z.infer<typeof closetMatchSchema>;
+export type HelpMePickPayload = z.infer<typeof helpMePickSchema>;

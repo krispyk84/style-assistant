@@ -3,12 +3,20 @@ import { useWindowDimensions } from 'react-native';
 
 import { spacing } from '@/constants/theme';
 import { ClosetItemSheetView } from '@/components/closet/ClosetItemSheetView';
+import { HelpMePickModal } from '@/components/closet/HelpMePickModal';
+import { useHelpMePick } from '@/components/closet/useHelpMePick';
 import type { ClosetItem } from '@/types/closet';
 import { COLUMN_COUNT } from './closet-grid-utils';
 import { useClosetAnimations } from './useClosetAnimations';
 import { useClosetData } from './useClosetData';
 import { useClosetNavigation } from './useClosetNavigation';
 import { ClosetScreenView } from './ClosetScreenView';
+
+// Categories excluded from Help Me Pick eligibility (accessories + shoes)
+const HELP_ME_PICK_EXCLUDED = new Set([
+  'Shoes', 'Sneakers', 'Loafers', 'Boots',
+  'Belt', 'Bag', 'Watch', 'Scarf', 'Hat', 'Tie', 'Socks', 'Sunglasses',
+]);
 
 export default function ClosetScreen() {
   // ── Step 1: Data — items, loading, polling, categories, sections ──────────
@@ -29,11 +37,19 @@ export default function ClosetScreen() {
   // ── Step 3: Animation — consumes only isLoading from step 1 ──────────────
   const { translateX } = useClosetAnimations(isLoading);
 
+  // ── Step 4: Help Me Pick ──────────────────────────────────────────────────
+  const helpMePick = useHelpMePick();
+
   // ── Cell width — purely a render calculation ──────────────────────────────
   const { width: screenWidth } = useWindowDimensions();
   const cellWidth = useMemo(
     () => (screenWidth - spacing.lg * 2 - spacing.sm * (COLUMN_COUNT - 1)) / COLUMN_COUNT,
     [screenWidth],
+  );
+
+  const eligibleItemCount = useMemo(
+    () => items.filter((item) => !HELP_ME_PICK_EXCLUDED.has(item.category)).length,
+    [items],
   );
 
   // ── Cross-hook coordinators ───────────────────────────────────────────────
@@ -63,6 +79,7 @@ export default function ClosetScreen() {
       <ClosetScreenView
         isLoading={isLoading}
         itemCount={items.length}
+        eligibleItemCount={eligibleItemCount}
         categories={categories}
         sections={sections}
         selectedCategory={selectedCategory}
@@ -75,6 +92,7 @@ export default function ClosetScreen() {
         onAddPress={() => setAddModalVisible(true)}
         onAddModalClose={() => setAddModalVisible(false)}
         onNewItemSaved={handleNewItemSaved}
+        onHelpMePickPress={helpMePick.open}
         cellWidth={cellWidth}
         onPressItem={setEditingItem}
         flatListRef={flatListRef}
@@ -89,6 +107,10 @@ export default function ClosetScreen() {
           onDeleted={handleItemDeleted}
         />
       ) : null}
+      <HelpMePickModal
+        hook={helpMePick}
+        onUseItem={() => undefined}
+      />
     </>
   );
 }

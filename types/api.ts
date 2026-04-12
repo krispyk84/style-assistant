@@ -214,3 +214,20 @@ export type ClosetMatchRequest = {
 export type ClosetMatchResponse = {
   matches: { suggestionIndex: number; suggestion: string; matchedItemId: string | null }[];
 };
+
+export type HelpMePickRequest = {
+  stylistId: 'vittorio' | 'alessandra';
+  dayType: string;
+  vibe: string;
+  risk: string;
+  rejectedIds?: string[];
+};
+
+export type HelpMePickResponse = {
+  itemId: string;
+  itemTitle: string;
+  itemImageUrl: string | null;
+  itemFitStatus: string | null;
+  reason: string;
+  stylistId: 'vittorio' | 'alessandra';
+};

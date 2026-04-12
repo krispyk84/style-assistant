@@ -1,5 +1,13 @@
 import { prisma } from '../../db/prisma.js';
 
+// Categories eligible as anchor pieces (tops, outerwear, bottoms)
+const ELIGIBLE_CATEGORIES = [
+  'Shirt', 'Polo', 'Knitwear', 'Cardigan', 'Hoodie',
+  'T-Shirt', 'Tank Top', 'Swim Shirt', 'Performance Top', 'Athletic Top',
+  'Blazer', 'Sports Jacket', 'Jacket', 'Overshirt', 'Coat', 'Suit',
+  'Trousers', 'Denim', 'Shorts',
+];
+
 type ClosetItemMetadata = {
   subcategory?: string;
   primaryColor?: string;
@@ -66,6 +74,38 @@ export const closetRepository = {
 
   async deleteItem(id: string, supabaseUserId: string) {
     return prisma.closetItem.deleteMany({ where: { id, supabaseUserId } });
+  },
+
+  async getEligibleItems(supabaseUserId: string) {
+    return prisma.closetItem.findMany({
+      where: { supabaseUserId, category: { in: ELIGIBLE_CATEGORIES } },
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        colorFamily: true,
+        formality: true,
+        silhouette: true,
+        season: true,
+        material: true,
+        brand: true,
+        timesAnchored: true,
+        lastAnchoredAt: true,
+        uploadedImageUrl: true,
+        sketchImageUrl: true,
+        fitStatus: true,
+      },
+      orderBy: [{ timesAnchored: 'asc' }, { savedAt: 'desc' }],
+    });
+  },
+
+  async recordAnchorUsed(id: string, supabaseUserId: string) {
+    const item = await prisma.closetItem.findFirst({ where: { id, supabaseUserId } });
+    if (!item) return null;
+    return prisma.closetItem.update({
+      where: { id },
+      data: { timesAnchored: { increment: 1 }, lastAnchoredAt: new Date() },
+    });
   },
 
   async createSketchJob() {

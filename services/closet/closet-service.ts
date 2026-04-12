@@ -7,6 +7,8 @@ import type {
   GenerateClosetSketchResponse,
   GetClosetItemsResponse,
   GetClosetSketchResponse,
+  HelpMePickRequest,
+  HelpMePickResponse,
   SaveClosetItemRequest,
   UpdateClosetItemRequest,
 } from '@/types/api';
@@ -23,4 +25,6 @@ export type ClosetService = {
   generateItemSketch: (request: GenerateClosetSketchRequest) => Promise<ApiResponse<GenerateClosetSketchResponse>>;
   getItemSketch: (jobId: string) => Promise<ApiResponse<GetClosetSketchResponse>>;
   matchItems: (request: ClosetMatchRequest) => Promise<ApiResponse<ClosetMatchResponse>>;
+  helpMePick: (request: HelpMePickRequest) => Promise<ApiResponse<HelpMePickResponse>>;
+  recordAnchorUsed: (id: string) => Promise<ApiResponse<{ recorded: boolean }>>;
 };
