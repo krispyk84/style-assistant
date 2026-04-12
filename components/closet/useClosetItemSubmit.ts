@@ -39,6 +39,8 @@ export function useClosetItemSubmit({ item, setError, setIsEditing, onSaved, onD
       weight: fields.weight,
       pattern: fields.pattern,
       notes: fields.notes.trim() || undefined,
+      lensShape: fields.lensShape,
+      frameColor: fields.frameColor,
     });
     setIsSaving(false);
     if (response.success && response.data) {

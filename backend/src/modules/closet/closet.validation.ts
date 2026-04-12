@@ -19,6 +19,8 @@ const closetMetadataFields = {
   pattern: z.string().optional(),
   notes: z.string().optional(),
   fitStatus: z.string().optional(),
+  lensShape: z.string().optional(),
+  frameColor: z.string().optional(),
 };
 
 export const saveClosetItemSchema = z.object({
@@ -43,6 +45,9 @@ export const updateClosetItemSchema = z.object({
 export const generateClosetSketchSchema = z.object({
   uploadedImageId: z.string().optional(),
   uploadedImageUrl: z.string().url(),
+  category: z.string().optional(),
+  lensShape: z.string().optional(),
+  frameColor: z.string().optional(),
 });
 
 const outfitPieceInputSchema = z.object({
@@ -64,6 +69,7 @@ export const closetMatchSchema = z.object({
         colorFamily: z.string().optional(),
         material: z.string().optional(),
         formality: z.string().optional(),
+        lensShape: z.string().optional(),
       })
     )
     .max(100),
@@ -77,4 +83,5 @@ export type AnalyzeClosetItemPayload = z.infer<typeof analyzeClosetItemSchema>;
 export type SaveClosetItemPayload = z.infer<typeof saveClosetItemSchema>;
 export type UpdateClosetItemPayload = z.infer<typeof updateClosetItemSchema>;
 export type GenerateClosetSketchPayload = z.infer<typeof generateClosetSketchSchema>;
+export type GenerateClosetSketchOptions = Pick<GenerateClosetSketchPayload, 'category' | 'lensShape' | 'frameColor'>;
 export type ClosetMatchPayload = z.infer<typeof closetMatchSchema>;

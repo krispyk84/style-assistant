@@ -205,6 +205,10 @@ model ClosetItem {
   // ── Personal fit ─────────────────────────────────────────────────────────
   fitStatus        String?
 
+  // ── Sunglasses-specific ───────────────────────────────────────────────────
+  lensShape        String?
+  frameColor       String?
+
   @@index([supabaseUserId])
 }
 

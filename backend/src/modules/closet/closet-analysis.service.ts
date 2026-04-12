@@ -29,6 +29,8 @@ const analyzeResponseSchema = z.object({
   silhouette: z.string().nullable().optional(),
   weight: z.string().nullable().optional(),
   pattern: z.string().nullable().optional(),
+  lensShape: z.string().nullable().optional(),
+  frameColor: z.string().nullable().optional(),
 });
 
 const matchResponseSchema = z.object({

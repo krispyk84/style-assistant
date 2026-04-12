@@ -19,6 +19,8 @@ type ClosetItemRow = {
   pattern?: string | null;
   notes?: string | null;
   fitStatus?: string | null;
+  lensShape?: string | null;
+  frameColor?: string | null;
 };
 
 export function mapClosetItem(item: ClosetItemRow) {
@@ -43,5 +45,7 @@ export function mapClosetItem(item: ClosetItemRow) {
     pattern: item.pattern ?? undefined,
     notes: item.notes ?? undefined,
     fitStatus: item.fitStatus ?? undefined,
+    lensShape: item.lensShape ?? undefined,
+    frameColor: item.frameColor ?? undefined,
   };
 }

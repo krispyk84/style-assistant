@@ -5,6 +5,8 @@ import { closetService } from '@/services/closet';
 import type {
   ClosetItemColorFamily,
   ClosetItemFitStatus,
+  ClosetItemFrameColor,
+  ClosetItemLensShape,
   ClosetItemSilhouette,
 } from '@/types/closet';
 import type { UploadedImageAsset } from '@/types/media';
@@ -36,6 +38,8 @@ export function useSaveToClosetForm({
   const [weight, setWeight] = useState<string | undefined>();
   const [pattern, setPattern] = useState<string | undefined>();
   const [season, setSeason] = useState<string | undefined>();
+  const [lensShape, setLensShape] = useState<ClosetItemLensShape | undefined>();
+  const [frameColor, setFrameColor] = useState<ClosetItemFrameColor | undefined>();
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -64,6 +68,8 @@ export function useSaveToClosetForm({
     setWeight(undefined);
     setPattern(undefined);
     setSeason(undefined);
+    setLensShape(undefined);
+    setFrameColor(undefined);
     setNotes('');
     setIsAnalyzing(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,6 +89,8 @@ export function useSaveToClosetForm({
     setWeight(undefined);
     setPattern(undefined);
     setSeason(undefined);
+    setLensShape(undefined);
+    setFrameColor(undefined);
     setNotes('');
     setIsAnalyzing(false);
   }
@@ -123,6 +131,8 @@ export function useSaveToClosetForm({
       if (d.formality) setFormality(d.formality);
       if (d.weight) setWeight(d.weight);
       if (d.pattern) setPattern(d.pattern);
+      if (d.lensShape) setLensShape(d.lensShape as ClosetItemLensShape);
+      if (d.frameColor) setFrameColor(d.frameColor as ClosetItemFrameColor);
     }
   }
 
@@ -142,6 +152,8 @@ export function useSaveToClosetForm({
     weight,
     pattern,
     season,
+    lensShape,
+    frameColor,
   };
 
   const setters = {
@@ -160,6 +172,8 @@ export function useSaveToClosetForm({
     setWeight,
     setPattern,
     setSeason,
+    setLensShape,
+    setFrameColor,
   };
 
   return {

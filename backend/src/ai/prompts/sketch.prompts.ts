@@ -153,6 +153,27 @@ export function buildClosetItemSketchPrompt(input: { itemDescription: string; ge
   );
 }
 
+export function buildSunglassesSketchPrompt(input: {
+  itemDescription: string;
+  lensShape?: string | null;
+  frameColor?: string | null;
+}) {
+  const framePart = input.frameColor ? `${input.frameColor} frame` : null;
+  const lensPart = input.lensShape ? `${input.lensShape.replace('_', '-')} lenses` : null;
+
+  return [
+    input.itemDescription.trim(),
+    framePart,
+    lensPart,
+    'product only, no figure, no mannequin, no body, no person, no hands',
+    'sunglasses displayed alone on neutral background',
+    'front-facing at slight angle so both lenses and full frame are visible',
+    'fine-line hand-drawn ink contour sketch, slight line-weight variation',
+    'soft transparent watercolor wash fill, matte paper finish',
+    'warm aged parchment background, muted desaturated editorial palette',
+  ].filter(Boolean).join(', ');
+}
+
 
 const FIT_TENDENCY_FIGURE_DESCRIPTIONS: Record<string, string> = {
   tight_chest_loose_below:

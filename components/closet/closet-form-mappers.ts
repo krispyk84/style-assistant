@@ -2,6 +2,8 @@ import type { SaveClosetItemRequest } from '@/types/api';
 import type {
   ClosetItemColorFamily,
   ClosetItemFitStatus,
+  ClosetItemFrameColor,
+  ClosetItemLensShape,
   ClosetItemSilhouette,
 } from '@/types/closet';
 import type { UploadedImageAsset } from '@/types/media';
@@ -24,6 +26,8 @@ export type ClosetFormFields = {
   weight: string | undefined;
   pattern: string | undefined;
   season: string | undefined;
+  lensShape: ClosetItemLensShape | undefined;
+  frameColor: ClosetItemFrameColor | undefined;
 };
 
 export const EMPTY_FORM_FIELDS: ClosetFormFields = {
@@ -42,6 +46,8 @@ export const EMPTY_FORM_FIELDS: ClosetFormFields = {
   weight: undefined,
   pattern: undefined,
   season: undefined,
+  lensShape: undefined,
+  frameColor: undefined,
 };
 
 // ── Mapper ─────────────────────────────────────────────────────────────────────
@@ -70,5 +76,7 @@ export function buildSaveItemPayload(
     pattern: fields.pattern,
     season: fields.season,
     notes: fields.notes.trim() || undefined,
+    lensShape: fields.lensShape,
+    frameColor: fields.frameColor,
   };
 }

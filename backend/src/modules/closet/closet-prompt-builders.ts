@@ -7,14 +7,16 @@ type MatchSuggestion = ClosetMatchPayload['suggestions'][number];
 
 // ── analyzeItem prompt vocabulary (static — defined once at module scope) ──────
 
-const ANALYZE_CATEGORY_LIST = 'Suit, Blazer, Sports Jacket, Coat, Shirt, Polo, Knitwear, Cardigan, Hoodie, Trousers, Denim, Shorts, Shoes, Sneakers, Loafers, Boots, Belt, Bag, Watch, Scarf, Hat, Tie, Socks, Clothing';
+const ANALYZE_CATEGORY_LIST = 'Suit, Blazer, Sports Jacket, Coat, Shirt, Polo, Knitwear, Cardigan, Hoodie, Trousers, Denim, Shorts, Shoes, Sneakers, Loafers, Boots, Belt, Bag, Watch, Scarf, Hat, Tie, Socks, Sunglasses, Clothing';
+const ANALYZE_LENS_SHAPE_OPTIONS = 'aviator, wayfarer, round, square, cat_eye, oversized, shield, wraparound';
+const ANALYZE_FRAME_COLOR_OPTIONS = 'black, tortoise, gold, silver, clear, brown, navy, white, pink, green, red';
 const ANALYZE_FORMALITY_OPTIONS = 'Casual, Smart Casual, Refined Casual, Formal';
 const ANALYZE_SILHOUETTE_OPTIONS = 'slim, straight, relaxed, oversized, cropped';
 const ANALYZE_COLOR_FAMILY_OPTIONS = 'white, stone, grey, black, navy, blue, brown, olive, green, burgundy, red, pink, yellow, purple, rust, camel';
 const ANALYZE_WEIGHT_OPTIONS = 'Lightweight, Midweight, Heavyweight';
 const ANALYZE_PATTERN_OPTIONS = 'Solid, Stripe, Check, Plaid, Print, Texture, Other';
 
-export const ANALYZE_INSTRUCTIONS = 'You are a menswear expert cataloguing a wardrobe. Identify garments accurately. Return all metadata you can confidently determine from the image. Only return a brand if you can see it clearly — from logos, embroidery, labels, or printed text. Never guess a brand.';
+export const ANALYZE_INSTRUCTIONS = 'You are a fashion expert cataloguing a wardrobe. Identify garments and accessories accurately. Return all metadata you can confidently determine from the image. Only return a brand if you can see it clearly — from logos, embroidery, labels, or printed text. Never guess a brand. For sunglasses, populate lensShape and frameColor instead of silhouette/weight/pattern.';
 
 type AnalyzeContentBlock =
   | { type: 'input_image'; image_url: string; detail?: 'high' }
@@ -33,8 +35,8 @@ export function buildAnalyzeUserContent(
   userContent.push({
     type: 'input_text',
     text: resolvedDataUrl
-      ? `Identify this garment and return structured metadata. Categories: ${ANALYZE_CATEGORY_LIST}. Formality: ${ANALYZE_FORMALITY_OPTIONS}. Silhouette: ${ANALYZE_SILHOUETTE_OPTIONS}. ColorFamily: ${ANALYZE_COLOR_FAMILY_OPTIONS}. Weight: ${ANALYZE_WEIGHT_OPTIONS}. Pattern: ${ANALYZE_PATTERN_OPTIONS}. Return all fields — use empty string for brand if not detectable. Omit fields that cannot be determined from the image.`
-      : `Identify this garment from the description: "${payload.description ?? ''}". Return structured metadata including title, category, and any detectable metadata fields. Brand: empty string if not apparent.`,
+      ? `Identify this garment or accessory and return structured metadata. Categories: ${ANALYZE_CATEGORY_LIST}. Formality: ${ANALYZE_FORMALITY_OPTIONS}. Silhouette: ${ANALYZE_SILHOUETTE_OPTIONS}. ColorFamily: ${ANALYZE_COLOR_FAMILY_OPTIONS}. Weight: ${ANALYZE_WEIGHT_OPTIONS}. Pattern: ${ANALYZE_PATTERN_OPTIONS}. For sunglasses only — LensShape: ${ANALYZE_LENS_SHAPE_OPTIONS}. FrameColor: ${ANALYZE_FRAME_COLOR_OPTIONS}. Return all fields — use empty string for brand if not detectable. Omit fields that cannot be determined from the image.`
+      : `Identify this garment or accessory from the description: "${payload.description ?? ''}". Return structured metadata including title, category, and any detectable metadata fields. Brand: empty string if not apparent.`,
   });
 
   return userContent;
@@ -59,8 +61,10 @@ export function buildAnalyzeJsonSchema() {
         silhouette:   { anyOf: [{ type: 'string' }, { type: 'null' }], description: `Garment's design cut: ${ANALYZE_SILHOUETTE_OPTIONS}. Null if not determinable.` },
         weight:       { anyOf: [{ type: 'string' }, { type: 'null' }], description: `Fabric weight: ${ANALYZE_WEIGHT_OPTIONS}. Null if not determinable.` },
         pattern:      { anyOf: [{ type: 'string' }, { type: 'null' }], description: `Surface pattern: ${ANALYZE_PATTERN_OPTIONS}. Null if not determinable.` },
+        lensShape:    { anyOf: [{ type: 'string' }, { type: 'null' }], description: `Sunglasses only — lens shape from: ${ANALYZE_LENS_SHAPE_OPTIONS}. Null if item is not sunglasses. Return closest match, not null, if shape is ambiguous.` },
+        frameColor:   { anyOf: [{ type: 'string' }, { type: 'null' }], description: `Sunglasses only — frame color from: ${ANALYZE_FRAME_COLOR_OPTIONS}. Null if item is not sunglasses.` },
       },
-      required: ['title', 'category', 'brand', 'subcategory', 'primaryColor', 'colorFamily', 'material', 'formality', 'silhouette', 'weight', 'pattern'],
+      required: ['title', 'category', 'brand', 'subcategory', 'primaryColor', 'colorFamily', 'material', 'formality', 'silhouette', 'weight', 'pattern', 'lensShape', 'frameColor'],
     },
   };
 }
@@ -103,6 +107,7 @@ export function buildMatchUserContent(
       if (item.colorFamily) line += `, colorFamily: "${item.colorFamily}"`;
       if (item.material) line += `, material: "${item.material}"`;
       if (item.formality) line += `, formality: "${item.formality}"`;
+      if (item.lensShape) line += `, lensShape: "${item.lensShape}"`;
       return line;
     })
     .join('\n');

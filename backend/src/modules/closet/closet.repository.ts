@@ -12,6 +12,8 @@ type ClosetItemMetadata = {
   pattern?: string;
   notes?: string;
   fitStatus?: string;
+  lensShape?: string;
+  frameColor?: string;
 };
 
 export const closetRepository = {

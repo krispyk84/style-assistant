@@ -7,7 +7,7 @@ import { logger } from '../../config/logger.js';
 import { storageConfig } from '../../config/storage.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { imageGenerationClient } from '../../ai/image-generation-client.js';
-import { buildClosetItemSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
+import { buildClosetItemSketchPrompt, buildSunglassesSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
 import { closetRepository } from './closet.repository.js';
 
 const garmentDescriptionSchema = z.object({
@@ -115,21 +115,48 @@ async function describeGarmentFromImage(imageUrl: string, supabaseUserId?: strin
   return result.description;
 }
 
-async function runSketchGeneration(jobId: string, imageUrl: string, supabaseUserId?: string) {
-  try {
-    const itemDescription = await describeGarmentFromImage(imageUrl, supabaseUserId);
+type SketchOptions = {
+  category?: string;
+  lensShape?: string | null;
+  frameColor?: string | null;
+};
 
-    logger.info({ jobId, itemDescription }, 'Closet sketch description produced');
+async function runSketchGeneration(jobId: string, imageUrl: string, supabaseUserId?: string, options?: SketchOptions) {
+  try {
+    const isSunglasses = (options?.category ?? '').toLowerCase().includes('sunglass');
+
+    let prompt: string;
+    let additionalNegativePrompt: string | undefined;
+
+    if (isSunglasses) {
+      // For sunglasses, skip the garment-description vision call — it asks about
+      // collars/pockets which are irrelevant. Build the prompt from the form fields.
+      const itemDescription = [
+        options?.frameColor ? `${options.frameColor}-frame` : null,
+        options?.lensShape ? `${options.lensShape.replace('_', '-')} sunglasses` : 'sunglasses',
+      ].filter(Boolean).join(' ');
+
+      prompt = buildSunglassesSketchPrompt({
+        itemDescription,
+        lensShape: options?.lensShape,
+        frameColor: options?.frameColor,
+      });
+      additionalNegativePrompt = 'person, figure, mannequin, body, hands, face, human, model, dress form, wearing, head, neck, torso, clothing on body';
+      logger.info({ jobId, prompt }, 'Closet sunglasses sketch prompt built');
+    } else {
+      const itemDescription = await describeGarmentFromImage(imageUrl, supabaseUserId);
+      logger.info({ jobId, itemDescription }, 'Closet sketch description produced');
+      prompt = buildClosetItemSketchPrompt({ itemDescription });
+    }
 
     const generatedImage = await imageGenerationClient.generateImage({
-      prompt: buildClosetItemSketchPrompt({ itemDescription }),
+      prompt,
       loraType: 'closet',
-      // Pass the original upload URL as img2img source when it is a public https URL
-      // (i.e. production S3/R2). Flux uses this at strength=0.45 to inherit the
-      // garment's structural geometry while still applying the LoRA style.
-      // Skipped for localhost / local storage (not reachable by fal.ai).
-      sourceImageUrl: imageUrl.startsWith('https://') ? imageUrl : undefined,
+      // Sunglasses use product-only mode — skip img2img so the background/environment
+      // from the source photo doesn't pollute the clean product sketch.
+      sourceImageUrl: isSunglasses ? undefined : (imageUrl.startsWith('https://') ? imageUrl : undefined),
       supabaseUserId,
+      additionalNegativePrompt,
     });
 
     // Store image data in DB only (not on the ephemeral filesystem) so sketches
@@ -158,9 +185,9 @@ async function runSketchGeneration(jobId: string, imageUrl: string, supabaseUser
 }
 
 export const closetSketchService = {
-  async startSketchJob(imageUrl: string, supabaseUserId?: string): Promise<string> {
+  async startSketchJob(imageUrl: string, supabaseUserId?: string, options?: SketchOptions): Promise<string> {
     const job = await closetRepository.createSketchJob();
-    void runSketchGeneration(job.id, imageUrl, supabaseUserId);
+    void runSketchGeneration(job.id, imageUrl, supabaseUserId, options);
     return job.id;
   },
 

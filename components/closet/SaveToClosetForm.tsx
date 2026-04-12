@@ -13,11 +13,15 @@ import { useTheme } from '@/contexts/theme-context';
 import {
   CLOSET_COLOR_FAMILY_OPTIONS,
   CLOSET_FORMALITY_OPTIONS,
+  CLOSET_FRAME_COLOR_OPTIONS,
+  CLOSET_LENS_SHAPE_OPTIONS,
   CLOSET_PATTERN_OPTIONS,
   CLOSET_SEASON_OPTIONS,
   CLOSET_WEIGHT_OPTIONS,
   type ClosetItemColorFamily,
   type ClosetItemFitStatus,
+  type ClosetItemFrameColor,
+  type ClosetItemLensShape,
   type ClosetItemSilhouette,
 } from '@/types/closet';
 import type { UploadedImageAsset } from '@/types/media';
@@ -70,6 +74,8 @@ export type SaveToClosetFormProps = {
   setWeight: (v: string | undefined) => void;
   setPattern: (v: string | undefined) => void;
   setSeason: (v: string | undefined) => void;
+  setLensShape: (v: ClosetItemLensShape | undefined) => void;
+  setFrameColor: (v: ClosetItemFrameColor | undefined) => void;
 
   // Handlers
   onPickFromLibrary: () => void;
@@ -120,6 +126,8 @@ export function SaveToClosetForm({
   setWeight,
   setPattern,
   setSeason,
+  setLensShape,
+  setFrameColor,
   onPickFromLibrary,
   onCapturePhoto,
   onReset,
@@ -430,6 +438,13 @@ export function SaveToClosetForm({
         <PillPicker label="Weight" options={CLOSET_WEIGHT_OPTIONS} value={fields.weight} onChange={setWeight} />
         <PillPicker label="Pattern" options={CLOSET_PATTERN_OPTIONS} value={fields.pattern} onChange={setPattern} />
         <PillPicker label="Season" options={CLOSET_SEASON_OPTIONS} value={fields.season} onChange={setSeason} />
+
+        {fields.category.toLowerCase().includes('sunglass') ? (
+          <>
+            <PillPicker label="Lens Shape" options={CLOSET_LENS_SHAPE_OPTIONS} value={fields.lensShape} onChange={setLensShape} />
+            <PillPicker label="Frame Color" options={CLOSET_FRAME_COLOR_OPTIONS} value={fields.frameColor} onChange={setFrameColor} />
+          </>
+        ) : null}
 
         <SilhouettePicker value={fields.silhouette} onChange={setSilhouette} />
         <FitStatusPicker value={fields.fitStatus} onChange={setFitStatus} />

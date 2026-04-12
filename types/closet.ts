@@ -107,6 +107,58 @@ export const CLOSET_SEASON_OPTIONS: { value: string; label: string }[] = [
   { value: 'Winter', label: 'Winter' },
 ];
 
+// ── Sunglasses — Lens Shape ────────────────────────────────────────────────────
+
+export type ClosetItemLensShape =
+  | 'aviator'
+  | 'wayfarer'
+  | 'round'
+  | 'square'
+  | 'cat_eye'
+  | 'oversized'
+  | 'shield'
+  | 'wraparound';
+
+export const CLOSET_LENS_SHAPE_OPTIONS: { value: ClosetItemLensShape; label: string }[] = [
+  { value: 'aviator', label: 'Aviator' },
+  { value: 'wayfarer', label: 'Wayfarer' },
+  { value: 'round', label: 'Round' },
+  { value: 'square', label: 'Square' },
+  { value: 'cat_eye', label: 'Cat Eye' },
+  { value: 'oversized', label: 'Oversized' },
+  { value: 'shield', label: 'Shield' },
+  { value: 'wraparound', label: 'Wraparound' },
+];
+
+// ── Sunglasses — Frame Color ───────────────────────────────────────────────────
+
+export type ClosetItemFrameColor =
+  | 'black'
+  | 'tortoise'
+  | 'gold'
+  | 'silver'
+  | 'clear'
+  | 'brown'
+  | 'navy'
+  | 'white'
+  | 'pink'
+  | 'green'
+  | 'red';
+
+export const CLOSET_FRAME_COLOR_OPTIONS: { value: ClosetItemFrameColor; label: string }[] = [
+  { value: 'black', label: 'Black' },
+  { value: 'tortoise', label: 'Tortoise' },
+  { value: 'gold', label: 'Gold' },
+  { value: 'silver', label: 'Silver' },
+  { value: 'clear', label: 'Clear' },
+  { value: 'brown', label: 'Brown' },
+  { value: 'navy', label: 'Navy' },
+  { value: 'white', label: 'White' },
+  { value: 'pink', label: 'Pink' },
+  { value: 'green', label: 'Green' },
+  { value: 'red', label: 'Red' },
+];
+
 // ── Closet Item ────────────────────────────────────────────────────────────────
 
 export type ClosetItem = {
@@ -135,6 +187,10 @@ export type ClosetItem = {
   // ── Personal fit (user-set) ────────────────────────────────────────────────
   /** How the item fits the wearer personally — separate from the garment's design silhouette. */
   fitStatus?: ClosetItemFitStatus | null;
+
+  // ── Sunglasses-specific ────────────────────────────────────────────────────
+  lensShape?: ClosetItemLensShape | null;
+  frameColor?: ClosetItemFrameColor | null;
 
   // ── Usage counters (AsyncStorage only, not persisted to DB) ───────────────
   anchorToOutfitCount?: number;

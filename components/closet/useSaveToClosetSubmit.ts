@@ -6,6 +6,7 @@ import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
 import type { UploadedImageAsset } from '@/types/media';
 import { buildSaveItemPayload, type ClosetFormFields } from './closet-form-mappers';
+import type { GenerateClosetSketchRequest } from '@/types/api';
 
 type UseSaveToClosetSubmitParams = {
   onSaveSuccess: (item: ClosetItem) => void;
@@ -55,14 +56,19 @@ export function useSaveToClosetSubmit({ onSaveSuccess }: UseSaveToClosetSubmitPa
     return () => clearInterval(interval);
   }, [sketchJobId]);
 
-  async function handleGenerateSketch(effectiveUploadedImage: UploadedImageAsset) {
+  async function handleGenerateSketch(effectiveUploadedImage: UploadedImageAsset, fields?: ClosetFormFields) {
     setSketchError(null);
     setIsGeneratingSketch(true);
 
-    const response = await closetService.generateItemSketch({
+    const sketchRequest: GenerateClosetSketchRequest = {
       uploadedImageId: effectiveUploadedImage.id,
       uploadedImageUrl: effectiveUploadedImage.publicUrl,
-    });
+      category: fields?.category,
+      lensShape: fields?.lensShape,
+      frameColor: fields?.frameColor,
+    };
+
+    const response = await closetService.generateItemSketch(sketchRequest);
 
     if (response.success && response.data) {
       setSketchJobId(response.data.jobId);

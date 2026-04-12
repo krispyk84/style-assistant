@@ -19,6 +19,7 @@ export const GARMENT_GROUPS: Record<string, readonly string[]> = {
   bag:          ['bag', 'tote', 'briefcase', 'backpack', 'satchel'],
   scarf:        ['scarf'],
   hat:          ['hat', 'cap', 'beanie', 'bucket hat'],
+  sunglasses:   ['sunglasses', 'sunglass', 'glasses', 'eyewear', 'shades'],
   socks:        ['sock'],
   trousers:     ['trouser', 'chino', 'slack', 'cord', 'gabardine'],
   denim:        ['jean', 'denim'],
@@ -74,6 +75,7 @@ export const CATEGORY_TO_GROUP: Record<string, string> = {
   'Performance Top': 'tee',
   'Athletic Top':  'tee',
   'Tank Top':      'tee',
+  Sunglasses:      'sunglasses',
 };
 
 // Maps OutfitPieceCategory → garment group key for related-group checks.

@@ -103,6 +103,8 @@ export type AnalyzeClosetItemResponse = {
   silhouette?: string | null;
   weight?: string | null;
   pattern?: string | null;
+  lensShape?: string | null;
+  frameColor?: string | null;
 };
 
 export type SaveClosetItemRequest = {
@@ -124,6 +126,8 @@ export type SaveClosetItemRequest = {
   pattern?: string;
   notes?: string;
   fitStatus?: ClosetItemFitStatus;
+  lensShape?: string;
+  frameColor?: string;
 };
 
 export type GetClosetItemsResponse = {
@@ -147,11 +151,16 @@ export type UpdateClosetItemRequest = {
   pattern?: string;
   notes?: string;
   fitStatus?: ClosetItemFitStatus;
+  lensShape?: string;
+  frameColor?: string;
 };
 
 export type GenerateClosetSketchRequest = {
   uploadedImageId?: string;
   uploadedImageUrl?: string;
+  category?: string;
+  lensShape?: string;
+  frameColor?: string;
 };
 
 export type GenerateClosetSketchResponse = {
@@ -195,7 +204,7 @@ export type OutfitPieceInput = {
 
 export type ClosetMatchRequest = {
   suggestions: OutfitPieceInput[];
-  items: { id: string; title: string; category: string; brand?: string; colorFamily?: string; material?: string; formality?: string }[];
+  items: { id: string; title: string; category: string; brand?: string; colorFamily?: string; material?: string; formality?: string; lensShape?: string }[];
   /** 0 = most forgiving, 100 = most precise. Default: 50. */
   sensitivity?: number;
   /** Item IDs to exclude — used when regenerating a specific slot after thumbs-down. */

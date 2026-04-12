@@ -6,6 +6,7 @@ import { analyzeClosetItem, matchClosetItems } from './closet-analysis.service.j
 import type {
   AnalyzeClosetItemPayload,
   ClosetMatchPayload,
+  GenerateClosetSketchOptions,
   GenerateClosetSketchPayload,
   SaveClosetItemPayload,
   UpdateClosetItemPayload,
@@ -37,6 +38,8 @@ export const closetService = {
       pattern: payload.pattern,
       notes: payload.notes,
       fitStatus: payload.fitStatus,
+      lensShape: payload.lensShape,
+      frameColor: payload.frameColor,
     });
     return mapClosetItem(item);
   },
@@ -71,6 +74,8 @@ export const closetService = {
       pattern: payload.pattern,
       notes: payload.notes,
       fitStatus: payload.fitStatus,
+      lensShape: payload.lensShape,
+      frameColor: payload.frameColor,
     });
     // Re-fetch to return the updated row (updateMany doesn't return records)
     const updated = await closetRepository.getItem(id, supabaseUserId);
@@ -86,7 +91,12 @@ export const closetService = {
   },
 
   async generateItemSketch(payload: GenerateClosetSketchPayload, supabaseUserId?: string) {
-    const jobId = await closetSketchService.startSketchJob(payload.uploadedImageUrl, supabaseUserId);
+    const options: GenerateClosetSketchOptions = {
+      category: payload.category,
+      lensShape: payload.lensShape,
+      frameColor: payload.frameColor,
+    };
+    const jobId = await closetSketchService.startSketchJob(payload.uploadedImageUrl, supabaseUserId, options);
     return { jobId };
   },
 

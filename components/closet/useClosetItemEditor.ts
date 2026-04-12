@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 
 import { closetService } from '@/services/closet';
-import type { ClosetItem, ClosetItemColorFamily, ClosetItemFitStatus, ClosetItemSilhouette } from '@/types/closet';
+import type { ClosetItem, ClosetItemColorFamily, ClosetItemFitStatus, ClosetItemFrameColor, ClosetItemLensShape, ClosetItemSilhouette } from '@/types/closet';
 import {
   CLOSET_COLOR_FAMILY_OPTIONS,
   CLOSET_FORMALITY_OPTIONS,
+  CLOSET_FRAME_COLOR_OPTIONS,
+  CLOSET_LENS_SHAPE_OPTIONS,
   CLOSET_PATTERN_OPTIONS,
   CLOSET_SILHOUETTE_OPTIONS,
   CLOSET_WEIGHT_OPTIONS,
@@ -28,6 +30,8 @@ export type ClosetEditFields = {
   weight: string | undefined;
   pattern: string | undefined;
   notes: string;
+  lensShape: ClosetItemLensShape | undefined;
+  frameColor: ClosetItemFrameColor | undefined;
 };
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
@@ -54,6 +58,8 @@ export function useClosetItemEditor({ item }: { item: ClosetItem | null }) {
   const [weight, setWeight] = useState<string | undefined>();
   const [pattern, setPattern] = useState<string | undefined>();
   const [notes, setNotes] = useState('');
+  const [lensShape, setLensShape] = useState<ClosetItemLensShape | undefined>();
+  const [frameColor, setFrameColor] = useState<ClosetItemFrameColor | undefined>();
 
   // Seed all fields from item; reset editing/confirmDelete/error when a different item opens
   useEffect(() => {
@@ -73,6 +79,8 @@ export function useClosetItemEditor({ item }: { item: ClosetItem | null }) {
     setWeight(item.weight ?? undefined);
     setPattern(item.pattern ?? undefined);
     setNotes(item.notes ?? '');
+    setLensShape((item.lensShape as ClosetItemLensShape) ?? undefined);
+    setFrameColor((item.frameColor as ClosetItemFrameColor) ?? undefined);
     setIsEditing(false);
     setError(null);
     setConfirmDelete(false);
@@ -121,6 +129,12 @@ export function useClosetItemEditor({ item }: { item: ClosetItem | null }) {
     if (!silhouette && ai.silhouette && CLOSET_SILHOUETTE_OPTIONS.some((o) => o.value === ai.silhouette)) {
       setSilhouette(ai.silhouette as ClosetItemSilhouette);
     }
+    if (!lensShape && ai.lensShape && CLOSET_LENS_SHAPE_OPTIONS.some((o) => o.value === ai.lensShape)) {
+      setLensShape(ai.lensShape as ClosetItemLensShape);
+    }
+    if (!frameColor && ai.frameColor && CLOSET_FRAME_COLOR_OPTIONS.some((o) => o.value === ai.frameColor)) {
+      setFrameColor(ai.frameColor as ClosetItemFrameColor);
+    }
     // fitStatus intentionally NOT auto-filled — personal fit requires the wearer's judgement
   }
 
@@ -131,6 +145,7 @@ export function useClosetItemEditor({ item }: { item: ClosetItem | null }) {
       subcategory, primaryColor, colorFamily, material,
       formality, silhouette, fitStatus,
       season, weight, pattern, notes,
+      lensShape, frameColor,
     };
   }
 
@@ -154,6 +169,8 @@ export function useClosetItemEditor({ item }: { item: ClosetItem | null }) {
     weight, setWeight,
     pattern, setPattern,
     notes, setNotes,
+    lensShape, setLensShape,
+    frameColor, setFrameColor,
     handleAIAutofill,
     getFields,
   };

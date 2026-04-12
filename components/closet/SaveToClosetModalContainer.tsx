@@ -202,13 +202,15 @@ export function SaveToClosetModalContainer({
             setWeight={formHook.setters.setWeight}
             setPattern={formHook.setters.setPattern}
             setSeason={formHook.setters.setSeason}
+            setLensShape={formHook.setters.setLensShape}
+            setFrameColor={formHook.setters.setFrameColor}
             // Handlers
             onPickFromLibrary={() => void handlePickFromLibrary()}
             onCapturePhoto={() => void capturePhoto()}
             onReset={handleReset}
             onAIAutofill={() => void formHook.handleAIAutofill()}
             onGenerateSketch={() => {
-              if (effectiveUploadedImage) void submitHook.handleGenerateSketch(effectiveUploadedImage);
+              if (effectiveUploadedImage) void submitHook.handleGenerateSketch(effectiveUploadedImage, formHook.fields);
             }}
             onSave={() => void submitHook.handleSave(formHook.fields, effectiveUploadedImage)}
             onClose={handleClose}
