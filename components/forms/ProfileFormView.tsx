@@ -161,7 +161,7 @@ export function ProfileFormView({
         </View>
       </FormField>
 
-      {profile.gender === 'man' ? (
+      {profile.gender !== 'non-binary' ? (
         <FormField label="Body type" hint="Used to personalise outfit sketches.">
           <PickerField value={profile.bodyType ?? ''} onPress={() => setPickerField('bodyType')} />
         </FormField>

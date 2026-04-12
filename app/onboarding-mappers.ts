@@ -86,7 +86,7 @@ export function buildProfile(
         : 'prefer-trousers',
     temperatureUnit: wizard.temperatureUnit ?? 'celsius',
     notes: wizard.notes,
-    bodyType: wizard.gender === 'man' ? wizard.bodyType : undefined,
+    bodyType: wizard.gender !== 'non-binary' ? wizard.bodyType : undefined,
     fitTendency: wizard.gender === 'man' ? wizard.fitTendency : undefined,
   };
 }

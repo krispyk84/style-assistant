@@ -26,6 +26,19 @@ function buildFemaleStyleFramework(): string {
   ].join('\n');
 }
 
+function buildFemaleBodyTypeGuidance(bodyType: string): string | null {
+  const guidance: Record<string, string> = {
+    hourglass: 'favour pieces that follow the natural silhouette — wrap styles, belted pieces, fitted cuts, V-necks, A-line skirts. Avoid boxy or shapeless garments that obscure the waist.',
+    inverted_triangle: 'balance the broader upper body with fuller skirts, A-line or wide-leg trousers, and volume at the hip. Avoid heavy shoulder detail, boat necks, or wide horizontal stripes. Favour V-necks.',
+    rectangle: 'create curves with peplum tops, belted pieces, wrap styles, and garments with waist definition. Avoid straight shapeless cuts. Favour pieces that add volume at the hip or bust.',
+    pear: 'balance hips with structured or detailed tops, statement shoulders, bold print or texture up top. A-line skirts and wide-leg trousers work well below. Avoid clingy fabrics on the lower body.',
+    apple: 'elongate the torso with empire waist, wrap dresses, and flowy tops that skim rather than cling. Favour V-necks and vertical lines. Avoid tight waistbands and cropped tops.',
+    slim: 'can wear most silhouettes well. Add dimension with texture and layering. Avoid very oversized pieces that overwhelm the frame.',
+  };
+  const note = guidance[bodyType];
+  return note ? `FEMALE BODY TYPE GUIDANCE — ${bodyType}: ${note}` : null;
+}
+
 export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[], gender?: string | null) {
   return [
     ...buildBaseOutfitRules(gender),
@@ -64,6 +77,7 @@ export function buildGenerateOutfitsUserPrompt(
   return [
     formatProfileContext(profile, vibeOverride),
     isFemale ? buildFemaleStyleFramework() : null,
+    isFemale && profile?.bodyType ? buildFemaleBodyTypeGuidance(profile.bodyType) : null,
     styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
     'Styling request:',
     ...anchorItems.map(
@@ -113,6 +127,7 @@ export function buildRegenerateTierUserPrompt(input: {
   return [
     formatProfileContext(input.profile, vibeOverride),
     isFemale ? buildFemaleStyleFramework() : null,
+    isFemale && input.profile?.bodyType ? buildFemaleBodyTypeGuidance(input.profile.bodyType) : null,
     input.styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
     'Original styling request:',
     ...(input.existing.input.anchorItems?.length

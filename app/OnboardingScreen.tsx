@@ -16,6 +16,7 @@ import type { Profile } from '@/types/profile';
 import {
   BODY_TYPE_OPTIONS,
   BUDGET_OPTIONS,
+  FEMALE_BODY_TYPE_OPTIONS,
   FIT_PREFERENCE_OPTIONS,
   HAIR_COLOR_OPTIONS,
   SKIN_TONE_OPTIONS,
@@ -128,6 +129,24 @@ const BODY_TYPE_LABELS: Record<string, string> = {
   oval: 'Oval',
   rectangle: 'Rectangle',
   athletic: 'Athletic',
+};
+
+const FEMALE_BODY_TYPE_IMAGES = {
+  hourglass: require('@/assets/images/womenswear_bodytype_hourglass.png'),
+  inverted_triangle: require('@/assets/images/womenswear_bodytype_inverted_triangle.png'),
+  rectangle: require('@/assets/images/womenswear_bodytype_rectangle.png'),
+  pear: require('@/assets/images/womenswear_bodytype_pear.png'),
+  apple: require('@/assets/images/womenswear_bodytype_apple.png'),
+  slim: require('@/assets/images/womenswear_bodytype_slim.png'),
+};
+
+const FEMALE_BODY_TYPE_LABELS: Record<string, string> = {
+  hourglass: 'Hourglass',
+  inverted_triangle: 'Inverted Triangle',
+  rectangle: 'Rectangle',
+  pear: 'Pear',
+  apple: 'Apple',
+  slim: 'Slim',
 };
 
 
@@ -457,11 +476,18 @@ export function OnboardingScreen() {
         );
 
       case 'body-type': {
-        const bodyTypeOptions = BODY_TYPE_OPTIONS.map((v) => ({
-          value: v,
-          label: BODY_TYPE_LABELS[v],
-          image: BODY_TYPE_IMAGES[v],
-        }));
+        const isWoman = profile.gender === 'woman';
+        const bodyTypeOptions = isWoman
+          ? FEMALE_BODY_TYPE_OPTIONS.map((v) => ({
+              value: v,
+              label: FEMALE_BODY_TYPE_LABELS[v],
+              image: FEMALE_BODY_TYPE_IMAGES[v],
+            }))
+          : BODY_TYPE_OPTIONS.map((v) => ({
+              value: v,
+              label: BODY_TYPE_LABELS[v],
+              image: BODY_TYPE_IMAGES[v],
+            }));
         return (
           <SelectorGrid
             options={bodyTypeOptions}

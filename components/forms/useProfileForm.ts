@@ -5,6 +5,7 @@ import type { Profile, ProfileValidationErrors } from '@/types/profile';
 import {
   BODY_TYPE_OPTIONS,
   BUDGET_OPTIONS,
+  FEMALE_BODY_TYPE_OPTIONS,
   FIT_PREFERENCE_OPTIONS,
   FIT_TENDENCY_OPTIONS,
   HAIR_COLOR_OPTIONS,
@@ -113,7 +114,7 @@ export function useProfileForm(initialValue: Profile = defaultProfile) {
     () => ({
       bodyType: {
         label: 'Body type',
-        options: BODY_TYPE_OPTIONS,
+        options: profile.gender === 'woman' ? FEMALE_BODY_TYPE_OPTIONS : BODY_TYPE_OPTIONS,
         value: profile.bodyType ?? '',
         onChange: (value) => updateField('bodyType', value as Profile['bodyType']),
       },

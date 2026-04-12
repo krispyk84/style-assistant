@@ -30,7 +30,7 @@ async function generateSingleTierSketch(
   weightKg?: number | null,
 ) {
   try {
-    const severity = buildBodyTypeSeverity(heightCm, weightKg, bodyType);
+    const severity = buildBodyTypeSeverity(heightCm, weightKg, bodyType, gender);
     const combinedNegative = [severity.negativePrompt, anchorAntiDrift].filter(Boolean).join(', ') || undefined;
 
     const generatedImage = await imageGenerationClient.generateImage({
