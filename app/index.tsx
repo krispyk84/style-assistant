@@ -4,6 +4,9 @@ import { BrandSplash } from '@/components/ui/brand-splash';
 import { useAuth } from '@/contexts/auth-context';
 import { useAppSession } from '@/hooks/use-app-session';
 
+const ONBOARDING_TEST_MODE = true;
+let onboardingTestShown = false;
+
 export default function LandingScreen() {
   const { user, isAuthLoading } = useAuth();
   const { hasCompletedOnboarding, isHydrated } = useAppSession();
@@ -41,6 +44,11 @@ export default function LandingScreen() {
 
   // Authenticated + hydrated — route based on onboarding state.
   if (!hasCompletedOnboarding) {
+    return <Redirect href="/onboarding" />;
+  }
+
+  if (ONBOARDING_TEST_MODE && !onboardingTestShown) {
+    onboardingTestShown = true;
     return <Redirect href="/onboarding" />;
   }
 

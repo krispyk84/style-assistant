@@ -57,10 +57,6 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
   );
 }
 
-const ONBOARDING_TEST_MODE = true;
-// Module-level: survives component remounts within the same JS session
-let onboardingTestRedirectDone = false;
-
 export default function AppTabsLayout() {
   const { hasCompletedOnboarding, isHydrated } = useAppSession();
   const { user } = useAuth();
@@ -82,11 +78,6 @@ export default function AppTabsLayout() {
         ]}
       />
     );
-  }
-
-  if (ONBOARDING_TEST_MODE && !onboardingTestRedirectDone) {
-    onboardingTestRedirectDone = true;
-    return <Redirect href="/onboarding" />;
   }
 
   if (!hasCompletedOnboarding) {
