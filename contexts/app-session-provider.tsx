@@ -10,6 +10,7 @@ import { AppSessionContext } from '@/contexts/app-session-context';
 
 const APP_RELAUNCH_RESET_MS = 1000 * 60 * 10; // 10 minutes
 const STALE_THRESHOLD_MS = 1000 * 60 * 10; // 10 min — server may have spun down
+const ONBOARDING_TEST_MODE = true;
 
 export function AppSessionProvider({ children }: PropsWithChildren) {
   const { user, isAuthLoading } = useAuth();
@@ -17,6 +18,7 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [testModeActive, setTestModeActive] = useState(ONBOARDING_TEST_MODE);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [appInstanceKey, setAppInstanceKey] = useState(0);
   const [isReconnecting, setIsReconnecting] = useState(false);
@@ -167,6 +169,7 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
       const backendProfile = response.data.profile ?? defaultProfile;
       const nextOnboardingCompleted = response.data.onboardingCompleted;
 
+      setTestModeActive(false);
       setProfile(backendProfile);
       setHasCompletedOnboarding(nextOnboardingCompleted);
       await saveStoredProfile(backendProfile, nextOnboardingCompleted);
@@ -184,7 +187,7 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
   // broad consumer re-renders when unrelated session state updates.
   const contextValue = useMemo(() => ({
     appInstanceKey,
-    hasCompletedOnboarding,
+    hasCompletedOnboarding: testModeActive ? false : hasCompletedOnboarding,
     isHydrated,
     isReconnecting,
     isSaving,
