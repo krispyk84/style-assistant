@@ -7,7 +7,7 @@ import { logger } from '../../config/logger.js';
 import { storageConfig } from '../../config/storage.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { imageGenerationClient } from '../../ai/image-generation-client.js';
-import { buildAccessorySketchPrompt, buildClosetItemSketchPrompt, buildSunglassesSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
+import { buildAccessorySketchPrompt, buildClosetItemSketchPrompt, buildSunglassesOpenAiPrompt, buildSunglassesSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
 import { closetRepository } from './closet.repository.js';
 
 const garmentDescriptionSchema = z.object({
@@ -145,47 +145,61 @@ async function runSketchGeneration(jobId: string, imageUrl: string, supabaseUser
       `${options?.category ?? ''} ${options?.title ?? ''}`.toLowerCase().includes('sunglass');
     const isAccessory = isAccessoryItem(options?.category, options?.title);
 
-    let prompt: string;
-    let additionalNegativePrompt: string | undefined;
+    if (isAccessory) {
+      // Accessories (sunglasses, bags, watches, belts, etc.) are routed to OpenAI
+      // gpt-image-1 instead of the fal LoRA. The LoRA was trained exclusively on
+      // garment-on-mannequin sketches — its distribution is too dominant to suppress
+      // even with strong negative prompts, producing mannequin figures for any item.
+      // OpenAI follows product-only / no-figure instructions reliably.
+      let openAiPrompt: string;
+      if (isSunglasses) {
+        const itemDescription = [
+          options?.frameColor ? `${options.frameColor}-frame` : null,
+          options?.lensShape ? `${options.lensShape.replace('_', '-')} sunglasses` : 'sunglasses',
+        ].filter(Boolean).join(' ');
+        openAiPrompt = buildSunglassesOpenAiPrompt({
+          itemDescription,
+          lensShape: options?.lensShape,
+          frameColor: options?.frameColor,
+        });
+        logger.info({ jobId, openAiPrompt }, 'Closet accessory (sunglasses) OpenAI prompt built');
+      } else {
+        const itemDescription = [options?.title, options?.category].filter(Boolean).join(' ') || 'accessory';
+        openAiPrompt = buildAccessorySketchPrompt({ itemDescription });
+        logger.info({ jobId, openAiPrompt }, 'Closet accessory OpenAI prompt built');
+      }
 
-    if (isSunglasses) {
-      // Sunglasses: build prompt from form fields — skip garment-description vision call
-      // which asks about collars/pockets that are irrelevant for eyewear.
-      const itemDescription = [
-        options?.frameColor ? `${options.frameColor}-frame` : null,
-        options?.lensShape ? `${options.lensShape.replace('_', '-')} sunglasses` : 'sunglasses',
-      ].filter(Boolean).join(' ');
-
-      prompt = buildSunglassesSketchPrompt({
-        itemDescription,
-        lensShape: options?.lensShape,
-        frameColor: options?.frameColor,
+      const generatedImage = await openAiClient.generateImage({
+        prompt: openAiPrompt,
+        size: '1024x1024',
+        quality: 'medium',
+        outputFormat: 'jpeg',
+        supabaseUserId,
+        feature: 'closet-sketch',
       });
-      additionalNegativePrompt = 'person, figure, mannequin, body, hands, face, human, model, dress form, wearing, head, neck, torso, clothing on body';
-      logger.info({ jobId, prompt }, 'Closet sunglasses sketch prompt built');
-    } else if (isAccessory) {
-      // Non-sunglasses accessories (bags, watches, belts, hats, etc.): use a generic
-      // product-only prompt built from the item title + category — do NOT run
-      // describeGarmentFromImage which would hallucinate a garment from the photo.
-      const itemDescription = [options?.title, options?.category].filter(Boolean).join(' ') || 'accessory';
-      prompt = buildAccessorySketchPrompt({ itemDescription });
-      additionalNegativePrompt = 'person, figure, mannequin, body, hands, face, human, model, dress form, wearing, head, neck, torso, clothing on body';
-      logger.info({ jobId, prompt }, 'Closet accessory sketch prompt built');
-    } else {
-      const itemDescription = await describeGarmentFromImage(imageUrl, supabaseUserId);
-      logger.info({ jobId, itemDescription }, 'Closet sketch description produced');
-      prompt = buildClosetItemSketchPrompt({ itemDescription });
+
+      const storageKey = `closet-sketch/${jobId}.jpg`;
+      const sketchImageUrl = `${storageConfig.publicBaseUrl}/media/${storageKey}`;
+
+      await closetRepository.updateSketchJob(jobId, {
+        status: 'ready',
+        sketchImageUrl,
+        sketchStorageKey: storageKey,
+        sketchMimeType: generatedImage.mimeType,
+        sketchImageData: generatedImage.data,
+      });
+      return;
     }
+
+    const itemDescription = await describeGarmentFromImage(imageUrl, supabaseUserId);
+    logger.info({ jobId, itemDescription }, 'Closet sketch description produced');
+    const prompt = buildClosetItemSketchPrompt({ itemDescription });
 
     const generatedImage = await imageGenerationClient.generateImage({
       prompt,
       loraType: 'closet',
-      itemType: isAccessory ? 'accessory' : 'garment',
-      // Accessories use product-only mode — skip img2img so the background/environment
-      // from the source photo doesn't pollute the clean product sketch.
-      sourceImageUrl: isAccessory ? undefined : (imageUrl.startsWith('https://') ? imageUrl : undefined),
+      sourceImageUrl: imageUrl.startsWith('https://') ? imageUrl : undefined,
       supabaseUserId,
-      additionalNegativePrompt,
     });
 
     // Store image data in DB only (not on the ephemeral filesystem) so sketches

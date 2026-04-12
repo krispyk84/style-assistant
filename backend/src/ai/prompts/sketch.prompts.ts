@@ -154,19 +154,43 @@ export function buildClosetItemSketchPrompt(input: { itemDescription: string; ge
 }
 
 /**
- * Product-only prompt for non-sunglasses accessories (bags, watches, belts, hats, etc.).
- * No figure, no mannequin — item displayed alone on a neutral background.
+ * Product-only prompt for non-sunglasses accessories (bags, watches, belts, hats, etc.)
+ * intended for OpenAI gpt-image-1 — no LoRA trigger word needed.
  */
 export function buildAccessorySketchPrompt(input: { itemDescription: string }) {
-  return [
-    input.itemDescription.trim(),
-    'product only, no figure, no mannequin, no body, no person, no hands',
-    'accessory displayed alone on neutral background',
-    'front-facing view showing full item',
-    'fine-line hand-drawn ink contour sketch, slight line-weight variation',
-    'soft transparent watercolor wash fill, matte paper finish',
-    'warm aged parchment background, muted desaturated editorial palette',
-  ].join(', ');
+  return (
+    `Fashion illustration of ${input.itemDescription.trim()} displayed as a standalone product. ` +
+    `No figure, no mannequin, no body, no hands, no person. ` +
+    `Item shown alone floating on a warm aged parchment background. ` +
+    `Fine-line hand-drawn ink contour sketch with slight line-weight variation, ` +
+    `soft transparent watercolor wash fill with visible pigment variation, ` +
+    `matte paper finish, muted desaturated editorial palette.`
+  );
+}
+
+/**
+ * Product-only prompt for sunglasses intended for OpenAI gpt-image-1.
+ * No LoRA trigger word — OpenAI follows product-only instructions reliably.
+ */
+export function buildSunglassesOpenAiPrompt(input: {
+  itemDescription: string;
+  lensShape?: string | null;
+  frameColor?: string | null;
+}) {
+  const framePart = input.frameColor ? `${input.frameColor}-frame` : null;
+  const lensPart = input.lensShape ? `${input.lensShape.replace('_', '-')} lenses` : null;
+
+  const descriptor = [input.itemDescription.trim(), framePart, lensPart].filter(Boolean).join(', ');
+
+  return (
+    `Fashion illustration of ${descriptor} displayed as a standalone product. ` +
+    `No figure, no mannequin, no body, no hands, no person. ` +
+    `Sunglasses shown alone, front-facing at a slight angle so both lenses and the full frame are clearly visible. ` +
+    `Floating on a warm aged parchment background. ` +
+    `Fine-line hand-drawn ink contour sketch with slight line-weight variation, ` +
+    `soft transparent watercolor wash fill with visible pigment variation across lenses and frame, ` +
+    `matte paper finish, muted desaturated editorial palette.`
+  );
 }
 
 export function buildSunglassesSketchPrompt(input: {
