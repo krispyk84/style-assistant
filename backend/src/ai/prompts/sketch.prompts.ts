@@ -143,14 +143,16 @@ function classifyAccessory(piece: OutfitPieceDto): 'worn' | 'beside' | 'above' {
   return 'beside';
 }
 
-export function buildClosetItemSketchPrompt(input: { itemDescription: string; gender?: string | null }) {
-  return (
-    `${input.itemDescription.trim()}, ` +
-    `single garment on headless dress form, no head no face, preserve all construction details, ` +
-    `fine-line hand-drawn ink contour sketch, slight line-weight variation, soft transparent watercolor wash fill with visible pigment variation, ` +
-    `loose watercolor bleed at garment edges, matte paper finish, warm aged parchment background, antique paper tone, ` +
-    `muted desaturated editorial palette, no gradient, no vignette`
-  );
+export function buildClosetItemSketchPrompt(input: { itemDescription: string }) {
+  return [
+    'Create a menswear editorial fashion illustration of a single garment on a clean presentation.',
+    'Visual style: luxury menswear sketch, hand-rendered marker and watercolor wash, confident ink outlines, refined retail lookbook presentation.',
+    'Show only this one piece — do not add other garments, people, or accessories.',
+    'Do not add any words, logos, watermarks, UI chrome, or marketing copy.',
+    'Favor a soft neutral or white background with premium menswear presentation.',
+    `Garment: ${input.itemDescription}`,
+    'Compose this as a polished portrait-oriented single-piece menswear sketch suitable for a premium wardrobe cataloguing app.',
+  ].join('\n');
 }
 
 /**
