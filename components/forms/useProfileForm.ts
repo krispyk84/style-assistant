@@ -11,6 +11,7 @@ import {
   HAIR_COLOR_OPTIONS,
   SKIN_TONE_OPTIONS,
   STYLE_PREFERENCE_OPTIONS,
+  WEIGHT_DISTRIBUTION_OPTIONS,
 } from '@/types/profile';
 import {
   centimetersToFeetInches,
@@ -27,6 +28,7 @@ import {
 
 export type PickerFieldKey =
   | 'bodyType'
+  | 'weightDistribution'
   | 'fitTendency'
   | 'fitPreference'
   | 'stylePreference'
@@ -117,6 +119,12 @@ export function useProfileForm(initialValue: Profile = defaultProfile) {
         options: profile.gender === 'woman' ? FEMALE_BODY_TYPE_OPTIONS : BODY_TYPE_OPTIONS,
         value: profile.bodyType ?? '',
         onChange: (value) => updateField('bodyType', value as Profile['bodyType']),
+      },
+      weightDistribution: {
+        label: 'Weight distribution',
+        options: WEIGHT_DISTRIBUTION_OPTIONS,
+        value: profile.weightDistribution ?? '',
+        onChange: (value) => updateField('weightDistribution', value as Profile['weightDistribution']),
       },
       fitTendency: {
         label: 'How clothes typically fit',

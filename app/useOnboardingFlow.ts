@@ -34,10 +34,11 @@ export function useOnboardingFlow({
 
   const [stepIndex, setStepIndex] = useState(0);
 
-  // bottoms: men only. body-type: men + women, not non-binary.
+  // bottoms: men only. body-type: men + women, not non-binary. weight-distribution: women only.
   const steps = STEPS.filter((s) => {
     if (s === 'bottoms' && profile.gender !== 'man') return false;
     if (s === 'body-type' && profile.gender === 'non-binary') return false;
+    if (s === 'weight-distribution' && profile.gender !== 'woman') return false;
     return true;
   });
   const totalSteps = steps.length;

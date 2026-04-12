@@ -7,6 +7,7 @@ export const STEPS = [
   'gender',
   'measurements',
   'body-type',
+  'weight-distribution',
   'fit',
   'style',
   'budget',
@@ -29,6 +30,7 @@ export type WizardProfile = Partial<Omit<Profile, 'heightCm' | 'weightKg' | 'nam
   weightKg: string;
   notes: string;
   fitTendency?: Profile['fitTendency'];
+  weightDistribution?: Profile['weightDistribution'];
 };
 
 export const EMPTY_WIZARD_PROFILE: WizardProfile = {
@@ -87,6 +89,7 @@ export function buildProfile(
     temperatureUnit: wizard.temperatureUnit ?? 'celsius',
     notes: wizard.notes,
     bodyType: wizard.gender !== 'non-binary' ? wizard.bodyType : undefined,
+    weightDistribution: wizard.gender === 'woman' ? wizard.weightDistribution : undefined,
     fitTendency: wizard.gender === 'man' ? wizard.fitTendency : undefined,
   };
 }

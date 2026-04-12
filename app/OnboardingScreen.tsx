@@ -21,6 +21,7 @@ import {
   HAIR_COLOR_OPTIONS,
   SKIN_TONE_OPTIONS,
   STYLE_PREFERENCE_OPTIONS,
+  WEIGHT_DISTRIBUTION_OPTIONS,
 } from '@/types/profile';
 import { useOnboardingFlow } from './useOnboardingFlow';
 import { useOnboardingForms } from './useOnboardingForms';
@@ -39,6 +40,7 @@ const STEP_TITLES: Record<Step, string> = {
   skin: "What's your\nskin tone?",
   bottoms: 'Warm weather\nbottoms.',
   'body-type': 'Your\nbody type.',
+  'weight-distribution': 'Where do you\ncarry weight?',
   temperature: 'Temperature\npreference.',
   notes: 'Anything\nelse?',
 };
@@ -54,6 +56,7 @@ const STEP_HINTS: Record<Step, string> = {
   skin: 'Used for color guidance.',
   bottoms: 'Choose whether summer looks can include shorts.',
   'body-type': 'Used to personalise outfit sketches.',
+  'weight-distribution': 'Helps us personalise sketches and recommendations.',
   temperature: 'Your preferred unit across the app.',
   notes: 'Optional context like profession or climate.',
 };
@@ -147,6 +150,20 @@ const FEMALE_BODY_TYPE_LABELS: Record<string, string> = {
   pear: 'Pear',
   apple: 'Apple',
   slim: 'Slim',
+};
+
+const WEIGHT_DISTRIBUTION_IMAGES = {
+  even: require('@/assets/images/womenswear_weightdist_even.png'),
+  midsection: require('@/assets/images/womenswear_weightdist_midsection.png'),
+  hips: require('@/assets/images/womenswear_weightdist_hips.png'),
+  chest: require('@/assets/images/womenswear_weightdist_chest.png'),
+};
+
+const WEIGHT_DISTRIBUTION_LABELS: Record<string, string> = {
+  even: 'Evenly throughout',
+  midsection: 'More in my midsection',
+  hips: 'More in my hips and thighs',
+  chest: 'More in my chest and upper body',
 };
 
 
@@ -498,6 +515,22 @@ export function OnboardingScreen() {
         );
       }
 
+
+      case 'weight-distribution': {
+        const weightDistOptions = WEIGHT_DISTRIBUTION_OPTIONS.map((v) => ({
+          value: v,
+          label: WEIGHT_DISTRIBUTION_LABELS[v],
+          image: WEIGHT_DISTRIBUTION_IMAGES[v],
+        }));
+        return (
+          <SelectorGrid
+            options={weightDistOptions}
+            value={profile.weightDistribution ?? null}
+            onChange={(v) => selectAndAdvance('weightDistribution', v)}
+            thumbnailHeight={220}
+          />
+        );
+      }
 
       case 'temperature':
         return (

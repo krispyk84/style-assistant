@@ -28,9 +28,10 @@ async function generateSingleTierSketch(
   fitPreference?: string | null,
   heightCm?: number | null,
   weightKg?: number | null,
+  weightDistribution?: string | null,
 ) {
   try {
-    const severity = buildBodyTypeSeverity(heightCm, weightKg, bodyType, gender);
+    const severity = buildBodyTypeSeverity(heightCm, weightKg, bodyType, gender, weightDistribution);
     const combinedNegative = [severity.negativePrompt, anchorAntiDrift].filter(Boolean).join(', ') || undefined;
 
     const generatedImage = await imageGenerationClient.generateImage({
@@ -83,7 +84,7 @@ async function generateSingleTierSketch(
 }
 
 export const tierSketchService = {
-  async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null, fitPreference?: string | null, heightCm?: number | null, weightKg?: number | null) {
+  async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null, fitPreference?: string | null, heightCm?: number | null, weightKg?: number | null, weightDistribution?: string | null) {
     const { description: anchorItemDescription, antiDrift: anchorAntiDrift } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
 
@@ -94,12 +95,12 @@ export const tierSketchService = {
 
     await Promise.all(
       outfit.recommendations.map((recommendation) =>
-        generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg)
+        generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg, weightDistribution)
       )
     );
   },
 
-  async queueSketchForTier(outfit: OutfitResponse, tier: OutfitTierSlug, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null, fitPreference?: string | null, heightCm?: number | null, weightKg?: number | null) {
+  async queueSketchForTier(outfit: OutfitResponse, tier: OutfitTierSlug, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null, fitPreference?: string | null, heightCm?: number | null, weightKg?: number | null, weightDistribution?: string | null) {
     const recommendation = outfit.recommendations.find((item) => item.tier === tier);
 
     if (!recommendation) {
@@ -108,6 +109,6 @@ export const tierSketchService = {
 
     const { description: anchorItemDescription, antiDrift: anchorAntiDrift } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
-    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg);
+    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg, weightDistribution);
   },
 };

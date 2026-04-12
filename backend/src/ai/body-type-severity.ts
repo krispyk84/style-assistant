@@ -14,6 +14,10 @@
  * gender parameter is required to disambiguate body types shared by both genders:
  * "slim" and "rectangle" exist in both men's and women's option sets and render
  * with different proportions for each.
+ *
+ * weightDistribution (women only) is combined with the base body type description
+ * to produce a composite figure description. The two signals are additive and
+ * both must appear in the output.
  */
 
 type SeverityResult = {
@@ -137,6 +141,118 @@ function severityForSlimWomen(bmiValue: number): string {
   return 'slim self-identified female build, light to medium frame with gentle presence';
 }
 
+// ── Weight distribution combination ──────────────────────────────────────────
+
+/**
+ * Combines base body type severity with weight distribution signal.
+ * The two descriptors are additive — both must appear in the final prompt.
+ * BMI-calibrates the strength of the weight distribution addition.
+ */
+function applyWeightDistribution(
+  bodyType: string,
+  weightDistribution: string,
+  bmiValue: number,
+  baseDescription: string,
+  baseNegative: string,
+): SeverityResult {
+  if (weightDistribution === 'even') {
+    return { description: baseDescription, negativePrompt: baseNegative };
+  }
+
+  if (weightDistribution === 'midsection') {
+    let addition: string;
+    if (bmiValue < 24) {
+      addition = 'slight rounded belly, mild fullness at the waist, clothes fitting slightly differently at the midsection';
+    } else if (bmiValue < 30) {
+      addition = 'rounded fuller belly, weight visible through the waist and midsection, clothing fitting differently at the waist than at the hips and chest';
+    } else {
+      addition = 'prominent rounded belly extending past the hipline, belly clearly visible through the midsection, clothing pulling tight across the waist';
+    }
+
+    // apple amplifies — midsection is already the core trait, make it very prominent
+    if (bodyType === 'apple') {
+      addition = addition.replace('rounded fuller belly', 'very pronounced rounded belly').replace('slight rounded belly', 'noticeable rounded belly');
+    }
+
+    // pear / inverted_triangle creates contrast — upper body is slim so fullness is isolated
+    if (bodyType === 'pear' || bodyType === 'inverted_triangle') {
+      addition += ', fullness concentrated in the midsection only, slimmer hips than typical for shape';
+    }
+
+    const negativeAddition = 'flat stomach, slim waist, defined waist, slim midsection, weight in lower body';
+    return {
+      description: `${baseDescription}, ${addition}`,
+      negativePrompt: baseNegative ? `${baseNegative}, ${negativeAddition}` : negativeAddition,
+    };
+  }
+
+  if (weightDistribution === 'hips') {
+    let addition: string;
+    if (bmiValue < 24) {
+      addition = 'noticeably fuller rounder hips and thighs, weight concentrated in the lower body, narrower upper body relative to hips';
+    } else if (bmiValue < 30) {
+      addition = 'very full rounded hips and thighs, weight visibly concentrated in the lower body, clothing pulling close through thighs and hips, narrower upper body in contrast';
+    } else {
+      addition = 'very full heavy hips and thighs, weight heavily concentrated in the lower body, clothing stretched across hips and thighs, significantly narrower shoulders and chest in contrast';
+    }
+
+    // pear amplifies — lower body fullness is already the defining trait
+    if (bodyType === 'pear') {
+      addition = addition.replace('very full rounded', 'extremely full pronounced').replace('noticeably fuller rounder', 'very full rounder');
+    }
+
+    // hourglass maintains waist definition
+    if (bodyType === 'hourglass') {
+      addition += ', defined waist still clearly visible between fuller hips and chest';
+    }
+
+    // rectangle / inverted_triangle gains lower body that contrasts the straighter upper body
+    if (bodyType === 'rectangle' || bodyType === 'inverted_triangle') {
+      addition += ', lower body fullness contrasts the straighter narrower upper body';
+    }
+
+    const negativeAddition = 'top-heavy, fuller chest, weight in upper body, slim hips, narrow lower body';
+    return {
+      description: `${baseDescription}, ${addition}`,
+      negativePrompt: baseNegative ? `${baseNegative}, ${negativeAddition}` : negativeAddition,
+    };
+  }
+
+  if (weightDistribution === 'chest') {
+    let addition: string;
+    if (bmiValue < 24) {
+      addition = 'noticeably fuller chest and bust, clothing fitting more closely across the upper chest, defined contrast between upper and lower body';
+    } else if (bmiValue < 30) {
+      addition = 'fuller chest and bust, volume concentrated above the waist, clothing fitting tightly across the upper chest, defined contrast between chest and lower body';
+    } else {
+      addition = 'very full heavy chest and bust, substantial volume through the upper body, clothing stretched across the chest, narrower lower body in contrast';
+    }
+
+    // inverted_triangle amplifies — upper body dominance is already the defining trait
+    if (bodyType === 'inverted_triangle') {
+      addition = addition.replace('fuller chest and bust', 'very full and prominent chest and bust').replace('noticeably fuller', 'very full and prominent');
+    }
+
+    // hourglass maintains waist definition
+    if (bodyType === 'hourglass') {
+      addition += ', defined waist maintained, volume concentrated above the waist';
+    }
+
+    // pear / apple creates a counter-balance — fullness up top offsets lower body
+    if (bodyType === 'pear' || bodyType === 'apple') {
+      addition += ', fuller upper body creates visual balance against the lower body';
+    }
+
+    const negativeAddition = 'flat chest, narrow bust, weight in lower body, wider hips than chest';
+    return {
+      description: `${baseDescription}, ${addition}`,
+      negativePrompt: baseNegative ? `${baseNegative}, ${negativeAddition}` : negativeAddition,
+    };
+  }
+
+  return { description: baseDescription, negativePrompt: baseNegative };
+}
+
 // ── Public export ─────────────────────────────────────────────────────────────
 
 export function buildBodyTypeSeverity(
@@ -144,6 +260,7 @@ export function buildBodyTypeSeverity(
   weightKg: number | null | undefined,
   bodyType: string | null | undefined,
   gender?: string | null,
+  weightDistribution?: string | null,
 ): SeverityResult {
   const isWoman = gender === 'woman';
   const negativePrompt = bodyType
@@ -155,7 +272,7 @@ export function buildBodyTypeSeverity(
     return FALLBACK_DEFAULT;
   }
 
-  // Missing measurements — fall back to static description
+  // Missing measurements — fall back to static description (no weight distribution applied)
   if (!heightCm || !weightKg || heightCm <= 0 || weightKg <= 0) {
     const fallbackMap = isWoman ? FALLBACK_DESCRIPTIONS_WOMEN : FALLBACK_DESCRIPTIONS_MEN;
     return {
@@ -209,5 +326,12 @@ export function buildBodyTypeSeverity(
     }
   }
 
-  return { description, negativePrompt };
+  const base: SeverityResult = { description, negativePrompt };
+
+  // Apply weight distribution only for women with a known distribution
+  if (isWoman && weightDistribution && weightDistribution !== 'even') {
+    return applyWeightDistribution(bodyType, weightDistribution, bmiValue, description, negativePrompt);
+  }
+
+  return base;
 }

@@ -167,6 +167,12 @@ export function ProfileFormView({
         </FormField>
       ) : null}
 
+      {profile.gender === 'woman' ? (
+        <FormField label="Weight distribution" hint="Where you tend to carry weight on your body.">
+          <PickerField value={profile.weightDistribution ?? ''} onPress={() => setPickerField('weightDistribution')} />
+        </FormField>
+      ) : null}
+
       {profile.gender === 'man' ? (
         <FormField label="How clothes typically fit" hint="Helps us recommend the right cuts and note alterations.">
           <PickerField value={profile.fitTendency ?? ''} onPress={() => setPickerField('fitTendency')} />

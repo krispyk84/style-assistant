@@ -12,6 +12,7 @@ export type ProfileDto = {
   summerBottomPreference: string;
   temperatureUnit: string;
   bodyType: string | null;
+  weightDistribution: string | null;
   fitTendency: string | null;
   notes: string | null;
   onboardingCompleted: boolean;
@@ -34,6 +35,7 @@ export type UpsertProfileRequest = {
   summerBottomPreference: string;
   temperatureUnit: string;
   bodyType?: string;
+  weightDistribution?: string;
   fitTendency?: string;
   notes?: string;
   onboardingCompleted: boolean;
