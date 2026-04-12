@@ -53,11 +53,11 @@ const FALLBACK_DESCRIPTIONS_WOMEN: Record<string, string> = {
 };
 
 const NEGATIVE_PROMPTS_WOMEN: Record<string, string> = {
-  hourglass: 'shapeless build, no waist definition, straight rectangular silhouette, equal shoulder hip and waist width, boxy frame, no curves',
-  inverted_triangle: 'narrow shoulders, equal shoulder and hip width, pear shape, wide hips, slim upper body',
-  rectangle: 'hourglass curves, defined waist, wide hips, pear shape, full curves',
-  pear: 'equal hip and shoulder width, straight silhouette, slim hips, narrow lower body, inverted triangle build, athletic shoulders',
-  apple: 'defined waist, slim waist, hourglass figure, pear shape, slim midsection, flat stomach, narrow torso',
+  hourglass: 'shapeless build, no waist definition, straight rectangular silhouette, equal shoulder hip and waist width, boxy frame, no curves, slim fashion model, slender proportions, model-thin figure',
+  inverted_triangle: 'narrow shoulders, equal shoulder and hip width, pear shape, wide hips, slim upper body, slim fashion model, slender proportions, model-thin figure',
+  rectangle: 'hourglass curves, defined waist, wide hips, pear shape, full curves, slim fashion model, slender proportions, model-thin figure',
+  pear: 'equal hip and shoulder width, straight silhouette, slim hips, narrow lower body, inverted triangle build, athletic shoulders, slim fashion model, slender proportions, model-thin figure',
+  apple: 'defined waist, slim waist, hourglass figure, pear shape, slim midsection, flat stomach, narrow torso, slim build, thin waist, athletic figure, fashion model proportions, lean torso, flat belly, straight silhouette, slim fashion model, slender proportions, model-thin',
   slim: 'heavy build, overweight, wide frame, large proportions, full figure, plus-size proportions',
 };
 
@@ -107,38 +107,43 @@ function severityForSlimMen(bmiValue: number): string {
 
 function severityForHourglass(bmiValue: number): string {
   if (bmiValue < 22) return 'lean hourglass build, balanced narrow shoulders and hips, visibly defined waist, slim elegant proportions throughout';
-  if (bmiValue < 28) return 'classic hourglass build, full balanced curves, clearly defined waist, equal shoulder and hip width, rounded feminine proportions';
-  return 'fuller hourglass build, generous rounded curves throughout, very defined waist relative to hips and chest, full and rounded figure';
+  if (bmiValue < 26) return 'classic hourglass build, clearly defined narrow waist, equal rounded shoulder and hip width, balanced curves throughout';
+  if (bmiValue < 31) return 'full hourglass build, generous rounded curves at chest and hips, clearly defined narrower waist between fuller chest and rounded hips, curvaceous throughout';
+  return 'large full-figured hourglass build, very generous rounded curves throughout, prominent rounded chest and hips, defined waist still visible between much fuller upper and lower body, full-figured and curvaceous';
 }
 
 function severityForInvertedTriangle(bmiValue: number): string {
   if (bmiValue < 22) return 'lean inverted triangle build, noticeably broader shoulders than hips, athletic upper body, narrow straight lower body';
-  if (bmiValue < 28) return 'inverted triangle build, broader shoulders and chest than hips, strong angular upper body, narrower lower body';
-  return 'full inverted triangle build, wide strong shoulders, fuller upper body and chest, relatively narrower hips and thighs';
+  if (bmiValue < 28) return 'inverted triangle build, noticeably broader shoulders and fuller chest than hips, strong upper body, comparatively narrow lower body';
+  if (bmiValue < 33) return 'full inverted triangle build, wide broad shoulders, heavy fuller upper body and chest, relatively narrow hips and thighs in contrast';
+  return 'large inverted triangle build, very wide broad shoulders, heavy and full upper body, much narrower lower body and hips, top-heavy proportions with substantial upper body mass';
 }
 
 function severityForRectangleWomen(bmiValue: number): string {
-  if (bmiValue < 22) return 'slim straight female build, minimal curves, shoulders and hips similar width, lean and streamlined throughout';
-  if (bmiValue < 27) return 'straight female build, balanced proportions, minimal waist definition, similar shoulder and hip width';
-  return 'fuller straight female build, heavier frame distributed evenly, wider proportions without prominent curves';
+  if (bmiValue < 22) return 'slim straight build, minimal curves, shoulders and hips similar width, lean and streamlined throughout';
+  if (bmiValue < 27) return 'straight build, balanced proportions, minimal waist definition, similar shoulder and hip width';
+  if (bmiValue < 33) return 'fuller straight build, heavier frame distributed evenly throughout, wider proportions, minimal curves, clothing fitting closely at all points equally';
+  return 'large heavy straight build, substantially wider proportions distributed evenly, heavy frame throughout without curve definition, full-figured with equal width at shoulders waist and hips';
 }
 
 function severityForPear(bmiValue: number): string {
   if (bmiValue < 22) return 'slim pear build, narrower shoulders, slightly fuller hips and thighs, slim upper body';
-  if (bmiValue < 28) return 'pear build, noticeably narrower shoulders than hips, fuller thighs and hips, clothing fits differently upper vs lower body';
-  return 'full pear build, significantly fuller hips thighs and bottom, much narrower upper body and shoulders by comparison, very pronounced lower body and hips';
+  if (bmiValue < 26) return 'pear build, noticeably narrower shoulders than hips, fuller thighs and hips, clothing fits differently upper vs lower body';
+  if (bmiValue < 32) return 'full pear build, significantly fuller and heavier hips thighs and bottom, much narrower upper body and shoulders by comparison, very pronounced lower body fullness';
+  return 'large pear build, very heavy and full hips thighs and bottom, clothing stretched across the hips and thighs, markedly narrow upper body and slim shoulders in contrast, substantial lower body mass';
 }
 
 function severityForApple(bmiValue: number): string {
   if (bmiValue < 24) return 'slight apple build, slightly fuller midsection, slimmer legs and hips, mild roundness through the waist';
-  if (bmiValue < 32) return 'apple build, fuller rounded midsection, slimmer legs and hips, weight carried through the torso and waist';
-  return 'full apple build, very full rounded torso and midsection, heavier through the waist and chest, slimmer legs relative to upper body, weight concentrated in the middle';
+  if (bmiValue < 28) return 'apple build, rounded fuller midsection, belly rounder than hips and legs, weight carried through the torso and waist, slimmer lower body';
+  if (bmiValue < 32) return 'full apple build, noticeably heavy rounded midsection, belly clearly fuller and rounder than hips, weight concentrated in the torso, comparatively slimmer legs';
+  return 'large plus-size apple build, very heavy protruding belly, midsection substantially heavier than legs and hips, thick heavy torso, rounded belly protruding past the hips, comparatively slimmer legs, weight concentrated in upper body and midsection';
 }
 
 function severityForSlimWomen(bmiValue: number): string {
-  if (bmiValue < 19) return 'very lean slight female build, narrow frame throughout, minimal curves, very slim proportions';
-  if (bmiValue < 23) return 'slim female build, light and lean frame, gently curved proportions, light through the body';
-  return 'slim self-identified female build, light to medium frame with gentle presence';
+  if (bmiValue < 19) return 'very lean slight build, narrow frame throughout, minimal curves, very slim proportions';
+  if (bmiValue < 23) return 'slim build, light and lean frame, gently curved proportions, light through the body';
+  return 'slim self-identified build, light to medium frame with gentle presence';
 }
 
 // ── Weight distribution combination ──────────────────────────────────────────
@@ -162,16 +167,20 @@ function applyWeightDistribution(
   if (weightDistribution === 'midsection') {
     let addition: string;
     if (bmiValue < 24) {
-      addition = 'slight rounded belly, mild fullness at the waist, clothes fitting slightly differently at the midsection';
+      // apple amplifies even at low BMI
+      addition = bodyType === 'apple'
+        ? 'noticeable rounded belly, mild-to-moderate fullness at the waist, clothes fitting tighter at the midsection'
+        : 'slight rounded belly, mild fullness at the waist, clothes fitting slightly differently at the midsection';
     } else if (bmiValue < 30) {
-      addition = 'rounded fuller belly, weight visible through the waist and midsection, clothing fitting differently at the waist than at the hips and chest';
+      // apple amplifies at mid BMI
+      addition = bodyType === 'apple'
+        ? 'very pronounced rounded belly, weight clearly concentrated in the waist and midsection, clothing fitting much tighter at the waist than at the hips and chest'
+        : 'rounded fuller belly, weight visible through the waist and midsection, clothing fitting differently at the waist than at the hips and chest';
     } else {
-      addition = 'prominent rounded belly extending past the hipline, belly clearly visible through the midsection, clothing pulling tight across the waist';
-    }
-
-    // apple amplifies — midsection is already the core trait, make it very prominent
-    if (bodyType === 'apple') {
-      addition = addition.replace('rounded fuller belly', 'very pronounced rounded belly').replace('slight rounded belly', 'noticeable rounded belly');
+      // apple at high BMI: belly is the dominant feature — use maximally explicit language
+      addition = bodyType === 'apple'
+        ? 'very large heavy rounded belly dominating the midsection, belly protruding prominently past the hips, clothing straining across the belly and waist, waist and midsection much wider than legs'
+        : 'prominent rounded belly extending past the hipline, belly clearly visible through the midsection, clothing pulling tight across the waist';
     }
 
     // pear / inverted_triangle creates contrast — upper body is slim so fullness is isolated
@@ -179,7 +188,7 @@ function applyWeightDistribution(
       addition += ', fullness concentrated in the midsection only, slimmer hips than typical for shape';
     }
 
-    const negativeAddition = 'flat stomach, slim waist, defined waist, slim midsection, weight in lower body';
+    const negativeAddition = 'flat stomach, slim waist, defined waist, slim midsection, weight in lower body, flat belly, thin waist';
     return {
       description: `${baseDescription}, ${addition}`,
       negativePrompt: baseNegative ? `${baseNegative}, ${negativeAddition}` : negativeAddition,
@@ -211,7 +220,7 @@ function applyWeightDistribution(
       addition += ', lower body fullness contrasts the straighter narrower upper body';
     }
 
-    const negativeAddition = 'top-heavy, fuller chest, weight in upper body, slim hips, narrow lower body';
+    const negativeAddition = 'top-heavy, fuller chest, weight in upper body, slim hips, narrow lower body, slim lower body, thin thighs, fashion model hips';
     return {
       description: `${baseDescription}, ${addition}`,
       negativePrompt: baseNegative ? `${baseNegative}, ${negativeAddition}` : negativeAddition,
@@ -243,7 +252,7 @@ function applyWeightDistribution(
       addition += ', fuller upper body creates visual balance against the lower body';
     }
 
-    const negativeAddition = 'flat chest, narrow bust, weight in lower body, wider hips than chest';
+    const negativeAddition = 'flat chest, narrow bust, weight in lower body, wider hips than chest, slim upper body, fashion model bust, small chest';
     return {
       description: `${baseDescription}, ${addition}`,
       negativePrompt: baseNegative ? `${baseNegative}, ${negativeAddition}` : negativeAddition,
