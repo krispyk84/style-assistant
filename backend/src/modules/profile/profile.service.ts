@@ -6,10 +6,10 @@ function mapProfile(profile: Awaited<ReturnType<typeof profileRepository.findByU
     return null;
   }
 
-  const profileRecord = profile as typeof profile & { summerBottomPreference?: string; temperatureUnit?: string };
+  const profileRecord = profile as typeof profile & { summerBottomPreference?: string; temperatureUnit?: string; name?: string };
   const dto: ProfileDto = {
     id: profileRecord.id,
-    name: (profileRecord as typeof profileRecord & { name?: string }).name ?? '',
+    name: profileRecord.name ?? '',
     gender: profileRecord.gender,
     heightCm: profileRecord.heightCm,
     weightKg: profileRecord.weightKg,

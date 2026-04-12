@@ -80,7 +80,7 @@ export default function AppTabsLayout() {
     );
   }
 
-  if (!hasCompletedOnboarding) {
+  if (!hasCompletedOnboarding || true) {
     return <Redirect href="/onboarding" />;
   }
 
