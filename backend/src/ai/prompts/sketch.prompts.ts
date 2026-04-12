@@ -1,6 +1,23 @@
 import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 
 /**
+ * Headless constraint — hardcoded at module level so it is structurally impossible
+ * to construct a sketch prompt without it. Never passed as a parameter.
+ *
+ * OPENING uses periods (hard CLIP semantic boundary) and object-framing language
+ * ("mannequin", "dress form") to establish a prop prior before any body descriptors.
+ * Comma-delimited "no head" in the positive prompt activates the concept "face/head"
+ * in CLIP; period-separated object statements do not.
+ *
+ * CLOSING reinforces after all garment tokens have fired, preventing style-block
+ * dilution from overriding the opening constraint near the end of the sequence.
+ */
+const HEADLESS_OPENING =
+  'Headless mannequin figure only. No head. No face. No hair. No neck above the collar line. Fashion illustration on a dress form.';
+
+const HEADLESS_CLOSING = 'Remember: headless mannequin only, no head, no face, no hair.';
+
+/**
  * Prompts for fal.ai flux-lora sketch generation.
  *
  * Anchor fidelity design:
@@ -242,13 +259,12 @@ export function buildTierSketchPrompt(input: {
     fitPreferenceClause,
   ].filter(Boolean).join(', ');
 
-  // Placed at slot 0 — before any body-proportion language — so the headless
-  // constraint is the highest-weight token in the sequence. Body descriptors at
-  // slot 1 then modify a headless figure rather than activating a full-human prior.
-  const headlessGuard = 'headless figure only, no head, no face, no facial features, no hair, no neck, no human head';
-
   return [
-    headlessGuard,
+    // ── Headless constraint: OPENING — slot 0, hardcoded, cannot be omitted ──────
+    // Uses periods (hard semantic boundary in CLIP) and object-framing ("mannequin",
+    // "dress form") rather than anatomy-negation language. Object priors prevent the
+    // model from activating a full-human rendering prior before any other token fires.
+    HEADLESS_OPENING,
     figureProportionsPart,
     'single headless figure, no head no face, no facial features, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
     anchorLock,
@@ -262,6 +278,8 @@ export function buildTierSketchPrompt(input: {
     // of the figureProportionsPart. First clause only (max 8 words) to avoid
     // over-counting tokens, but enough to re-anchor body size before rendering.
     bodyTypeDescription.split(',').slice(0, 2).join(','),
+    // ── Headless constraint: CLOSING — hardcoded reminder before style block ──────
+    HEADLESS_CLOSING,
     // Style block — placed last so it modifies the full outfit description rather
     // than competing with the anchor lock in the high-weight leading tokens.
     // For the fal LoRA path this reinforces the trigger-word style toward softer

@@ -49,11 +49,21 @@ export function buildLabeledPieces(
 ): LabeledPiece[] {
   const usedLabels = new Set<string>();
 
-  // Anchor piece is always first and never closet-matched
-  const anchorText = anchorDescription?.trim() ?? recommendation.anchorItem?.trim();
-  const pieces: LabeledPiece[] = anchorText
-    ? [{ label: 'Anchor', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true }]
-    : [];
+  // Anchor piece is always first and never closet-matched.
+  // Priority: real user text > OpenAI-derived recommendation.anchorItem > generic fallback string > bare label.
+  // The generic fallback strings produced by getCanonicalAnchorDescription for image-only anchors
+  // ('Anchor item identified from uploaded image', 'Anchor item not provided') are not useful
+  // display text — prefer recommendation.anchorItem which OpenAI fills from the actual image/context.
+  const GENERIC_FALLBACKS = ['Anchor item identified from uploaded image', 'Anchor item not provided'];
+  const userText = anchorDescription?.trim() ?? '';
+  const isGeneric = GENERIC_FALLBACKS.includes(userText);
+  const anchorText =
+    (userText && !isGeneric)
+      ? userText
+      : (recommendation.anchorItem?.trim() || userText || 'Anchor item');
+  const pieces: LabeledPiece[] = [
+    { label: 'Anchor', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true },
+  ];
 
   pieces.push(...recommendation.keyPieces.map((piece, index) => {
     const normalized = normalizePiece(piece);

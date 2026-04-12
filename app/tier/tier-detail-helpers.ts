@@ -58,11 +58,18 @@ export function buildPiecesToCheck(
   matchMap: Record<string, ClosetItem | null | false>,
   anchorDescription?: string
 ): LabeledPiece[] {
-  // Anchor piece first — never closet-matched
-  const anchorText = anchorDescription?.trim() ?? recommendation.anchorItem?.trim();
-  const rows: LabeledPiece[] = anchorText
-    ? [{ label: 'Anchor', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true }]
-    : [];
+  // Anchor piece first — always present, never closet-matched.
+  // Priority: real user text > OpenAI-derived recommendation.anchorItem > generic fallback string > bare label.
+  const GENERIC_FALLBACKS = ['Anchor item identified from uploaded image', 'Anchor item not provided'];
+  const userText = anchorDescription?.trim() ?? '';
+  const isGeneric = GENERIC_FALLBACKS.includes(userText);
+  const anchorText =
+    (userText && !isGeneric)
+      ? userText
+      : (recommendation.anchorItem?.trim() || userText || 'Anchor item');
+  const rows: LabeledPiece[] = [
+    { label: 'Anchor', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true },
+  ];
 
   recommendation.keyPieces.forEach((piece, index) => {
     // Safety net: skip any keyPiece that the backend already emitted as the anchor.
