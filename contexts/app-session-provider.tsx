@@ -10,7 +10,7 @@ import { AppSessionContext } from '@/contexts/app-session-context';
 
 const APP_RELAUNCH_RESET_MS = 1000 * 60 * 10; // 10 minutes
 const STALE_THRESHOLD_MS = 1000 * 60 * 10; // 10 min — server may have spun down
-const ONBOARDING_TEST_MODE = true;
+const ONBOARDING_TEST_MODE = false;
 
 export function AppSessionProvider({ children }: PropsWithChildren) {
   const { user, isAuthLoading } = useAuth();
