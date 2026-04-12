@@ -161,6 +161,12 @@ export function ProfileFormView({
         </View>
       </FormField>
 
+      {profile.gender === 'man' ? (
+        <FormField label="Body type" hint="Used to personalise outfit sketches.">
+          <PickerField value={profile.bodyType ?? ''} onPress={() => setPickerField('bodyType')} />
+        </FormField>
+      ) : null}
+
       <FormField label="Fit preference" hint="How you want clothes to sit on the body.">
         <PickerField value={profile.fitPreference} onPress={() => setPickerField('fitPreference')} />
       </FormField>

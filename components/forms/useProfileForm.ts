@@ -3,6 +3,7 @@ import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from
 import { defaultProfile } from '@/lib/default-profile';
 import type { Profile, ProfileValidationErrors } from '@/types/profile';
 import {
+  BODY_TYPE_OPTIONS,
   BUDGET_OPTIONS,
   FIT_PREFERENCE_OPTIONS,
   HAIR_COLOR_OPTIONS,
@@ -23,6 +24,7 @@ import {
 // ── Picker field keys ──────────────────────────────────────────────────────────
 
 export type PickerFieldKey =
+  | 'bodyType'
   | 'fitPreference'
   | 'stylePreference'
   | 'budget'
@@ -107,6 +109,12 @@ export function useProfileForm(initialValue: Profile = defaultProfile) {
 
   const pickerConfigs: Record<PickerFieldKey, PickerConfig> = useMemo(
     () => ({
+      bodyType: {
+        label: 'Body type',
+        options: BODY_TYPE_OPTIONS,
+        value: profile.bodyType ?? '',
+        onChange: (value) => updateField('bodyType', value as Profile['bodyType']),
+      },
       fitPreference: {
         label: 'Fit preference',
         options: FIT_PREFERENCE_OPTIONS,
