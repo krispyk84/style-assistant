@@ -45,6 +45,7 @@ export const updateClosetItemSchema = z.object({
 export const generateClosetSketchSchema = z.object({
   uploadedImageId: z.string().optional(),
   uploadedImageUrl: z.string().url(),
+  title: z.string().optional(),
   category: z.string().optional(),
   lensShape: z.string().optional(),
   frameColor: z.string().optional(),
@@ -92,6 +93,6 @@ export type AnalyzeClosetItemPayload = z.infer<typeof analyzeClosetItemSchema>;
 export type SaveClosetItemPayload = z.infer<typeof saveClosetItemSchema>;
 export type UpdateClosetItemPayload = z.infer<typeof updateClosetItemSchema>;
 export type GenerateClosetSketchPayload = z.infer<typeof generateClosetSketchSchema>;
-export type GenerateClosetSketchOptions = Pick<GenerateClosetSketchPayload, 'category' | 'lensShape' | 'frameColor'>;
+export type GenerateClosetSketchOptions = Pick<GenerateClosetSketchPayload, 'title' | 'category' | 'lensShape' | 'frameColor'>;
 export type ClosetMatchPayload = z.infer<typeof closetMatchSchema>;
 export type HelpMePickPayload = z.infer<typeof helpMePickSchema>;

@@ -63,6 +63,7 @@ export function useSaveToClosetSubmit({ onSaveSuccess }: UseSaveToClosetSubmitPa
     const sketchRequest: GenerateClosetSketchRequest = {
       uploadedImageId: effectiveUploadedImage.id,
       uploadedImageUrl: effectiveUploadedImage.publicUrl,
+      title: fields?.title,
       category: fields?.category,
       lensShape: fields?.lensShape,
       frameColor: fields?.frameColor,

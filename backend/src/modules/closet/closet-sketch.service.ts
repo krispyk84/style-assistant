@@ -7,7 +7,7 @@ import { logger } from '../../config/logger.js';
 import { storageConfig } from '../../config/storage.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { imageGenerationClient } from '../../ai/image-generation-client.js';
-import { buildClosetItemSketchPrompt, buildSunglassesSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
+import { buildAccessorySketchPrompt, buildClosetItemSketchPrompt, buildSunglassesSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
 import { closetRepository } from './closet.repository.js';
 
 const garmentDescriptionSchema = z.object({
@@ -115,7 +115,25 @@ async function describeGarmentFromImage(imageUrl: string, supabaseUserId?: strin
   return result.description;
 }
 
+// Categories where describeGarmentFromImage would hallucinate (non-garment items).
+// These are routed to product-only sketch prompts with no mannequin figure.
+const ACCESSORY_CATEGORY_KEYWORDS = [
+  'sunglass', 'glasses', 'eyewear', 'spectacle',
+  'watch', 'timepiece',
+  'bag', 'tote', 'backpack', 'briefcase', 'clutch', 'handbag', 'wallet',
+  'belt',
+  'hat', 'cap', 'beanie', 'fedora', 'beret',
+  'jewellery', 'jewelry', 'bracelet', 'necklace', 'ring', 'earring',
+  'scarf', 'gloves',
+];
+
+function isAccessoryItem(category?: string | null, title?: string | null): boolean {
+  const haystack = `${(category ?? '')} ${(title ?? '')}`.toLowerCase();
+  return ACCESSORY_CATEGORY_KEYWORDS.some((kw) => haystack.includes(kw));
+}
+
 type SketchOptions = {
+  title?: string | null;
   category?: string;
   lensShape?: string | null;
   frameColor?: string | null;
@@ -123,14 +141,16 @@ type SketchOptions = {
 
 async function runSketchGeneration(jobId: string, imageUrl: string, supabaseUserId?: string, options?: SketchOptions) {
   try {
-    const isSunglasses = (options?.category ?? '').toLowerCase().includes('sunglass');
+    const isSunglasses = isAccessoryItem(options?.category, options?.title) &&
+      `${options?.category ?? ''} ${options?.title ?? ''}`.toLowerCase().includes('sunglass');
+    const isAccessory = isAccessoryItem(options?.category, options?.title);
 
     let prompt: string;
     let additionalNegativePrompt: string | undefined;
 
     if (isSunglasses) {
-      // For sunglasses, skip the garment-description vision call — it asks about
-      // collars/pockets which are irrelevant. Build the prompt from the form fields.
+      // Sunglasses: build prompt from form fields — skip garment-description vision call
+      // which asks about collars/pockets that are irrelevant for eyewear.
       const itemDescription = [
         options?.frameColor ? `${options.frameColor}-frame` : null,
         options?.lensShape ? `${options.lensShape.replace('_', '-')} sunglasses` : 'sunglasses',
@@ -143,6 +163,14 @@ async function runSketchGeneration(jobId: string, imageUrl: string, supabaseUser
       });
       additionalNegativePrompt = 'person, figure, mannequin, body, hands, face, human, model, dress form, wearing, head, neck, torso, clothing on body';
       logger.info({ jobId, prompt }, 'Closet sunglasses sketch prompt built');
+    } else if (isAccessory) {
+      // Non-sunglasses accessories (bags, watches, belts, hats, etc.): use a generic
+      // product-only prompt built from the item title + category — do NOT run
+      // describeGarmentFromImage which would hallucinate a garment from the photo.
+      const itemDescription = [options?.title, options?.category].filter(Boolean).join(' ') || 'accessory';
+      prompt = buildAccessorySketchPrompt({ itemDescription });
+      additionalNegativePrompt = 'person, figure, mannequin, body, hands, face, human, model, dress form, wearing, head, neck, torso, clothing on body';
+      logger.info({ jobId, prompt }, 'Closet accessory sketch prompt built');
     } else {
       const itemDescription = await describeGarmentFromImage(imageUrl, supabaseUserId);
       logger.info({ jobId, itemDescription }, 'Closet sketch description produced');
@@ -152,9 +180,10 @@ async function runSketchGeneration(jobId: string, imageUrl: string, supabaseUser
     const generatedImage = await imageGenerationClient.generateImage({
       prompt,
       loraType: 'closet',
-      // Sunglasses use product-only mode — skip img2img so the background/environment
+      itemType: isAccessory ? 'accessory' : 'garment',
+      // Accessories use product-only mode — skip img2img so the background/environment
       // from the source photo doesn't pollute the clean product sketch.
-      sourceImageUrl: isSunglasses ? undefined : (imageUrl.startsWith('https://') ? imageUrl : undefined),
+      sourceImageUrl: isAccessory ? undefined : (imageUrl.startsWith('https://') ? imageUrl : undefined),
       supabaseUserId,
       additionalNegativePrompt,
     });

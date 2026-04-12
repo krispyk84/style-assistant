@@ -29,7 +29,10 @@ export function buildFalRequestParams(input: GenerateImageInput) {
   const isCloset = input.loraType === 'closet';
   const loraUrl = isCloset ? env.CLOSET_LORA_URL : env.OUTFIT_LORA_URL;
   const triggerWord = isCloset ? 'VESTURE_ITEM' : 'VESTURE_OUTFIT';
-  const fullPrompt = `${triggerWord}, ${input.prompt}`;
+  // Accessories (sunglasses, bags, watches, etc.) must NOT use the LoRA trigger word.
+  // VESTURE_ITEM fires the mannequin-on-dress-form prior trained into the LoRA, which
+  // overrides any "product only / no figure" instruction in the prompt.
+  const fullPrompt = input.itemType === 'accessory' ? input.prompt : `${triggerWord}, ${input.prompt}`;
 
   // Append anchor-category drift suppression to the base negative prompt so the
   // model cannot substitute a tier-appropriate archetype (e.g. blazer for bomber).

@@ -153,6 +153,22 @@ export function buildClosetItemSketchPrompt(input: { itemDescription: string; ge
   );
 }
 
+/**
+ * Product-only prompt for non-sunglasses accessories (bags, watches, belts, hats, etc.).
+ * No figure, no mannequin — item displayed alone on a neutral background.
+ */
+export function buildAccessorySketchPrompt(input: { itemDescription: string }) {
+  return [
+    input.itemDescription.trim(),
+    'product only, no figure, no mannequin, no body, no person, no hands',
+    'accessory displayed alone on neutral background',
+    'front-facing view showing full item',
+    'fine-line hand-drawn ink contour sketch, slight line-weight variation',
+    'soft transparent watercolor wash fill, matte paper finish',
+    'warm aged parchment background, muted desaturated editorial palette',
+  ].join(', ');
+}
+
 export function buildSunglassesSketchPrompt(input: {
   itemDescription: string;
   lensShape?: string | null;

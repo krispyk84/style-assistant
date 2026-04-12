@@ -115,6 +115,7 @@ export const closetService = {
 
   async generateItemSketch(payload: GenerateClosetSketchPayload, supabaseUserId?: string) {
     const options: GenerateClosetSketchOptions = {
+      title: payload.title,
       category: payload.category,
       lensShape: payload.lensShape,
       frameColor: payload.frameColor,

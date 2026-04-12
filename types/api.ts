@@ -158,6 +158,7 @@ export type UpdateClosetItemRequest = {
 export type GenerateClosetSketchRequest = {
   uploadedImageId?: string;
   uploadedImageUrl?: string;
+  title?: string;
   category?: string;
   lensShape?: string;
   frameColor?: string;

@@ -2,6 +2,12 @@ export type GenerateImageInput = {
   prompt: string;
   loraType: 'closet' | 'outfit';
   /**
+   * 'accessory' skips the VESTURE_ITEM trigger word so the LoRA's mannequin prior
+   * does not fire for product-only items (sunglasses, bags, watches, etc.).
+   * Defaults to 'garment' when omitted.
+   */
+  itemType?: 'garment' | 'accessory';
+  /**
    * Optional publicly-accessible URL of the source garment image.
    * When provided the generation runs in img2img mode: Flux starts from
    * a partially-noised version of the source image (strength ~0.45) so the
