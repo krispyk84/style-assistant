@@ -72,13 +72,6 @@ export default function AppTabsLayout() {
     }
   }, [user]);
 
-  useEffect(() => {
-    if (!isHydrated || !ONBOARDING_TEST_MODE) return;
-    if (onboardingTestRedirectDone) return;
-    onboardingTestRedirectDone = true;
-    router.replace('/onboarding');
-  }, [isHydrated]);
-
   if (!isHydrated) {
     return (
       <BrandSplash
@@ -89,6 +82,11 @@ export default function AppTabsLayout() {
         ]}
       />
     );
+  }
+
+  if (ONBOARDING_TEST_MODE && !onboardingTestRedirectDone) {
+    onboardingTestRedirectDone = true;
+    return <Redirect href="/onboarding" />;
   }
 
   if (!hasCompletedOnboarding) {
