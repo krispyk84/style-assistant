@@ -81,88 +81,81 @@ export function HelpMePickModal({ hook, onUseItem }: HelpMePickModalProps) {
 
   return (
     <Modal animationType="none" transparent visible={isOpen} onRequestClose={dismissAndClose}>
-      {/* Backdrop: absolute fill, opacity only — never slides */}
+      {/* Backdrop — fills screen, tap anywhere above the sheet to dismiss */}
+      <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={dismissAndClose}>
+        <Animated.View
+          pointerEvents="none"
+          style={{ flex: 1, backgroundColor: 'rgba(24, 18, 14, 0.52)', opacity: backdropOpacity }}
+        />
+      </Pressable>
+
+      {/* Sheet — sibling of backdrop, so ScrollView never competes with the dismiss Pressable */}
       <Animated.View
-        pointerEvents="none"
         style={{
-          backgroundColor: 'rgba(24, 18, 14, 0.52)',
+          backgroundColor: theme.colors.surface,
+          borderTopLeftRadius: 32,
+          borderTopRightRadius: 32,
           bottom: 0,
           left: 0,
-          opacity: backdropOpacity,
+          maxHeight: screenHeight * 0.9,
+          overflow: 'hidden',
           position: 'absolute',
           right: 0,
-          top: 0,
-        }}
-      />
-      {/* Tap-to-dismiss layer */}
-      <Pressable style={{ flex: 1, justifyContent: 'flex-end' }} onPress={dismissAndClose}>
-        {/* Sheet: translateY only */}
-        <Animated.View
-          style={{
-            backgroundColor: theme.colors.surface,
-            borderTopLeftRadius: 32,
-            borderTopRightRadius: 32,
-            maxHeight: screenHeight * 0.9,
-            overflow: 'hidden',
-            transform: [{ translateY: sheetTranslateY }],
-          }}>
-          {/* Stop taps on the card from dismissing the modal */}
-          <Pressable onPress={() => undefined}>
-            {/* Drag handle */}
-            <View style={{ alignItems: 'center', paddingTop: spacing.md, paddingBottom: spacing.xs }}>
-              <View style={{ backgroundColor: theme.colors.border, borderRadius: 999, height: 4, width: 36 }} />
+          transform: [{ translateY: sheetTranslateY }],
+        }}>
+        {/* Drag handle */}
+        <View style={{ alignItems: 'center', paddingTop: spacing.md, paddingBottom: spacing.xs }}>
+          <View style={{ backgroundColor: theme.colors.border, borderRadius: 999, height: 4, width: 36 }} />
+        </View>
+
+        <ScrollView
+          bounces={false}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingTop: spacing.md }}>
+
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ gap: 2 }}>
+              <AppText variant="sectionTitle">Help Me Pick</AppText>
+              <AppText tone="muted" style={{ fontSize: 13 }}>Let a stylist choose your anchor piece</AppText>
             </View>
+            <Pressable hitSlop={8} onPress={dismissAndClose}>
+              <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+            </Pressable>
+          </View>
 
-            <ScrollView
-              bounces={false}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingTop: spacing.md }}>
-
-              {/* Header */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ gap: 2 }}>
-                  <AppText variant="sectionTitle">Help Me Pick</AppText>
-                  <AppText tone="muted" style={{ fontSize: 13 }}>Let a stylist choose your anchor piece</AppText>
-                </View>
-                <Pressable hitSlop={8} onPress={dismissAndClose}>
-                  <Ionicons color={theme.colors.mutedText} name="close" size={22} />
-                </Pressable>
-              </View>
-
-              {/* Content */}
-              {modalState === 'loading' ? (
-                <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xl }}>
-                  <ActivityIndicator color={theme.colors.accent} size="large" />
-                  <AppText tone="muted" style={{ textAlign: 'center' }}>
-                    {selectedStylist.name} is scanning your wardrobe...
-                  </AppText>
-                </View>
-              ) : modalState === 'result' && result ? (
-                <ResultCard
-                  result={result}
-                  onUseItem={onUseItem}
-                  onPickAgain={handlePickAgain}
-                  onClose={dismissAndClose}
-                />
-              ) : (
-                <IntentForm
-                  stylistId={stylistId}
-                  onStylistChange={(id) => setStylistId(id)}
-                  dayType={dayType}
-                  onDayTypeChange={setDayType}
-                  vibe={vibe}
-                  onVibeChange={setVibe}
-                  risk={risk}
-                  onRiskChange={setRisk}
-                  error={error}
-                  onPick={() => void handlePick()}
-                />
-              )}
-            </ScrollView>
-          </Pressable>
-        </Animated.View>
-      </Pressable>
+          {/* Content */}
+          {modalState === 'loading' ? (
+            <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xl }}>
+              <ActivityIndicator color={theme.colors.accent} size="large" />
+              <AppText tone="muted" style={{ textAlign: 'center' }}>
+                {selectedStylist.name} is scanning your wardrobe...
+              </AppText>
+            </View>
+          ) : modalState === 'result' && result ? (
+            <ResultCard
+              result={result}
+              onUseItem={onUseItem}
+              onPickAgain={handlePickAgain}
+              onClose={dismissAndClose}
+            />
+          ) : (
+            <IntentForm
+              stylistId={stylistId}
+              onStylistChange={(id) => setStylistId(id)}
+              dayType={dayType}
+              onDayTypeChange={setDayType}
+              vibe={vibe}
+              onVibeChange={setVibe}
+              risk={risk}
+              onRiskChange={setRisk}
+              error={error}
+              onPick={() => void handlePick()}
+            />
+          )}
+        </ScrollView>
+      </Animated.View>
     </Modal>
   );
 }

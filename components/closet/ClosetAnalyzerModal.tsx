@@ -61,63 +61,60 @@ export function ClosetAnalyzerModal({ hook }: ClosetAnalyzerModalProps) {
 
   return (
     <Modal animationType="none" transparent visible={hook.isOpen} onRequestClose={dismissAndClose}>
+      {/* Backdrop — fills screen, tap anywhere above the sheet to dismiss */}
+      <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={dismissAndClose}>
+        <Animated.View
+          pointerEvents="none"
+          style={{ flex: 1, backgroundColor: 'rgba(24, 18, 14, 0.52)', opacity: backdropOpacity }}
+        />
+      </Pressable>
+
+      {/* Sheet — sibling of backdrop, so ScrollView never competes with the dismiss Pressable */}
       <Animated.View
-        pointerEvents="none"
         style={{
-          backgroundColor: 'rgba(24, 18, 14, 0.52)',
+          backgroundColor: theme.colors.surface,
+          borderTopLeftRadius: 32,
+          borderTopRightRadius: 32,
           bottom: 0,
           left: 0,
-          opacity: backdropOpacity,
+          maxHeight: screenHeight * 0.9,
+          overflow: 'hidden',
           position: 'absolute',
           right: 0,
-          top: 0,
-        }}
-      />
-      <Pressable style={{ flex: 1, justifyContent: 'flex-end' }} onPress={dismissAndClose}>
-        <Animated.View
-          style={{
-            backgroundColor: theme.colors.surface,
-            borderTopLeftRadius: 32,
-            borderTopRightRadius: 32,
-            maxHeight: screenHeight * 0.9,
-            overflow: 'hidden',
-            transform: [{ translateY: sheetTranslateY }],
-          }}>
-          <Pressable onPress={() => undefined}>
-            {/* Drag handle */}
-            <View style={{ alignItems: 'center', paddingTop: spacing.md, paddingBottom: spacing.xs }}>
-              <View style={{ backgroundColor: theme.colors.border, borderRadius: 999, height: 4, width: 36 }} />
+          transform: [{ translateY: sheetTranslateY }],
+        }}>
+        {/* Drag handle */}
+        <View style={{ alignItems: 'center', paddingTop: spacing.md, paddingBottom: spacing.xs }}>
+          <View style={{ backgroundColor: theme.colors.border, borderRadius: 999, height: 4, width: 36 }} />
+        </View>
+
+        <ScrollView
+          bounces={false}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingTop: spacing.md }}>
+
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ gap: 2 }}>
+              <AppText variant="sectionTitle">Analyse My Closet</AppText>
+              <AppText tone="muted" style={{ fontSize: 13 }}>Wardrobe completeness report</AppText>
             </View>
+            <Pressable hitSlop={8} onPress={dismissAndClose}>
+              <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+            </Pressable>
+          </View>
 
-            <ScrollView
-              bounces={false}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingTop: spacing.md }}>
-
-              {/* Header */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ gap: 2 }}>
-                  <AppText variant="sectionTitle">Analyse My Closet</AppText>
-                  <AppText tone="muted" style={{ fontSize: 13 }}>Wardrobe completeness report</AppText>
-                </View>
-                <Pressable hitSlop={8} onPress={dismissAndClose}>
-                  <Ionicons color={theme.colors.mutedText} name="close" size={22} />
-                </Pressable>
-              </View>
-
-              {/* Content */}
-              {hook.modalState === 'loading' ? (
-                <LoadingView />
-              ) : hook.modalState === 'result' && hook.result ? (
-                <ResultsView result={hook.result} onRefresh={hook.refresh} onClose={dismissAndClose} />
-              ) : (
-                <ErrorView error={hook.error} onRetry={hook.refresh} onClose={dismissAndClose} />
-              )}
-            </ScrollView>
-          </Pressable>
-        </Animated.View>
-      </Pressable>
+          {/* Content */}
+          {hook.modalState === 'loading' ? (
+            <LoadingView />
+          ) : hook.modalState === 'result' && hook.result ? (
+            <ResultsView result={hook.result} onRefresh={hook.refresh} onClose={dismissAndClose} />
+          ) : (
+            <ErrorView error={hook.error} onRetry={hook.refresh} onClose={dismissAndClose} />
+          )}
+        </ScrollView>
+      </Animated.View>
     </Modal>
   );
 }
