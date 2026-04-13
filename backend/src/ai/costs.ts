@@ -26,6 +26,7 @@ export type AiFeature =
   | 'anchor-sketch-describe'
   | 'closet-match'
   | 'closet-sketch'
+  | 'closet-analyse'
   | 'compatibility-check'
   | 'selfie-review'
   | 'second-opinion'

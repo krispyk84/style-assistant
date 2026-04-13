@@ -18,6 +18,15 @@ import {
 export const closetRouter = Router();
 
 closetRouter.post(
+  '/closet/analyse',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const result = await closetService.analyseCloset(request.userId!);
+    return sendSuccess(response, result);
+  })
+);
+
+closetRouter.post(
   '/closet/help-me-pick',
   requireAuth,
   asyncHandler(async (request, response) => {

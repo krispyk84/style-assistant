@@ -3,6 +3,7 @@ import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
   ApiResponse,
+  ClosetAnalyseResponse,
   ClosetMatchRequest,
   ClosetMatchResponse,
   GenerateClosetSketchRequest,
@@ -194,5 +195,9 @@ export const mockClosetService: ClosetService = {
 
   async recordMatchUsed(_id: string): Promise<ApiResponse<{ recorded: boolean }>> {
     return { success: true, data: { recorded: true }, error: null };
+  },
+
+  async analyseCloset(): Promise<ApiResponse<ClosetAnalyseResponse>> {
+    return { success: false, data: null, error: { code: 'UNAVAILABLE', message: 'Closet analysis is not available right now.' } };
   },
 };

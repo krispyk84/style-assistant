@@ -3,7 +3,9 @@ import { useWindowDimensions } from 'react-native';
 
 import { spacing } from '@/constants/theme';
 import { ClosetItemSheetView } from '@/components/closet/ClosetItemSheetView';
+import { ClosetAnalyzerModal } from '@/components/closet/ClosetAnalyzerModal';
 import { HelpMePickModal } from '@/components/closet/HelpMePickModal';
+import { useClosetAnalyzer } from '@/components/closet/useClosetAnalyzer';
 import { useHelpMePick } from '@/components/closet/useHelpMePick';
 import type { ClosetItem } from '@/types/closet';
 import { COLUMN_COUNT } from './closet-grid-utils';
@@ -37,8 +39,9 @@ export default function ClosetScreen() {
   // ── Step 3: Animation — consumes only isLoading from step 1 ──────────────
   const { translateX } = useClosetAnimations(isLoading);
 
-  // ── Step 4: Help Me Pick ──────────────────────────────────────────────────
+  // ── Step 4: Help Me Pick + Closet Analyser ───────────────────────────────
   const helpMePick = useHelpMePick();
+  const closetAnalyzer = useClosetAnalyzer();
 
   // ── Cell width — purely a render calculation ──────────────────────────────
   const { width: screenWidth } = useWindowDimensions();
@@ -93,6 +96,7 @@ export default function ClosetScreen() {
         onAddModalClose={() => setAddModalVisible(false)}
         onNewItemSaved={handleNewItemSaved}
         onHelpMePickPress={helpMePick.open}
+        onAnalysePress={closetAnalyzer.open}
         cellWidth={cellWidth}
         onPressItem={setEditingItem}
         flatListRef={flatListRef}
@@ -111,6 +115,7 @@ export default function ClosetScreen() {
         hook={helpMePick}
         onUseItem={() => undefined}
       />
+      <ClosetAnalyzerModal hook={closetAnalyzer} />
     </>
   );
 }

@@ -232,3 +232,30 @@ export type HelpMePickResponse = {
   reason: string;
   stylistId: 'vittorio' | 'alessandra';
 };
+
+export type ClosetAnalyseRecommendation = {
+  piece_name: string;
+  reason: string;
+  versatility_tags: string[];
+  impact_score: number;
+};
+
+export type ClosetAnalyseStylist = {
+  has_recommendations: boolean;
+  no_gap_message: string;
+  recommendations: ClosetAnalyseRecommendation[];
+};
+
+export type ClosetAnalyseResponse = {
+  total_score: number;
+  summary: string;
+  sub_scores: {
+    formality_range: number;
+    color_versatility: number;
+    seasonal_coverage: number;
+    layering_options: number;
+    occasion_coverage: number;
+  };
+  vittorio: ClosetAnalyseStylist;
+  alessandra: ClosetAnalyseStylist;
+};

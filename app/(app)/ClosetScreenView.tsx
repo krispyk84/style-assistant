@@ -40,6 +40,8 @@ export type ClosetScreenViewProps = {
   onNewItemSaved: (item: ClosetItem) => void;
   // Help Me Pick
   onHelpMePickPress: () => void;
+  // Closet Analyser
+  onAnalysePress: () => void;
   // Grid
   cellWidth: number;
   onPressItem: (item: ClosetItem) => void;
@@ -68,6 +70,7 @@ export function ClosetScreenView({
   onAddModalClose,
   onNewItemSaved,
   onHelpMePickPress,
+  onAnalysePress,
   cellWidth,
   onPressItem,
   flatListRef,
@@ -191,6 +194,34 @@ export function ClosetScreenView({
       ) : !isLoading && eligibleItemCount > 0 && eligibleItemCount < 10 ? (
         <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>
           Add {10 - eligibleItemCount} more top{10 - eligibleItemCount === 1 ? '' : 's'}, bottom{10 - eligibleItemCount === 1 ? '' : 's'}, or outerwear to unlock Help Me Pick
+        </AppText>
+      ) : null}
+
+      {/* Closet Analyser */}
+      {!isLoading && eligibleItemCount >= 10 ? (
+        <Pressable
+          onPress={onAnalysePress}
+          style={{
+            alignItems: 'center',
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            borderRadius: 16,
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.sm,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.md,
+          }}>
+          <Ionicons color={theme.colors.accent} name="analytics-outline" size={18} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Analyse My Closet</AppText>
+            <AppText tone="muted" style={{ fontSize: 12 }}>See how complete and versatile your wardrobe is</AppText>
+          </View>
+          <Ionicons color={theme.colors.subtleText} name="chevron-forward" size={16} />
+        </Pressable>
+      ) : !isLoading && eligibleItemCount > 0 && eligibleItemCount < 10 ? (
+        <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>
+          Add more clothing items to unlock your closet analysis
         </AppText>
       ) : null}
 

@@ -3,6 +3,7 @@ import { deleteClosetItem, saveClosetItem, updateClosetItem } from '@/lib/closet
 import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
+  ClosetAnalyseResponse,
   ClosetMatchRequest,
   ClosetMatchResponse,
   GenerateClosetSketchRequest,
@@ -111,6 +112,12 @@ export const apiClosetService: ClosetService = {
 
   async recordMatchUsed(id: string): Promise<ApiResponse<{ recorded: boolean }>> {
     return createApiClient().request<{ recorded: boolean }>(`/closet/items/${id}/record-match`, {
+      method: 'POST',
+    });
+  },
+
+  async analyseCloset(): Promise<ApiResponse<ClosetAnalyseResponse>> {
+    return createApiClient().request<ClosetAnalyseResponse>('/closet/analyse', {
       method: 'POST',
     });
   },

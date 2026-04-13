@@ -1,6 +1,7 @@
 import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
+  ClosetAnalyseResponse,
   ClosetMatchRequest,
   ClosetMatchResponse,
   GenerateClosetSketchRequest,
@@ -28,4 +29,5 @@ export type ClosetService = {
   helpMePick: (request: HelpMePickRequest) => Promise<ApiResponse<HelpMePickResponse>>;
   recordAnchorUsed: (id: string) => Promise<ApiResponse<{ recorded: boolean }>>;
   recordMatchUsed: (id: string) => Promise<ApiResponse<{ recorded: boolean }>>;
+  analyseCloset: () => Promise<ApiResponse<ClosetAnalyseResponse>>;
 };
