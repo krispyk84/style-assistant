@@ -92,30 +92,88 @@ const ANCHOR_COLOR_WORDS = [
 ];
 
 /**
- * Disambiguation for ambiguous neutrals that models frequently drift away from.
- * Each entry clarifies the exact hue and explicitly excludes common wrong interpretations.
+ * Canonical hex codes for every recognized anchor color word.
+ * Used to give the image model a precise, unambiguous color target instead of
+ * relying on it to interpret a color word correctly.
+ */
+const ANCHOR_COLOR_HEX: Record<string, string> = {
+  // neutrals — most drift-prone, prioritized
+  stone:          '#C4BAB0', // cool pale gray-beige
+  sand:           '#E0D0B0', // warm pale off-white beige
+  ecru:           '#EFE3CC', // warm pale off-white
+  slate:          '#7A8A96', // cool blue-gray
+  camel:          '#C19A6B', // warm medium tan-brown
+  tan:            '#D2B48C', // light warm neutral
+  beige:          '#E8DCC8', // pale warm neutral
+  ivory:          '#F6F0E4', // very pale warm white
+  cream:          '#FFFBEF', // pale warm off-white
+  'off-white':    '#FAF8F2', // near-white with warmth
+  khaki:          '#C3B08A', // yellow-green muted military
+  olive:          '#7A7A30', // dull yellow-green
+  charcoal:       '#3A3A3A', // very dark gray
+  gray:           '#888888',
+  grey:           '#888888',
+  // browns
+  brown:          '#7B4F2E',
+  rust:           '#B44010', // warm red-orange
+  terracotta:     '#C06448', // muted warm red-clay
+  // whites / blacks
+  white:          '#F5F5F5',
+  black:          '#1C1C1C',
+  // blues
+  navy:           '#1B2848', // very dark blue
+  cobalt:         '#0047AB', // vivid pure blue
+  'royal blue':   '#4169E1',
+  'dark blue':    '#00008B',
+  'light blue':   '#ADD8E6',
+  'pale blue':    '#C5DCE8',
+  blue:           '#2255AA',
+  indigo:         '#3D3B8E',
+  teal:           '#217A6C', // blue-green
+  // reds / pinks / purples
+  red:            '#C82828',
+  burgundy:       '#7D1020', // deep red-wine
+  wine:           '#6E2635',
+  maroon:         '#7A0030', // dark muted red
+  coral:          '#E8604A',
+  pink:           '#F48FB1',
+  purple:         '#7B1FA2',
+  violet:         '#5E35B1',
+  // greens
+  green:          '#2D7D32',
+  'forest green': '#1A5C22',
+  // yellows / oranges
+  yellow:         '#F5C200',
+  mustard:        '#C89A10', // deep saturated yellow-brown
+  orange:         '#E65100',
+};
+
+/**
+ * Disambiguation labels for ambiguous neutrals that models frequently drift from.
+ * Pairs with ANCHOR_COLOR_HEX to give both a hex target and an exclusion hint.
  */
 const NEUTRAL_COLOR_CLARIFICATIONS: Record<string, string> = {
-  stone:     'stone (cool pale gray-beige — NOT tan, NOT camel, NOT brown, NOT warm, NOT mustard)',
-  sand:      'sand (warm pale off-white beige — NOT tan, NOT brown, NOT yellow)',
-  ecru:      'ecru (warm pale off-white — NOT tan, NOT cream, NOT beige)',
-  slate:     'slate (cool blue-gray — NOT gray, NOT blue, NOT charcoal)',
-  camel:     'camel (warm medium tan-brown — NOT brown, NOT tan, NOT mustard)',
-  tan:       'tan (light warm neutral — NOT camel, NOT beige, NOT brown)',
-  beige:     'beige (pale warm neutral — NOT tan, NOT cream, NOT off-white)',
-  ivory:     'ivory (very pale warm white — NOT white, NOT cream, NOT beige)',
-  cream:     'cream (pale warm off-white — NOT ivory, NOT white, NOT beige)',
-  khaki:     'khaki (yellow-green muted military tone — NOT tan, NOT beige, NOT olive)',
-  olive:     'olive (dull yellow-green — NOT khaki, NOT green, NOT brown)',
-  charcoal:  'charcoal (very dark gray — NOT black, NOT dark navy, NOT gray)',
-  rust:      'rust (warm red-orange — NOT terracotta, NOT brown, NOT orange)',
-  terracotta: 'terracotta (muted warm red-clay — NOT rust, NOT brown, NOT orange)',
-  mustard:   'mustard (deep saturated yellow — NOT camel, NOT tan, NOT yellow)',
-  burgundy:  'burgundy (deep red-wine — NOT maroon, NOT red, NOT brown)',
-  maroon:    'maroon (dark muted red — NOT burgundy, NOT red, NOT brown)',
-  teal:      'teal (blue-green — NOT green, NOT blue, NOT cyan)',
-  cobalt:    'cobalt (vivid pure blue — NOT navy, NOT royal blue, NOT blue)',
-  'navy':    'navy (very dark blue — NOT black, NOT dark blue, NOT cobalt)',
+  stone:          'stone — cool pale gray-beige (NOT tan, NOT camel, NOT brown, NOT warm)',
+  sand:           'sand — warm pale off-white beige (NOT tan, NOT brown, NOT yellow)',
+  ecru:           'ecru — warm pale off-white (NOT cream, NOT tan, NOT beige)',
+  slate:          'slate — cool blue-gray (NOT gray, NOT blue, NOT charcoal)',
+  camel:          'camel — warm medium tan-brown (NOT brown, NOT tan, NOT mustard)',
+  tan:            'tan — light warm neutral (NOT camel, NOT beige, NOT brown)',
+  beige:          'beige — pale warm neutral (NOT tan, NOT cream, NOT off-white)',
+  ivory:          'ivory — very pale warm white (NOT white, NOT cream, NOT beige)',
+  cream:          'cream — pale warm off-white (NOT ivory, NOT white, NOT beige)',
+  'off-white':    'off-white — near-white with subtle warmth (NOT ivory, NOT cream)',
+  khaki:          'khaki — yellow-green muted military (NOT tan, NOT beige, NOT olive)',
+  olive:          'olive — dull yellow-green (NOT khaki, NOT green, NOT brown)',
+  charcoal:       'charcoal — very dark gray (NOT black, NOT navy, NOT gray)',
+  rust:           'rust — warm red-orange (NOT terracotta, NOT brown, NOT orange)',
+  terracotta:     'terracotta — muted warm red-clay (NOT rust, NOT brown, NOT orange)',
+  mustard:        'mustard — deep saturated yellow-brown (NOT camel, NOT tan, NOT yellow)',
+  burgundy:       'burgundy — deep red-wine (NOT maroon, NOT red, NOT brown)',
+  maroon:         'maroon — dark muted red (NOT burgundy, NOT red, NOT brown)',
+  teal:           'teal — blue-green (NOT green, NOT blue, NOT cyan)',
+  cobalt:         'cobalt — vivid pure blue (NOT navy, NOT royal blue)',
+  navy:           'navy — very dark blue (NOT black, NOT dark blue, NOT cobalt)',
 };
 
 function extractAnchorColor(description: string): string | null {
@@ -126,24 +184,30 @@ function extractAnchorColor(description: string): string | null {
   return null;
 }
 
-function disambiguateAnchorColor(color: string): string {
-  return NEUTRAL_COLOR_CLARIFICATIONS[color] ?? color;
-}
-
 /**
  * Builds a standalone anchor color lock block that appears BEFORE the outfit list.
- * Placed as a top-level instruction (not a bullet) so the model treats it as a
- * non-negotiable constraint rather than a stylistic suggestion.
+ * Includes a hex code so the model has a precise, unambiguous color target that
+ * is identical across all three tier prompts.
  */
 function buildAnchorColorBlock(anchorName: string, rawColor: string): string {
-  const clarified = disambiguateAnchorColor(rawColor);
+  const hex = ANCHOR_COLOR_HEX[rawColor];
+  const clarification = NEUTRAL_COLOR_CLARIFICATIONS[rawColor];
+
+  const colorTarget = hex
+    ? `${rawColor} — hex ${hex}${clarification ? ` (${clarification.split(' — ')[1] ?? ''})` : ''}`
+    : clarification ?? rawColor;
+
+  const hexInstruction = hex
+    ? `The hex code ${hex} is the exact target. Sample it mentally and use it precisely.`
+    : '';
+
   return (
     `ANCHOR COLOR LOCK (non-negotiable — apply before rendering anything else):\n` +
-    `The anchor item — ${anchorName} — MUST be rendered in exactly: ${clarified}.\n` +
-    `This color is fixed. Do not shift it warmer, cooler, darker, brighter, or more muted for any reason.\n` +
-    `Do not reinterpret it as a similar neutral. Do not let the tier style, lighting, or surrounding garments affect this color.\n` +
-    `This exact color must appear identically regardless of which tier is being illustrated.\n` +
-    `If you are uncertain: render it lighter and cooler rather than warmer or browner.`
+    `The anchor item — ${anchorName} — MUST be rendered in exactly: ${colorTarget}.\n` +
+    `${hexInstruction}\n`.trimStart() +
+    `This color is fixed across all tiers. Do not shift it warmer, cooler, darker, brighter, or more muted for any reason.\n` +
+    `Do not reinterpret it as a visually similar neutral. Do not let tier style, lighting, or surrounding garments affect this color.\n` +
+    `If you are uncertain: match the hex literally rather than approximating from the color name.`
   );
 }
 
@@ -338,9 +402,10 @@ export function buildTierSketchPrompt(input: {
 
   // Anchor color and pattern — pinned explicitly to prevent drift
   const anchorColor = extractAnchorColor(anchor);
+  const anchorHex = anchorColor ? (ANCHOR_COLOR_HEX[anchorColor] ?? null) : null;
   const anchorPattern = patternHint(anchor);
   const anchorDetail = [
-    anchorColor ? `color: ${anchorColor}` : null,
+    anchorColor ? `color: ${anchorColor}${anchorHex ? ` ${anchorHex}` : ''}` : null,
     anchorPattern ? `pattern: ${anchorPattern}` : null,
   ].filter(Boolean).join(', ');
   const anchorSuffix = anchorDetail ? ` (${anchorDetail})` : '';
