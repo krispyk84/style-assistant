@@ -5,8 +5,11 @@ import { z } from 'zod';
 
 import { logger } from '../../config/logger.js';
 import { storageConfig } from '../../config/storage.js';
+import { env } from '../../config/env.js';
 import { openAiClient } from '../../ai/openai-client.js';
-import { buildAccessorySketchPrompt, buildClosetItemSketchPrompt, buildSunglassesOpenAiPrompt } from '../../ai/prompts/sketch.prompts.js';
+import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
+import { buildClosetItemSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
+import type { ClosetItemSketchInput } from '../../ai/prompts/sketch.prompts.js';
 import { closetRepository } from './closet.repository.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19,7 +22,12 @@ import { closetRepository } from './closet.repository.js';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const garmentDescriptionSchema = z.object({
-  description: z.string(),
+  type: z.string(),
+  color: z.string(),
+  material: z.string(),
+  silhouette: z.string(),
+  details: z.string(),
+  stylingNotes: z.string(),
 });
 
 async function imageUrlToDataUrl(imageUrl: string): Promise<string> {
@@ -44,36 +52,36 @@ async function imageUrlToDataUrl(imageUrl: string): Promise<string> {
   return `data:${mimeType};base64,${Buffer.from(await res.arrayBuffer()).toString('base64')}`;
 }
 
-async function describeGarmentFromImage(imageUrl: string, supabaseUserId?: string): Promise<string> {
+async function describeGarmentFromImage(imageUrl: string, supabaseUserId?: string): Promise<z.infer<typeof garmentDescriptionSchema>> {
   const dataUrl = await imageUrlToDataUrl(imageUrl);
 
-  const result = await openAiClient.createStructuredResponse({
+  return openAiClient.createStructuredResponse({
     schema: garmentDescriptionSchema,
     jsonSchema: {
       name: 'garment_description',
-      description: 'A concise but detailed description of the garment in the image',
+      description: 'Structured description of the garment for a fashion illustration prompt',
       schema: {
         type: 'object',
         properties: {
-          description: {
-            type: 'string',
-            description: 'A detailed description of the garment including colour, fabric, style, and key visual details. 1–2 sentences max.',
-          },
+          type: { type: 'string', description: 'Specific garment type, e.g. "slim-fit chino trousers", "crewneck sweater", "chelsea boots"' },
+          color: { type: 'string', description: 'Exact color with undertone and depth, e.g. "dark navy", "warm camel", "off-white cream"' },
+          material: { type: 'string', description: 'Fabric or material with finish, e.g. "soft brushed cotton twill", "full-grain leather with rubber sole"' },
+          silhouette: { type: 'string', description: 'Shape and fit description, e.g. "slim tapered leg with mid-rise waist"' },
+          details: { type: 'string', description: 'Key construction details visible: seams, stitching, hardware, pockets, collar, cuff, zipper, sole, etc.' },
+          stylingNotes: { type: 'string', description: 'Overall aesthetic impression: tone, finish, mood, e.g. "refined, well-pressed, matte finish"' },
         },
-        required: ['description'],
+        required: ['type', 'color', 'material', 'silhouette', 'details', 'stylingNotes'],
         additionalProperties: false,
       },
     },
-    instructions: 'You are a menswear expert. Describe the garment shown in the image concisely and accurately.',
+    instructions: 'You are a menswear expert. Extract precise structured details from the garment image for use in a fashion illustration prompt.',
     userContent: [
       { type: 'input_image', image_url: dataUrl, detail: 'high' },
-      { type: 'input_text', text: 'Describe this garment in detail: colour, fabric, style, and key visual features.' },
+      { type: 'input_text', text: 'Describe this garment in structured detail for a fashion sketch prompt: type, exact color, material, silhouette, construction details, and styling notes.' },
     ],
     supabaseUserId,
     feature: 'closet-describe',
   });
-
-  return result.description;
 }
 
 // Categories where describeGarmentFromImage would hallucinate (non-garment items).
@@ -110,36 +118,57 @@ async function generateClosetItemSketch(
   const isSunglasses = isAccessory &&
     `${options?.category ?? ''} ${options?.title ?? ''}`.toLowerCase().includes('sunglass');
 
-  let prompt: string;
+  let sketchInput: ClosetItemSketchInput;
   let size: '1024x1024' | '1024x1536';
 
   if (isSunglasses) {
-    const itemDescription = [
-      options?.frameColor ? `${options.frameColor}-frame` : null,
-      options?.lensShape ? `${options.lensShape.replace('_', '-')} sunglasses` : 'sunglasses',
-    ].filter(Boolean).join(' ');
-    prompt = buildSunglassesOpenAiPrompt({ itemDescription, lensShape: options?.lensShape, frameColor: options?.frameColor });
+    const lensShape = options?.lensShape?.replace('_', '-') ?? null;
+    const frameColor = options?.frameColor ?? null;
+    sketchInput = {
+      category: 'sunglasses',
+      type: [frameColor ? `${frameColor}-frame` : null, lensShape ? `${lensShape} lens` : null, 'sunglasses'].filter(Boolean).join(' '),
+      color: frameColor ?? 'as shown',
+      details: 'frame shape, lens tint, hinge placement, arm structure, bridge width',
+      orientation: 'front-facing at a slight angle so both lenses and the full frame are clearly visible',
+    };
     size = '1024x1024';
-    logger.info({ jobId, prompt }, 'Closet sketch: sunglasses prompt built');
+    logger.info({ jobId, sketchInput }, 'Closet sketch: sunglasses input built');
   } else if (isAccessory) {
-    const itemDescription = [options?.title, options?.category].filter(Boolean).join(' ') || 'accessory';
-    prompt = buildAccessorySketchPrompt({ itemDescription });
+    sketchInput = {
+      category: options?.category ?? 'accessory',
+      type: options?.title ?? options?.category ?? 'accessory',
+      color: 'as shown',
+      details: 'hardware, stitching, structure, material finish, edge treatment',
+      orientation: 'isolated, product centered, slight 3-quarter angle to show depth',
+    };
     size = '1024x1024';
-    logger.info({ jobId, prompt }, 'Closet sketch: accessory prompt built');
+    logger.info({ jobId, sketchInput }, 'Closet sketch: accessory input built');
   } else {
-    const itemDescription = await describeGarmentFromImage(imageUrl, supabaseUserId);
-    logger.info({ jobId, itemDescription }, 'Closet sketch: garment description produced');
-    prompt = buildClosetItemSketchPrompt({ itemDescription });
+    const garment = await describeGarmentFromImage(imageUrl, supabaseUserId);
+    logger.info({ jobId, garment }, 'Closet sketch: garment description produced');
+    sketchInput = {
+      category: options?.category ?? 'garment',
+      type: garment.type,
+      color: garment.color,
+      material: garment.material,
+      silhouette: garment.silhouette,
+      details: garment.details,
+      stylingNotes: garment.stylingNotes,
+    };
     size = '1024x1536';
   }
 
+  const prompt = buildClosetItemSketchPrompt(sketchInput);
+
   const generatedImage = await openAiClient.generateImage({
     prompt,
+    model: env.OPENAI_OUTFIT_SKETCH_MODEL,
     size,
-    quality: 'medium',
+    quality: env.OPENAI_OUTFIT_SKETCH_QUALITY,
     outputFormat: 'jpeg',
     supabaseUserId,
     feature: 'closet-sketch',
+    costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
   });
 
   // Store image data in DB only (not on the ephemeral filesystem) so sketches

@@ -115,22 +115,79 @@ function patternHint(description: string): string | null {
 }
 
 // ── Closet item sketch prompts ────────────────────────────────────────────────
+// Four-part structure matching the outfit sketch system:
+// Part 1: CLOSET_ITEM_STYLE_PREAMBLE (fixed visual language)
+// Part 2: Item block (dynamic — built per item)
+// Part 3: CLOSET_ITEM_QUALITY_ADDENDUM (rendering quality + color fidelity)
+// Part 4: CLOSET_ITEM_COMPOSITION_RULES (framing + category-specific layout)
 
-export function buildClosetItemSketchPrompt(input: { itemDescription: string }) {
-  return [
-    'Create a menswear editorial fashion illustration of a single garment on a clean presentation.',
-    'Visual style: luxury menswear sketch, hand-rendered marker and watercolor wash, confident ink outlines, refined retail lookbook presentation.',
-    'Show only this one piece — do not add other garments, people, or accessories.',
-    'Do not add any words, logos, watermarks, UI chrome, or marketing copy.',
-    'Favor a soft neutral or white background with premium menswear presentation.',
-    `Garment: ${input.itemDescription}`,
-    'Compose this as a polished portrait-oriented single-piece menswear sketch suitable for a premium wardrobe cataloguing app.',
-  ].join('\n');
+const CLOSET_ITEM_STYLE_PREAMBLE =
+  'Create a consistent editorial menswear fashion illustration in the exact same visual language across generations. ' +
+  'Use an atmospheric hand-rendered watercolor sketch treatment throughout. ' +
+  'The background must be a warm off-white watercolor paper field with visible paper grain, soft beige-gray wash, uneven transparency, subtle pigment blooms, faint edge staining, cloudy tonal variation, and loose brush residue around the subject — never a flat white or clean digital background. ' +
+  'The linework should feel organic and slightly imperfect: scratchy graphite-and-ink contours, light hand jitter, and softly broken outlines rather than crisp polished edges. ' +
+  'Apply transparent layered watercolor fills with rich, accurate garment color and gentle pooling and bleeding of pigment at folds, seams, edges, and shadow areas. ' +
+  'Fabric textures, weave patterns, stitching, hardware, sole construction, watch case structure, and material sheen should be rendered with high fidelity. ' +
+  'The overall image must be tactile, painterly, and editorial — like a luxury stylist\'s sketchbook page. ' +
+  'Avoid vector cleanliness, sterile negative space, hard digital edges, glossy rendering, flat color blocking, cartoon polish, or overly neat app-illustration treatment. ' +
+  'The subject is a single closet item, not a full outfit. Render one isolated wardrobe item as the primary focus, centered and scaled large in frame, with a small amount of breathing room around it. ' +
+  'The item should feel elevated, collectible, and fashion-editorial. ' +
+  'Keep the same luxury menswear watercolor-paper aesthetic as the outfit sketches so the closet-item image and outfit image belong to the exact same visual system.';
+
+const CLOSET_ITEM_QUALITY_ADDENDUM =
+  'Push the rendering away from simple illustration and toward a more elevated, fashion-editorial watercolor product sketch. ' +
+  'Make the subject feel luxurious, stylish, modern, and highly considered while staying completely true to the provided item. ' +
+  'Increase color fidelity: the item must match the real product color as accurately as possible, prioritizing exact hue, depth, temperature, undertone, and saturation rather than drifting toward generic beige, tan, gray, or muted neutrals. ' +
+  'Do not reinterpret the item\'s color; preserve it faithfully. ' +
+  'Increase richness and vibrancy slightly while keeping the palette refined and believable so the item feels alive rather than washed out. ' +
+  'Add more material realism and construction detail: show seam lines, stitch density, plackets, ribbing, zipper hardware, pull tabs, welt edges, sole shape, leather paneling, laces, buckle form, crown shape, bracelet links, case details, and subtle surface grain with precision. ' +
+  'Use layered transparent watercolor, nuanced shadowing, tonal variation, tactile surface detail, and realistic light falloff so the object feels luxurious and dimensional, not flat or overly illustrated. ' +
+  'Keep the hand-drawn editorial line quality and watercolor-paper background, but make the final result feel closer to a high-end fashion concept sketch or luxury menswear product board than a simplified catalog illustration. ' +
+  'Avoid color drift, generic neutralization, flat fills, cartoon cleanliness, overly soft simplification, or loss of product-specific detail.';
+
+const CLOSET_ITEM_COMPOSITION_RULES =
+  'The single item must always be fully visible in frame and never cropped. Leave a small margin around the subject so the entire silhouette is clearly shown. Scale the subject generously so it feels prominent and editorial, but do not let any edge touch or cross the frame boundary. ' +
+  'Use category-appropriate composition: ' +
+  'Tops, shirts, jackets, knitwear: render front-facing, symmetrical, isolated, floating naturally, with realistic shoulder shape and garment drape. No body, no face, no mannequin stand; the piece should read like a luxury product sketch suspended on paper. ' +
+  'Trousers: render front-facing and full-length, centered, with waistband, rise, leg shape, hem, and crease structure clearly visible. ' +
+  'Shoes: render either as a single hero shoe in elegant 3-quarter view or as a pair in a clean editorial arrangement, depending on the item description. Preserve accurate last shape, sole thickness, stitching lines, and material finish. ' +
+  'Watches: render as a centered hero product sketch with accurate case shape, dial proportions, markers, crown guard, bracelet or strap construction, and reflective material behavior, while keeping the watercolor treatment intact. ' +
+  'Bags and accessories: render isolated and centered with realistic structure, handle shape, edge paint, stitching, hardware, and material depth. ' +
+  'Sunglasses: render cleanly with accurate frame shape, lens tint, hinge placement, and subtle reflections, while preserving the hand-rendered watercolor-paper aesthetic. ' +
+  'Keep the subject fashion-editorial rather than e-commerce plain. ' +
+  'The final image should feel like a luxury stylist\'s product sketch page in the same universe as the outfit illustrations. ' +
+  'Render this as a collectible editorial product sketch in the exact same watercolor-paper style system as the outfit illustrations, with the item isolated, fully visible, color-accurate, and materially specific.';
+
+export type ClosetItemSketchInput = {
+  category: string;
+  type: string;
+  color: string;
+  material?: string | null;
+  silhouette?: string | null;
+  details?: string | null;
+  orientation?: string | null;
+  stylingNotes?: string | null;
+};
+
+export function buildClosetItemSketchPrompt(input: ClosetItemSketchInput): string {
+  const itemLines = [
+    `- category: ${input.category}`,
+    `- type: ${input.type}`,
+    `- color: ${input.color}`,
+    input.material ? `- material: ${input.material}` : null,
+    input.silhouette ? `- silhouette: ${input.silhouette}` : null,
+    input.details ? `- details: ${input.details}` : null,
+    input.orientation ? `- orientation: ${input.orientation}` : null,
+    input.stylingNotes ? `- styling notes: ${input.stylingNotes}` : null,
+  ].filter(Boolean).join('\n');
+
+  return `${CLOSET_ITEM_STYLE_PREAMBLE}\n\nItem:\n${itemLines}\n\n${CLOSET_ITEM_QUALITY_ADDENDUM}\n\n${CLOSET_ITEM_COMPOSITION_RULES}`;
 }
 
 /**
- * Product-only prompt for non-sunglasses accessories (bags, watches, belts, hats, etc.)
- * intended for OpenAI gpt-image-1 — no LoRA trigger word needed.
+ * @deprecated Use buildClosetItemSketchPrompt with a ClosetItemSketchInput instead.
+ * Kept temporarily so the accessory and sunglasses branches in closet-sketch.service.ts
+ * can be migrated without a simultaneous deploy.
  */
 export function buildAccessorySketchPrompt(input: { itemDescription: string }) {
   return (
