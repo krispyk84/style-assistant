@@ -1,4 +1,5 @@
 import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
+import type { AnchorColorMetadata } from '../../modules/outfits/anchor-description.service.js';
 
 // ── Outfit sketch style preamble ──────────────────────────────────────────────
 // Fixed across all generations to enforce visual consistency.
@@ -83,12 +84,21 @@ function pieceLabel(piece: OutfitPieceDto): string {
 // Explicitly pin anchor color and pattern in the outfit description so the
 // image model cannot drift to a tier-default hue or smooth over micro-weaves.
 
+// Compound / multi-word neutrals MUST come before single-word ones so that
+// "warm gray" matches before "gray" in the first-match scan.
 const ANCHOR_COLOR_WORDS = [
+  // compounds first
+  'off-white', 'forest green', 'dark blue', 'light blue', 'pale blue', 'royal blue',
+  'warm gray', 'cool gray', 'warm grey', 'cool grey', 'light gray', 'light grey',
+  'warm beige', 'cool beige', 'warm taupe', 'cool taupe',
+  // specific neutrals that commonly drift
+  'taupe', 'greige', 'mushroom', 'oatmeal', 'putty', 'dove', 'ash', 'pebble',
+  'chalk', 'bone', 'linen', 'flax', 'driftwood', 'stone', 'sand', 'ecru', 'slate',
+  // standard colours
   'navy', 'black', 'white', 'grey', 'gray', 'brown', 'camel', 'tan', 'beige', 'cream', 'ivory',
   'charcoal', 'khaki', 'olive', 'green', 'blue', 'red', 'burgundy', 'wine', 'maroon',
   'orange', 'yellow', 'pink', 'purple', 'violet', 'indigo', 'teal', 'coral',
-  'rust', 'terracotta', 'mustard', 'ecru', 'slate', 'stone', 'sand', 'cobalt',
-  'off-white', 'forest green', 'dark blue', 'light blue', 'pale blue', 'royal blue',
+  'rust', 'terracotta', 'mustard', 'cobalt',
 ];
 
 /**
@@ -97,7 +107,21 @@ const ANCHOR_COLOR_WORDS = [
  * relying on it to interpret a color word correctly.
  */
 const ANCHOR_COLOR_HEX: Record<string, string> = {
-  // neutrals — most drift-prone, prioritized
+  // fine-grain neutrals — highest drift risk; hex based on midtone fabric sampling
+  taupe:          '#B8AFA6', // medium neutral gray-brown
+  greige:         '#C4B8A6', // gray + beige blend, slightly warm
+  mushroom:       '#BFB2A6', // warm muted gray-brown
+  oatmeal:        '#D8CCBA', // warm pale beige-cream
+  putty:          '#C9BDAC', // warm medium neutral
+  dove:           '#D5D3CD', // cool pale gray
+  ash:            '#ABABAB', // cool medium gray
+  pebble:         '#9E9A94', // medium warm gray
+  chalk:          '#EDE9E2', // very pale warm off-white
+  bone:           '#E8E2D5', // very pale warm white
+  linen:          '#E8DFCC', // warm pale ecru
+  flax:           '#D9C99A', // warm light golden-beige
+  driftwood:      '#B0A898', // muted warm gray-brown
+  // existing neutrals
   stone:          '#C4BAB0', // cool pale gray-beige
   sand:           '#E0D0B0', // warm pale off-white beige
   ecru:           '#EFE3CC', // warm pale off-white
@@ -113,6 +137,17 @@ const ANCHOR_COLOR_HEX: Record<string, string> = {
   charcoal:       '#3A3A3A', // very dark gray
   gray:           '#888888',
   grey:           '#888888',
+  // compound neutrals
+  'warm gray':    '#9E9990',
+  'cool gray':    '#929699',
+  'warm grey':    '#9E9990',
+  'cool grey':    '#929699',
+  'light gray':   '#CECECE',
+  'light grey':   '#CECECE',
+  'warm beige':   '#DDD0B8',
+  'cool beige':   '#D5CEC5',
+  'warm taupe':   '#BFB0A2',
+  'cool taupe':   '#B0ADB0',
   // browns
   brown:          '#7B4F2E',
   rust:           '#B44010', // warm red-orange
@@ -153,6 +188,21 @@ const ANCHOR_COLOR_HEX: Record<string, string> = {
  * Pairs with ANCHOR_COLOR_HEX to give both a hex target and an exclusion hint.
  */
 const NEUTRAL_COLOR_CLARIFICATIONS: Record<string, string> = {
+  // fine-grain neutrals — do NOT collapse these to "beige", "brown", or "tan"
+  taupe:          'taupe — medium neutral gray-brown (NOT beige, NOT brown, NOT stone, NOT gray)',
+  greige:         'greige — gray-beige blend, slightly warm (NOT beige, NOT gray, NOT tan)',
+  mushroom:       'mushroom — warm muted gray-brown, earthy (NOT brown, NOT beige, NOT gray)',
+  oatmeal:        'oatmeal — warm pale beige-cream, very light (NOT cream, NOT tan, NOT beige)',
+  putty:          'putty — warm medium neutral, slightly yellow-gray (NOT tan, NOT beige, NOT khaki)',
+  dove:           'dove — cool pale gray, very light (NOT white, NOT silver, NOT gray)',
+  ash:            'ash — cool medium gray, slightly desaturated (NOT charcoal, NOT gray, NOT silver)',
+  pebble:         'pebble — medium warm gray with slight brown cast (NOT gray, NOT brown, NOT taupe)',
+  chalk:          'chalk — very pale warm off-white (NOT white, NOT ivory, NOT cream)',
+  bone:           'bone — very pale warm white with yellowed cast (NOT ivory, NOT cream, NOT white)',
+  linen:          'linen — warm pale ecru-beige (NOT beige, NOT ecru, NOT cream)',
+  flax:           'flax — warm light golden-beige (NOT tan, NOT beige, NOT camel)',
+  driftwood:      'driftwood — muted warm gray-brown, desaturated (NOT brown, NOT taupe, NOT gray)',
+  // existing clarifications
   stone:          'stone — cool pale gray-beige (NOT tan, NOT camel, NOT brown, NOT warm)',
   sand:           'sand — warm pale off-white beige (NOT tan, NOT brown, NOT yellow)',
   ecru:           'ecru — warm pale off-white (NOT cream, NOT tan, NOT beige)',
@@ -185,11 +235,49 @@ function extractAnchorColor(description: string): string | null {
 }
 
 /**
- * Builds a standalone anchor color lock block that appears BEFORE the outfit list.
- * Includes a hex code so the model has a precise, unambiguous color target that
- * is identical across all three tier prompts.
+ * Primary path: build the color lock from vision-extracted metadata.
+ * The hex was sampled directly from the uploaded anchor image — it is the
+ * ground truth, not a dictionary approximation.
  */
-function buildAnchorColorBlock(anchorName: string, rawColor: string): string {
+function buildAnchorColorBlockFromMetadata(anchorName: string, meta: AnchorColorMetadata): string {
+  const lines: string[] = [
+    `ANCHOR COLOR LOCK (non-negotiable — apply before rendering anything else):`,
+    `The anchor item — ${anchorName} — must match the uploaded reference photo with exact color fidelity.`,
+  ];
+
+  if (meta.isMultiColor && meta.secondaryColors.length > 0) {
+    lines.push(
+      `This is a multi-color item. Preserve ALL color zones exactly:`,
+      `  • Dominant color: ${meta.dominantColorName} — hex ${meta.dominantColorHex}`,
+      ...meta.secondaryColors.map(
+        (c) => `  • ${c.placement}: ${c.name} — hex ${c.hex}`
+      )
+    );
+    if (meta.colorPattern) {
+      lines.push(`  Color layout: ${meta.colorPattern}.`);
+    }
+  } else {
+    lines.push(
+      `Exact color: ${meta.dominantColorName} — hex ${meta.dominantColorHex}`,
+      `Lightness: ${meta.lightnessTone}. Temperature: ${meta.temperatureTone}.`,
+      `The hex ${meta.dominantColorHex} is sampled directly from the uploaded photo. Use it as the ground-truth color.`
+    );
+  }
+
+  lines.push(
+    `Do not shift this color warmer, cooler, darker, or browner for any reason.`,
+    `Do not let the tier (Business / Smart Casual / Casual) change this color — it must appear identically across all tiers.`,
+    `If uncertain: interpret this color as ${meta.lightnessTone} and ${meta.temperatureTone} — not darker, not warmer, not browner than the hex indicates.`
+  );
+
+  return lines.join('\n');
+}
+
+/**
+ * Fallback path: build the color lock from a color word extracted from text description.
+ * Used when no image was uploaded or vision analysis failed.
+ */
+function buildAnchorColorBlockFromWord(anchorName: string, rawColor: string): string {
   const hex = ANCHOR_COLOR_HEX[rawColor];
   const clarification = NEUTRAL_COLOR_CLARIFICATIONS[rawColor];
 
@@ -197,18 +285,14 @@ function buildAnchorColorBlock(anchorName: string, rawColor: string): string {
     ? `${rawColor} — hex ${hex}${clarification ? ` (${clarification.split(' — ')[1] ?? ''})` : ''}`
     : clarification ?? rawColor;
 
-  const hexInstruction = hex
-    ? `The hex code ${hex} is the exact target. Sample it mentally and use it precisely.`
-    : '';
-
-  return (
-    `ANCHOR COLOR LOCK (non-negotiable — apply before rendering anything else):\n` +
-    `The anchor item — ${anchorName} — MUST be rendered in exactly: ${colorTarget}.\n` +
-    `${hexInstruction}\n`.trimStart() +
-    `This color is fixed across all tiers. Do not shift it warmer, cooler, darker, brighter, or more muted for any reason.\n` +
-    `Do not reinterpret it as a visually similar neutral. Do not let tier style, lighting, or surrounding garments affect this color.\n` +
-    `If you are uncertain: match the hex literally rather than approximating from the color name.`
-  );
+  return [
+    `ANCHOR COLOR LOCK (non-negotiable — apply before rendering anything else):`,
+    `The anchor item — ${anchorName} — MUST be rendered in exactly: ${colorTarget}.`,
+    hex ? `The hex code ${hex} is the exact target. Sample it mentally and use it precisely.` : '',
+    `This color is fixed across all tiers. Do not shift it warmer, cooler, darker, brighter, or more muted for any reason.`,
+    `Do not reinterpret it as a visually similar neutral. Do not let tier style, lighting, or surrounding garments affect this color.`,
+    `If you are uncertain: match the hex literally rather than approximating from the color name.`,
+  ].filter(Boolean).join('\n');
 }
 
 function patternHint(description: string): string | null {
@@ -386,6 +470,7 @@ const QUALITY_ADDENDUM_2 =
 export function buildTierSketchPrompt(input: {
   tierLabel: string;
   anchorItemDescription: string;
+  anchorColorMetadata?: AnchorColorMetadata | null;
   recommendation: TierRecommendationDto;
   gender?: string | null;
   bodyTypeDescription?: string;
@@ -393,6 +478,7 @@ export function buildTierSketchPrompt(input: {
   fitPreference?: string | null;
 }) {
   const anchor = input.anchorItemDescription.trim();
+  const anchorName = shortenPieceName(anchor);
 
   const allKeyPieces = input.recommendation.keyPieces.slice(0, 4);
   const outerwearPieces = allKeyPieces.filter(isOuterwear);
@@ -400,22 +486,33 @@ export function buildTierSketchPrompt(input: {
   const hasOuterwear = outerwearPieces.length > 0;
   const anchorMidLayer = anchorIsMidLayer(anchor);
 
-  // Anchor color and pattern — pinned explicitly to prevent drift
-  const anchorColor = extractAnchorColor(anchor);
-  const anchorHex = anchorColor ? (ANCHOR_COLOR_HEX[anchorColor] ?? null) : null;
-  const anchorPattern = patternHint(anchor);
-  const anchorDetail = [
-    anchorColor ? `color: ${anchorColor}${anchorHex ? ` ${anchorHex}` : ''}` : null,
-    anchorPattern ? `pattern: ${anchorPattern}` : null,
-  ].filter(Boolean).join(', ');
-  const anchorSuffix = anchorDetail ? ` (${anchorDetail})` : '';
+  // Color lock block — vision metadata path is primary; text extraction is fallback.
+  // Vision metadata contains a hex sampled directly from the uploaded image, which is
+  // far more accurate than any static dictionary lookup.
+  let anchorColorBlock: string | null = null;
+  let anchorSuffix = '';
 
-  // Standalone anchor color lock — promoted before the outfit list so the model
-  // cannot drift across tiers or reinterpret ambiguous neutrals.
-  const anchorName = shortenPieceName(anchor);
-  const anchorColorBlock = anchorColor
-    ? buildAnchorColorBlock(anchorName, anchorColor)
-    : null;
+  if (input.anchorColorMetadata) {
+    anchorColorBlock = buildAnchorColorBlockFromMetadata(anchorName, input.anchorColorMetadata);
+    // Suffix for the anchor bullet line in the outfit list
+    const meta = input.anchorColorMetadata;
+    if (meta.isMultiColor && meta.colorPattern) {
+      anchorSuffix = ` (color: ${meta.dominantColorName} ${meta.dominantColorHex}; ${meta.colorPattern})`;
+    } else {
+      anchorSuffix = ` (color: ${meta.dominantColorName} ${meta.dominantColorHex})`;
+    }
+  } else {
+    // Fallback: extract color word from text description
+    const anchorColor = extractAnchorColor(anchor);
+    const anchorHex = anchorColor ? (ANCHOR_COLOR_HEX[anchorColor] ?? null) : null;
+    const anchorPattern = patternHint(anchor);
+    const anchorDetail = [
+      anchorColor ? `color: ${anchorColor}${anchorHex ? ` ${anchorHex}` : ''}` : null,
+      anchorPattern ? `pattern: ${anchorPattern}` : null,
+    ].filter(Boolean).join(', ');
+    anchorSuffix = anchorDetail ? ` (${anchorDetail})` : '';
+    anchorColorBlock = anchorColor ? buildAnchorColorBlockFromWord(anchorName, anchorColor) : null;
+  }
 
   // Build the outfit bullet list
   const outfitLines: string[] = [];

@@ -7,7 +7,7 @@ import { buildBodyTypeSeverity } from '../../ai/body-type-severity.js';
 import type { OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 import { storageProvider } from '../../storage/index.js';
 import { outfitsRepository } from './outfits.repository.js';
-import { resolveAnchorDescriptionForSketch } from './anchor-description.service.js';
+import { resolveAnchorDescriptionForSketch, type AnchorColorMetadata } from './anchor-description.service.js';
 
 function formatTierLabel(tier: OutfitTierSlug) {
   if (tier === 'smart-casual') {
@@ -20,6 +20,7 @@ function formatTierLabel(tier: OutfitTierSlug) {
 async function generateSingleTierSketch(
   requestId: string,
   anchorItemDescription: string,
+  anchorColorMetadata: AnchorColorMetadata | null,
   recommendation: TierRecommendationDto,
   supabaseUserId?: string,
   gender?: string | null,
@@ -33,16 +34,29 @@ async function generateSingleTierSketch(
   try {
     const severity = buildBodyTypeSeverity(heightCm, weightKg, bodyType, gender, weightDistribution);
 
+    const prompt = buildTierSketchPrompt({
+      tierLabel: formatTierLabel(recommendation.tier),
+      anchorItemDescription,
+      anchorColorMetadata,
+      recommendation,
+      gender,
+      bodyTypeDescription: severity.description,
+      fitTendency,
+      fitPreference,
+    });
+
+    logger.info(
+      {
+        requestId,
+        tier: recommendation.tier,
+        anchorColorMetadata,
+        promptColorSection: prompt.slice(prompt.indexOf('ANCHOR COLOR'), prompt.indexOf('ANCHOR COLOR') + 500).trim() || '(no color lock)',
+      },
+      '[anchor-color] Sketch prompt color lock'
+    );
+
     const generatedImage = await openAiClient.generateImage({
-      prompt: buildTierSketchPrompt({
-        tierLabel: formatTierLabel(recommendation.tier),
-        anchorItemDescription,
-        recommendation,
-        gender,
-        bodyTypeDescription: severity.description,
-        fitTendency,
-        fitPreference,
-      }),
+      prompt,
       model: env.OPENAI_OUTFIT_SKETCH_MODEL,
       size: '1024x1024',
       quality: env.OPENAI_OUTFIT_SKETCH_QUALITY,
@@ -88,17 +102,17 @@ async function generateSingleTierSketch(
 
 export const tierSketchService = {
   async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null, fitPreference?: string | null, heightCm?: number | null, weightKg?: number | null, weightDistribution?: string | null) {
-    const { description: anchorItemDescription } =
+    const { description: anchorItemDescription, colorMetadata } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
 
     logger.info(
-      { requestId: outfit.requestId, anchorItemDescription },
-      'Anchor description resolved for tier sketches'
+      { requestId: outfit.requestId, anchorItemDescription, colorMetadata },
+      '[anchor-color] Anchor resolved for tier sketches'
     );
 
     await Promise.all(
       outfit.recommendations.map((recommendation) =>
-        generateSingleTierSketch(outfit.requestId, anchorItemDescription, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg, weightDistribution)
+        generateSingleTierSketch(outfit.requestId, anchorItemDescription, colorMetadata, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg, weightDistribution)
       )
     );
   },
@@ -110,8 +124,8 @@ export const tierSketchService = {
       return;
     }
 
-    const { description: anchorItemDescription } =
+    const { description: anchorItemDescription, colorMetadata } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
-    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg, weightDistribution);
+    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, colorMetadata, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg, weightDistribution);
   },
 };
