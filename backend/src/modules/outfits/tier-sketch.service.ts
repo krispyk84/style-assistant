@@ -9,11 +9,6 @@ import { storageProvider } from '../../storage/index.js';
 import { outfitsRepository } from './outfits.repository.js';
 import { resolveAnchorDescriptionForSketch } from './anchor-description.service.js';
 
-function styleRefUrlForTier(tier: OutfitTierSlug): string {
-  const base = env.STORAGE_PUBLIC_BASE_URL.replace(/\/$/, '');
-  return `${base}/style-refs/${tier}.jpg`;
-}
-
 function formatTierLabel(tier: OutfitTierSlug) {
   if (tier === 'smart-casual') {
     return 'Smart Casual';
@@ -52,7 +47,6 @@ async function generateSingleTierSketch(
       size: '1024x1536',
       quality: env.OPENAI_OUTFIT_SKETCH_QUALITY,
       outputFormat: 'jpeg',
-      styleRefImageUrl: styleRefUrlForTier(recommendation.tier),
       supabaseUserId,
       feature: 'outfit-sketch',
       costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
