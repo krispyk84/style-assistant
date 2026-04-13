@@ -10,7 +10,7 @@ const STYLE_PREAMBLE =
   'precise confident ink outlines with fine line-weight variation, rich saturated watercolor fills with visible layering and wet-on-wet blooms, ' +
   'vivid true-to-life garment colors rendered with full chroma — no desaturation, no muting, no earthy wash. ' +
   'Fabric textures, weave patterns, stitching details, hardware, and material sheen should be rendered with high fidelity. ' +
-  'The figure should be a sleek faceless fashion mannequin, front-facing, full-length, tall and well-proportioned, centered on a clean white background. ' +
+  'The figure should be a sleek headless fashion mannequin — no head, no neck, torso begins at the shoulders — front-facing, full-length, tall and well-proportioned, centered on a clean white background. ' +
   'Garments should drape and fold naturally with realistic tailoring weight, precise collar construction, pocket placement, and button details clearly visible. ' +
   'Accessories, if present, should appear as neatly separated callout objects to the side, rendered with the same material detail. ' +
   'The final image should resemble a high-end fashion editorial illustration — detailed, vibrant, and polished — closer to a luxury brand lookbook than a loose concept sketch.';
