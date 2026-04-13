@@ -11,8 +11,10 @@ import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme as staticTheme } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { useImagePicker } from '@/hooks/use-image-picker';
 import { incrementClosetItemCounter } from '@/lib/closet-storage';
 import { closetService } from '@/services/closet';
+import { uploadsService } from '@/services/uploads';
 import { ColorFamilyPicker } from './color-family-picker';
 import { FitStatusPicker } from './fit-status-picker';
 import { FormalityPicker } from './formality-picker';
@@ -65,6 +67,34 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
       Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
       Animated.timing(sheetTranslateY, { toValue: 800, duration: 240, useNativeDriver: true }),
     ]).start(() => onClose());
+  }
+
+  const picker = useImagePicker();
+  const [isReplacingPhoto, setIsReplacingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  async function handleReplacePhoto() {
+    const picked = await picker.pickFromLibrary();
+    if (!picked || !item) return;
+    setIsReplacingPhoto(true);
+    setPhotoError(null);
+    try {
+      const uploadResult = await uploadsService.uploadImage({ image: picked, category: 'anchor-item' });
+      if (!uploadResult.success || !uploadResult.data) {
+        setPhotoError('Upload failed. Try again.');
+        return;
+      }
+      const updateResult = await closetService.updateItem({ id: item.id, uploadedImageUrl: uploadResult.data.publicUrl });
+      if (updateResult.success && updateResult.data) {
+        onSaved(updateResult.data);
+      } else {
+        setPhotoError('Could not save photo. Try again.');
+      }
+    } catch {
+      setPhotoError('Upload failed. Try again.');
+    } finally {
+      setIsReplacingPhoto(false);
+    }
   }
 
   const editor = useClosetItemEditor({ item });
@@ -234,7 +264,12 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
                   <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>Sketch generating...</AppText>
                 </View>
               ) : (
-                <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
+                <Pressable onPress={() => void handleReplacePhoto()} style={{ alignItems: 'center', gap: spacing.sm }}>
+                  <Ionicons color={theme.colors.subtleText} name={isReplacingPhoto ? 'cloud-upload-outline' : 'camera-outline'} size={32} />
+                  <AppText tone="muted" style={{ fontSize: 12 }}>
+                    {isReplacingPhoto ? 'Uploading...' : 'Tap to add photo'}
+                  </AppText>
+                </Pressable>
               )}
             </View>
 
@@ -290,6 +325,34 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
             ) : editor.isEditing ? (
               /* Edit mode — full metadata form */
               <View style={{ gap: spacing.md }}>
+
+                {/* Replace photo */}
+                <Pressable
+                  onPress={() => void handleReplacePhoto()}
+                  disabled={isReplacingPhoto}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: theme.colors.card,
+                    borderColor: theme.colors.border,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    flexDirection: 'row',
+                    gap: spacing.sm,
+                    justifyContent: 'center',
+                    opacity: isReplacingPhoto ? 0.5 : 1,
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.sm + 2,
+                  }}>
+                  <Ionicons color={theme.colors.mutedText} name="camera-outline" size={16} />
+                  <AppText style={{ color: theme.colors.mutedText, fontSize: 14, fontFamily: staticTheme.fonts.sansMedium }}>
+                    {isReplacingPhoto ? 'Uploading photo...' : item?.uploadedImageUrl ? 'Replace photo' : 'Add photo'}
+                  </AppText>
+                </Pressable>
+                {photoError ? (
+                  <AppText style={{ color: theme.colors.danger, fontSize: 12, textAlign: 'center', marginTop: -spacing.xs }}>
+                    {photoError}
+                  </AppText>
+                ) : null}
 
                 {/* AI Auto-Fill */}
                 <Pressable
