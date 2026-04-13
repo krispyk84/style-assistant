@@ -10,6 +10,7 @@ import { parseStructuredResponse, parseImageResponse } from './openai-response-p
 import type { RawHttpResponse } from './openai-response-parser.js';
 import { withRetry, MAX_RETRIES } from './openai-retry-handler.js';
 import { trackTextUsage, trackImageUsage } from './openai-usage-tracker.js';
+import { usageService } from '../modules/usage/usage.service.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,10 @@ type GenerateImageInput = {
   outputFormat?: 'png' | 'jpeg' | 'webp';
   supabaseUserId?: string;
   feature?: AiFeature;
+  /** Override the default OPENAI_IMAGE_MODEL for this call (e.g. gpt-image-1-mini for outfit sketches). */
+  model?: string;
+  /** Override calcImageCost when the model has different pricing than IMAGE_COST_TABLE (e.g. gpt-image-1-mini). */
+  costUsd?: number;
 };
 
 // ── Transport ─────────────────────────────────────────────────────────────────
@@ -102,6 +107,7 @@ export const openAiClient = {
   },
 
   async generateImage(input: GenerateImageInput) {
+    const model = input.model ?? env.OPENAI_IMAGE_MODEL;
     const result = await withRetry(
       {
         maxRetries: 0, // single attempt — no retry for image generation
@@ -116,7 +122,7 @@ export const openAiClient = {
         dispatch(
           `${env.OPENAI_BASE_URL}/v1/images/generations`,
           buildImageRequestBody({
-            model: env.OPENAI_IMAGE_MODEL,
+            model,
             prompt: input.prompt,
             size: input.size ?? '1024x1536',
             quality: input.quality ?? 'medium',
@@ -127,13 +133,22 @@ export const openAiClient = {
     );
 
     if (input.supabaseUserId && input.feature) {
-      trackImageUsage({
-        supabaseUserId: input.supabaseUserId,
-        feature: input.feature,
-        model: env.OPENAI_IMAGE_MODEL,
-        size: input.size ?? '1024x1536',
-        quality: input.quality ?? 'medium',
-      });
+      if (input.costUsd !== undefined) {
+        usageService.record({
+          supabaseUserId: input.supabaseUserId,
+          feature: input.feature,
+          model,
+          costUsd: input.costUsd,
+        });
+      } else {
+        trackImageUsage({
+          supabaseUserId: input.supabaseUserId,
+          feature: input.feature,
+          model,
+          size: input.size ?? '1024x1536',
+          quality: input.quality ?? 'medium',
+        });
+      }
     }
 
     return {

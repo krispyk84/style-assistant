@@ -1,6 +1,7 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
-import { imageGenerationClient } from '../../ai/image-generation-client.js';
+import { openAiClient } from '../../ai/openai-client.js';
+import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { buildTierSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
 import { buildBodyTypeSeverity } from '../../ai/body-type-severity.js';
 import type { OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
@@ -19,7 +20,6 @@ function formatTierLabel(tier: OutfitTierSlug) {
 async function generateSingleTierSketch(
   requestId: string,
   anchorItemDescription: string,
-  anchorAntiDrift: string | null,
   recommendation: TierRecommendationDto,
   supabaseUserId?: string,
   gender?: string | null,
@@ -32,9 +32,8 @@ async function generateSingleTierSketch(
 ) {
   try {
     const severity = buildBodyTypeSeverity(heightCm, weightKg, bodyType, gender, weightDistribution);
-    const combinedNegative = [severity.negativePrompt, anchorAntiDrift].filter(Boolean).join(', ') || undefined;
 
-    const generatedImage = await imageGenerationClient.generateImage({
+    const generatedImage = await openAiClient.generateImage({
       prompt: buildTierSketchPrompt({
         tierLabel: formatTierLabel(recommendation.tier),
         anchorItemDescription,
@@ -44,9 +43,13 @@ async function generateSingleTierSketch(
         fitTendency,
         fitPreference,
       }),
-      loraType: 'outfit',
+      model: env.OPENAI_OUTFIT_SKETCH_MODEL,
+      size: '1024x1536',
+      quality: env.OPENAI_OUTFIT_SKETCH_QUALITY,
+      outputFormat: 'jpeg',
       supabaseUserId,
-      additionalNegativePrompt: combinedNegative,
+      feature: 'outfit-sketch',
+      costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
     });
 
     const storedFile = await storageProvider.storeGeneratedFile({
@@ -85,17 +88,17 @@ async function generateSingleTierSketch(
 
 export const tierSketchService = {
   async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null, fitPreference?: string | null, heightCm?: number | null, weightKg?: number | null, weightDistribution?: string | null) {
-    const { description: anchorItemDescription, antiDrift: anchorAntiDrift } =
+    const { description: anchorItemDescription } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
 
     logger.info(
-      { requestId: outfit.requestId, anchorItemDescription, anchorAntiDrift },
+      { requestId: outfit.requestId, anchorItemDescription },
       'Anchor description resolved for tier sketches'
     );
 
     await Promise.all(
       outfit.recommendations.map((recommendation) =>
-        generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg, weightDistribution)
+        generateSingleTierSketch(outfit.requestId, anchorItemDescription, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg, weightDistribution)
       )
     );
   },
@@ -107,8 +110,8 @@ export const tierSketchService = {
       return;
     }
 
-    const { description: anchorItemDescription, antiDrift: anchorAntiDrift } =
+    const { description: anchorItemDescription } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
-    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, anchorAntiDrift, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg, weightDistribution);
+    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg, weightDistribution);
   },
 };
