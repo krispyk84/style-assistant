@@ -1,3 +1,5 @@
+import sharp from 'sharp';
+
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { openAiClient } from '../../ai/openai-client.js';
@@ -8,6 +10,14 @@ import type { OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../.
 import { storageProvider } from '../../storage/index.js';
 import { outfitsRepository } from './outfits.repository.js';
 import { resolveAnchorDescriptionForSketch } from './anchor-description.service.js';
+
+// Center-crop 1024×1024 → 768×1024 portrait (removes 128px from each side)
+async function cropToPortrait(buffer: Buffer): Promise<Buffer> {
+  return sharp(buffer)
+    .extract({ left: 128, top: 0, width: 768, height: 1024 })
+    .jpeg({ quality: 92 })
+    .toBuffer();
+}
 
 function formatTierLabel(tier: OutfitTierSlug) {
   if (tier === 'smart-casual') {
@@ -52,11 +62,13 @@ async function generateSingleTierSketch(
       costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
     });
 
+    const croppedData = await cropToPortrait(generatedImage.data);
+
     const storedFile = await storageProvider.storeGeneratedFile({
       category: 'tier-sketch',
       fileExtension: '.jpg',
       mimeType: generatedImage.mimeType,
-      data: generatedImage.data,
+      data: croppedData,
     });
 
     await outfitsRepository.updateTierSketch(requestId, recommendation.tier, {
@@ -64,7 +76,7 @@ async function generateSingleTierSketch(
       sketchImageUrl: `${env.STORAGE_PUBLIC_BASE_URL}/outfits/${requestId}/sketch/${recommendation.tier}`,
       sketchStorageKey: storedFile.storageKey,
       sketchMimeType: generatedImage.mimeType,
-      sketchImageData: generatedImage.data,
+      sketchImageData: croppedData,
     });
   } catch (error) {
     logger.error(
