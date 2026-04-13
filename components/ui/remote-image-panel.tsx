@@ -11,6 +11,7 @@ type RemoteImagePanelProps = {
   fallbackTitle: string;
   fallbackMessage: string;
   style?: StyleProp<ImageStyle>;
+  resizeMode?: 'cover' | 'contain' | 'stretch' | 'center';
 };
 
 export function RemoteImagePanel({
@@ -20,6 +21,7 @@ export function RemoteImagePanel({
   fallbackTitle,
   fallbackMessage,
   style,
+  resizeMode = 'cover',
 }: RemoteImagePanelProps) {
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(uri));
@@ -69,7 +71,7 @@ export function RemoteImagePanel({
           setIsLoading(false);
         }}
         onLoad={() => setIsLoading(false)}
-        resizeMode="cover"
+        resizeMode={resizeMode}
         style={[
           {
             aspectRatio,
