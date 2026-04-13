@@ -4,19 +4,19 @@ import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outf
  * Headless constraint — hardcoded at module level so it is structurally impossible
  * to construct a sketch prompt without it. Never passed as a parameter.
  *
- * OPENING uses periods (hard CLIP semantic boundary) and object-framing language
- * ("mannequin", "dress form") to establish a prop prior before any body descriptors.
- * Comma-delimited "no head" in the positive prompt activates the concept "face/head"
- * in CLIP; period-separated object statements do not.
+ * OPENING uses periods (hard CLIP semantic boundary). Avoids "mannequin" and
+ * "dress form" which activate an oval/egg-shaped store-display head prior in
+ * diffusion models. "Clothed figure" + explicit empty-air-above-collar language
+ * establishes a wearing body without triggering the mannequin head shape.
  *
  * CLOSING reinforces after all garment tokens have fired, preventing style-block
  * dilution from overriding the opening constraint near the end of the sequence.
  */
 const HEADLESS_OPENING =
-  'Headless mannequin figure only. No head. No face. No hair. No neck above the collar line. Fashion illustration on a dress form.';
+  'Headless clothed figure only. No head. No face. No hair. No neck above the collar line. The collar ends in open air — no oval, no egg shape, no sphere, no stump above the collar. Fashion illustration of a clothed human figure with the head absent.';
 
 const HEADLESS_CLOSING =
-  'Headless mannequin only — absolutely no head, face, eyes, nose, mouth, ears, or hair anywhere in the image.';
+  'Headless figure only — absolutely no head, face, eyes, nose, mouth, ears, hair, or any head-shaped form above the collar anywhere in the image. The collar ends in empty air.';
 
 /**
  * Prompts for fal.ai flux-lora sketch generation.
@@ -33,7 +33,8 @@ const HEADLESS_CLOSING =
  *   the negative prompt by the caller (tier-sketch.service.ts) so the model cannot
  *   substitute a tier-appropriate garment for the user's actual anchor item.
  *
- * Accessories are split: worn-on-body (belt, watch, tie) vs beside-figure (bag, glasses).
+ * Accessories are split: worn-on-body (belt, watch, tie) vs beside-figure (bags) vs omitted
+ * (hats and glasses — cannot render on a headless figure).
  * Footwear in accessories (Loafers, Boots, etc.) is always classified as worn to prevent
  * phantom flat-lay shoes appearing beside the figure.
  * Piece names stripped of trailing "with X" / "— X" clauses, capped at 8 words.
@@ -84,7 +85,7 @@ function anchorIsMidLayer(anchorDescription: string): boolean {
 function categoryHint(anchor: string): string {
   const a = anchor.toLowerCase();
   if (/quarter.?zip|half.?zip/.test(a))
-    return 'knit quarter-zip pullover (soft knitwear with short front zip and ribbed collar — NOT a jacket, NOT a bomber jacket, NOT a chore coat, NOT outerwear)';
+    return 'knit quarter-zip pullover (soft knitwear with a short zip at the centre-front collar, approximately 10 cm zip length, funnel or mock neck with the zip pull visible at the top — NOT a turtleneck, NOT a full roll collar, NOT a crew neck, NOT a jacket, NOT a bomber jacket, NOT a chore coat, NOT outerwear)';
   if (/pullover|sweater|knitwear|jumper/.test(a))
     return 'knit pullover (soft knitwear — NOT a jacket, NOT outerwear)';
   if (/crewneck/.test(a))
@@ -117,20 +118,23 @@ const WORN_ACCESSORY_KEYWORDS = [
 ];
 
 /**
- * Accessories that float ABOVE the headless figure (hats, caps).
- * Checked before BESIDE so these don't fall into the beside bucket.
+ * Accessories that must be omitted from the sketch entirely.
+ * Hats cannot float convincingly above a headless figure (no reference point).
+ * Glasses/sunglasses cannot be worn on a headless figure and "styled with the look"
+ * still causes them to float mid-prompt with no anchor point.
  */
-const ABOVE_ACCESSORY_KEYWORDS = [
+const OMIT_ACCESSORY_KEYWORDS = [
   'hat', 'cap', 'beanie', 'fedora', 'beret', 'bucket hat', 'snapback', 'baseball cap',
+  'sunglasses', 'glasses',
 ];
 
 /**
- * Accessories that are placed beside the figure (bags, eyewear).
+ * Accessories that are placed beside the figure (bags).
  * These are rendered as "styled with the look" rather than "beside" to avoid
  * flat-lay ground placement in the generated sketch.
  */
 const BESIDE_ACCESSORY_KEYWORDS = [
-  'bag', 'tote', 'backpack', 'briefcase', 'sunglasses', 'glasses', 'umbrella', 'gloves',
+  'bag', 'tote', 'backpack', 'briefcase', 'umbrella', 'gloves',
 ];
 
 /**
@@ -177,7 +181,7 @@ function pieceLabel(piece: OutfitPieceDto): string {
   return shortened;
 }
 
-function classifyAccessory(piece: OutfitPieceDto): 'worn' | 'beside' | 'above' {
+function classifyAccessory(piece: OutfitPieceDto): 'worn' | 'beside' | 'omit' {
   // Footwear that ends up in the accessories array must still render ON the figure.
   const category = piece.metadata?.category ?? '';
   if ((FOOTWEAR_CATEGORIES as readonly string[]).includes(category)) return 'worn';
@@ -186,7 +190,8 @@ function classifyAccessory(piece: OutfitPieceDto): 'worn' | 'beside' | 'above' {
   const name = piece.display_name.toLowerCase();
   const haystack = `${cat} ${name}`;
 
-  if (ABOVE_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))) return 'above';
+  // Hats and glasses cannot render on a headless figure — omit entirely.
+  if (OMIT_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))) return 'omit';
   if (WORN_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))) return 'worn';
   if (BESIDE_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))) return 'beside';
   return 'beside';
@@ -266,6 +271,52 @@ export function buildSunglassesSketchPrompt(input: {
 }
 
 
+const ANCHOR_COLOR_WORDS = [
+  'navy', 'black', 'white', 'grey', 'gray', 'brown', 'camel', 'tan', 'beige', 'cream', 'ivory',
+  'charcoal', 'khaki', 'olive', 'green', 'blue', 'red', 'burgundy', 'wine', 'maroon',
+  'orange', 'yellow', 'pink', 'purple', 'violet', 'indigo', 'teal', 'coral',
+  'rust', 'terracotta', 'mustard', 'ecru', 'slate', 'stone', 'sand', 'cobalt',
+  'off-white', 'forest green', 'dark blue', 'light blue', 'pale blue', 'royal blue',
+];
+
+/**
+ * Extracts the first recognisable color word from an anchor description.
+ * Used to pin the anchor color explicitly in the anchorLock token so the model
+ * cannot drift to a tier-default hue (e.g. navy → charcoal under "Business" pressure).
+ */
+function extractAnchorColor(description: string): string | null {
+  const d = description.toLowerCase();
+  // Multi-word colors checked first (longer match wins)
+  for (const color of ANCHOR_COLOR_WORDS) {
+    if (d.includes(color)) return color;
+  }
+  return null;
+}
+
+/**
+ * Detects surface patterns in an anchor description and returns an explicit
+ * rendering instruction for the pattern. Prevents the model from smoothing
+ * over micro-check or herringbone weaves into solid fabric.
+ */
+function patternHint(description: string): string | null {
+  const d = description.toLowerCase();
+  if (/micro.?check|glen.?check/.test(d))
+    return 'micro-check pattern — fine repeating two-colour grid clearly visible across the entire fabric surface';
+  if (/houndstooth/.test(d))
+    return 'houndstooth pattern — broken-check two-colour weave clearly visible across fabric surface';
+  if (/herringbone/.test(d))
+    return 'herringbone weave — V-shaped zigzag clearly visible across fabric surface';
+  if (/plaid|tartan/.test(d))
+    return 'plaid/tartan pattern — intersecting coloured stripes clearly visible';
+  if (/stripe|striped/.test(d))
+    return 'striped pattern running along fabric surface';
+  if (/check|checked/.test(d))
+    return 'check pattern clearly visible across fabric surface';
+  if (/tweed/.test(d))
+    return 'tweed texture — visible flecked multi-tone weave across fabric surface';
+  return null;
+}
+
 const FIT_TENDENCY_FIGURE_DESCRIPTIONS: Record<string, string> = {
   tight_chest_loose_below:
     'fit tendency: broad chest and shoulders with fabric taut across the upper chest and arms, shirt or jacket appears strained slightly at the chest seams, fabric relaxes and drapes with extra volume through the midsection and below the waist',
@@ -313,11 +364,6 @@ export function buildTierSketchPrompt(input: {
     .slice(0, 2)
     .map(pieceLabel);
 
-  const aboveAccessories = input.recommendation.accessories
-    .filter((p) => classifyAccessory(p) === 'above')
-    .slice(0, 1)
-    .map(pieceLabel);
-
   const keyPiecesStr = remainingKeyPieces.map(pieceLabel).filter(Boolean).join(', ');
   const shoesStr = shoes.filter(Boolean).join(', ');
 
@@ -338,22 +384,31 @@ export function buildTierSketchPrompt(input: {
     ? `${besideAccessories.join(', ')} styled with the look`
     : null;
 
-  const abovePart = aboveAccessories.length > 0
-    ? `${aboveAccessories.join(', ')} floating above the figure`
-    : null;
-
   // Anchor locking: declared first, in the highest-weight token position.
   // categoryHint() names the garment type and explicitly prohibits common substitutions
   // (e.g. quarter-zip → bomber jacket, dress shirt → blazer under tier pressure).
+  // Color and pattern are pinned explicitly so the model cannot drift to tier-default
+  // hues or smooth over micro-check/herringbone weaves into solid fabric.
   // When the anchor is a mid-layer AND outerwear is present, reframe as "inner layer"
   // so the model layers correctly and doesn't render the mid-layer as outermost.
+  const anchorColor = extractAnchorColor(anchor);
+  const anchorPattern = patternHint(anchor);
+  const anchorColorClause = anchorColor
+    ? ` Render the anchor in ${anchorColor} — preserve this exact color, do not substitute with a tier-default hue.`
+    : '';
+  const anchorPatternClause = anchorPattern
+    ? ` Pattern: ${anchorPattern} — render this explicitly on the anchor fabric surface, do not simplify to solid.`
+    : '';
+
   const anchorLock = hasOuterwear && anchorMidLayer
     ? `ANCHOR INNER LAYER — must be rendered exactly as described, visible under outerwear: ${anchor}. ` +
       `This is a ${categoryHint(anchor)}, worn under the outermost layer. ` +
-      `Preserve exact collar type, closure mechanism, fabric, and all structural details.`
+      `Preserve exact collar type, closure mechanism, fabric, and all structural details.` +
+      anchorColorClause + anchorPatternClause
     : `ANCHOR PIECE — this garment is non-negotiable: ${anchor}. ` +
       `This is a ${categoryHint(anchor)}. ` +
-      `Do not replace, substitute, or change this garment. Preserve category, collar, closure, and construction exactly.`;
+      `Do not replace, substitute, or change this garment. Preserve category, collar, closure, and construction exactly.` +
+      anchorColorClause + anchorPatternClause;
 
   // Outerwear gets its own explicit slot immediately after the anchor lock.
   // Positioned here (high token weight) so the model registers the layering order:
@@ -391,9 +446,8 @@ export function buildTierSketchPrompt(input: {
 
   return [
     // ── Headless constraint: OPENING — slot 0, hardcoded, cannot be omitted ──────
-    // Uses periods (hard semantic boundary in CLIP) and object-framing ("mannequin",
-    // "dress form") rather than anatomy-negation language. Object priors prevent the
-    // model from activating a full-human rendering prior before any other token fires.
+    // Uses periods (hard semantic boundary in CLIP) and "clothed figure" framing —
+    // NOT "mannequin"/"dress form" which triggers oval store-display head priors.
     HEADLESS_OPENING,
     figureProportionsPart,
     'single headless figure, no head no face, no facial features, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
@@ -405,7 +459,6 @@ export function buildTierSketchPrompt(input: {
     compositionInstruction,
     wornPart,
     besidePart,
-    abovePart,
     // Body type reinforcement — repeated near end to counteract style-block dilution
     // of the figureProportionsPart. First clause only (max 8 words) to avoid
     // over-counting tokens, but enough to re-anchor body size before rendering.

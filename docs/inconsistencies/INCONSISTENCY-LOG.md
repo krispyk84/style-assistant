@@ -22,8 +22,6 @@ Each entry follows this format:
 
 ## Open Inconsistencies
 
----
-
 ### INC-006 — Not yet formally documented
 - **Date observed:** Unknown
 - **Feature area:** sketch generation
@@ -37,6 +35,48 @@ Each entry follows this format:
 ---
 
 ## Resolved Inconsistencies
+
+### INC-013 — Headless figure renders with oval/egg-shaped head (mannequin prior)
+- **Date observed:** 2026-04-12
+- **Feature area:** sketch generation
+- **Trigger conditions:** Any sketch prompt that included the words "mannequin" or "dress form" in HEADLESS_OPENING.
+- **Expected behavior:** The figure ends at the collar — no head, oval, sphere, or stump above the collar line.
+- **Actual behavior:** The model rendered an oval or egg-shaped featureless form above the collar — the store-display mannequin head shape. The word "mannequin" activates a store-display mannequin prior in diffusion models which includes a distinctive oval plastic head.
+- **Frequency:** Intermittent but systematic — triggered by the "mannequin" token in the opening slot.
+- **Example request ID or screenshot ref:** Observed across multiple sessions.
+- **Notes:** The CLIP token "mannequin" carries a visual prior of an oval-headed store mannequin, not a headless clothed figure. Period-separated sentences in HEADLESS_OPENING do not prevent the head-shape prior from activating because the prior is baked into the token embedding, not into the sentence boundary.
+- **Resolution:** Fixed 2026-04-12. Replaced "mannequin" and "dress form" in HEADLESS_OPENING and HEADLESS_CLOSING with neutral "clothed figure" language. Added explicit anti-oval language: "The collar ends in open air — no oval, no egg shape, no sphere, no stump above the collar." Updated HEADLESS_CLOSING to reinforce: "The collar ends in empty air."
+
+### INC-012 — Anchor color drifts to tier default; micro-check/pattern rendered as solid fabric
+- **Date observed:** 2026-04-12
+- **Feature area:** sketch generation
+- **Trigger conditions:** Anchor with a named color that differs from the tier's archetypal color palette. Anchor with a surface pattern (micro-check, herringbone, plaid, stripe).
+- **Expected behavior:** The anchor renders in its specified color. Surface patterns are visible on the fabric surface.
+- **Actual behavior:** The anchor color shifts toward the tier-default palette (e.g. navy → charcoal under Business pressure). Micro-check and herringbone weaves are smoothed to solid fabric.
+- **Frequency:** Occasional.
+- **Notes:** The anchor description contains the color word as part of a garment name, but the model weights tier-default colors more heavily in later token slots. Pattern detail is similarly overridden by the style block's "muted desaturated editorial palette."
+- **Resolution:** Fixed 2026-04-12. Added extractAnchorColor() (scans anchor description for ~40 color words) and patternHint() (detects micro-check, houndstooth, herringbone, plaid, stripe, check, tweed). Both are called inside anchorLock construction: color clause "Render the anchor in [color] — preserve this exact color, do not substitute with a tier-default hue" and pattern clause "Pattern: [description] — render this explicitly on the anchor fabric surface, do not simplify to solid."
+
+### INC-011 — Quarter-zip collar rendered as turtleneck
+- **Date observed:** 2026-04-12
+- **Feature area:** sketch generation
+- **Trigger conditions:** Dark Brown Quarter-Zip Sweater set as anchor. Smart Casual tier. Outfit includes a tan/camel blazer as outerwear. Sunglasses floating above the figure.
+- **Expected behavior:** The sketch should show a dark brown quarter-zip sweater — the distinctive short zip at the collar and the characteristic funnel/mock neck should be visible beneath the blazer. The collar detail is the defining visual feature of a quarter-zip.
+- **Actual behavior:** The sweater is rendered as a dark brown turtleneck — the collar is a full high roll, not a quarter-zip. The garment category is approximately correct (knit sweater, dark brown, worn under blazer) but the collar construction is completely wrong.
+- **Frequency:** Once — but part of the consistent collar/garment detail erasure pattern.
+- **Example request ID or screenshot ref:** Screenshot 7:51 PM — Smart Casual tier, Modern Smart-Casual Spring Layers. Anchor: Dark Brown Quarter-Zip Sweater, outerwear visible as camel blazer, pants: light stone tailored trousers.
+- **Notes:** The image model has a weak representation of quarter-zip collar construction and defaults to turtleneck as the closest high-collar knit it knows confidently. The fix requires describing collar construction explicitly and literally.
+- **Resolution:** Fixed 2026-04-12. Expanded categoryHint() quarter-zip branch in sketch.prompts.ts from "soft knitwear with short front zip and ribbed collar" to full collar construction: "soft knitwear with a short zip at the centre-front collar, approximately 10 cm zip length, funnel or mock neck with the zip pull visible at the top — NOT a turtleneck, NOT a full roll collar, NOT a crew neck, NOT a jacket, NOT a bomber jacket, NOT a chore coat, NOT outerwear."
+
+### INC-004 (recurrence) — Sunglasses and hats render incorrectly on headless figure
+- **Date observed:** 2026-04-12 (recurrence; original INC-004 fixed 2026-04-11)
+- **Feature area:** sketch generation
+- **Trigger conditions:** Outfit accessories include sunglasses, glasses, hats, or caps.
+- **Expected behavior:** Accessories that cannot be worn on a headless figure should be excluded from the sketch prompt entirely — no floating eyewear, no hat hovering above an absent head.
+- **Actual behavior:** Sunglasses classified as 'beside' appeared as "styled with the look" but still floated with no anchor point. Hats classified as 'above' generated a floating hat shape above the empty collar.
+- **Frequency:** Consistent whenever sunglasses or hats are in accessories.
+- **Notes:** A headless figure has no reference geometry for eyewear or headwear. Any rendering instruction for these items produces an unanchored floating object. The only correct behavior is to omit them from the sketch prompt.
+- **Resolution:** Fixed 2026-04-12. Added OMIT_ACCESSORY_KEYWORDS list (hat, cap, beanie, fedora, beret, bucket hat, snapback, baseball cap, sunglasses, glasses). classifyAccessory() now returns 'omit' for these items, checked before worn/beside. Removed ABOVE_ACCESSORY_KEYWORDS and aboveAccessories/abovePart variables entirely — everything that was in 'above' is now in 'omit'. Items classified as 'omit' are silently excluded from all prompt slots.
 
 ### INC-005 — Headless mannequin constraint broken — human face rendered
 - **Date observed:** 2026-04-11 (multiple instances)
