@@ -6,14 +6,17 @@ import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outf
 // Part 2 is the dynamic outfit description built by buildTierSketchPrompt.
 
 const STYLE_PREAMBLE =
-  'Create a consistent editorial menswear fashion illustration in the exact same visual language across generations: ' +
-  'precise confident ink outlines with fine line-weight variation, rich saturated watercolor fills with visible layering and wet-on-wet blooms, ' +
-  'vivid true-to-life garment colors rendered with full chroma — no desaturation, no muting, no earthy wash. ' +
+  'Create a consistent editorial menswear fashion illustration in the exact same visual language across generations. ' +
+  'Use a atmospheric hand-rendered watercolor sketch treatment throughout. ' +
+  'The background must be a warm off-white watercolor paper field with visible paper grain, soft beige-gray wash, uneven transparency, subtle pigment blooms, faint edge staining, cloudy tonal variation, and loose brush residue around the figure and accessories — never a flat white or clean digital background. ' +
+  'The linework should feel organic and slightly imperfect: scratchy graphite-and-ink contours, light hand jitter, and softly broken outlines rather than crisp polished edges. ' +
+  'Apply transparent layered watercolor fills with rich saturated garment colors at full chroma — no desaturation — with gentle pooling and bleeding of pigment at folds, hems, and shadow areas. ' +
   'Fabric textures, weave patterns, stitching details, hardware, and material sheen should be rendered with high fidelity. ' +
-  'The figure should be a sleek headless fashion mannequin — no head, no neck, torso begins at the shoulders — front-facing, full-length, tall and well-proportioned, centered on a clean white background. ' +
+  'The figure should be a sleek headless fashion mannequin — no head, no neck, torso begins at the shoulders — front-facing, full-length, tall and well-proportioned, with a soft atmospheric wash behind the figure that matches the watercolor paper treatment. ' +
   'Garments should drape and fold naturally with realistic tailoring weight, precise collar construction, pocket placement, and button details clearly visible. ' +
-  'Accessories, if present, should appear as neatly separated callout objects to the side, rendered with the same material detail. ' +
-  'The final image should resemble a high-end fashion editorial illustration — detailed, vibrant, and polished — closer to a luxury brand lookbook than a loose concept sketch.';
+  'Accessories, if present, should appear as neatly separated callout objects to the side, rendered with the same hand-rendered material detail. ' +
+  'The overall image must be tactile, painterly, and editorial — like a luxury stylist\'s sketchbook page. ' +
+  'Avoid vector cleanliness, sterile negative space, hard digital edges, glossy rendering, flat color blocking, or overly neat app-illustration polish.';
 
 // ── Outerwear / mid-layer detection ──────────────────────────────────────────
 
