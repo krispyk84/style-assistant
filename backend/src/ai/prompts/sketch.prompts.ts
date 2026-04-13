@@ -91,12 +91,60 @@ const ANCHOR_COLOR_WORDS = [
   'off-white', 'forest green', 'dark blue', 'light blue', 'pale blue', 'royal blue',
 ];
 
+/**
+ * Disambiguation for ambiguous neutrals that models frequently drift away from.
+ * Each entry clarifies the exact hue and explicitly excludes common wrong interpretations.
+ */
+const NEUTRAL_COLOR_CLARIFICATIONS: Record<string, string> = {
+  stone:     'stone (cool pale gray-beige — NOT tan, NOT camel, NOT brown, NOT warm, NOT mustard)',
+  sand:      'sand (warm pale off-white beige — NOT tan, NOT brown, NOT yellow)',
+  ecru:      'ecru (warm pale off-white — NOT tan, NOT cream, NOT beige)',
+  slate:     'slate (cool blue-gray — NOT gray, NOT blue, NOT charcoal)',
+  camel:     'camel (warm medium tan-brown — NOT brown, NOT tan, NOT mustard)',
+  tan:       'tan (light warm neutral — NOT camel, NOT beige, NOT brown)',
+  beige:     'beige (pale warm neutral — NOT tan, NOT cream, NOT off-white)',
+  ivory:     'ivory (very pale warm white — NOT white, NOT cream, NOT beige)',
+  cream:     'cream (pale warm off-white — NOT ivory, NOT white, NOT beige)',
+  khaki:     'khaki (yellow-green muted military tone — NOT tan, NOT beige, NOT olive)',
+  olive:     'olive (dull yellow-green — NOT khaki, NOT green, NOT brown)',
+  charcoal:  'charcoal (very dark gray — NOT black, NOT dark navy, NOT gray)',
+  rust:      'rust (warm red-orange — NOT terracotta, NOT brown, NOT orange)',
+  terracotta: 'terracotta (muted warm red-clay — NOT rust, NOT brown, NOT orange)',
+  mustard:   'mustard (deep saturated yellow — NOT camel, NOT tan, NOT yellow)',
+  burgundy:  'burgundy (deep red-wine — NOT maroon, NOT red, NOT brown)',
+  maroon:    'maroon (dark muted red — NOT burgundy, NOT red, NOT brown)',
+  teal:      'teal (blue-green — NOT green, NOT blue, NOT cyan)',
+  cobalt:    'cobalt (vivid pure blue — NOT navy, NOT royal blue, NOT blue)',
+  'navy':    'navy (very dark blue — NOT black, NOT dark blue, NOT cobalt)',
+};
+
 function extractAnchorColor(description: string): string | null {
   const d = description.toLowerCase();
   for (const color of ANCHOR_COLOR_WORDS) {
     if (d.includes(color)) return color;
   }
   return null;
+}
+
+function disambiguateAnchorColor(color: string): string {
+  return NEUTRAL_COLOR_CLARIFICATIONS[color] ?? color;
+}
+
+/**
+ * Builds a standalone anchor color lock block that appears BEFORE the outfit list.
+ * Placed as a top-level instruction (not a bullet) so the model treats it as a
+ * non-negotiable constraint rather than a stylistic suggestion.
+ */
+function buildAnchorColorBlock(anchorName: string, rawColor: string): string {
+  const clarified = disambiguateAnchorColor(rawColor);
+  return (
+    `ANCHOR COLOR LOCK (non-negotiable — apply before rendering anything else):\n` +
+    `The anchor item — ${anchorName} — MUST be rendered in exactly: ${clarified}.\n` +
+    `This color is fixed. Do not shift it warmer, cooler, darker, brighter, or more muted for any reason.\n` +
+    `Do not reinterpret it as a similar neutral. Do not let the tier style, lighting, or surrounding garments affect this color.\n` +
+    `This exact color must appear identically regardless of which tier is being illustrated.\n` +
+    `If you are uncertain: render it lighter and cooler rather than warmer or browner.`
+  );
 }
 
 function patternHint(description: string): string | null {
@@ -297,18 +345,15 @@ export function buildTierSketchPrompt(input: {
   ].filter(Boolean).join(', ');
   const anchorSuffix = anchorDetail ? ` (${anchorDetail})` : '';
 
-  // Dynamic anchor color/name fidelity injection
+  // Standalone anchor color lock — promoted before the outfit list so the model
+  // cannot drift across tiers or reinterpret ambiguous neutrals.
   const anchorName = shortenPieceName(anchor);
-  const anchorColorInjection = anchorColor
-    ? `The ${anchorName} is rendered in ${anchorColor} — match this color with precision. Do not approximate, mute, or stylize it.`
+  const anchorColorBlock = anchorColor
+    ? buildAnchorColorBlock(anchorName, anchorColor)
     : null;
 
   // Build the outfit bullet list
   const outfitLines: string[] = [];
-
-  if (anchorColorInjection) {
-    outfitLines.push(`- color fidelity: ${anchorColorInjection}`);
-  }
 
   if (hasOuterwear && anchorMidLayer) {
     outfitLines.push(`- inner layer (anchor): ${anchor}${anchorSuffix}`);
@@ -335,5 +380,14 @@ export function buildTierSketchPrompt(input: {
     outfitLines.push(`- accessories: ${accessories.join(', ')}`);
   }
 
-  return `${STYLE_PREAMBLE}\n\nOutfit:\n${outfitLines.join('\n')}\n\n${QUALITY_ADDENDUM}\n\n${QUALITY_ADDENDUM_2}`;
+  const outfitSection = `Outfit:\n${outfitLines.join('\n')}`;
+  const parts = [
+    STYLE_PREAMBLE,
+    anchorColorBlock ?? null,
+    outfitSection,
+    QUALITY_ADDENDUM,
+    QUALITY_ADDENDUM_2,
+  ].filter(Boolean);
+
+  return parts.join('\n\n');
 }
