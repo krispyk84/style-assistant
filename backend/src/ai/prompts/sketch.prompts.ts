@@ -201,6 +201,14 @@ const QUALITY_ADDENDUM =
   'Keep the hand-drawn editorial line quality and watercolor-paper background, but make the final result feel closer to a high-end fashion concept sketch or luxury menswear style board than a simplified app illustration. ' +
   'Avoid color drift, generic neutralization, flat fills, cartoon cleanliness, overly soft simplification, or loss of garment-specific detail.';
 
+const QUALITY_ADDENDUM_2 =
+  'Increase the level of garment and accessory detail while preserving the hand-rendered editorial watercolor style. ' +
+  'Show more construction and material information: seam placement, topstitching, rib knit texture, zipper teeth and puller, pocket welts, plackets, collar structure, cuff shape, waistband finish, belt hardware, shoe panels, laces, sole edges, watch case detail, and subtle fabric grain. ' +
+  'Make the colors slightly richer and more vibrant while staying refined and believable, with stronger tonal contrast and clearer color separation between garments so the outfit feels more fashion-forward, polished, and visually alive. ' +
+  'Preserve accurate color fidelity to the source garments, especially the anchor piece, matching the true hue, saturation, undertone, and value rather than drifting toward generic tan or beige. ' +
+  'Keep the watercolor-paper background and organic hand-drawn line quality, but add more nuanced shading, layered washes, and tactile surface variation so the image feels closer to a high-end fashion concept sketch than a simplified illustration. ' +
+  'Ensure the full figure is always visible from head opening to shoes, with both feet completely in frame and never cropped, cut off, hidden, or pushed beyond the bottom edge of the composition; leave a small margin below the shoes so the entire footwear silhouette is clearly shown.';
+
 // ── Outfit tier sketch prompt ─────────────────────────────────────────────────
 
 export function buildTierSketchPrompt(input: {
@@ -257,5 +265,5 @@ export function buildTierSketchPrompt(input: {
     outfitLines.push(`- accessories: ${accessories.join(', ')}`);
   }
 
-  return `${STYLE_PREAMBLE}\n\nOutfit:\n${outfitLines.join('\n')}\n\n${QUALITY_ADDENDUM}`;
+  return `${STYLE_PREAMBLE}\n\nOutfit:\n${outfitLines.join('\n')}\n\n${QUALITY_ADDENDUM}\n\n${QUALITY_ADDENDUM_2}`;
 }
