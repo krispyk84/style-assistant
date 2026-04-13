@@ -256,7 +256,7 @@ function TierSketch({ recommendation }: { recommendation: LookRecommendation }) 
     return (
       <RemoteImagePanel
         uri={recommendation.sketchImageUrl}
-        aspectRatio={2 / 3}
+        aspectRatio={1}
         minHeight={280}
         fallbackTitle="Sketch unavailable"
         fallbackMessage="The illustration could not be displayed on this device."

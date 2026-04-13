@@ -44,7 +44,7 @@ async function generateSingleTierSketch(
         fitPreference,
       }),
       model: env.OPENAI_OUTFIT_SKETCH_MODEL,
-      size: '1024x1536',
+      size: '1024x1024',
       quality: env.OPENAI_OUTFIT_SKETCH_QUALITY,
       outputFormat: 'jpeg',
       supabaseUserId,
