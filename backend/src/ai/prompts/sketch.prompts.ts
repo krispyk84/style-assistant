@@ -6,14 +6,14 @@ import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outf
 // Part 2 is the dynamic outfit description built by buildTierSketchPrompt.
 
 const STYLE_PREAMBLE =
-  'Create a consistent editorial menswear concept sketch in the exact same visual language across generations: ' +
-  'scratchy graphite-and-ink outlines, light hand jitter in the contours, transparent watercolor fills, ' +
-  'muted earthy neutrals, soft sepia paper wash, and minimal atmospheric shading. ' +
-  'The figure should be a faceless mannequin-like fashion illustration, front-facing, full-length, centered, ' +
-  'with clean surrounding space. Garments should read clearly and elegantly, with refined tailoring and ' +
-  'softly painted folds. Accessories, if present, should appear as neatly separated callout objects to the side. ' +
-  'The final image should resemble a luxury stylist\'s watercolor wardrobe sketch, not a photograph, ' +
-  'not a realistic portrait, and not a polished digital render.';
+  'Create a consistent editorial menswear fashion illustration in the exact same visual language across generations: ' +
+  'precise confident ink outlines with fine line-weight variation, rich saturated watercolor fills with visible layering and wet-on-wet blooms, ' +
+  'vivid true-to-life garment colors rendered with full chroma — no desaturation, no muting, no earthy wash. ' +
+  'Fabric textures, weave patterns, stitching details, hardware, and material sheen should be rendered with high fidelity. ' +
+  'The figure should be a sleek faceless fashion mannequin, front-facing, full-length, tall and well-proportioned, centered on a clean white background. ' +
+  'Garments should drape and fold naturally with realistic tailoring weight, precise collar construction, pocket placement, and button details clearly visible. ' +
+  'Accessories, if present, should appear as neatly separated callout objects to the side, rendered with the same material detail. ' +
+  'The final image should resemble a high-end fashion editorial illustration — detailed, vibrant, and polished — closer to a luxury brand lookbook than a loose concept sketch.';
 
 // ── Outerwear / mid-layer detection ──────────────────────────────────────────
 
