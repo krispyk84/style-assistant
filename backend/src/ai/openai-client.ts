@@ -34,7 +34,7 @@ type CreateStructuredResponseInput<TSchema extends z.ZodTypeAny> = {
 
 type GenerateImageInput = {
   prompt: string;
-  size?: '1024x1024' | '1024x1536' | '1536x1024' | 'auto';
+  size?: '1024x1024' | '768x1024' | '1024x1536' | '1536x1024' | 'auto';
   quality?: 'low' | 'medium' | 'high' | 'auto';
   outputFormat?: 'png' | 'jpeg' | 'webp';
   supabaseUserId?: string;

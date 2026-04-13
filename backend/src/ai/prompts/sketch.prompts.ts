@@ -6,18 +6,18 @@ import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outf
 // Part 2 is the dynamic outfit description built by buildTierSketchPrompt.
 
 const STYLE_PREAMBLE =
-  'Create a consistent editorial menswear fashion illustration in the exact same visual language across generations. ' +
-  'Use a atmospheric hand-rendered watercolor sketch treatment throughout. ' +
-  'The background must be a warm off-white watercolor paper field with visible paper grain, soft beige-gray wash, uneven transparency, subtle pigment blooms, faint edge staining, cloudy tonal variation, and loose brush residue around the figure and accessories — never a flat white or clean digital background. ' +
-  'The linework should feel organic and slightly imperfect: scratchy graphite-and-ink contours, light hand jitter, and softly broken outlines rather than crisp polished edges. ' +
-  'Apply transparent layered watercolor fills with rich saturated garment colors at full chroma — no desaturation — with gentle pooling and bleeding of pigment at folds, hems, and shadow areas. ' +
-  'Fabric textures, weave patterns, stitching details, hardware, and material sheen should be rendered with high fidelity. ' +
-  'The figure should be a sleek fashion mannequin shown from the shoulders downward only, cropped at the top of the shoulders with no head shown, front-facing, full-length, tall and well-proportioned, with a soft atmospheric wash behind the figure that matches the watercolor paper treatment. ' +
-  'CRITICAL COMPOSITION RULE: scale and position the figure so that the entire body fits within the canvas — both feet and the full shoe silhouette must be completely visible with clear empty space below them. Never crop, clip, or cut off the feet or ankles. The shoes must be fully rendered and sitting well above the bottom edge of the image. ' +
-  'Garments should drape and fold naturally with realistic tailoring weight, precise collar construction, pocket placement, and button details clearly visible. ' +
-  'Accessories, if present, should appear as neatly separated callout objects to the side, rendered with the same hand-rendered material detail. ' +
-  'The overall image must be tactile, painterly, and editorial — like a luxury stylist\'s sketchbook page. ' +
-  'Avoid vector cleanliness, sterile negative space, hard digital edges, glossy rendering, flat color blocking, or overly neat app-illustration polish.';
+  'Editorial menswear illustration in the style of a high-end GQ or Esquire fashion lookbook. ' +
+  'Richly saturated, true-to-life colors with strong contrast and depth. ' +
+  'Confident, deliberate ink linework. ' +
+  'Visible fabric texture on every garment — show weave on knits, sheen on nylon, grain on leather. ' +
+  'Realistic stitching, seams, and hardware detail. ' +
+  'Each material reads as distinct from the others. ' +
+  'The overall image feels crafted and intentional, not digitally generic. ' +
+  'Background: warm off-white paper field with visible paper grain and subtle tonal variation — never a flat white or clean digital background. ' +
+  'Full-length headless mannequin, visible from collar to feet. Shoes and trouser hem fully rendered. Figure height occupies exactly 80% of the canvas, centered vertically. Equal negative space above the collar and below the shoes. Absolutely no cropping of any garment or accessory. ' +
+  'No head. No face. No neck above the collar. The collar or neckline is the topmost point of the figure. Clean, flat termination at the collar line. ' +
+  'Garments drape and fold naturally with realistic tailoring weight, precise collar construction, pocket placement, and button details clearly visible. ' +
+  'Accessories are rendered as a clean flat-lay beside the figure — each item isolated, clearly identifiable, and true to its described color and material.';
 
 // ── Outerwear / mid-layer detection ──────────────────────────────────────────
 
@@ -249,23 +249,21 @@ export function buildSunglassesSketchPrompt(input: {
 // Appended after the outfit bullet list to push rendering quality and fidelity.
 
 const QUALITY_ADDENDUM =
-  'Push the rendering away from simple illustration and toward a more elevated, fashion-editorial watercolor sketch. ' +
-  'Make the outfit feel more stylish, directional, and modern, with sharper taste, stronger styling, and more confident silhouette choices while staying true to the provided garments. ' +
-  'Increase color fidelity: the anchor piece and every described clothing item must match the real garment color as accurately as possible, prioritizing the exact hue, depth, temperature, and saturation of the source item rather than drifting toward generic beige, tan, or muted neutrals. ' +
+  'Push the rendering toward a high-end fashion concept sketch — the kind printed in a luxury menswear style board or editorial lookbook. ' +
+  'Make the outfit feel more stylish, directional, and modern, with sharper taste, stronger styling, and more confident silhouette choices while staying completely true to the provided garments. ' +
+  'Increase color fidelity: the anchor piece and every described clothing item must match the real garment color as accurately as possible, prioritizing the exact hue, depth, temperature, and saturation of the source item rather than drifting toward generic beige, tan, or neutralized approximations. ' +
   'Do not reinterpret the anchor item\'s color; preserve it faithfully. ' +
-  'Increase richness and vibrancy slightly while keeping the palette refined and believable, so the image feels alive rather than washed out. ' +
-  'Add more garment detail and material realism: show seam lines, ribbing, stitch lines, plackets, pocket construction, zipper hardware, fabric grain, creases, drape, cuff structure, collar shape, sole detail, and small accessory details with subtle precision. ' +
-  'Use layered transparent watercolor, nuanced shadowing, tonal variation, and tactile surface detail so the garments feel luxurious and dimensional, not flat or overly illustrated. ' +
-  'Keep the hand-drawn editorial line quality and watercolor-paper background, but make the final result feel closer to a high-end fashion concept sketch or luxury menswear style board than a simplified app illustration. ' +
-  'Avoid color drift, generic neutralization, flat fills, cartoon cleanliness, overly soft simplification, or loss of garment-specific detail.';
+  'Increase richness and vibrancy while keeping the palette refined and believable, so the image feels alive and confident. ' +
+  'Add more garment detail and material realism: show seam lines, ribbing, stitch lines, plackets, pocket construction, zipper hardware, fabric grain, creases, drape, cuff structure, collar shape, sole detail, and small accessory details with precision. ' +
+  'Use layered ink and tonal depth, nuanced shadowing, and tactile surface detail so the garments feel luxurious and dimensional. ' +
+  'Avoid color drift, generic neutralization, flat fills, or loss of garment-specific detail.';
 
 const QUALITY_ADDENDUM_2 =
-  'Increase the level of garment and accessory detail while preserving the hand-rendered editorial watercolor style. ' +
+  'Increase the level of garment and accessory detail. ' +
   'Show more construction and material information: seam placement, topstitching, rib knit texture, zipper teeth and puller, pocket welts, plackets, collar structure, cuff shape, waistband finish, belt hardware, shoe panels, laces, sole edges, watch case detail, and subtle fabric grain. ' +
-  'Make the colors slightly richer and more vibrant while staying refined and believable, with stronger tonal contrast and clearer color separation between garments so the outfit feels more fashion-forward, polished, and visually alive. ' +
+  'Make the colors richer and more vibrant while staying refined and believable, with stronger tonal contrast and clearer color separation between garments so the outfit feels fashion-forward, polished, and visually alive. ' +
   'Preserve accurate color fidelity to the source garments, especially the anchor piece, matching the true hue, saturation, undertone, and value rather than drifting toward generic tan or beige. ' +
-  'Keep the watercolor-paper background and organic hand-drawn line quality, but add more nuanced shading, layered washes, and tactile surface variation so the image feels closer to a high-end fashion concept sketch than a simplified illustration. ' +
-  'The full figure must always be visible from the shoulder opening down to the shoes — both feet completely in frame, never cropped, never cut off, never at the very edge. Scale the figure smaller if needed to ensure the complete shoe silhouette is shown with visible empty space below it. This is a strict layout requirement: do not let the feet touch or exceed the bottom boundary of the image.';
+  'The full figure must always be visible from the collar down to the shoes — both feet completely in frame, never cropped, never cut off. Scale the figure smaller if needed to ensure the complete shoe silhouette is shown with visible empty space below it. This is a strict layout requirement: do not let the feet touch or exceed the bottom boundary of the image.';
 
 // ── Outfit tier sketch prompt ─────────────────────────────────────────────────
 
@@ -295,8 +293,18 @@ export function buildTierSketchPrompt(input: {
   ].filter(Boolean).join(', ');
   const anchorSuffix = anchorDetail ? ` (${anchorDetail})` : '';
 
+  // Dynamic anchor color/name fidelity injection
+  const anchorName = shortenPieceName(anchor);
+  const anchorColorInjection = anchorColor
+    ? `The ${anchorName} is rendered in ${anchorColor} — match this color with precision. Do not approximate, mute, or stylize it.`
+    : null;
+
   // Build the outfit bullet list
   const outfitLines: string[] = [];
+
+  if (anchorColorInjection) {
+    outfitLines.push(`- color fidelity: ${anchorColorInjection}`);
+  }
 
   if (hasOuterwear && anchorMidLayer) {
     outfitLines.push(`- inner layer (anchor): ${anchor}${anchorSuffix}`);
