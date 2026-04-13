@@ -252,9 +252,9 @@ export function SaveToClosetForm({
               {hasBothImages && cellWidth > 0 ? (
                 <>
                   <View style={{ width: cellWidth, flex: 1, overflow: 'hidden' }} {...carouselPan.panHandlers}>
-                    <Animated.View style={{ flexDirection: 'row', width: cellWidth * 2, transform: [{ translateX: carouselSlide }] }}>
-                      <Image contentFit="cover" source={{ uri: sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-                      <Image contentFit="cover" source={{ uri: displayImageUri }} style={{ width: cellWidth, flex: 1 }} />
+                    <Animated.View style={{ flexDirection: 'row', width: cellWidth * 2, height: '100%', transform: [{ translateX: carouselSlide }] }}>
+                      <Image contentFit="cover" source={{ uri: sketchImageUrl! }} style={{ width: cellWidth, height: '100%' }} />
+                      <Image contentFit="cover" source={{ uri: displayImageUri }} style={{ width: cellWidth, height: '100%' }} />
                     </Animated.View>
                   </View>
                   <View style={{ bottom: 8, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center' }}>
