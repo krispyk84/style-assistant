@@ -187,6 +187,20 @@ export function buildSunglassesSketchPrompt(input: {
   ].filter(Boolean).join(', ');
 }
 
+// ── Outfit quality addendum ───────────────────────────────────────────────────
+// Appended after the outfit bullet list to push rendering quality and fidelity.
+
+const QUALITY_ADDENDUM =
+  'Push the rendering away from simple illustration and toward a more elevated, fashion-editorial watercolor sketch. ' +
+  'Make the outfit feel more stylish, directional, and modern, with sharper taste, stronger styling, and more confident silhouette choices while staying true to the provided garments. ' +
+  'Increase color fidelity: the anchor piece and every described clothing item must match the real garment color as accurately as possible, prioritizing the exact hue, depth, temperature, and saturation of the source item rather than drifting toward generic beige, tan, or muted neutrals. ' +
+  'Do not reinterpret the anchor item\'s color; preserve it faithfully. ' +
+  'Increase richness and vibrancy slightly while keeping the palette refined and believable, so the image feels alive rather than washed out. ' +
+  'Add more garment detail and material realism: show seam lines, ribbing, stitch lines, plackets, pocket construction, zipper hardware, fabric grain, creases, drape, cuff structure, collar shape, sole detail, and small accessory details with subtle precision. ' +
+  'Use layered transparent watercolor, nuanced shadowing, tonal variation, and tactile surface detail so the garments feel luxurious and dimensional, not flat or overly illustrated. ' +
+  'Keep the hand-drawn editorial line quality and watercolor-paper background, but make the final result feel closer to a high-end fashion concept sketch or luxury menswear style board than a simplified app illustration. ' +
+  'Avoid color drift, generic neutralization, flat fills, cartoon cleanliness, overly soft simplification, or loss of garment-specific detail.';
+
 // ── Outfit tier sketch prompt ─────────────────────────────────────────────────
 
 export function buildTierSketchPrompt(input: {
@@ -243,5 +257,5 @@ export function buildTierSketchPrompt(input: {
     outfitLines.push(`- accessories: ${accessories.join(', ')}`);
   }
 
-  return `${STYLE_PREAMBLE}\n\nOutfit:\n${outfitLines.join('\n')}`;
+  return `${STYLE_PREAMBLE}\n\nOutfit:\n${outfitLines.join('\n')}\n\n${QUALITY_ADDENDUM}`;
 }
