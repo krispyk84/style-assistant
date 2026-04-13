@@ -40,6 +40,7 @@ export const uploadsRepository = {
     sizeBytes?: number;
     width?: number;
     height?: number;
+    imageData?: Buffer;
   }) {
     const db = prisma as any;
     const image = await db.uploadedImage.create({
@@ -53,6 +54,7 @@ export const uploadsRepository = {
         sizeBytes: input.sizeBytes ?? null,
         width: input.width ?? null,
         height: input.height ?? null,
+        imageData: input.imageData ?? null,
       },
     });
 

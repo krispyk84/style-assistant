@@ -12,6 +12,9 @@ export const uploadsService = {
     width?: number;
     height?: number;
   }) {
+    // Read image data BEFORE storeFile() — storeFile uses fs.rename which moves the temp file.
+    const imageData = await fs.readFile(input.file.path);
+
     const storedFile = await storageProvider.storeFile({
       category: input.category,
       tempFilePath: input.file.path,
@@ -29,6 +32,7 @@ export const uploadsService = {
       sizeBytes: input.file.size,
       width: input.width,
       height: input.height,
+      imageData,
     });
   },
 

@@ -38,6 +38,29 @@ export function createApp() {
   );
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
+  // Uploaded user photos (anchor items, candidate pieces, selfies) are stored in the DB
+  // so they survive Render restarts. Serve from imageData when the filesystem file is gone.
+  for (const category of ['anchor-item', 'candidate-piece', 'selfie'] as const) {
+    app.get(`/media/${category}/:filename`, async (req, res, next) => {
+      const filename = req.params.filename as string;
+      const filePath = path.join(storageConfig.localDirectory, category, filename);
+      try {
+        await fs.access(filePath);
+        next(); // file exists on disk, let express.static handle it below
+        return;
+      } catch {
+        const db = prisma as any;
+        const image = await db.uploadedImage.findFirst({ where: { storageKey: `${category}/${filename}` } });
+        if (!image?.imageData) { res.status(404).end(); return; }
+        res.setHeader('Content-Type', image.mimeType ?? 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.send(image.imageData);
+      }
+    });
+  }
+
   // Closet sketch images are stored in the DB (not on the ephemeral filesystem)
   // so they survive server restarts. Serve them directly from sketchImageData.
   // Falls back to the filesystem for legacy sketches that were stored there.

@@ -129,7 +129,7 @@ export const openAiClient = {
         ? dispatch(
             `${env.OPENAI_BASE_URL}/v1/responses`,
             buildImageWithRefRequestBody({
-              model,
+              model: env.OPENAI_IMAGE_MODEL, // Responses API requires full gpt-image-1; mini is not in catalog
               prompt: input.prompt,
               styleRefImageUrl: input.styleRefImageUrl!,
               size,

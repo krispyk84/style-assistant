@@ -4,19 +4,21 @@ import type { OutfitPieceDto, TierRecommendationDto } from '../../contracts/outf
  * Headless constraint — hardcoded at module level so it is structurally impossible
  * to construct a sketch prompt without it. Never passed as a parameter.
  *
- * OPENING uses periods (hard CLIP semantic boundary). Avoids "mannequin" and
- * "dress form" which activate an oval/egg-shaped store-display head prior in
- * diffusion models. "Clothed figure" + explicit empty-air-above-collar language
- * establishes a wearing body without triggering the mannequin head shape.
+ * OPENING uses periods (hard CLIP semantic boundary). Uses "tailor's dress form"
+ * language with explicit "wooden neck finial" to activate the tailor's-dummy visual
+ * prior (wooden post + ball at neck) rather than the store-display mannequin head
+ * prior (oval plastic head) or a human-body prior.
+ * "Wooden ball finial" is round but visually distinct from any head shape — it fires
+ * a wood/hardware token rather than a face token.
  *
  * CLOSING reinforces after all garment tokens have fired, preventing style-block
  * dilution from overriding the opening constraint near the end of the sequence.
  */
 const HEADLESS_OPENING =
-  'Headless clothed figure only. No head. No face. No hair. No neck above the collar line. The collar ends in open air — no oval, no egg shape, no sphere, no stump above the collar. Fashion illustration of a clothed human figure with the head absent.';
+  'Fashion illustration on a tailor\'s dress form. No human head. No face. No hair. The neck terminates in a round wooden ball finial — solid turned wood, not a head, not a face, not an egg shape. Full-length illustration: dress form torso, trouser legs, and shoes visible from the wooden finial down to the feet on the ground.';
 
 const HEADLESS_CLOSING =
-  'Headless figure only — absolutely no head, face, eyes, nose, mouth, ears, hair, or any head-shaped form above the collar anywhere in the image. The collar ends in empty air.';
+  'Tailor\'s dress form above the collar only — round wooden neck finial, no human head, no face, no eyes, no nose, no mouth, no ears, no hair anywhere in the image. The collar terminates at the wooden post, not at any human anatomy.';
 
 /**
  * Prompts for fal.ai flux-lora sketch generation.
@@ -332,6 +334,8 @@ export function buildTierSketchPrompt(input: {
   bodyTypeDescription?: string;
   fitTendency?: string | null;
   fitPreference?: string | null;
+  /** When true, a style-reference image is provided to the Responses API — inject matching instruction. */
+  hasStyleRef?: boolean;
 }) {
   const tier = input.tierLabel.toLowerCase();
 
@@ -444,11 +448,14 @@ export function buildTierSketchPrompt(input: {
   const compositionInstruction =
     'ALL listed garments must be shown ON the single figure as a complete worn outfit — no floating items, no flat lay, no second figure, no garments beside or behind the figure';
 
+  const styleRefInstruction = input.hasStyleRef
+    ? "Render in the style of the provided reference image — adopt its illustration technique, tailor's dress form figure, line weight, watercolor wash, and overall aesthetic exactly"
+    : null;
+
   return [
     // ── Headless constraint: OPENING — slot 0, hardcoded, cannot be omitted ──────
-    // Uses periods (hard semantic boundary in CLIP) and "clothed figure" framing —
-    // NOT "mannequin"/"dress form" which triggers oval store-display head priors.
     HEADLESS_OPENING,
+    styleRefInstruction,
     figureProportionsPart,
     'single headless figure, no head no face, no facial features, full-length fashion illustration, complete figure visible from shoulders to feet, full pants length visible, shoes fully visible at bottom of frame, feet touching ground, no cropping at ankles or feet',
     anchorLock,
