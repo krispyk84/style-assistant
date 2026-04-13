@@ -142,17 +142,14 @@ export function SaveToClosetModalContainer({
 
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={handleClose}>
-      <Pressable
-        onPress={handleClose}
-        style={{
-          alignItems: 'center',
-          backgroundColor: theme.colors.overlay,
-          flex: 1,
-          justifyContent: 'center',
-          padding: spacing.lg,
-        }}>
-        <Pressable
-          onPress={() => undefined}
+      {/* Backdrop — absolute so it never competes with ScrollView or PanResponder inside the card */}
+      <Pressable onPress={handleClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        <View pointerEvents="none" style={{ flex: 1, backgroundColor: theme.colors.overlay }} />
+      </Pressable>
+
+      {/* Centering shell — pointerEvents="box-none" so taps pass through to the backdrop above */}
+      <View pointerEvents="box-none" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg }}>
+        <View
           style={{
             backgroundColor: theme.colors.surface,
             borderRadius: 28,
@@ -215,8 +212,8 @@ export function SaveToClosetModalContainer({
             onSave={() => void submitHook.handleSave(formHook.fields, effectiveUploadedImage)}
             onClose={handleClose}
           />
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
