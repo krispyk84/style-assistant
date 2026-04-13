@@ -149,6 +149,9 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
   const carouselIndex = useRef(0);
   const carouselPan = useRef(
     PanResponder.create({
+      // Capture phase: claim horizontal gestures before the outer ScrollView can
+      onMoveShouldSetPanResponderCapture: (_, { dx, dy }) =>
+        Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8,
       onMoveShouldSetPanResponder: (_, { dx, dy }) =>
         Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8,
       onPanResponderMove: (_, { dx }) => {
@@ -194,7 +197,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
             backgroundColor: theme.colors.surface,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
-            maxHeight: '92%',
+            maxHeight: '96%',
             overflow: 'hidden',
             transform: [{ translateY: sheetTranslateY }],
           }}>
@@ -202,7 +205,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
             bounces={false}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingBottom: spacing.xl * 2 }}>
+            contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingBottom: spacing.xl }}>
 
             {/* Header */}
             <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -236,7 +239,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
             <View
               onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
               style={{
-                height: 280,
+                height: 240,
                 backgroundColor: theme.colors.card,
                 borderRadius: 20,
                 overflow: 'hidden',
