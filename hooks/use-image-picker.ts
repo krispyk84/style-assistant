@@ -5,16 +5,29 @@ import { useState } from 'react';
 import { normalizePickedImage } from '@/lib/media-utils';
 import type { LocalImageAsset } from '@/types/media';
 
-async function ensureJpeg(asset: LocalImageAsset): Promise<LocalImageAsset> {
-  const mimeType = (asset.mimeType ?? '').toLowerCase();
-  if (mimeType === 'image/jpeg' || mimeType === 'image/jpg' || mimeType === 'image/png' || mimeType === 'image/webp') {
-    return asset;
-  }
-  const result = await ImageManipulator.manipulateAsync(
-    asset.uri,
-    [],
-    { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG },
-  );
+// ── Upload compression ────────────────────────────────────────────────────────
+// Resize to ≤1600px on the longest edge and compress to JPEG at 82% quality.
+// Targets ~400KB–900KB for typical clothing photos — reliable on weak cellular.
+// Normalises all formats (HEIC, PNG, WEBP) to JPEG in the same pass.
+
+const UPLOAD_MAX_DIMENSION = 1600;
+const UPLOAD_JPEG_QUALITY = 0.82;
+
+async function compressForUpload(asset: LocalImageAsset): Promise<LocalImageAsset> {
+  const w = asset.width ?? 0;
+  const h = asset.height ?? 0;
+  const longest = Math.max(w, h);
+
+  const resizeAction =
+    longest > UPLOAD_MAX_DIMENSION
+      ? [w >= h ? { resize: { width: UPLOAD_MAX_DIMENSION } } : { resize: { height: UPLOAD_MAX_DIMENSION } }]
+      : [];
+
+  const result = await ImageManipulator.manipulateAsync(asset.uri, resizeAction, {
+    compress: UPLOAD_JPEG_QUALITY,
+    format: ImageManipulator.SaveFormat.JPEG,
+  });
+
   return {
     uri: result.uri,
     width: result.width,
@@ -60,12 +73,12 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.9,
+      quality: 1,
       selectionLimit: 1,
     });
 
     if (!result.canceled && result.assets[0]) {
-      const normalized = await ensureJpeg(normalizePickedImage(result.assets[0]));
+      const normalized = await compressForUpload(normalizePickedImage(result.assets[0]));
       setImage(normalized);
       setPickingSource(null);
       return normalized;
@@ -95,14 +108,14 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
       allowsMultipleSelection: true,
       allowsEditing: false,   // mutually exclusive with allowsMultipleSelection on iOS
       mediaTypes: ['images'],
-      quality: 0.9,
+      quality: 1,
       selectionLimit: 10,
     });
 
     setPickingSource(null);
 
     if (!result.canceled && result.assets.length > 0) {
-      return await Promise.all(result.assets.map(a => ensureJpeg(normalizePickedImage(a))));
+      return await Promise.all(result.assets.map(a => compressForUpload(normalizePickedImage(a))));
     }
     return [];
   }
@@ -123,14 +136,14 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
       const result = await cameraImagePicker.launchCameraAsync({
         cameraType: cameraImagePicker.CameraType.back,
         mediaTypes: ['images'],
-        quality: 0.9,
+        quality: 1,
       });
 
       if (!result.canceled && result.assets[0]) {
-        const normalized = normalizePickedImage(result.assets[0]);
-        setImage(normalized);
+        const compressed = await compressForUpload(normalizePickedImage(result.assets[0]));
+        setImage(compressed);
         setPickingSource(null);
-        return normalized;
+        return compressed;
       }
     } catch (cameraError) {
       setError(cameraError instanceof Error ? cameraError.message : 'Unable to open the camera.');
