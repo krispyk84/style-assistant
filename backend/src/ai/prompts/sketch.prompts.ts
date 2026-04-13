@@ -19,7 +19,7 @@ const STYLE_PREAMBLE =
   'Realistic stitching, seams, and hardware detail. ' +
   'Each material reads as distinct from the others. ' +
   'The overall image feels crafted and intentional, not digitally generic. ' +
-  'Background: warm off-white paper field with visible paper grain and subtle tonal variation — never a flat white or clean digital background. ' +
+  'Background: atmospheric toned-paper ground — pale ivory or near-white at the very centre, softly deepening outward into warm beige, then dusty taupe, then a richer warm gray-brown at the corners, creating a pronounced soft radial vignette. Loose transparent watercolour washes drift and bloom across the surface with visible paper grain, subtle pooling, uneven pigment saturation, soft brush residue at the edges, and faint cloud-like tonal variation throughout. The overall effect resembles naturally aged, warmly lit watercolour paper with ambient shadow gathering at the periphery — never a flat, uniform, or digitally clean fill. ' +
   'Garments drape and fold naturally with realistic tailoring weight, precise collar construction, pocket placement, and button details clearly visible. ' +
   'Accessories are rendered as a clean flat-lay beside the figure — each item fully within the canvas, clearly isolated, identifiable, and true to its described color and material.';
 
