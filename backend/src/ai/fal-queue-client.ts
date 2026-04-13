@@ -2,12 +2,13 @@ import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { HttpError } from '../lib/http-error.js';
 
-const QUEUE_BASE = 'https://queue.fal.run/fal-ai/flux-lora';
+const FAL_QUEUE_ROOT = 'https://queue.fal.run';
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLLS = 40; // 40 × 3 s = 120 s max
 
-export async function submitToQueue(body: object): Promise<string> {
-  const res = await fetch(QUEUE_BASE, {
+export async function submitToQueue(body: object, modelId: string): Promise<string> {
+  const queueBase = `${FAL_QUEUE_ROOT}/${modelId}`;
+  const res = await fetch(queueBase, {
     method: 'POST',
     headers: {
       Authorization: `Key ${env.FAL_KEY}`,
@@ -32,9 +33,10 @@ export async function submitToQueue(body: object): Promise<string> {
   return requestId;
 }
 
-export async function pollUntilDone(requestId: string): Promise<unknown> {
-  const statusUrl = `${QUEUE_BASE}/requests/${requestId}/status`;
-  const resultUrl = `${QUEUE_BASE}/requests/${requestId}`;
+export async function pollUntilDone(requestId: string, modelId: string): Promise<unknown> {
+  const queueBase = `${FAL_QUEUE_ROOT}/${modelId}`;
+  const statusUrl = `${queueBase}/requests/${requestId}/status`;
+  const resultUrl = `${queueBase}/requests/${requestId}`;
 
   for (let i = 0; i < MAX_POLLS; i++) {
     if (i > 0) await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));

@@ -17,6 +17,7 @@ const envSchema = z.object({
   FAL_KEY: z.string().min(1),
   CLOSET_LORA_URL: z.string().url(),
   OUTFIT_LORA_URL: z.string().url(),
+  FAL_OUTFIT_SKETCH_MODEL: z.string().min(1).default('fal-ai/flux-2-pro'),
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com'),
   OPENAI_TIMEOUT_MS: z.coerce.number().int().positive().default(120000),
   STYLE_GUIDE_ENABLED: z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1').default('false'),
