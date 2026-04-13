@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, PanResponder, Platform,
+  Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, TextInput, View,
 } from 'react-native';
 
@@ -140,40 +140,15 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
     paddingVertical: spacing.sm,
   } as const;
 
-  const hasBoth = Boolean(item?.sketchImageUrl) && Boolean(item?.uploadedImageUrl);
-  const primaryUri = item?.sketchImageUrl ?? item?.uploadedImageUrl ?? null;
+  // Images available for the carousel — sketch first, then original photo.
+  const images: string[] = [
+    item?.sketchImageUrl ?? null,
+    item?.uploadedImageUrl ?? null,
+  ].filter((u): u is string => Boolean(u));
+  const [activeIndex, setActiveIndex] = useState(0);
 
-  // Two-image carousel using PanResponder — avoids nested horizontal ScrollView
-  // conflict with the outer vertical ScrollView in the sheet.
-  const carouselSlide = useRef(new Animated.Value(0)).current;
-  const carouselIndex = useRef(0);
-  const carouselPan = useRef(
-    PanResponder.create({
-      // Capture phase: claim horizontal gestures before the outer ScrollView can
-      onMoveShouldSetPanResponderCapture: (_, { dx, dy }) =>
-        Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8,
-      onMoveShouldSetPanResponder: (_, { dx, dy }) =>
-        Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8,
-      onPanResponderMove: (_, { dx }) => {
-        const base = carouselIndex.current === 0 ? 0 : -cellWidth;
-        carouselSlide.setValue(base + dx);
-      },
-      onPanResponderRelease: (_, { dx, vx }) => {
-        const threshold = cellWidth * 0.3;
-        const goNext = carouselIndex.current === 0 && (dx < -threshold || vx < -0.5);
-        const goPrev = carouselIndex.current === 1 && (dx > threshold || vx > 0.5);
-        if (goNext) {
-          carouselIndex.current = 1;
-          Animated.spring(carouselSlide, { toValue: -cellWidth, useNativeDriver: true, overshootClamping: true }).start();
-        } else if (goPrev) {
-          carouselIndex.current = 0;
-          Animated.spring(carouselSlide, { toValue: 0, useNativeDriver: true, overshootClamping: true }).start();
-        } else {
-          Animated.spring(carouselSlide, { toValue: carouselIndex.current === 0 ? 0 : -cellWidth, useNativeDriver: true, overshootClamping: true }).start();
-        }
-      },
-    })
-  ).current;
+  // Reset carousel position when item changes
+  useEffect(() => { setActiveIndex(0); }, [item?.id]);
 
   return (
     <Modal animationType="none" transparent visible onRequestClose={dismissAndClose}>
@@ -246,21 +221,42 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-              {hasBoth && cellWidth > 0 ? (
+              {images.length > 0 && cellWidth > 0 ? (
                 <>
-                  <View style={{ width: cellWidth, flex: 1, overflow: 'hidden' }} {...carouselPan.panHandlers}>
-                    <Animated.View style={{ flexDirection: 'row', width: cellWidth * 2, height: '100%', transform: [{ translateX: carouselSlide }] }}>
-                      <Image contentFit="contain" source={{ uri: item!.sketchImageUrl! }} style={{ width: cellWidth, height: '100%' }} />
-                      <Image contentFit="contain" source={{ uri: item!.uploadedImageUrl! }} style={{ width: cellWidth, height: '100%' }} />
-                    </Animated.View>
-                  </View>
-                  <View style={{ bottom: 10, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center' }}>
-                    <View style={{ backgroundColor: theme.colors.accent, borderRadius: 999, height: 6, width: 6, opacity: 0.9 }} />
-                    <View style={{ backgroundColor: theme.colors.accent, borderRadius: 999, height: 6, width: 6, opacity: 0.45 }} />
-                  </View>
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    scrollEventThrottle={16}
+                    onScroll={(e) => {
+                      const index = Math.round(e.nativeEvent.contentOffset.x / cellWidth);
+                      setActiveIndex(index);
+                    }}
+                    style={{ width: cellWidth, flex: 1 }}>
+                    {images.map((uri, i) => (
+                      <Image key={i} contentFit="contain" source={{ uri }} style={{ width: cellWidth, height: '100%' }} />
+                    ))}
+                  </ScrollView>
+                  {images.length > 1 ? (
+                    <View style={{ bottom: 10, flexDirection: 'row', gap: 5, position: 'absolute', alignSelf: 'center' }}>
+                      {images.map((_, i) => (
+                        <View
+                          key={i}
+                          style={{
+                            backgroundColor: theme.colors.accent,
+                            borderRadius: 999,
+                            height: 6,
+                            width: 6,
+                            opacity: i === activeIndex ? 0.9 : 0.35,
+                          }}
+                        />
+                      ))}
+                    </View>
+                  ) : null}
                 </>
-              ) : primaryUri ? (
-                <Image contentFit="contain" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
+              ) : images.length > 0 ? (
+                // cellWidth not yet measured — show first image statically to avoid flicker
+                <Image contentFit="contain" source={{ uri: images[0]! }} style={{ height: '100%', width: '100%' }} />
               ) : item?.sketchStatus === 'pending' ? (
                 <View style={{ alignItems: 'center', gap: spacing.sm }}>
                   <Ionicons color={theme.colors.subtleText} name="time-outline" size={32} />
