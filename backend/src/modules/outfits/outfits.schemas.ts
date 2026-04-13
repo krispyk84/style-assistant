@@ -112,20 +112,26 @@ const outfitRecommendationJsonSchema = {
     keyPieces: {
       type: 'array',
       items: outfitPieceJsonSchema,
+      minItems: 2,
+      maxItems: 5,
     },
     shoes: {
       type: 'array',
       items: outfitPieceJsonSchema,
+      minItems: 1,
+      maxItems: 3,
     },
     accessories: {
       type: 'array',
       items: outfitPieceJsonSchema,
+      minItems: 1,
+      maxItems: 4,
     },
     fitNotes: {
       type: 'array',
-      items: {
-        type: 'string',
-      },
+      items: { type: 'string' },
+      minItems: 2,
+      maxItems: 5,
     },
     whyItWorks: {
       type: 'string',
@@ -135,9 +141,9 @@ const outfitRecommendationJsonSchema = {
     },
     detailNotes: {
       type: 'array',
-      items: {
-        type: 'string',
-      },
+      items: { type: 'string' },
+      minItems: 2,
+      maxItems: 5,
     },
   },
   required: ['tier', 'title', 'anchorItem', 'anchorPiece', 'keyPieces', 'shoes', 'accessories', 'fitNotes', 'whyItWorks', 'stylingDirection', 'detailNotes'],
@@ -150,6 +156,8 @@ export const tieredOutfitGenerationJsonSchema = {
     recommendations: {
       type: 'array',
       items: outfitRecommendationJsonSchema,
+      minItems: 1,
+      maxItems: 3,
     },
   },
   required: ['recommendations'],

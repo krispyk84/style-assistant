@@ -152,8 +152,7 @@ async function describeAnchorForSketch(imageUrl: string, supabaseUserId?: string
                   },
                 },
                 colorPattern: {
-                  type: 'string',
-                  nullable: true,
+                  anyOf: [{ type: 'string' }, { type: 'null' }],
                   description:
                     'For multi-color items: concise description of the color layout. ' +
                     'Examples: "white body with narrow navy vertical stripes", "color-blocked — olive upper body, cream lower", ' +
