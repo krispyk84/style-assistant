@@ -17,10 +17,6 @@ function formatTierLabel(tier: OutfitTierSlug) {
   return tier.charAt(0).toUpperCase() + tier.slice(1);
 }
 
-function styleRefUrlForTier(tier: OutfitTierSlug) {
-  return `${env.STORAGE_PUBLIC_BASE_URL}/style-refs/${tier}.jpg`;
-}
-
 async function generateSingleTierSketch(
   requestId: string,
   anchorItemDescription: string,
@@ -37,8 +33,6 @@ async function generateSingleTierSketch(
   try {
     const severity = buildBodyTypeSeverity(heightCm, weightKg, bodyType, gender, weightDistribution);
 
-    const styleRefImageUrl = styleRefUrlForTier(recommendation.tier);
-
     const generatedImage = await openAiClient.generateImage({
       prompt: buildTierSketchPrompt({
         tierLabel: formatTierLabel(recommendation.tier),
@@ -48,7 +42,6 @@ async function generateSingleTierSketch(
         bodyTypeDescription: severity.description,
         fitTendency,
         fitPreference,
-        hasStyleRef: true,
       }),
       model: env.OPENAI_OUTFIT_SKETCH_MODEL,
       size: '1024x1536',
@@ -57,7 +50,6 @@ async function generateSingleTierSketch(
       supabaseUserId,
       feature: 'outfit-sketch',
       costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
-      styleRefImageUrl,
     });
 
     const storedFile = await storageProvider.storeGeneratedFile({

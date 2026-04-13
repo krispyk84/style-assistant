@@ -73,14 +73,23 @@ export function createApp() {
       return;
     } catch {
       // Not on filesystem — serve from DB
-      const storageKey = `closet-sketch/${filename}`;
-      const job = await prisma.closetSketchJob.findFirst({ where: { sketchStorageKey: storageKey } });
-      if (!job?.sketchImageData) { res.status(404).end(); return; }
-      res.setHeader('Content-Type', job.sketchMimeType ?? 'image/jpeg');
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-      res.send(job.sketchImageData);
+      try {
+        const storageKey = `closet-sketch/${filename}`;
+        const job = await prisma.closetSketchJob.findFirst({ where: { sketchStorageKey: storageKey } });
+        if (!job?.sketchImageData) {
+          console.error(`[closet-sketch] DB miss for storageKey=${storageKey} job=${JSON.stringify({ id: job?.id, status: job?.status, hasData: !!job?.sketchImageData })}`);
+          res.status(404).end();
+          return;
+        }
+        res.setHeader('Content-Type', job.sketchMimeType ?? 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.send(job.sketchImageData);
+      } catch (err) {
+        console.error(`[closet-sketch] DB query failed for filename=${filename}`, err);
+        res.status(500).end();
+      }
     }
   });
 
