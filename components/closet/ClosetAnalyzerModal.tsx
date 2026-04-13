@@ -83,7 +83,7 @@ export function ClosetAnalyzerModal({ hook }: ClosetAnalyzerModalProps) {
             overflow: 'hidden',
             transform: [{ translateY: sheetTranslateY }],
           }}>
-          <Pressable onPress={() => undefined}>
+          <Pressable onPress={() => undefined} style={{ flex: 1 }}>
             {/* Drag handle */}
             <View style={{ alignItems: 'center', paddingTop: spacing.md, paddingBottom: spacing.xs }}>
               <View style={{ backgroundColor: theme.colors.border, borderRadius: 999, height: 4, width: 36 }} />
