@@ -13,6 +13,7 @@ const STYLE_PREAMBLE =
   'Apply transparent layered watercolor fills with rich saturated garment colors at full chroma — no desaturation — with gentle pooling and bleeding of pigment at folds, hems, and shadow areas. ' +
   'Fabric textures, weave patterns, stitching details, hardware, and material sheen should be rendered with high fidelity. ' +
   'The figure should be a sleek fashion mannequin shown from the shoulders downward only, cropped at the top of the shoulders with no head shown, front-facing, full-length, tall and well-proportioned, with a soft atmospheric wash behind the figure that matches the watercolor paper treatment. ' +
+  'CRITICAL COMPOSITION RULE: scale and position the figure so that the entire body fits within the canvas — both feet and the full shoe silhouette must be completely visible with clear empty space below them. Never crop, clip, or cut off the feet or ankles. The shoes must be fully rendered and sitting well above the bottom edge of the image. ' +
   'Garments should drape and fold naturally with realistic tailoring weight, precise collar construction, pocket placement, and button details clearly visible. ' +
   'Accessories, if present, should appear as neatly separated callout objects to the side, rendered with the same hand-rendered material detail. ' +
   'The overall image must be tactile, painterly, and editorial — like a luxury stylist\'s sketchbook page. ' +
@@ -207,7 +208,7 @@ const QUALITY_ADDENDUM_2 =
   'Make the colors slightly richer and more vibrant while staying refined and believable, with stronger tonal contrast and clearer color separation between garments so the outfit feels more fashion-forward, polished, and visually alive. ' +
   'Preserve accurate color fidelity to the source garments, especially the anchor piece, matching the true hue, saturation, undertone, and value rather than drifting toward generic tan or beige. ' +
   'Keep the watercolor-paper background and organic hand-drawn line quality, but add more nuanced shading, layered washes, and tactile surface variation so the image feels closer to a high-end fashion concept sketch than a simplified illustration. ' +
-  'Ensure the full figure is always visible from head opening to shoes, with both feet completely in frame and never cropped, cut off, hidden, or pushed beyond the bottom edge of the composition; leave a small margin below the shoes so the entire footwear silhouette is clearly shown.';
+  'The full figure must always be visible from the shoulder opening down to the shoes — both feet completely in frame, never cropped, never cut off, never at the very edge. Scale the figure smaller if needed to ensure the complete shoe silhouette is shown with visible empty space below it. This is a strict layout requirement: do not let the feet touch or exceed the bottom boundary of the image.';
 
 // ── Outfit tier sketch prompt ─────────────────────────────────────────────────
 
