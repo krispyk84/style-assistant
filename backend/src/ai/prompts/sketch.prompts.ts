@@ -14,10 +14,11 @@ const STYLE_PREAMBLE =
   'Each material reads as distinct from the others. ' +
   'The overall image feels crafted and intentional, not digitally generic. ' +
   'Background: warm off-white paper field with visible paper grain and subtle tonal variation — never a flat white or clean digital background. ' +
-  'Full-length headless mannequin, visible from collar to feet. Shoes and trouser hem fully rendered. Figure height occupies exactly 80% of the canvas, centered vertically. Equal negative space above the collar and below the shoes. Absolutely no cropping of any garment or accessory. ' +
-  'No head. No face. No neck above the collar. The collar or neckline is the topmost point of the figure. Clean, flat termination at the collar line. ' +
+  'The illustration shows only the dressed torso, legs, and feet — collar-downward. The collar or neckline is the topmost visible element of the figure; nothing is rendered above it. ' +
+  'COMPOSITION (strict): zoom out so the figure occupies no more than 70% of the canvas height. Leave at least 15% empty canvas above the collar and at least 15% empty canvas below the shoes. Every garment edge, trouser hem, and shoe sole must have clear breathing room before the canvas boundary. Absolutely no cropping of any part of the outfit. ' +
+  'Both shoes must be completely visible with the full sole rendered and empty paper space below them before the bottom edge. ' +
   'Garments drape and fold naturally with realistic tailoring weight, precise collar construction, pocket placement, and button details clearly visible. ' +
-  'Accessories are rendered as a clean flat-lay beside the figure — each item isolated, clearly identifiable, and true to its described color and material.';
+  'Accessories are rendered as a clean flat-lay beside the figure — each item fully within the canvas, clearly isolated, identifiable, and true to its described color and material.';
 
 // ── Outerwear / mid-layer detection ──────────────────────────────────────────
 
@@ -263,7 +264,7 @@ const QUALITY_ADDENDUM_2 =
   'Show more construction and material information: seam placement, topstitching, rib knit texture, zipper teeth and puller, pocket welts, plackets, collar structure, cuff shape, waistband finish, belt hardware, shoe panels, laces, sole edges, watch case detail, and subtle fabric grain. ' +
   'Make the colors richer and more vibrant while staying refined and believable, with stronger tonal contrast and clearer color separation between garments so the outfit feels fashion-forward, polished, and visually alive. ' +
   'Preserve accurate color fidelity to the source garments, especially the anchor piece, matching the true hue, saturation, undertone, and value rather than drifting toward generic tan or beige. ' +
-  'The full figure must always be visible from the collar down to the shoes — both feet completely in frame, never cropped, never cut off. Scale the figure smaller if needed to ensure the complete shoe silhouette is shown with visible empty space below it. This is a strict layout requirement: do not let the feet touch or exceed the bottom boundary of the image.';
+  'FINAL COMPOSITION CHECK — this overrides all other size and framing decisions: the finished image must show the complete outfit with generous empty paper space on all four sides. If the figure or any accessory risks touching a canvas edge, scale the entire composition down until there is clear margin. Both shoes must be fully rendered with the sole visible and empty paper below them. Every listed accessory must be fully within the frame. No cropping of any element is acceptable under any circumstance.';
 
 // ── Outfit tier sketch prompt ─────────────────────────────────────────────────
 
