@@ -12,7 +12,7 @@ const STYLE_PREAMBLE =
   'The linework should feel organic and slightly imperfect: scratchy graphite-and-ink contours, light hand jitter, and softly broken outlines rather than crisp polished edges. ' +
   'Apply transparent layered watercolor fills with rich saturated garment colors at full chroma — no desaturation — with gentle pooling and bleeding of pigment at folds, hems, and shadow areas. ' +
   'Fabric textures, weave patterns, stitching details, hardware, and material sheen should be rendered with high fidelity. ' +
-  'The figure should be a sleek headless fashion mannequin — no head, no neck, torso begins at the shoulders — front-facing, full-length, tall and well-proportioned, with a soft atmospheric wash behind the figure that matches the watercolor paper treatment. ' +
+  'The figure should be a sleek fashion mannequin shown from the shoulders downward only, cropped at the top of the shoulders with no head shown, front-facing, full-length, tall and well-proportioned, with a soft atmospheric wash behind the figure that matches the watercolor paper treatment. ' +
   'Garments should drape and fold naturally with realistic tailoring weight, precise collar construction, pocket placement, and button details clearly visible. ' +
   'Accessories, if present, should appear as neatly separated callout objects to the side, rendered with the same hand-rendered material detail. ' +
   'The overall image must be tactile, painterly, and editorial — like a luxury stylist\'s sketchbook page. ' +
