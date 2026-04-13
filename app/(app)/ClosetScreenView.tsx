@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Animated, FlatList, Modal, Platform, Pressable, ScrollView,
+  Animated, FlatList, LayoutAnimation, Modal, Platform, Pressable, ScrollView,
   SectionList, View, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -79,6 +79,18 @@ export function ClosetScreenView({
 }: ClosetScreenViewProps) {
   const { theme } = useTheme();
   const activeLabel = selectedCategory ?? 'All Items';
+
+  // ── Options accordion ────────────────────────────────────────────────────────
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const chevronAnim = useRef(new Animated.Value(0)).current;
+  const chevronRotate = chevronAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '90deg'] });
+
+  function toggleOptions() {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const next = !optionsOpen;
+    setOptionsOpen(next);
+    Animated.timing(chevronAnim, { toValue: next ? 1 : 0, duration: 200, useNativeDriver: true }).start();
+  }
 
   // renderItem is stable unless cellWidth or onPressItem changes
   const renderRow = useCallback(
@@ -169,60 +181,78 @@ export function ClosetScreenView({
         </Pressable>
       ) : null}
 
-      {/* Help Me Pick */}
-      {!isLoading && eligibleItemCount >= 10 ? (
-        <Pressable
-          onPress={onHelpMePickPress}
-          style={{
-            alignItems: 'center',
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
-            borderRadius: 16,
-            borderWidth: 1,
-            flexDirection: 'row',
-            gap: spacing.sm,
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.md,
-          }}>
-          <Ionicons color={theme.colors.accent} name="sparkles" size={18} />
-          <View style={{ flex: 1, gap: 2 }}>
-            <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Help me pick an anchor</AppText>
-            <AppText tone="muted" style={{ fontSize: 12 }}>Let a stylist choose your starting piece</AppText>
-          </View>
-          <Ionicons color={theme.colors.subtleText} name="chevron-forward" size={16} />
-        </Pressable>
-      ) : !isLoading && eligibleItemCount > 0 && eligibleItemCount < 10 ? (
-        <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>
-          Add {10 - eligibleItemCount} more top{10 - eligibleItemCount === 1 ? '' : 's'}, bottom{10 - eligibleItemCount === 1 ? '' : 's'}, or outerwear to unlock Help Me Pick
-        </AppText>
-      ) : null}
+      {/* Options accordion */}
+      {!isLoading && itemCount > 0 ? (
+        <>
+          <Pressable
+            hitSlop={8}
+            onPress={toggleOptions}
+            style={{
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              paddingVertical: spacing.xs,
+            }}>
+            <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+              Options
+            </AppText>
+            <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
+              <Ionicons color={theme.colors.mutedText} name="chevron-forward" size={14} />
+            </Animated.View>
+          </Pressable>
 
-      {/* Closet Analyser */}
-      {!isLoading && eligibleItemCount >= 10 ? (
-        <Pressable
-          onPress={onAnalysePress}
-          style={{
-            alignItems: 'center',
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
-            borderRadius: 16,
-            borderWidth: 1,
-            flexDirection: 'row',
-            gap: spacing.sm,
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.md,
-          }}>
-          <Ionicons color={theme.colors.accent} name="analytics-outline" size={18} />
-          <View style={{ flex: 1, gap: 2 }}>
-            <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Analyse My Closet</AppText>
-            <AppText tone="muted" style={{ fontSize: 12 }}>See how complete and versatile your wardrobe is</AppText>
-          </View>
-          <Ionicons color={theme.colors.subtleText} name="chevron-forward" size={16} />
-        </Pressable>
-      ) : !isLoading && eligibleItemCount > 0 && eligibleItemCount < 10 ? (
-        <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>
-          Add more clothing items to unlock your closet analysis
-        </AppText>
+          {optionsOpen ? (
+            eligibleItemCount >= 10 ? (
+              <View style={{ gap: spacing.md }}>
+                <Pressable
+                  onPress={onHelpMePickPress}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    flexDirection: 'row',
+                    gap: spacing.sm,
+                    paddingHorizontal: spacing.lg,
+                    paddingVertical: spacing.md,
+                  }}>
+                  <Ionicons color={theme.colors.accent} name="sparkles" size={18} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Help me pick an anchor</AppText>
+                    <AppText tone="muted" style={{ fontSize: 12 }}>Let a stylist choose your starting piece</AppText>
+                  </View>
+                  <Ionicons color={theme.colors.subtleText} name="chevron-forward" size={16} />
+                </Pressable>
+
+                <Pressable
+                  onPress={onAnalysePress}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    flexDirection: 'row',
+                    gap: spacing.sm,
+                    paddingHorizontal: spacing.lg,
+                    paddingVertical: spacing.md,
+                  }}>
+                  <Ionicons color={theme.colors.accent} name="analytics-outline" size={18} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Analyse My Closet</AppText>
+                    <AppText tone="muted" style={{ fontSize: 12 }}>See how complete and versatile your wardrobe is</AppText>
+                  </View>
+                  <Ionicons color={theme.colors.subtleText} name="chevron-forward" size={16} />
+                </Pressable>
+              </View>
+            ) : eligibleItemCount > 0 ? (
+              <AppText tone="muted" style={{ fontSize: 12 }}>
+                Add {10 - eligibleItemCount} more top{10 - eligibleItemCount === 1 ? '' : 's'}, bottom{10 - eligibleItemCount === 1 ? '' : 's'}, or outerwear to unlock these options.
+              </AppText>
+            ) : null
+          ) : null}
+        </>
       ) : null}
 
       {/* Empty state */}
