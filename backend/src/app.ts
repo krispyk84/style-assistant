@@ -8,6 +8,7 @@ import { env } from './config/env.js';
 import { prisma } from './db/prisma.js';
 import { storageConfig } from './config/storage.js';
 import { OUTFIT_STYLE_REFS } from './ai/style-refs-data.js';
+import { TIER_STYLE_REFS } from './ai/style-refs-tier-data.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { requestLogger } from './middleware/request-logger.js';
@@ -84,6 +85,20 @@ export function createApp() {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.send(Buffer.from(ref.base64, 'base64'));
+  });
+
+  // Tier-specific style references for OpenAI outfit sketch conditioning.
+  // Images are bundled as base64 in style-refs-tier-data.ts — no filesystem dependency.
+  ['business', 'smart-casual', 'casual'].forEach((tier) => {
+    app.get(`/style-refs/${tier}.jpg`, (req, res) => {
+      const ref = TIER_STYLE_REFS[tier];
+      if (!ref) { res.status(404).end(); return; }
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.send(Buffer.from(ref.base64, 'base64'));
+    });
   });
 
   const apiRouter = express.Router();

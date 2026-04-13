@@ -91,3 +91,30 @@ export function parseImageResponse(raw: RawHttpResponse): { imageBase64: string 
 
   return { imageBase64 };
 }
+
+// ── Image-with-reference response parser ─────────────────────────────────────
+// Parses the Responses API format used when a style-reference image is passed.
+// The generated image is in output[0].result (base64).
+
+export function parseImageWithRefResponse(raw: RawHttpResponse): { imageBase64: string } {
+  const payload = raw.payload as any;
+
+  if (!raw.ok) {
+    logger.error(
+      {
+        statusCode: raw.status,
+        error: payload?.error?.message ?? payload?.error ?? 'Unknown OpenAI image generation error',
+      },
+      'OpenAI image generation (with style ref) failed',
+    );
+    throw new HttpError(502, 'OPENAI_IMAGE_FAILED', 'The AI provider could not generate the sketch.');
+  }
+
+  const imageBase64 = payload?.output?.[0]?.result;
+  if (typeof imageBase64 !== 'string' || !imageBase64) {
+    logger.error({ payload }, 'OpenAI Responses API image generation did not include image data');
+    throw new HttpError(502, 'OPENAI_IMAGE_INVALID', 'The AI provider returned an invalid sketch response.');
+  }
+
+  return { imageBase64 };
+}

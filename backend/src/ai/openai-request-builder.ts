@@ -68,3 +68,33 @@ export function buildImageRequestBody(params: {
     output_format: params.outputFormat,
   };
 }
+
+export function buildImageWithRefRequestBody(params: {
+  model: string;
+  prompt: string;
+  styleRefImageUrl: string;
+  size: string;
+  quality: string;
+  outputFormat: string;
+}): object {
+  return {
+    model: params.model,
+    input: [
+      {
+        role: 'user',
+        content: [
+          { type: 'input_image', image_url: params.styleRefImageUrl },
+          { type: 'input_text', text: params.prompt },
+        ],
+      },
+    ],
+    tools: [
+      {
+        type: 'image_generation',
+        size: params.size,
+        quality: params.quality,
+        output_format: params.outputFormat,
+      },
+    ],
+  };
+}

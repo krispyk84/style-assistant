@@ -4,9 +4,9 @@ import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { HttpError } from '../lib/http-error.js';
 import type { AiFeature } from './costs.js';
-import { buildStructuredRequestBody, buildImageRequestBody } from './openai-request-builder.js';
+import { buildStructuredRequestBody, buildImageRequestBody, buildImageWithRefRequestBody } from './openai-request-builder.js';
 import type { InputContent, JsonSchemaConfig } from './openai-request-builder.js';
-import { parseStructuredResponse, parseImageResponse } from './openai-response-parser.js';
+import { parseStructuredResponse, parseImageResponse, parseImageWithRefResponse } from './openai-response-parser.js';
 import type { RawHttpResponse } from './openai-response-parser.js';
 import { withRetry, MAX_RETRIES } from './openai-retry-handler.js';
 import { trackTextUsage, trackImageUsage } from './openai-usage-tracker.js';
@@ -43,6 +43,8 @@ type GenerateImageInput = {
   model?: string;
   /** Override calcImageCost when the model has different pricing than IMAGE_COST_TABLE (e.g. gpt-image-1-mini). */
   costUsd?: number;
+  /** When provided, uses the Responses API with multimodal input for style-reference conditioning. Must be an https:// URL. */
+  styleRefImageUrl?: string;
 };
 
 // ── Transport ─────────────────────────────────────────────────────────────────
@@ -108,6 +110,11 @@ export const openAiClient = {
 
   async generateImage(input: GenerateImageInput) {
     const model = input.model ?? env.OPENAI_IMAGE_MODEL;
+    const size = input.size ?? '1024x1536';
+    const quality = input.quality ?? 'medium';
+    const outputFormat = input.outputFormat ?? 'jpeg';
+    const useStyleRef = typeof input.styleRefImageUrl === 'string' && input.styleRefImageUrl.startsWith('https://');
+
     const result = await withRetry(
       {
         maxRetries: 0, // single attempt — no retry for image generation
@@ -118,18 +125,30 @@ export const openAiClient = {
         unavailableCode: 'OPENAI_IMAGE_UNAVAILABLE',
         unavailableMessage: 'The AI provider is currently unavailable for sketches.',
       },
-      (signal) =>
-        dispatch(
-          `${env.OPENAI_BASE_URL}/v1/images/generations`,
-          buildImageRequestBody({
-            model,
-            prompt: input.prompt,
-            size: input.size ?? '1024x1536',
-            quality: input.quality ?? 'medium',
-            outputFormat: input.outputFormat ?? 'jpeg',
-          }),
-          signal,
-        ).then((raw) => parseImageResponse(raw)),
+      (signal) => useStyleRef
+        ? dispatch(
+            `${env.OPENAI_BASE_URL}/v1/responses`,
+            buildImageWithRefRequestBody({
+              model,
+              prompt: input.prompt,
+              styleRefImageUrl: input.styleRefImageUrl!,
+              size,
+              quality,
+              outputFormat,
+            }),
+            signal,
+          ).then((raw) => parseImageWithRefResponse(raw))
+        : dispatch(
+            `${env.OPENAI_BASE_URL}/v1/images/generations`,
+            buildImageRequestBody({
+              model,
+              prompt: input.prompt,
+              size,
+              quality,
+              outputFormat,
+            }),
+            signal,
+          ).then((raw) => parseImageResponse(raw)),
     );
 
     if (input.supabaseUserId && input.feature) {
@@ -145,14 +164,14 @@ export const openAiClient = {
           supabaseUserId: input.supabaseUserId,
           feature: input.feature,
           model,
-          size: input.size ?? '1024x1536',
-          quality: input.quality ?? 'medium',
+          size,
+          quality,
         });
       }
     }
 
     return {
-      mimeType: `image/${input.outputFormat ?? 'jpeg'}`,
+      mimeType: `image/${outputFormat}`,
       data: Buffer.from(result.imageBase64, 'base64'),
     };
   },
