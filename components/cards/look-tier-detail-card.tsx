@@ -40,7 +40,7 @@ function TierSketch({ recommendation }: { recommendation: LookRecommendation }) 
     return (
       <RemoteImagePanel
         uri={recommendation.sketchImageUrl}
-        aspectRatio={3 / 4}
+        aspectRatio={1}
         minHeight={280}
         resizeMode="contain"
         fallbackTitle="Sketch unavailable"

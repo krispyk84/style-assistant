@@ -120,7 +120,7 @@ export function WeekScreen() {
                   {assignment.recommendation.sketchImageUrl ? (
                     <RemoteImagePanel
                       uri={assignment.recommendation.sketchImageUrl}
-                      aspectRatio={3 / 4}
+                      aspectRatio={1}
                       resizeMode="contain"
                       minHeight={220}
                       fallbackTitle="Sketch unavailable"
