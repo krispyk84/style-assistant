@@ -3,7 +3,7 @@ import { logger } from '../../config/logger.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { buildTierSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
-import { buildBodyTypeSeverity } from '../../ai/body-type-severity.js';
+import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
 import type { OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 import { storageProvider } from '../../storage/index.js';
 import { outfitsRepository } from './outfits.repository.js';
@@ -21,28 +21,17 @@ async function generateSingleTierSketch(
   requestId: string,
   anchorItemDescription: string,
   anchorColorMetadata: AnchorColorMetadata | null,
+  subjectBrief: string,
   recommendation: TierRecommendationDto,
   supabaseUserId?: string,
-  gender?: string | null,
-  bodyType?: string | null,
-  fitTendency?: string | null,
-  fitPreference?: string | null,
-  heightCm?: number | null,
-  weightKg?: number | null,
-  weightDistribution?: string | null,
 ) {
   try {
-    const severity = buildBodyTypeSeverity(heightCm, weightKg, bodyType, gender, weightDistribution);
-
     const prompt = buildTierSketchPrompt({
       tierLabel: formatTierLabel(recommendation.tier),
       anchorItemDescription,
       anchorColorMetadata,
+      subjectBrief,
       recommendation,
-      gender,
-      bodyTypeDescription: severity.description,
-      fitTendency,
-      fitPreference,
     });
 
     logger.info(
@@ -101,31 +90,61 @@ async function generateSingleTierSketch(
 }
 
 export const tierSketchService = {
-  async queueSketchesForOutfit(outfit: OutfitResponse, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null, fitPreference?: string | null, heightCm?: number | null, weightKg?: number | null, weightDistribution?: string | null) {
+  async queueSketchesForOutfit(
+    outfit: OutfitResponse,
+    supabaseUserId?: string,
+    gender?: string | null,
+    bodyType?: string | null,
+    fitTendency?: string | null,
+    fitPreference?: string | null,
+    heightCm?: number | null,
+    weightKg?: number | null,
+    weightDistribution?: string | null,
+    skinTone?: string | null,
+  ) {
     const { description: anchorItemDescription, colorMetadata } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
 
+    // Build once — identical across all tiers so the figure never changes between Business/Smart Casual/Casual.
+    const { block: subjectBrief } = buildSubjectRenderingBrief({
+      heightCm, weightKg, bodyType, gender, weightDistribution, fitTendency, skinTone,
+    });
+
     logger.info(
-      { requestId: outfit.requestId, anchorItemDescription, colorMetadata },
-      '[anchor-color] Anchor resolved for tier sketches'
+      { requestId: outfit.requestId, anchorItemDescription, colorMetadata, subjectBrief },
+      '[sketch] Anchor + subject brief resolved for tier sketches'
     );
 
     await Promise.all(
       outfit.recommendations.map((recommendation) =>
-        generateSingleTierSketch(outfit.requestId, anchorItemDescription, colorMetadata, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg, weightDistribution)
+        generateSingleTierSketch(outfit.requestId, anchorItemDescription, colorMetadata, subjectBrief, recommendation, supabaseUserId)
       )
     );
   },
 
-  async queueSketchForTier(outfit: OutfitResponse, tier: OutfitTierSlug, supabaseUserId?: string, gender?: string | null, bodyType?: string | null, fitTendency?: string | null, fitPreference?: string | null, heightCm?: number | null, weightKg?: number | null, weightDistribution?: string | null) {
+  async queueSketchForTier(
+    outfit: OutfitResponse,
+    tier: OutfitTierSlug,
+    supabaseUserId?: string,
+    gender?: string | null,
+    bodyType?: string | null,
+    fitTendency?: string | null,
+    fitPreference?: string | null,
+    heightCm?: number | null,
+    weightKg?: number | null,
+    weightDistribution?: string | null,
+    skinTone?: string | null,
+  ) {
     const recommendation = outfit.recommendations.find((item) => item.tier === tier);
-
-    if (!recommendation) {
-      return;
-    }
+    if (!recommendation) return;
 
     const { description: anchorItemDescription, colorMetadata } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
-    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, colorMetadata, recommendation, supabaseUserId, gender, bodyType, fitTendency, fitPreference, heightCm, weightKg, weightDistribution);
+
+    const { block: subjectBrief } = buildSubjectRenderingBrief({
+      heightCm, weightKg, bodyType, gender, weightDistribution, fitTendency, skinTone,
+    });
+
+    await generateSingleTierSketch(outfit.requestId, anchorItemDescription, colorMetadata, subjectBrief, recommendation, supabaseUserId);
   },
 };

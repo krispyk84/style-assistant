@@ -25,6 +25,183 @@ type SeverityResult = {
   negativePrompt: string;
 };
 
+// ── Height rendering cues ─────────────────────────────────────────────────────
+
+function heightRenderingCue(heightCm: number): string {
+  if (heightCm < 158)
+    return 'very short and petite stature, compact proportions throughout, legs noticeably shorter than average';
+  if (heightCm < 168)
+    return 'slightly shorter than average height, somewhat compact proportions';
+  if (heightCm < 180)
+    return ''; // average — no special cue, avoid over-specifying
+  if (heightCm < 190)
+    return 'taller than average stature, slightly elongated proportions, longer legs';
+  if (heightCm < 198)
+    return 'tall stature, clearly elongated proportions, noticeably longer legs and torso';
+  return 'very tall stature — significantly taller than average, notably elongated proportions, much longer legs and torso, the figure occupies more vertical height in the frame than a typical fashion figure';
+}
+
+// ── Skin tone rendering ───────────────────────────────────────────────────────
+
+type SkinToneSpec = { description: string; negative: string };
+
+const SKIN_TONE_RENDERING: Record<string, SkinToneSpec> = {
+  fair:   {
+    description: 'very pale fair skin, almost porcelain, cool or neutral undertone, very light complexion with no tan',
+    negative:    'tan skin, olive skin, medium skin, dark skin, warm golden complexion, brown skin, yellow undertone',
+  },
+  light:  {
+    description: 'pale light skin, cool-to-neutral undertone, visibly lighter than medium complexion, no tan',
+    negative:    'tan skin, olive skin, medium skin, dark skin, golden complexion, brown skin, warm undertone, dark hands',
+  },
+  medium: {
+    description: 'medium warm complexion, lightly tanned or golden-beige skin tone',
+    negative:    'very pale skin, porcelain skin, fair skin, dark brown skin, olive skin, deep complexion',
+  },
+  olive:  {
+    description: 'warm olive complexion, yellow-green undertone, Mediterranean or South Asian skin tone',
+    negative:    'pale pink skin, fair skin, dark brown skin, porcelain skin, rosy undertone',
+  },
+  deep:   {
+    description: 'deep warm brown complexion, rich brown skin tone',
+    negative:    'pale skin, fair skin, light skin, olive skin, pink undertone, medium complexion',
+  },
+  black:  {
+    description: 'deep dark complexion, very dark brown to black skin tone',
+    negative:    'pale skin, light skin, medium skin, olive skin, brown complexion, fair complexion',
+  },
+};
+
+// ── Fit tendency visual cues ──────────────────────────────────────────────────
+
+const FIT_TENDENCY_CUES: Record<string, string> = {
+  fits_well:               '',
+  tight_chest_loose_below: 'clothing fits tightly across the chest and shoulders — show visible fabric tension and pulling across the chest and upper body, looser and more relaxed drape through the torso and lower body',
+  loose_chest_tight_below: 'clothing sits more loosely through the chest and upper body; fits more closely and shows visible tension through the waist, hips, and lower body',
+};
+
+// ── Negative instruction builder ─────────────────────────────────────────────
+
+function buildNegativeInstruction(
+  skinTone: string | null | undefined,
+  bodyType: string | null | undefined,
+  physique: string,
+): string {
+  const lines: string[] = [];
+
+  // Physique negative
+  const isFullFigure =
+    physique.includes('overweight') ||
+    physique.includes('belly') ||
+    physique.includes('obese') ||
+    physique.includes('heavy') ||
+    physique.includes('large');
+  const isMuscular = physique.includes('muscular') || physique.includes('athletic');
+  const isSlim = bodyType === 'slim' || physique.includes('slim lean');
+
+  if (isFullFigure) {
+    lines.push('Do not render a slim, lean, flat-stomached, or average fashion figure for this profile.');
+    lines.push('Do not depict a narrow waist, flat belly, or thin build — the physique must show visible mass, fullness, and body weight.');
+  } else if (isMuscular) {
+    lines.push('Do not render a slim or average build — the physique must show visibly muscular and large proportions.');
+  } else if (isSlim) {
+    lines.push('Do not render a heavy, muscular, or bulky build — the physique should appear lean and light.');
+  }
+
+  // Skin tone negative
+  if (skinTone === 'fair' || skinTone === 'light') {
+    const toneName = skinTone === 'fair' ? 'very pale/fair (near-porcelain)' : 'pale/light';
+    lines.push(`Do not render olive, medium, tan, dark, or brown skin — skin tone must be ${toneName}.`);
+  } else if (skinTone === 'deep' || skinTone === 'black') {
+    lines.push('Do not render light, pale, or fair skin — skin tone must be deep/dark brown.');
+  } else if (skinTone === 'olive') {
+    lines.push('Do not render pale/fair or dark skin — skin tone must be warm olive.');
+  } else if (skinTone === 'medium') {
+    lines.push('Do not render very pale or very dark skin — skin tone must be medium/tanned.');
+  }
+
+  lines.push('The physique must be clearly visible through garment drape and silhouette — do not default to a generic slim fashion mannequin figure.');
+
+  return lines.join('\n');
+}
+
+// ── Subject rendering brief ───────────────────────────────────────────────────
+
+export type SubjectRenderingBrief = {
+  /** Full SUBJECT RENDERING BRIEF block — injected into the sketch prompt as a locked section. */
+  block: string;
+  /** Negative terms formatted for inline "do not" embedding — already included in block. */
+  negativePrompt: string;
+};
+
+/**
+ * Builds a SUBJECT RENDERING BRIEF from all available profile signals.
+ * This is the single source of truth for how the illustrated figure should look.
+ * It is computed once per outfit and reused identically across all tiers.
+ *
+ * Combines: physique (BMI + body type), height, skin tone, fit tendency.
+ * The output is a locked prompt block — not a soft suggestion.
+ */
+export function buildSubjectRenderingBrief(input: {
+  heightCm?: number | null;
+  weightKg?: number | null;
+  bodyType?: string | null;
+  gender?: string | null;
+  weightDistribution?: string | null;
+  fitTendency?: string | null;
+  skinTone?: string | null;
+}): SubjectRenderingBrief {
+  const severity = buildBodyTypeSeverity(
+    input.heightCm,
+    input.weightKg,
+    input.bodyType,
+    input.gender,
+    input.weightDistribution,
+  );
+
+  const attributeLines: string[] = [];
+
+  // Physique
+  attributeLines.push(`PHYSIQUE: ${severity.description}`);
+
+  // Height
+  if (input.heightCm && input.heightCm > 0) {
+    const cue = heightRenderingCue(input.heightCm);
+    if (cue) {
+      attributeLines.push(`HEIGHT: ${cue}`);
+    }
+  }
+
+  // Skin tone
+  const skinSpec = input.skinTone ? SKIN_TONE_RENDERING[input.skinTone] : null;
+  if (skinSpec) {
+    attributeLines.push(`SKIN TONE: ${skinSpec.description}`);
+  }
+
+  // Fit tendency
+  const fitCue = input.fitTendency ? (FIT_TENDENCY_CUES[input.fitTendency] ?? '') : '';
+  if (fitCue) {
+    attributeLines.push(`FIT CUES: ${fitCue}`);
+  }
+
+  const negativeInstruction = buildNegativeInstruction(input.skinTone, input.bodyType, severity.description);
+  const negativePrompt = [
+    severity.negativePrompt,
+    skinSpec?.negative ?? '',
+  ].filter(Boolean).join(', ');
+
+  const block = [
+    `SUBJECT RENDERING BRIEF (locked constraints — apply before styling, do not override with fashion defaults):`,
+    `These physical attributes are fixed. They must be reflected in how the figure is illustrated:`,
+    ``,
+    attributeLines.join('\n'),
+    ``,
+    negativeInstruction,
+  ].join('\n');
+
+  return { block, negativePrompt };
+}
+
 // ── Men's fallback descriptions ────────────────────────────────────────────────
 
 const FALLBACK_DESCRIPTIONS_MEN: Record<string, string> = {

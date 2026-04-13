@@ -471,11 +471,8 @@ export function buildTierSketchPrompt(input: {
   tierLabel: string;
   anchorItemDescription: string;
   anchorColorMetadata?: AnchorColorMetadata | null;
+  subjectBrief?: string | null;
   recommendation: TierRecommendationDto;
-  gender?: string | null;
-  bodyTypeDescription?: string;
-  fitTendency?: string | null;
-  fitPreference?: string | null;
 }) {
   const anchor = input.anchorItemDescription.trim();
   const anchorName = shortenPieceName(anchor);
@@ -545,6 +542,7 @@ export function buildTierSketchPrompt(input: {
   const outfitSection = `Outfit:\n${outfitLines.join('\n')}`;
   const parts = [
     STYLE_PREAMBLE,
+    input.subjectBrief ?? null,
     anchorColorBlock ?? null,
     outfitSection,
     QUALITY_ADDENDUM,
