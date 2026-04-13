@@ -70,7 +70,7 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: O
         {sketchUri ? (
           <RemoteImagePanel
             uri={sketchUri}
-            aspectRatio={4 / 5}
+            aspectRatio={2 / 3}
             minHeight={220}
             fallbackTitle="Sketch unavailable"
             fallbackMessage="The saved illustration could not be displayed."

@@ -112,7 +112,7 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
                 {activeAssignment.recommendation.sketchImageUrl ? (
                   <RemoteImagePanel
                     uri={activeAssignment.recommendation.sketchImageUrl}
-                    aspectRatio={4 / 5}
+                    aspectRatio={2 / 3}
                     minHeight={180}
                     fallbackTitle="Sketch unavailable"
                     fallbackMessage="The assigned illustration could not be displayed."
