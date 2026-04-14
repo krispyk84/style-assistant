@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Href, Link } from 'expo-router';
+import { Href, router } from 'expo-router';
 import { Animated, Easing, Pressable, View } from 'react-native';
 import { useEffect, useRef } from 'react';
 
@@ -147,22 +147,21 @@ export function LookResultCardView({
       </View>
 
       <View style={{ gap: spacing.sm }}>
-        <Link href={detailHref} asChild>
-          <Pressable
-            style={[
-              actionButtonStyle,
-              {
-                backgroundColor: theme.colors.text,
-                flex: undefined,
-                flexDirection: 'row',
-                gap: spacing.xs,
-                width: '100%',
-              },
-            ]}>
-            <Ionicons color={theme.colors.background} name="checkmark-circle-outline" size={18} />
-            <AppText style={{ color: theme.colors.background }}>Check Look</AppText>
-          </Pressable>
-        </Link>
+        <Pressable
+          onPress={() => router.push(detailHref)}
+          style={[
+            actionButtonStyle,
+            {
+              backgroundColor: theme.colors.text,
+              flex: undefined,
+              flexDirection: 'row',
+              gap: spacing.xs,
+              width: '100%',
+            },
+          ]}>
+          <Ionicons color={theme.colors.inverseText} name="checkmark-circle-outline" size={18} />
+          <AppText style={{ color: theme.colors.inverseText }}>Check Look</AppText>
+        </Pressable>
 
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {(['love', 'hate'] as const).map((thumb) => {
