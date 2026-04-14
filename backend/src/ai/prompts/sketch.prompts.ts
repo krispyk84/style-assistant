@@ -9,7 +9,7 @@ import type { AnchorColorMetadata } from '../../modules/outfits/anchor-descripti
 const STYLE_PREAMBLE =
   'CANVAS FRAMING (apply first, non-negotiable): 1024×1024 square canvas. ' +
   'The full dressed figure — neckline down to shoe soles — is centered in the canvas and occupies the middle 65% of the canvas height. ' +
-  'The neckline sits approximately 180px from the top edge. The shoe soles sit approximately 180px from the bottom edge. ' +
+  'The neckline sits approximately 180px from the top edge. The shoe soles MUST be fully visible with clear empty paper below them — shoe soles sit no closer than 120px to the bottom edge. Cropped ankles, invisible feet, or shoe soles touching or near the canvas edge are a composition failure. ' +
   'The figure is centered horizontally with at least 80px of empty paper background on both left and right sides. ' +
   'There is clearly visible empty paper above the collar and below the shoes — the figure never touches any canvas edge. ' +
   'No face is rendered. The illustration begins at the collar/neckline and shows the full body down to the shoe soles. ' +
@@ -463,7 +463,9 @@ const QUALITY_ADDENDUM_2 =
   'Show more construction and material information: seam placement, topstitching, rib knit texture, zipper teeth and puller, pocket welts, plackets, collar structure, cuff shape, waistband finish, belt hardware, shoe panels, laces, sole edges, watch case detail, and subtle fabric grain. ' +
   'Make the colors richer and more vibrant while staying refined and believable, with stronger tonal contrast and clearer color separation between garments so the outfit feels fashion-forward, polished, and visually alive. ' +
   'Preserve accurate color fidelity to the source garments, especially the anchor piece, matching the true hue, saturation, undertone, and value rather than drifting toward generic tan or beige. ' +
-  'COMPOSITION VERIFICATION (check before finalizing): Is the collar/neckline visible with empty paper above it? Are both shoe soles fully rendered with empty paper below them? Is the figure centered horizontally with empty paper on both sides? If any part of the figure touches a canvas edge, the figure is too large — scale it down. The correct result looks like a zoomed-out editorial lookbook photo: complete outfit floating in generous whitespace, not a cropped close-up filling the frame edge to edge.';
+  'COMPOSITION VERIFICATION (check before finalizing): Is the collar/neckline visible with empty paper above it? Are both shoe soles fully rendered and clearly visible with empty paper below them? Is the figure centered horizontally with empty paper on both sides? ' +
+  'CRITICAL FRAMING CHECK — if shoe soles are not clearly visible with empty canvas below them, the figure is too large or positioned too low: scale the figure down and re-center vertically. Invisible feet or cropped ankles are a hard composition failure, not a stylistic choice. ' +
+  'The correct result looks like a zoomed-out editorial lookbook photo: complete outfit floating in generous whitespace, not a cropped close-up filling the frame edge to edge.';
 
 // ── Outfit tier sketch prompt ─────────────────────────────────────────────────
 

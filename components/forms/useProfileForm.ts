@@ -41,6 +41,14 @@ export type PickerConfig = {
   options: readonly string[];
   value: string;
   onChange: (value: string) => void;
+  /** Optional display labels mapping raw option values to human-readable strings. */
+  displayLabels?: Record<string, string>;
+};
+
+const FIT_TENDENCY_DISPLAY_LABELS: Record<string, string> = {
+  fits_well: 'Fits well throughout',
+  tight_chest_loose_below: 'Tight in chest / shoulders, loose through midsection',
+  loose_chest_tight_below: 'Loose in chest, tight at belly / waist',
 };
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
@@ -131,6 +139,7 @@ export function useProfileForm(initialValue: Profile = defaultProfile) {
         options: FIT_TENDENCY_OPTIONS,
         value: profile.fitTendency ?? '',
         onChange: (value) => updateField('fitTendency', value as Profile['fitTendency']),
+        displayLabels: FIT_TENDENCY_DISPLAY_LABELS,
       },
       fitPreference: {
         label: 'Fit preference',

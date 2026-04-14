@@ -195,8 +195,6 @@ export default function ResultDetailsScreen() {
             <LookResultCard
               key={`${recommendation.tier}-${recommendation.title}`}
               recommendation={recommendation}
-              onRegenerate={() => void handleRegenerate(recommendation.tier)}
-              isRegenerating={regeneratingTiers.includes(recommendation.tier)}
               isSaved={savedOutfitIds.includes(buildSavedOutfitId(response.requestId, recommendation.tier, tierGenerations[recommendation.tier] ?? 0))}
               isSaving={savingTier === recommendation.tier}
               onSave={() => void handleSave(recommendation.tier)}

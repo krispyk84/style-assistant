@@ -175,7 +175,11 @@ export function ProfileFormView({
 
       {profile.gender === 'man' ? (
         <FormField label="How clothes typically fit" hint="Helps us recommend the right cuts and note alterations.">
-          <PickerField value={profile.fitTendency ?? ''} onPress={() => setPickerField('fitTendency')} />
+          <PickerField
+            value={profile.fitTendency ?? ''}
+            displayValue={pickerConfigs.fitTendency.displayLabels?.[profile.fitTendency ?? '']}
+            onPress={() => setPickerField('fitTendency')}
+          />
         </FormField>
       ) : null}
 
@@ -237,6 +241,7 @@ export function ProfileFormView({
         title={pickerField ? pickerConfigs[pickerField].label : ''}
         options={pickerField ? pickerConfigs[pickerField].options : []}
         value={pickerField ? pickerConfigs[pickerField].value : ''}
+        displayLabels={pickerField ? pickerConfigs[pickerField].displayLabels : undefined}
         onClose={() => setPickerField(null)}
         onSelect={(value) => {
           if (!pickerField) return;
@@ -250,8 +255,9 @@ export function ProfileFormView({
 
 // ── Private UI components ─────────────────────────────────────────────────────
 
-function PickerField({ value, onPress }: { value: string; onPress: () => void }) {
+function PickerField({ value, displayValue, onPress }: { value: string; displayValue?: string; onPress: () => void }) {
   const { theme } = useTheme();
+  const label = displayValue ?? value.replaceAll('-', ' ');
   return (
     <Pressable
       onPress={onPress}
@@ -266,7 +272,7 @@ function PickerField({ value, onPress }: { value: string; onPress: () => void })
         minHeight: 54,
         paddingHorizontal: spacing.md,
       }}>
-      <AppText style={{ textTransform: 'capitalize' }}>{value.replaceAll('-', ' ')}</AppText>
+      <AppText style={{ textTransform: displayValue ? 'none' : 'capitalize' }}>{label}</AppText>
       <Ionicons color={theme.colors.subtleText} name="chevron-down" size={18} />
     </Pressable>
   );
@@ -277,6 +283,7 @@ function PickerModal({
   title,
   options,
   value,
+  displayLabels,
   onClose,
   onSelect,
 }: {
@@ -284,6 +291,7 @@ function PickerModal({
   title: string;
   options: readonly string[];
   value: string;
+  displayLabels?: Record<string, string>;
   onClose: () => void;
   onSelect: (value: string) => void;
 }) {
@@ -338,7 +346,9 @@ function PickerModal({
                     optionStyle,
                     { borderColor: isSelected ? theme.colors.accent : theme.colors.border },
                   ]}>
-                  <AppText style={{ textTransform: 'capitalize' }}>{option.replaceAll('-', ' ')}</AppText>
+                  <AppText style={{ textTransform: displayLabels ? 'none' : 'capitalize' }}>
+                    {displayLabels?.[option] ?? option.replaceAll('-', ' ')}
+                  </AppText>
                   {isSelected ? <Ionicons color={theme.colors.accent} name="checkmark-circle" size={20} /> : null}
                 </Pressable>
               );

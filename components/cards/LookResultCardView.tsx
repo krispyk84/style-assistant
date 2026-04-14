@@ -18,9 +18,7 @@ import { useLookResultCard } from './useLookResultCard';
 
 export type LookResultCardViewProps = {
   recommendation: LookRecommendation;
-  onRegenerate: () => void;
   detailHref: Href;
-  isRegenerating?: boolean;
   isSaved?: boolean;
   isSaving?: boolean;
   onSave?: () => void;
@@ -50,9 +48,7 @@ export type LookResultCardViewProps = {
 
 export function LookResultCardView({
   recommendation,
-  onRegenerate,
   detailHref,
-  isRegenerating = false,
   isSaved = false,
   isSaving = false,
   onSave,
@@ -86,45 +82,6 @@ export function LookResultCardView({
     paddingHorizontal: spacing.md,
   } as const;
 
-  if (isRegenerating) {
-    return (
-      <View
-        style={{
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.border,
-          borderRadius: 28,
-          borderWidth: 1,
-          gap: spacing.lg,
-          padding: spacing.lg,
-        }}>
-        <View style={{ gap: spacing.xs }}>
-          <AppText variant="title">{formatTierLabel(recommendation.tier)}</AppText>
-        </View>
-        <View
-          style={{
-            alignItems: 'center',
-            backgroundColor: theme.colors.card,
-            borderColor: theme.colors.border,
-            borderRadius: 22,
-            borderWidth: 1,
-            justifyContent: 'center',
-            minHeight: 280,
-            padding: spacing.lg,
-          }}>
-          <AnimatedLoadingBar />
-          <View style={{ gap: spacing.xs }}>
-            <AppText variant="sectionTitle" style={{ textAlign: 'center' }}>
-              Generating new outfit...
-            </AppText>
-            <AppText tone="muted" style={{ textAlign: 'center' }}>
-              Your new look will appear here in a moment.
-            </AppText>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View
       style={{
@@ -141,6 +98,15 @@ export function LookResultCardView({
       </View>
 
       <TierSketch recommendation={recommendation} />
+
+      <TierPieceListView
+        labeledPieces={labeledPieces}
+        hasAnyMatch={hasAnyMatch}
+        regeneratingMatches={regeneratingMatches}
+        onPiecePress={(item, suggestion, confidencePercent) =>
+          setMatchedPiece({ item, suggestion, confidencePercent })
+        }
+      />
 
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <Pressable
@@ -167,15 +133,6 @@ export function LookResultCardView({
         </Pressable>
       </View>
 
-      <TierPieceListView
-        labeledPieces={labeledPieces}
-        hasAnyMatch={hasAnyMatch}
-        regeneratingMatches={regeneratingMatches}
-        onPiecePress={(item, suggestion, confidencePercent) =>
-          setMatchedPiece({ item, suggestion, confidencePercent })
-        }
-      />
-
       <CardSection title="Fit notes" items={recommendation.fitNotes} />
 
       <View style={{ gap: spacing.xs }}>
@@ -183,24 +140,11 @@ export function LookResultCardView({
         <AppText tone="muted">{recommendation.whyItWorks}</AppText>
       </View>
 
-      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-        <Pressable
-          disabled={isRegenerating}
-          onPress={onRegenerate}
-          style={[
-            actionButtonStyle,
-            { backgroundColor: theme.colors.text, opacity: isRegenerating ? 0.7 : 1 },
-          ]}>
-          <AppText style={{ color: theme.colors.background }}>
-            {isRegenerating ? 'Regenerating...' : 'Regenerate'}
-          </AppText>
+      <Link href={detailHref} asChild>
+        <Pressable style={[actionButtonStyle, { flex: undefined, width: '100%' }]}>
+          <AppText>Check Look</AppText>
         </Pressable>
-        <Link href={detailHref} asChild>
-          <Pressable style={actionButtonStyle}>
-            <AppText>View Look</AppText>
-          </Pressable>
-        </Link>
-      </View>
+      </Link>
 
       <Pressable
         onPress={onSecondOpinion}
