@@ -42,6 +42,10 @@ export type LookResultCardViewProps = {
   regeneratingMatches?: Set<string>;
   /** User-provided anchor item description — shown first in the pieces list, never closet-matched. */
   anchorDescription?: string;
+  /** Persisted outfit-level feedback for this tier. */
+  outfitFeedback?: 'love' | 'hate' | null;
+  /** Called when the user taps Love it or Hate it. */
+  onOutfitFeedback?: (thumb: 'love' | 'hate') => void;
 };
 
 // ── View ───────────────────────────────────────────────────────────────────────
@@ -61,6 +65,8 @@ export function LookResultCardView({
   matchFeedbackMap,
   regeneratingMatches,
   anchorDescription,
+  outfitFeedback,
+  onOutfitFeedback,
 }: LookResultCardViewProps) {
   const { theme } = useTheme();
   const { labeledPieces, hasAnyMatch, matchedPiece, setMatchedPiece } = useLookResultCard({
@@ -157,6 +163,35 @@ export function LookResultCardView({
             <AppText style={{ color: theme.colors.background }}>Check Look</AppText>
           </Pressable>
         </Link>
+
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {(['love', 'hate'] as const).map((thumb) => {
+            const isSelected = outfitFeedback === thumb;
+            return (
+              <Pressable
+                key={thumb}
+                onPress={() => onOutfitFeedback?.(thumb)}
+                style={[
+                  actionButtonStyle,
+                  {
+                    backgroundColor: isSelected ? theme.colors.text : 'transparent',
+                    borderColor: isSelected ? theme.colors.text : theme.colors.border,
+                    flexDirection: 'row',
+                    gap: spacing.xs,
+                  },
+                ]}>
+                <Ionicons
+                  color={isSelected ? theme.colors.background : theme.colors.mutedText}
+                  name={thumb === 'love' ? 'heart-outline' : 'thumbs-down-outline'}
+                  size={16}
+                />
+                <AppText style={{ color: isSelected ? theme.colors.background : theme.colors.mutedText }}>
+                  {thumb === 'love' ? 'Love it' : 'Hate it'}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </View>
 
         <Pressable
           onPress={onSecondOpinion}

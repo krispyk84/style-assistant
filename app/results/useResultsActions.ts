@@ -6,6 +6,7 @@ import type { GenerateOutfitsResponse } from '@/types/api';
 import { type LookTierSlug } from '@/types/look-request';
 import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
 import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
+import { loadRecommendationFeedback, saveRecommendationFeedback } from '@/lib/recommendation-feedback-storage';
 import { useToast } from '@/components/ui/toast-provider';
 import { trackSaveOutfit, trackAddToWeek } from '@/lib/analytics';
 
@@ -30,15 +31,28 @@ export function useResultsActions({
   const [savingTier, setSavingTier] = useState<LookTierSlug | null>(null);
   const [weekPickerTier, setWeekPickerTier] = useState<LookTierSlug | null>(null);
   const [secondOpinionTier, setSecondOpinionTier] = useState<LookTierSlug | null>(null);
+  const [outfitFeedbackMap, setOutfitFeedbackMap] = useState<Partial<Record<LookTierSlug, 'love' | 'hate'>>>({});
   const { showToast } = useToast();
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadSavedState() {
-      const savedOutfits = await loadSavedOutfits();
+      const [savedOutfits, allFeedback] = await Promise.all([
+        loadSavedOutfits(),
+        loadRecommendationFeedback(),
+      ]);
       if (!isMounted) return;
       setSavedOutfitIds(savedOutfits.map((item) => item.id));
+      if (response?.requestId) {
+        const map: Partial<Record<LookTierSlug, 'love' | 'hate'>> = {};
+        for (const f of allFeedback) {
+          if (f.requestId === response.requestId && (f.thumb === 'love' || f.thumb === 'hate')) {
+            map[f.tier as LookTierSlug] = f.thumb;
+          }
+        }
+        setOutfitFeedbackMap(map);
+      }
     }
 
     void loadSavedState();
@@ -130,6 +144,28 @@ export function useResultsActions({
     setWeekPickerTier(null);
   }
 
+  async function handleOutfitFeedback(tier: LookTierSlug, thumb: 'love' | 'hate') {
+    if (!response) return;
+    const recommendation = response.recommendations.find((r) => r.tier === tier);
+    if (!recommendation) return;
+    // Tapping the already-selected state deselects
+    if (outfitFeedbackMap[tier] === thumb) {
+      setOutfitFeedbackMap((prev) => { const next = { ...prev }; delete next[tier]; return next; });
+      return;
+    }
+    setOutfitFeedbackMap((prev) => ({ ...prev, [tier]: thumb }));
+    await saveRecommendationFeedback({
+      id: `${response.requestId}:${tier}:outfit`,
+      requestId: response.requestId,
+      tier,
+      outfitTitle: recommendation.title,
+      thumb,
+      regenerated: false,
+      createdAt: new Date().toISOString(),
+    });
+    showToast(thumb === 'love' ? 'Noted — glad you love it.' : "Noted — we'll keep that in mind.");
+  }
+
   return {
     savedOutfitIds,
     savingTier,
@@ -137,8 +173,10 @@ export function useResultsActions({
     setWeekPickerTier,
     secondOpinionTier,
     setSecondOpinionTier,
+    outfitFeedbackMap,
     handleRegenerate,
     handleSave,
     handleAssignToWeek,
+    handleOutfitFeedback,
   };
 }

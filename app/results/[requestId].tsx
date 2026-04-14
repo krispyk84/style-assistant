@@ -65,9 +65,11 @@ export default function ResultDetailsScreen() {
     setWeekPickerTier,
     secondOpinionTier,
     setSecondOpinionTier,
+    outfitFeedbackMap,
     handleRegenerate,
     handleSave,
     handleAssignToWeek,
+    handleOutfitFeedback,
   } = useResultsActions({
     response,
     setResponse,
@@ -200,6 +202,8 @@ export default function ResultDetailsScreen() {
               onSave={() => void handleSave(recommendation.tier)}
               onAddToWeek={() => setWeekPickerTier(recommendation.tier)}
               onSecondOpinion={() => setSecondOpinionTier(recommendation.tier)}
+              outfitFeedback={outfitFeedbackMap[recommendation.tier] ?? null}
+              onOutfitFeedback={(thumb) => void handleOutfitFeedback(recommendation.tier, thumb)}
               onMatchThumbsUp={(suggestion, itemId) => handleMatchThumbsUp(recommendation.tier, suggestion, itemId, recommendation.title)}
               onMatchThumbsDown={(suggestion, itemId) => handleMatchThumbsDown(recommendation.tier, suggestion, itemId, recommendation.title)}
               matchFeedbackMap={matchFeedbackMap}
