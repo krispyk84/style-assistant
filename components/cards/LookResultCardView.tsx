@@ -140,27 +140,40 @@ export function LookResultCardView({
         <AppText tone="muted">{recommendation.whyItWorks}</AppText>
       </View>
 
-      <Link href={detailHref} asChild>
-        <Pressable style={[actionButtonStyle, { flex: undefined, width: '100%' }]}>
-          <AppText>Check Look</AppText>
-        </Pressable>
-      </Link>
+      <View style={{ gap: spacing.sm }}>
+        <Link href={detailHref} asChild>
+          <Pressable
+            style={[
+              actionButtonStyle,
+              {
+                backgroundColor: theme.colors.text,
+                flex: undefined,
+                flexDirection: 'row',
+                gap: spacing.xs,
+                width: '100%',
+              },
+            ]}>
+            <Ionicons color={theme.colors.background} name="checkmark-circle-outline" size={18} />
+            <AppText style={{ color: theme.colors.background }}>Check Look</AppText>
+          </Pressable>
+        </Link>
 
-      <Pressable
-        onPress={onSecondOpinion}
-        style={[
-          actionButtonStyle,
-          {
-            flexDirection: 'row',
-            gap: spacing.xs,
-            flex: undefined,
-            width: '100%',
-            borderColor: theme.colors.accent,
-          },
-        ]}>
-        <Ionicons color={theme.colors.accent} name="chatbubble-ellipses-outline" size={18} />
-        <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
-      </Pressable>
+        <Pressable
+          onPress={onSecondOpinion}
+          style={[
+            actionButtonStyle,
+            {
+              flexDirection: 'row',
+              gap: spacing.xs,
+              flex: undefined,
+              width: '100%',
+              borderColor: theme.colors.accent,
+            },
+          ]}>
+          <Ionicons color={theme.colors.accent} name="chatbubble-ellipses-outline" size={18} />
+          <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
+        </Pressable>
+      </View>
 
       {/* Bottom sheet shown when user taps a checkmark — includes per-match feedback */}
       {matchedPiece ? (() => {
