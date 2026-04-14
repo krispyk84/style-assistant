@@ -105,6 +105,35 @@ export function LookResultCardView({
 
       <TierSketch recommendation={recommendation} />
 
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        {(['love', 'hate'] as const).map((thumb) => {
+          const isSelected = outfitFeedback === thumb;
+          return (
+            <Pressable
+              key={thumb}
+              onPress={() => onOutfitFeedback?.(thumb)}
+              style={[
+                actionButtonStyle,
+                {
+                  backgroundColor: isSelected ? theme.colors.text : 'transparent',
+                  borderColor: isSelected ? theme.colors.text : theme.colors.border,
+                  flexDirection: 'row',
+                  gap: spacing.xs,
+                },
+              ]}>
+              <Ionicons
+                color={isSelected ? theme.colors.background : theme.colors.mutedText}
+                name={thumb === 'love' ? 'heart-outline' : 'thumbs-down-outline'}
+                size={16}
+              />
+              <AppText style={{ color: isSelected ? theme.colors.background : theme.colors.mutedText }}>
+                {thumb === 'love' ? 'Love it' : 'Hate it'}
+              </AppText>
+            </Pressable>
+          );
+        })}
+      </View>
+
       <TierPieceListView
         labeledPieces={labeledPieces}
         hasAnyMatch={hasAnyMatch}
@@ -163,35 +192,6 @@ export function LookResultCardView({
           <AppText style={{ color: theme.colors.inverseText }}>Check Look</AppText>
         </Pressable>
 
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          {(['love', 'hate'] as const).map((thumb) => {
-            const isSelected = outfitFeedback === thumb;
-            return (
-              <Pressable
-                key={thumb}
-                onPress={() => onOutfitFeedback?.(thumb)}
-                style={[
-                  actionButtonStyle,
-                  {
-                    backgroundColor: isSelected ? theme.colors.text : 'transparent',
-                    borderColor: isSelected ? theme.colors.text : theme.colors.border,
-                    flexDirection: 'row',
-                    gap: spacing.xs,
-                  },
-                ]}>
-                <Ionicons
-                  color={isSelected ? theme.colors.background : theme.colors.mutedText}
-                  name={thumb === 'love' ? 'heart-outline' : 'thumbs-down-outline'}
-                  size={16}
-                />
-                <AppText style={{ color: isSelected ? theme.colors.background : theme.colors.mutedText }}>
-                  {thumb === 'love' ? 'Love it' : 'Hate it'}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
-
         <Pressable
           onPress={onSecondOpinion}
           style={[
@@ -247,8 +247,8 @@ function TierSketch({ recommendation }: { recommendation: LookRecommendation }) 
     return (
       <RemoteImagePanel
         uri={recommendation.sketchImageUrl}
-        aspectRatio={1}
-        minHeight={280}
+        aspectRatio={2 / 3}
+        minHeight={400}
         resizeMode="contain"
         fallbackTitle="Sketch unavailable"
         fallbackMessage="The illustration could not be displayed on this device."
@@ -266,7 +266,7 @@ function TierSketch({ recommendation }: { recommendation: LookRecommendation }) 
           borderRadius: 22,
           borderWidth: 1,
           justifyContent: 'center',
-          minHeight: 280,
+          minHeight: 400,
           padding: spacing.lg,
         }}>
         <AnimatedLoadingBar />

@@ -47,7 +47,7 @@ async function generateSingleTierSketch(
     const generatedImage = await openAiClient.generateImage({
       prompt,
       model: env.OPENAI_OUTFIT_SKETCH_MODEL,
-      size: '1024x1024',
+      size: '1024x1536',
       quality: env.OPENAI_OUTFIT_SKETCH_QUALITY,
       outputFormat: 'jpeg',
       supabaseUserId,

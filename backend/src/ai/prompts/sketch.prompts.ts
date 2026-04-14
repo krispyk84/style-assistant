@@ -3,16 +3,41 @@ import type { AnchorColorMetadata } from '../../modules/outfits/anchor-descripti
 
 // ── Outfit sketch style preamble ──────────────────────────────────────────────
 // Fixed across all generations to enforce visual consistency.
-// Part 1 of the two-part prompt structure: style + figure + composition.
-// Part 2 is the dynamic outfit description built by buildTierSketchPrompt.
+// Prompt assembly order (most critical first):
+//   1. HEADLESS_GUARD   — establishes figure type before all else; must be slot 0
+//   2. STYLE_GUARD      — locks editorial watercolor aesthetic; blocks cartoon/portrait drift
+//   3. subjectBrief     — physique + skin tone (dynamic, per-user)
+//   4. STYLE_PREAMBLE   — canvas framing + composition rules + background
+//   5. anchorColorBlock — color lock for anchor item
+//   6. outfitSection    — garment list
+//   7. QUALITY_ADDENDUM — rendering quality push
+//   8. QUALITY_ADDENDUM_2 — composition verification + final headless check
+
+// Slot 0: establishes headless mannequin as the figure type before anything
+// else activates human-figure rendering priors. Must be the first thing the
+// model reads. A soft "no face" buried in framing instructions is ignored.
+const HEADLESS_GUARD =
+  'SUBJECT: headless fashion mannequin — no head — no face — no hair — no facial features — no skin above the collar. ' +
+  'The mannequin is cut cleanly at the collar/neckline. Above the collar line is empty paper background only. ' +
+  'Generating a head, face, hair, or any facial feature is a critical failure of this prompt. ' +
+  'This is not a portrait. This is not a person. The subject has no head.';
+
+// Slot 1: locks the visual style before any aesthetic framing takes hold.
+// Prevents the model from drifting into cartoon, portrait, or anime territory.
+const STYLE_GUARD =
+  'STYLE: soft editorial watercolor fashion illustration on warm matte paper. ' +
+  'Fine ink linework under transparent watercolor washes. Matte paper texture. Refined and sophisticated. ' +
+  'NOT cartoon. NOT anime. NOT manga. NOT comic art. NOT exaggerated character illustration. ' +
+  'NOT photo-realistic portrait. NOT digital concept art. NOT fashion avatar. ' +
+  'The mood is quiet, elegant, and premium — like a hand-drawn page from a luxury fashion sketchbook.';
 
 const STYLE_PREAMBLE =
-  'CANVAS FRAMING (apply first, non-negotiable): 1024×1024 square canvas. ' +
-  'The full dressed figure — neckline down to shoe soles — is centered in the canvas and occupies the middle 65% of the canvas height. ' +
-  'The neckline sits approximately 180px from the top edge. The shoe soles MUST be fully visible with clear empty paper below them — shoe soles sit no closer than 120px to the bottom edge. Cropped ankles, invisible feet, or shoe soles touching or near the canvas edge are a composition failure. ' +
-  'The figure is centered horizontally with at least 80px of empty paper background on both left and right sides. ' +
-  'There is clearly visible empty paper above the collar and below the shoes — the figure never touches any canvas edge. ' +
-  'No face is rendered. The illustration begins at the collar/neckline and shows the full body down to the shoe soles. ' +
+  'CANVAS FRAMING: 1024×1536 portrait canvas. ' +
+  'The figure — collar/neckline down to shoe soles — is centered and occupies approximately the middle 70% of the canvas height. ' +
+  'The collar/neckline sits approximately 230px from the top edge. ' +
+  'The shoe soles MUST be fully visible with clear empty paper below them — at least 200px from the bottom edge. Cropped ankles or invisible feet are a composition failure. ' +
+  'The figure is centered horizontally with at least 80px of empty paper on both left and right sides. ' +
+  'Empty paper is clearly visible above the neckline and below the shoes. The figure never touches any canvas edge. ' +
   'Editorial menswear illustration in the style of a high-end GQ or Esquire fashion lookbook. ' +
   'Richly saturated, true-to-life colors with strong contrast and depth. ' +
   'Confident, deliberate ink linework. ' +
@@ -459,6 +484,7 @@ const QUALITY_ADDENDUM =
   'Avoid color drift, generic neutralization, flat fills, or loss of garment-specific detail.';
 
 const QUALITY_ADDENDUM_2 =
+  'HEADLESS VERIFICATION (check first): Does the figure have a head, face, hair, or any facial feature? If yes, that is a critical failure — the subject must be a headless mannequin cut at the collar/neckline. Above the neckline must be empty paper only. ' +
   'Increase the level of garment and accessory detail. ' +
   'Show more construction and material information: seam placement, topstitching, rib knit texture, zipper teeth and puller, pocket welts, plackets, collar structure, cuff shape, waistband finish, belt hardware, shoe panels, laces, sole edges, watch case detail, and subtle fabric grain. ' +
   'Make the colors richer and more vibrant while staying refined and believable, with stronger tonal contrast and clearer color separation between garments so the outfit feels fashion-forward, polished, and visually alive. ' +
@@ -543,8 +569,10 @@ export function buildTierSketchPrompt(input: {
 
   const outfitSection = `Outfit:\n${outfitLines.join('\n')}`;
   const parts = [
-    STYLE_PREAMBLE,
+    HEADLESS_GUARD,
+    STYLE_GUARD,
     input.subjectBrief ?? null,
+    STYLE_PREAMBLE,
     anchorColorBlock ?? null,
     outfitSection,
     QUALITY_ADDENDUM,
