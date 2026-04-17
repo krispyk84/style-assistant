@@ -103,7 +103,7 @@ export function CheckPieceScreen() {
             {closetItemImageUri ? (
               <View
                 style={{
-                  aspectRatio: 4 / 3,
+                  aspectRatio: 3 / 4,
                   backgroundColor: theme.colors.card,
                   borderRadius: 16,
                   overflow: 'hidden',

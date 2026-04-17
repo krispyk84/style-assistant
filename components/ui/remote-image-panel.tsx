@@ -4,6 +4,9 @@ import { ActivityIndicator, Image, ImageStyle, StyleProp, View } from 'react-nat
 import { spacing, theme } from '@/constants/theme';
 import { AppText } from '@/components/ui/app-text';
 
+/** Standard portrait aspect ratio for all generated outfit sketches (width:height = 2:3). */
+export const SKETCH_ASPECT_RATIO = 2 / 3;
+
 type RemoteImagePanelProps = {
   uri: string | null | undefined;
   aspectRatio?: number;

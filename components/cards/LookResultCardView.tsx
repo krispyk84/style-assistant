@@ -10,7 +10,7 @@ import { ClosetItemSheet } from '@/components/closet/closet-item-sheet';
 import type { LookRecommendation } from '@/types/look-request';
 import type { ClosetItem } from '@/types/closet';
 import { AppText } from '@/components/ui/app-text';
-import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
+import { RemoteImagePanel, SKETCH_ASPECT_RATIO } from '@/components/ui/remote-image-panel';
 import { TierPieceListView } from './TierPieceListView';
 import { useLookResultCard } from './useLookResultCard';
 
@@ -247,7 +247,7 @@ function TierSketch({ recommendation }: { recommendation: LookRecommendation }) 
     return (
       <RemoteImagePanel
         uri={recommendation.sketchImageUrl}
-        aspectRatio={2 / 3}
+        aspectRatio={SKETCH_ASPECT_RATIO}
         minHeight={400}
         resizeMode="contain"
         fallbackTitle="Sketch unavailable"

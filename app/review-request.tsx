@@ -8,7 +8,8 @@ import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing } from '@/constants/theme';
-import { buildLookResultsHref, buildLookRouteParams, parseLookInput } from '@/lib/look-route';
+import { buildLookRouteParams, parseLookInput } from '@/lib/look-route';
+import { createMockRequestId } from '@/lib/look-mock-data';
 
 export default function ReviewRequestScreen() {
   const params = useLocalSearchParams<{
@@ -70,10 +71,13 @@ export default function ReviewRequestScreen() {
         <View style={{ gap: spacing.sm }}>
           <PrimaryButton
             label="Generate Outfit Recommendations"
-            onPress={() => router.push({
-              pathname: '/results/[requestId]',
-              params: { ...buildLookRouteParams(requestId, input), addAnchorToCloset: params.addAnchorToCloset },
-            })}
+            onPress={() => {
+              const freshRequestId = createMockRequestId();
+              router.push({
+                pathname: '/results/[requestId]',
+                params: { ...buildLookRouteParams(freshRequestId, input), addAnchorToCloset: params.addAnchorToCloset },
+              });
+            }}
           />
           <PrimaryButton label="Edit request" onPress={() => router.back()} variant="secondary" />
         </View>

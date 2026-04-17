@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { spacing, theme } from '@/constants/theme';
 import type { LookRecommendation, LookTierDefinition } from '@/types/look-request';
 import { AppText } from '@/components/ui/app-text';
-import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
+import { RemoteImagePanel, SKETCH_ASPECT_RATIO } from '@/components/ui/remote-image-panel';
 
 type LookTierDetailCardProps = {
   definition: LookTierDefinition;
@@ -40,8 +40,8 @@ function TierSketch({ recommendation }: { recommendation: LookRecommendation }) 
     return (
       <RemoteImagePanel
         uri={recommendation.sketchImageUrl}
-        aspectRatio={1}
-        minHeight={280}
+        aspectRatio={SKETCH_ASPECT_RATIO}
+        minHeight={400}
         resizeMode="contain"
         fallbackTitle="Sketch unavailable"
         fallbackMessage="The illustration could not be displayed on this device."

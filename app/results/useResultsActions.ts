@@ -36,6 +36,9 @@ export function useResultsActions({
 
   useEffect(() => {
     let isMounted = true;
+    // Reset immediately so stale state from a previous requestId is never visible.
+    setOutfitFeedbackMap({});
+    setSavedOutfitIds([]);
 
     async function loadSavedState() {
       const [savedOutfits, allFeedback] = await Promise.all([
@@ -71,6 +74,8 @@ export function useResultsActions({
 
     setTierGenerations((prev) => ({ ...prev, [tier]: currentGen + 1 }));
     setRegeneratingTiers((current) => (current.includes(tier) ? current : [...current, tier]));
+    // Clear feedback for this tier — the regenerated outfit is a new entity.
+    setOutfitFeedbackMap((prev) => { const next = { ...prev }; delete next[tier]; return next; });
     setErrorMessage(null);
     setResponse((current) =>
       current

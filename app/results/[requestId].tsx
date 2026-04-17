@@ -195,7 +195,7 @@ export default function ResultDetailsScreen() {
           }
           return (
             <LookResultCard
-              key={`${recommendation.tier}-${recommendation.title}`}
+              key={`${recommendation.tier}-${tierGenerations[recommendation.tier] ?? 0}`}
               recommendation={recommendation}
               isSaved={savedOutfitIds.includes(buildSavedOutfitId(response.requestId, recommendation.tier, tierGenerations[recommendation.tier] ?? 0))}
               isSaving={savingTier === recommendation.tier}

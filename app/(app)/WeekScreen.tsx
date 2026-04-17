@@ -6,7 +6,7 @@ import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingState } from '@/components/ui/loading-state';
-import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
+import { RemoteImagePanel, SKETCH_ASPECT_RATIO } from '@/components/ui/remote-image-panel';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { buildTierHref } from '@/lib/look-route';
@@ -120,9 +120,9 @@ export function WeekScreen() {
                   {assignment.recommendation.sketchImageUrl ? (
                     <RemoteImagePanel
                       uri={assignment.recommendation.sketchImageUrl}
-                      aspectRatio={1}
+                      aspectRatio={SKETCH_ASPECT_RATIO}
                       resizeMode="contain"
-                      minHeight={220}
+                      minHeight={400}
                       fallbackTitle="Sketch unavailable"
                       fallbackMessage="The planned illustration could not be displayed."
                     />

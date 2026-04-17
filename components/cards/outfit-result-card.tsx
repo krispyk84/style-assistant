@@ -8,7 +8,7 @@ import { buildTierHref } from '@/lib/look-route';
 import { formatTierLabel } from '@/lib/outfit-utils';
 import type { SavedOutfit } from '@/types/style';
 import { AppText } from '@/components/ui/app-text';
-import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
+import { RemoteImagePanel, SKETCH_ASPECT_RATIO } from '@/components/ui/remote-image-panel';
 
 type OutfitResultCardProps = {
   result: SavedOutfit;
@@ -70,8 +70,8 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: O
         {sketchUri ? (
           <RemoteImagePanel
             uri={sketchUri}
-            aspectRatio={1}
-            minHeight={220}
+            aspectRatio={SKETCH_ASPECT_RATIO}
+            minHeight={400}
             resizeMode="contain"
             fallbackTitle="Sketch unavailable"
             fallbackMessage="The saved illustration could not be displayed."
