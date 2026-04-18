@@ -167,7 +167,7 @@ export default function TravelPlannerScreen() {
 
   function handleOpenSavedTrip(trip: SavedTripSummary) {
     router.push({
-      pathname: '/(app)/trip-results',
+      pathname: '/trip-results',
       params: { tripId: trip.tripId, destination: trip.destination, savedTripId: trip.id },
     });
   }
@@ -318,7 +318,7 @@ export default function TravelPlannerScreen() {
       });
 
       router.push({
-        pathname: '/(app)/trip-results',
+        pathname: '/trip-results',
         params: { tripId, destination: destination.label },
       });
     } catch (err) {

@@ -52,6 +52,8 @@ function AppNavigation() {
         <Stack.Screen name="results/[requestId]" options={{ headerShown: false }} />
         <Stack.Screen name="tier/[tier]" options={{ headerShown: false }} />
         <Stack.Screen name="create-look" options={{ headerShown: false }} />
+        <Stack.Screen name="trip-results" options={{ headerShown: false }} />
+        <Stack.Screen name="packing-list" options={{ headerShown: false }} />
         <Stack.Screen name="camera-capture" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
       </Stack>

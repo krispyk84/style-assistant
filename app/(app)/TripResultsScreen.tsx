@@ -240,7 +240,7 @@ export default function TripResultsScreen() {
     const activeTripId = plan?.tripId ?? tripId;
     if (!activeTripId) return;
     router.push({
-      pathname: '/(app)/packing-list',
+      pathname: '/packing-list',
       params: savedTripId
         ? { tripId: activeTripId, savedTripId }
         : { tripId: activeTripId },
