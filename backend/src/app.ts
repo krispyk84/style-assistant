@@ -21,6 +21,7 @@ import { secondOpinionRouter } from './modules/second-opinion/second-opinion.rou
 import { selfieReviewRouter } from './modules/selfie-review/selfie-review.routes.js';
 import { uploadsRouter } from './modules/uploads/uploads.routes.js';
 import { tripsRouter } from './modules/trips/trips.routes.js';
+import { savedTripsRouter } from './modules/trips/saved-trips.routes.js';
 import { usageRouter } from './modules/usage/usage.routes.js';
 import { wardrobeScoreRouter } from './modules/wardrobe-score/wardrobe-score.routes.js';
 
@@ -144,6 +145,7 @@ export function createApp() {
   apiRouter.use(secondOpinionRouter);
   apiRouter.use(uploadsRouter);
   apiRouter.use(tripsRouter);
+  apiRouter.use(savedTripsRouter);
   apiRouter.use(usageRouter);
   apiRouter.use(wardrobeScoreRouter);
 

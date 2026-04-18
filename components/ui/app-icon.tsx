@@ -24,7 +24,7 @@ export type AppIconName =
   | 'chevron-left' | 'chevron-right' | 'chevron-up' | 'chevron-down'
   | 'arrow-left' | 'arrow-right'
   // Actions
-  | 'close' | 'add' | 'add-circle' | 'trash' | 'bookmark' | 'pencil'
+  | 'close' | 'add' | 'add-circle' | 'trash' | 'bookmark' | 'bookmark-filled' | 'pencil'
   | 'camera' | 'camera-flip' | 'upload' | 'image' | 'archive' | 'refresh'
   // Feedback
   | 'heart' | 'thumbs-up' | 'thumbs-down' | 'star'
@@ -197,6 +197,13 @@ const ICONS: Record<AppIconName, Render> = {
     <Path
       d="m11 13.5l-4-4l-4 4v-12a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1z"
       {...S} stroke={c} strokeWidth={sw}
+    />
+  ),
+
+  'bookmark-filled': (c, _sw) => (
+    <Path
+      d="m11 13.5l-4-4l-4 4v-12a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1z"
+      fill={c} stroke={c} strokeWidth={0.5}
     />
   ),
 

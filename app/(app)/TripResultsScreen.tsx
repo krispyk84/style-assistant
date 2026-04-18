@@ -10,13 +10,18 @@ import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import type { StoredTripPlan } from '@/lib/trip-outfits-storage';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
+import { savedTripsService } from '@/services/saved-trips';
 import { tripOutfitsService } from '@/services/trip-outfits';
 import type { TripOutfitDay } from '@/services/trip-outfits';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function TripResultsScreen() {
-  const { tripId, destination } = useLocalSearchParams<{ tripId: string; destination: string }>();
+  const { tripId, destination, savedTripId } = useLocalSearchParams<{
+    tripId: string;
+    destination: string;
+    savedTripId?: string;
+  }>();
   const { theme } = useTheme();
 
   const [plan, setPlan] = useState<StoredTripPlan | null>(null);
@@ -25,18 +30,54 @@ export default function TripResultsScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [regeneratingDays, setRegeneratingDays] = useState<Set<string>>(new Set());
 
+  // Save button state
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedDbId, setSavedDbId] = useState<string | null>(savedTripId ?? null);
+
   // Track active sketch poll intervals keyed by dayId
   const pollIntervals = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
   useEffect(() => {
-    if (!tripId) { setErrorMessage('Missing trip ID.'); setIsLoading(false); return; }
+    if (!tripId && !savedTripId) {
+      setErrorMessage('Missing trip ID.');
+      setIsLoading(false);
+      return;
+    }
 
-    tripOutfitsStorage.load(tripId).then((loaded) => {
+    if (savedTripId) {
+      // Load from API (opened from Saved Trips list)
+      savedTripsService.getById(savedTripId).then((detail) => {
+        const fakePlan: StoredTripPlan = {
+          tripId: detail.tripId,
+          destination: detail.destination,
+          country: detail.country,
+          departureDate: detail.departureDate,
+          returnDate: detail.returnDate,
+          travelParty: detail.travelParty,
+          climateLabel: detail.climateLabel,
+          styleVibe: detail.styleVibe,
+          purposes: detail.purposes,
+          activities: detail.activities,
+          dressCode: detail.dressCode,
+          days: detail.days,
+          generatedAt: detail.savedAt,
+        };
+        setPlan(fakePlan);
+        setDays(detail.days);
+        setIsLoading(false);
+      }).catch(() => {
+        setErrorMessage('Could not load saved trip. Please try again.');
+        setIsLoading(false);
+      });
+      return;
+    }
+
+    tripOutfitsStorage.load(tripId!).then((loaded) => {
       if (!loaded) { setErrorMessage('Trip plan not found. Please go back and try again.'); }
       else { setPlan(loaded); setDays(loaded.days); }
       setIsLoading(false);
     });
-  }, [tripId]);
+  }, [tripId, savedTripId]);
 
   // Clear all intervals on unmount
   useEffect(() => {
@@ -81,7 +122,8 @@ export default function TripResultsScreen() {
   }, []);
 
   async function handleGenerateSketch(day: TripOutfitDay) {
-    if (!tripId || !plan) return;
+    const activeTripId = plan?.tripId ?? tripId;
+    if (!activeTripId || !plan) return;
 
     const updatedLoading: TripOutfitDay = { ...day, sketchStatus: 'loading' };
     setDays((prev) => prev.map((d) => (d.id === day.id ? updatedLoading : d)));
@@ -98,30 +140,31 @@ export default function TripResultsScreen() {
 
       const withJob: TripOutfitDay = { ...updatedLoading, sketchJobId: jobId };
       setDays((prev) => prev.map((d) => (d.id === day.id ? withJob : d)));
-      await tripOutfitsStorage.updateDay(tripId, withJob);
+      if (!savedTripId) await tripOutfitsStorage.updateDay(activeTripId, withJob);
 
-      startSketchPoll(day.id, jobId, tripId);
+      startSketchPoll(day.id, jobId, activeTripId);
     } catch {
       const failed: TripOutfitDay = { ...day, sketchStatus: 'failed' };
       setDays((prev) => prev.map((d) => (d.id === day.id ? failed : d)));
-      await tripOutfitsStorage.updateDay(tripId, failed);
+      if (!savedTripId) await tripOutfitsStorage.updateDay(activeTripId, failed);
     }
   }
 
   // ── Love / Hate handlers ────────────────────────────────────────────────────
 
   async function handleLove(day: TripOutfitDay) {
-    if (!tripId) return;
+    const activeTripId = plan?.tripId ?? tripId;
+    if (!activeTripId) return;
     const newFeedback = day.feedback === 'love' ? null : 'love' as const;
     const updated: TripOutfitDay = { ...day, feedback: newFeedback };
     setDays((prev) => prev.map((d) => (d.id === day.id ? updated : d)));
-    await tripOutfitsStorage.updateDay(tripId, updated);
+    if (!savedTripId) await tripOutfitsStorage.updateDay(activeTripId, updated);
   }
 
   async function handleHate(day: TripOutfitDay) {
-    if (!tripId || !plan) return;
+    const activeTripId = plan?.tripId ?? tripId;
+    if (!activeTripId || !plan) return;
 
-    // Clear any existing sketch poll for this day
     if (pollIntervals.current[day.id]) {
       clearInterval(pollIntervals.current[day.id]);
       delete pollIntervals.current[day.id];
@@ -131,7 +174,7 @@ export default function TripResultsScreen() {
 
     try {
       const newDay = await tripOutfitsService.regenerateDay({
-        tripId,
+        tripId: activeTripId,
         dayIndex: day.dayIndex,
         date: day.date,
         dayType: day.dayType,
@@ -147,7 +190,7 @@ export default function TripResultsScreen() {
       });
 
       setDays((prev) => prev.map((d) => (d.id === day.id ? newDay : d)));
-      await tripOutfitsStorage.updateDay(tripId, newDay);
+      if (!savedTripId) await tripOutfitsStorage.updateDay(activeTripId, newDay);
     } catch {
       // Regeneration failed — leave the card as-is
     } finally {
@@ -159,16 +202,46 @@ export default function TripResultsScreen() {
     }
   }
 
+  // ── Save trip handler ───────────────────────────────────────────────────────
+
+  async function handleSaveTrip() {
+    if (!plan || isSaving) return;
+    setIsSaving(true);
+    try {
+      const saved = await savedTripsService.save({
+        tripId: plan.tripId,
+        destination: plan.destination,
+        country: plan.country,
+        departureDate: plan.departureDate ?? '',
+        returnDate: plan.returnDate ?? '',
+        travelParty: plan.travelParty ?? 'Solo',
+        climateLabel: plan.climateLabel,
+        styleVibe: plan.styleVibe,
+        purposes: plan.purposes,
+        activities: plan.activities,
+        dressCode: plan.dressCode,
+        days,
+      });
+      setSavedDbId(saved.id);
+    } catch {
+      // Fail silently — user can retry
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   // ── Packing list navigation ──────────────────────────────────────────────────
 
   function handleOpenPackingList() {
-    if (!tripId) return;
-    router.push({ pathname: '/(app)/packing-list', params: { tripId } });
+    const activeTripId = plan?.tripId ?? tripId;
+    if (!activeTripId) return;
+    router.push({ pathname: '/(app)/packing-list', params: { tripId: activeTripId } });
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
   const showContent = !isLoading && !errorMessage;
+  const isSaved = savedDbId !== null;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'bottom']}>
@@ -185,8 +258,24 @@ export default function TripResultsScreen() {
           </Pressable>
           <View style={{ flex: 1, gap: 2 }}>
             <AppText variant="heroSmall">Trip Outfit Plan</AppText>
-            <AppText tone="muted">{destination ?? 'Your trip'}</AppText>
+            <AppText tone="muted">{destination ?? plan?.destination ?? 'Your trip'}</AppText>
           </View>
+          {showContent && (
+            <Pressable
+              onPress={() => void handleSaveTrip()}
+              disabled={isSaving}
+              style={{ padding: spacing.xs }}>
+              {isSaving ? (
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+              ) : (
+                <AppIcon
+                  name={isSaved ? 'bookmark-filled' : 'bookmark'}
+                  color={isSaved ? theme.colors.accent : theme.colors.subtleText}
+                  size={22}
+                />
+              )}
+            </Pressable>
+          )}
         </View>
 
         {isLoading ? (

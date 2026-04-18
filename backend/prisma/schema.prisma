@@ -243,6 +243,28 @@ model AiUsageEntry {
   @@index([supabaseUserId, monthKey])
 }
 
+model SavedTrip {
+  id             String   @id @default(cuid())
+  supabaseUserId String
+  tripId         String   // client-generated, used for upsert dedup
+  destination    String
+  country        String
+  departureDate  String   // YYYY-MM-DD
+  returnDate     String   // YYYY-MM-DD
+  travelParty    String
+  climateLabel   String
+  styleVibe      String
+  purposes       Json     // string[]
+  activities     String?
+  dressCode      String?
+  days           Json     // TripOutfitDay[] — full client state including sketches
+  savedAt        DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([supabaseUserId, tripId])
+  @@index([supabaseUserId])
+}
+
 model StyleGuideDocument {
   id                  String   @id @default(cuid())
   name                String

@@ -8,6 +8,9 @@ export type StoredTripPlan = {
   tripId: string;
   destination: string;
   country: string;
+  departureDate?: string;  // YYYY-MM-DD
+  returnDate?: string;     // YYYY-MM-DD
+  travelParty?: string;
   climateLabel: string;
   styleVibe: string;
   purposes: string[];

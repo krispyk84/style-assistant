@@ -1,19 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
+import { SavedTripCard } from '@/components/cards/saved-trip-card';
 import { DestinationAutocomplete } from '@/components/forms/destination-autocomplete';
 import { TravelDatePicker } from '@/components/forms/travel-date-picker';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
+import { EmptyState } from '@/components/ui/empty-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { TextInput } from '@/components/ui/text-input';
-import { spacing } from '@/constants/theme';
+import { spacing, theme as staticTheme } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
 import type { DestinationResult } from '@/services/destination';
+import { savedTripsService } from '@/services/saved-trips';
+import type { SavedTripSummary } from '@/services/saved-trips';
 import { tripOutfitsService } from '@/services/trip-outfits';
 import type { TravelClimateProfile } from '@/services/travel-climate';
 import { inferTravelClimate } from '@/services/travel-climate';
@@ -112,10 +116,60 @@ function ChipGrid({
   );
 }
 
+type PlannerTab = 'new' | 'saved';
+
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 export default function TravelPlannerScreen() {
   const { theme } = useTheme();
+
+  // Top-level tab
+  const [activeTab, setActiveTab] = useState<PlannerTab>('new');
+
+  // Saved trips state
+  const [savedTrips, setSavedTrips] = useState<SavedTripSummary[]>([]);
+  const [savedTripsLoading, setSavedTripsLoading] = useState(false);
+  const [savedTripsError, setSavedTripsError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  function loadSavedTrips() {
+    setSavedTripsLoading(true);
+    setSavedTripsError(null);
+    savedTripsService.list().then((trips) => {
+      setSavedTrips(trips);
+    }).catch(() => {
+      setSavedTripsError('Could not load saved trips.');
+    }).finally(() => {
+      setSavedTripsLoading(false);
+    });
+  }
+
+  // Reload saved trips whenever this screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadSavedTrips();
+    }, [])
+  );
+
+  async function handleDeleteSavedTrip(id: string) {
+    if (deletingId) return;
+    setDeletingId(id);
+    try {
+      await savedTripsService.delete(id);
+      setSavedTrips((prev) => prev.filter((t) => t.id !== id));
+    } catch {
+      // Fail silently
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  function handleOpenSavedTrip(trip: SavedTripSummary) {
+    router.push({
+      pathname: '/(app)/trip-results',
+      params: { tripId: trip.tripId, destination: trip.destination, savedTripId: trip.id },
+    });
+  }
 
   // Trip details
   const [destination, setDestination] = useState<DestinationResult | null>(null);
@@ -250,6 +304,9 @@ export default function TravelPlannerScreen() {
         tripId,
         destination: destination.label,
         country: destination.country,
+        departureDate: toISODate(departureDate),
+        returnDate: toISODate(returnDate),
+        travelParty,
         climateLabel: climate || 'Not specified',
         styleVibe,
         purposes,
@@ -279,6 +336,75 @@ export default function TravelPlannerScreen() {
           <AppText variant="heroSmall">Travel Planner</AppText>
           <AppText tone="muted">Pack smart for every trip.</AppText>
         </View>
+
+        {/* Segmented control */}
+        <View
+          style={{
+            backgroundColor: theme.colors.card,
+            borderColor: theme.colors.border,
+            borderRadius: 14,
+            borderWidth: 1,
+            flexDirection: 'row',
+            padding: 3,
+          }}>
+          {(['new', 'saved'] as PlannerTab[]).map((tab) => {
+            const isActive = activeTab === tab;
+            return (
+              <Pressable
+                key={tab}
+                onPress={() => setActiveTab(tab)}
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: isActive ? theme.colors.text : 'transparent',
+                  borderRadius: 11,
+                  flex: 1,
+                  paddingVertical: spacing.sm,
+                }}>
+                <AppText
+                  style={{
+                    color: isActive ? theme.colors.inverseText : theme.colors.mutedText,
+                    fontFamily: staticTheme.fonts.sansMedium,
+                    fontSize: 13,
+                    letterSpacing: 0.4,
+                  }}>
+                  {tab === 'new' ? 'New Trip' : 'Saved Trips'}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* ── Saved Trips tab ──────────────────────────────────────────────── */}
+        {activeTab === 'saved' && (
+          savedTripsLoading ? (
+            <View style={{ alignItems: 'center', paddingVertical: spacing.xxl }}>
+              <ActivityIndicator color={theme.colors.mutedText} />
+            </View>
+          ) : savedTripsError ? (
+            <AppText tone="muted" style={{ textAlign: 'center', paddingVertical: spacing.xl }}>
+              {savedTripsError}
+            </AppText>
+          ) : savedTrips.length === 0 ? (
+            <EmptyState
+              title="No saved trips"
+              message="Generate a trip plan and tap the bookmark to save it here."
+            />
+          ) : (
+            <View style={{ gap: spacing.md }}>
+              {savedTrips.map((trip) => (
+                <SavedTripCard
+                  key={trip.id}
+                  trip={trip}
+                  onPress={() => handleOpenSavedTrip(trip)}
+                  onDelete={() => void handleDeleteSavedTrip(trip.id)}
+                />
+              ))}
+            </View>
+          )
+        )}
+
+        {/* ── New Trip form ─────────────────────────────────────────────────── */}
+        {activeTab === 'new' && <>
 
         {/* ── Trip Details ─────────────────────────────────────────────────── */}
         <Card>
@@ -474,6 +600,8 @@ export default function TravelPlannerScreen() {
           label={isSubmitting ? 'Building Your Plan…' : 'Build My Packing List'}
           onPress={() => void handleSubmit()}
         />
+
+        </>}
 
       </View>
     </AppScreen>
