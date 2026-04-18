@@ -208,6 +208,10 @@ export default function TripResultsScreen() {
     if (!plan || isSaving) return;
     setIsSaving(true);
     try {
+      // Normalise sketch states: 'loading' can't resume after a reload, so reset to 'not_started'.
+      const daysToSave = days.map((d) =>
+        d.sketchStatus === 'loading' ? { ...d, sketchStatus: 'not_started' as const } : d,
+      );
       const saved = await savedTripsService.save({
         tripId: plan.tripId,
         destination: plan.destination,
@@ -220,7 +224,7 @@ export default function TripResultsScreen() {
         purposes: plan.purposes,
         activities: plan.activities,
         dressCode: plan.dressCode,
-        days,
+        days: daysToSave,
       });
       setSavedDbId(saved.id);
     } catch {
@@ -235,7 +239,12 @@ export default function TripResultsScreen() {
   function handleOpenPackingList() {
     const activeTripId = plan?.tripId ?? tripId;
     if (!activeTripId) return;
-    router.push({ pathname: '/(app)/packing-list', params: { tripId: activeTripId } });
+    router.push({
+      pathname: '/(app)/packing-list',
+      params: savedTripId
+        ? { tripId: activeTripId, savedTripId }
+        : { tripId: activeTripId },
+    });
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────

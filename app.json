@@ -39,6 +39,12 @@
         }
       ],
       [
+        "expo-calendar",
+        {
+          "remindersPermission": "Vesture needs access to Reminders to export your packing list."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./logo.png",

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+// Use passthrough() so any additional client-side fields (e.g. sketchUrl, sketchJobId)
+// are preserved in the JSON blob rather than stripped by Zod's default strip mode.
 const savedTripDaySchema = z.object({
   id:           z.string().min(1),
   tripId:       z.string().min(1),
@@ -17,7 +19,7 @@ const savedTripDaySchema = z.object({
   sketchUrl:    z.string().optional(),
   sketchJobId:  z.string().optional(),
   feedback:     z.enum(['love', 'hate']).nullable().optional(),
-});
+}).passthrough();
 
 export const saveTripSchema = z.object({
   tripId:       z.string().min(1),

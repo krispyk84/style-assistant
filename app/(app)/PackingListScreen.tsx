@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable } from 'react-native';
+import * as Calendar from 'expo-calendar';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
+import { savedTripsService } from '@/services/saved-trips';
 import type { TripOutfitDay } from '@/services/trip-outfits';
 
 // ── Category detection ────────────────────────────────────────────────────────
@@ -38,7 +40,6 @@ type PackingItem = { name: string; count: number };
 type PackingGroup = { category: string; items: PackingItem[] };
 
 function buildPackingList(days: TripOutfitDay[]): PackingGroup[] {
-  // Accumulate counts per item name (case-insensitive) with category
   const countMap = new Map<string, { category: string; count: number; displayName: string }>();
 
   function add(raw: string, category: string) {
@@ -59,7 +60,6 @@ function buildPackingList(days: TripOutfitDay[]): PackingGroup[] {
     for (const acc of day.accessories) add(acc, 'Accessories');
   }
 
-  // Group by category
   const groupMap = new Map<string, PackingItem[]>();
   for (const { category, count, displayName } of countMap.values()) {
     const list = groupMap.get(category) ?? [];
@@ -67,7 +67,6 @@ function buildPackingList(days: TripOutfitDay[]): PackingGroup[] {
     groupMap.set(category, list);
   }
 
-  // Sort within each group by count desc
   const groups: PackingGroup[] = [];
   for (const category of CATEGORY_ORDER) {
     const items = groupMap.get(category);
@@ -79,28 +78,109 @@ function buildPackingList(days: TripOutfitDay[]): PackingGroup[] {
   return groups;
 }
 
+// ── Reminders export ──────────────────────────────────────────────────────────
+
+type ExportState = 'idle' | 'exporting' | 'done' | 'error';
+
+async function exportToReminders(destination: string, groups: PackingGroup[]): Promise<void> {
+  // Request permission
+  const { status } = await Calendar.requestRemindersPermissionsAsync();
+  if (status !== 'granted') {
+    throw new Error('Reminders permission denied.');
+  }
+
+  // Find or create a dedicated source (use default reminders source on iOS)
+  const sources = await Calendar.getSourcesAsync();
+  const remindersSource = sources.find((s) => s.type === Calendar.SourceType.LOCAL)
+    ?? sources[0];
+
+  if (!remindersSource) throw new Error('No reminders source available.');
+
+  // Create the list
+  const listId = await Calendar.createCalendarAsync({
+    title: `Pack for ${destination}`,
+    color: '#5B4FCF',
+    entityType: Calendar.EntityTypes.REMINDER,
+    sourceId: remindersSource.id,
+    source: remindersSource,
+    name: `Pack for ${destination}`,
+    ownerAccount: 'personal',
+    accessLevel: Calendar.CalendarAccessLevel.OWNER,
+  });
+
+  // Add each item as a reminder (category as a prefix for grouping)
+  const tasks: Promise<string>[] = [];
+  for (const group of groups) {
+    for (const item of group.items) {
+      const title = item.count > 1 ? `${item.name} ×${item.count}` : item.name;
+      tasks.push(
+        Calendar.createReminderAsync(listId, {
+          title,
+          completed: false,
+        }),
+      );
+    }
+  }
+  await Promise.all(tasks);
+}
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function PackingListScreen() {
-  const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  const { tripId, savedTripId } = useLocalSearchParams<{ tripId: string; savedTripId?: string }>();
   const { theme } = useTheme();
 
   const [groups, setGroups] = useState<PackingGroup[]>([]);
   const [destination, setDestination] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [exportState, setExportState] = useState<ExportState>('idle');
 
   useEffect(() => {
-    if (!tripId) { setIsLoading(false); return; }
-    tripOutfitsStorage.load(tripId).then((plan) => {
+    if (!tripId && !savedTripId) { setIsLoading(false); return; }
+
+    if (savedTripId) {
+      savedTripsService.getById(savedTripId).then((detail) => {
+        setDestination(detail.destination);
+        setGroups(buildPackingList(detail.days));
+        setIsLoading(false);
+      }).catch(() => setIsLoading(false));
+      return;
+    }
+
+    tripOutfitsStorage.load(tripId!).then((plan) => {
       if (plan) {
         setDestination(plan.destination);
         setGroups(buildPackingList(plan.days));
       }
       setIsLoading(false);
     });
-  }, [tripId]);
+  }, [tripId, savedTripId]);
 
   const totalItems = groups.reduce((sum, g) => sum + g.items.length, 0);
+
+  async function handleExportToReminders() {
+    if (exportState === 'exporting' || groups.length === 0) return;
+    setExportState('exporting');
+    try {
+      await exportToReminders(destination || 'Your trip', groups);
+      setExportState('done');
+    } catch {
+      setExportState('error');
+      // Reset after 3 s so the user can retry
+      setTimeout(() => setExportState('idle'), 3000);
+    }
+  }
+
+  const exportLabel =
+    exportState === 'exporting' ? 'Adding to Reminders…' :
+    exportState === 'done'      ? 'Added to Reminders' :
+    exportState === 'error'     ? 'Failed — tap to retry' :
+    'Add to Reminders';
+
+  const exportIcon =
+    exportState === 'done'  ? 'check' :
+    exportState === 'error' ? 'close' :
+    'archive';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'bottom']}>
@@ -126,61 +206,95 @@ export default function PackingListScreen() {
             No items to pack yet.
           </AppText>
         ) : (
-          groups.map((group) => (
-            <View
-              key={group.category}
+          <>
+            {/* Export to Reminders */}
+            <Pressable
+              onPress={() => void handleExportToReminders()}
+              disabled={exportState === 'exporting' || exportState === 'done'}
               style={{
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.border,
-                borderRadius: 20,
-                borderWidth: 1,
-                overflow: 'hidden',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: spacing.sm,
+                backgroundColor: exportState === 'done' ? theme.colors.subtleSurface : theme.colors.text,
+                borderRadius: 999,
+                paddingVertical: spacing.md,
               }}>
-              {/* Category header */}
-              <View
-                style={{
-                  borderBottomColor: theme.colors.border,
-                  borderBottomWidth: 1,
-                  paddingHorizontal: spacing.lg,
-                  paddingVertical: spacing.sm,
-                }}>
-                <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase', color: theme.colors.mutedText }}>
-                  {group.category}
-                </AppText>
-              </View>
+              {exportState === 'exporting' ? (
+                <ActivityIndicator size="small" color={theme.colors.inverseText} />
+              ) : (
+                <AppIcon
+                  name={exportIcon}
+                  color={exportState === 'done' ? theme.colors.mutedText : theme.colors.inverseText}
+                  size={15}
+                />
+              )}
+              <AppText style={{
+                color: exportState === 'done' ? theme.colors.mutedText : theme.colors.inverseText,
+                fontFamily: theme.fonts.sansMedium,
+                fontSize: 14,
+                letterSpacing: 0.5,
+                textTransform: 'uppercase',
+              }}>
+                {exportLabel}
+              </AppText>
+            </Pressable>
 
-              {/* Items */}
-              {group.items.map((item, idx) => (
+            {/* Packing groups */}
+            {groups.map((group) => (
+              <View
+                key={group.category}
+                style={{
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  overflow: 'hidden',
+                }}>
                 <View
-                  key={item.name}
                   style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingHorizontal: spacing.lg,
-                    paddingVertical: spacing.sm + 2,
-                    borderBottomWidth: idx < group.items.length - 1 ? 1 : 0,
                     borderBottomColor: theme.colors.border,
+                    borderBottomWidth: 1,
+                    paddingHorizontal: spacing.lg,
+                    paddingVertical: spacing.sm,
                   }}>
-                  <AppText style={{ flex: 1, fontSize: 14, lineHeight: 20 }}>{item.name}</AppText>
-                  {item.count > 1 && (
-                    <View
-                      style={{
-                        backgroundColor: theme.colors.subtleSurface,
-                        borderRadius: 999,
-                        paddingHorizontal: spacing.sm,
-                        paddingVertical: 2,
-                        marginLeft: spacing.sm,
-                      }}>
-                      <AppText style={{ color: theme.colors.mutedText, fontSize: 11, fontFamily: theme.fonts.sansMedium }}>
-                        ×{item.count}
-                      </AppText>
-                    </View>
-                  )}
+                  <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 11, letterSpacing: 1.4, textTransform: 'uppercase', color: theme.colors.mutedText }}>
+                    {group.category}
+                  </AppText>
                 </View>
-              ))}
-            </View>
-          ))
+
+                {group.items.map((item, idx) => (
+                  <View
+                    key={item.name}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingHorizontal: spacing.lg,
+                      paddingVertical: spacing.sm + 2,
+                      borderBottomWidth: idx < group.items.length - 1 ? 1 : 0,
+                      borderBottomColor: theme.colors.border,
+                    }}>
+                    <AppText style={{ flex: 1, fontSize: 14, lineHeight: 20 }}>{item.name}</AppText>
+                    {item.count > 1 && (
+                      <View
+                        style={{
+                          backgroundColor: theme.colors.subtleSurface,
+                          borderRadius: 999,
+                          paddingHorizontal: spacing.sm,
+                          paddingVertical: 2,
+                          marginLeft: spacing.sm,
+                        }}>
+                        <AppText style={{ color: theme.colors.mutedText, fontSize: 11, fontFamily: theme.fonts.sansMedium }}>
+                          ×{item.count}
+                        </AppText>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            ))}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
