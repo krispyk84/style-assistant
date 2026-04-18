@@ -48,9 +48,26 @@ export const generateTripOutfitsSchema = z.object({
 export const generateTripDaySketchSchema = z.object({
   destination:  z.string().min(1),
   dayTitle:     z.string().min(1),
-  climateLabel: z.string().min(1),
+  climateLabel: z.string().default(''),   // optional — empty string is fine
   pieces:       z.array(z.string().min(1)).min(1),
   shoes:        z.string().min(1),
   accessories:  z.array(z.string()).default([]),
   profileId:    z.string().optional(),
+});
+
+export const regenerateTripDaySchema = z.object({
+  tripId:        z.string().min(1),
+  dayIndex:      z.number().int().min(0),
+  date:          z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dayType:       z.enum(['travel_day', 'sightseeing', 'business', 'meeting', 'dinner_out', 'beach_pool', 'adventure', 'wedding_event', 'relaxed', 'conference']),
+  destination:   z.string().min(1),
+  country:       z.string().min(1),
+  climateLabel:  z.string().default(''),
+  activities:    z.string().optional(),
+  dressCode:     z.string().optional(),
+  styleVibe:     z.string().min(1),
+  purposes:      z.array(z.string()).default([]),
+  previousPieces: z.array(z.string()).default([]),
+  previousShoes:  z.string().optional(),
+  profileId:     z.string().optional(),
 });

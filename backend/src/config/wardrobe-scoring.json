@@ -1,0 +1,315 @@
+{
+  "scoringVersion": "1.0.0",
+
+  "dimensionWeights": {
+    "essentialsCoverage": 0.40,
+    "versatilityFunctionality": 0.35,
+    "trendRelevance": 0.25
+  },
+
+  "essentialsTierWeights": {
+    "tier1": 0.55,
+    "tier2": 0.30,
+    "tier3": 0.15
+  },
+
+  "scoreBands": [
+    { "min": 90, "max": 100, "label": "Exceptional",  "description": "A near-complete, highly versatile wardrobe with strong essentials coverage and good range." },
+    { "min": 75, "max": 89,  "label": "Strong",       "description": "A well-rounded wardrobe covering most essentials with room for targeted additions." },
+    { "min": 60, "max": 74,  "label": "Solid",        "description": "A functional wardrobe with some gaps. A few key pieces would noticeably improve versatility." },
+    { "min": 45, "max": 59,  "label": "Developing",   "description": "The wardrobe has a foundation but lacks balance. Focus on filling the identified gaps." },
+    { "min": 0,  "max": 44,  "label": "Needs Work",   "description": "Significant gaps in essentials and versatility. Focused investment will have high impact." }
+  ],
+
+  "versatilityWeights": {
+    "occasionSpread":      0.25,
+    "colorDistribution":   0.25,
+    "categoryGaps":        0.25,
+    "mixAndMatchPotential": 0.25
+  },
+
+  "essentialsMasterList": {
+    "tier1": [
+      {
+        "id": "white-dress-shirt",
+        "label": "White dress shirt",
+        "categories": ["Shirt"],
+        "subcategories": ["Dress Shirt", "OCBD", "Oxford Shirt"],
+        "colorFamilies": ["white"],
+        "keywords": ["white", "dress shirt", "oxford", "ocbd", "button-down", "button down"]
+      },
+      {
+        "id": "white-t-shirt",
+        "label": "White t-shirt",
+        "categories": ["T-Shirt", "T-shirt", "Tee"],
+        "subcategories": [],
+        "colorFamilies": ["white"],
+        "keywords": ["white", "t-shirt", "tee", "crew neck", "crewneck"]
+      },
+      {
+        "id": "dark-wash-jeans",
+        "label": "Dark wash jeans",
+        "categories": ["Denim", "Jeans"],
+        "subcategories": ["Slim", "Straight", "Tapered"],
+        "colorFamilies": ["navy", "black", "blue"],
+        "keywords": ["dark", "jeans", "denim", "indigo"]
+      },
+      {
+        "id": "chino-trousers",
+        "label": "Chino trousers",
+        "categories": ["Trousers", "Pants"],
+        "subcategories": ["Chino", "Chinos", "Twill Trousers"],
+        "colorFamilies": [],
+        "keywords": ["chino", "chinos", "twill", "cotton trouser"]
+      },
+      {
+        "id": "dark-blazer",
+        "label": "Dark blazer or sport coat",
+        "categories": ["Blazer", "Sports Jacket", "Sport Jacket", "Suit Jacket"],
+        "subcategories": [],
+        "colorFamilies": ["navy", "black", "grey", "charcoal"],
+        "keywords": ["blazer", "sport coat", "sports jacket", "suit jacket"]
+      },
+      {
+        "id": "grey-crewneck-sweater",
+        "label": "Grey crewneck sweater",
+        "categories": ["Knitwear", "Sweater", "Jumper"],
+        "subcategories": ["Crewneck", "Crew Neck"],
+        "colorFamilies": ["grey"],
+        "keywords": ["grey", "gray", "crewneck", "crew neck", "sweater", "pullover"]
+      },
+      {
+        "id": "leather-dress-shoe",
+        "label": "Leather dress shoe (Oxford or Derby)",
+        "categories": ["Shoes", "Footwear"],
+        "subcategories": ["Oxford", "Derby", "Brogue", "Dress Shoe"],
+        "colorFamilies": ["black", "brown"],
+        "keywords": ["oxford", "derby", "brogue", "dress shoe", "leather shoe"]
+      },
+      {
+        "id": "white-clean-sneaker",
+        "label": "White clean sneaker",
+        "categories": ["Shoes", "Footwear", "Sneakers"],
+        "subcategories": ["Sneakers", "Low-Top Sneaker", "Court Shoe"],
+        "colorFamilies": ["white"],
+        "keywords": ["white", "sneaker", "trainer", "clean", "low-top"]
+      },
+      {
+        "id": "navy-blue-suit",
+        "label": "Navy or dark suit",
+        "categories": ["Suit"],
+        "subcategories": [],
+        "colorFamilies": ["navy", "black", "grey"],
+        "formality": ["business-formal", "formal"],
+        "keywords": ["suit", "two-piece", "navy suit", "black suit", "grey suit"]
+      },
+      {
+        "id": "navy-trousers",
+        "label": "Navy or grey trousers",
+        "categories": ["Trousers", "Pants"],
+        "subcategories": ["Dress Trousers", "Tailored Trousers", "Slim Trousers"],
+        "colorFamilies": ["navy", "grey"],
+        "keywords": ["navy trouser", "grey trouser", "dress trouser", "tailored trouser"]
+      },
+      {
+        "id": "quality-belt",
+        "label": "Quality leather belt",
+        "categories": ["Belt", "Accessories"],
+        "subcategories": ["Leather Belt"],
+        "colorFamilies": ["black", "brown"],
+        "keywords": ["belt", "leather belt"]
+      },
+      {
+        "id": "outerwear-coat",
+        "label": "Outerwear coat or jacket",
+        "categories": ["Coat", "Jacket", "Outerwear"],
+        "subcategories": [],
+        "colorFamilies": [],
+        "keywords": ["coat", "jacket", "outerwear", "overcoat", "trench", "parka", "puffer", "down"]
+      }
+    ],
+
+    "tier2": [
+      {
+        "id": "polo-shirt",
+        "label": "Polo shirt",
+        "categories": ["Shirt", "Polo"],
+        "subcategories": ["Polo", "Polo Shirt"],
+        "colorFamilies": [],
+        "keywords": ["polo", "polo shirt"]
+      },
+      {
+        "id": "chelsea-boots",
+        "label": "Chelsea boots",
+        "categories": ["Shoes", "Footwear", "Boots"],
+        "subcategories": ["Chelsea", "Chelsea Boots"],
+        "colorFamilies": [],
+        "keywords": ["chelsea", "chelsea boot"]
+      },
+      {
+        "id": "loafers",
+        "label": "Loafers",
+        "categories": ["Shoes", "Footwear"],
+        "subcategories": ["Loafer", "Loafers", "Penny Loafer", "Horsebit Loafer"],
+        "colorFamilies": [],
+        "keywords": ["loafer", "loafers", "penny loafer", "horsebit"]
+      },
+      {
+        "id": "light-wash-jeans",
+        "label": "Light wash jeans",
+        "categories": ["Denim", "Jeans"],
+        "subcategories": [],
+        "colorFamilies": ["blue", "stone"],
+        "keywords": ["light wash", "light jeans", "stone wash", "fade"]
+      },
+      {
+        "id": "bomber-jacket",
+        "label": "Bomber or casual jacket",
+        "categories": ["Jacket", "Outerwear"],
+        "subcategories": ["Bomber", "Harrington", "Track Jacket"],
+        "colorFamilies": [],
+        "keywords": ["bomber", "harrington", "track jacket", "flight jacket"]
+      },
+      {
+        "id": "trench-coat",
+        "label": "Trench coat or tailored overcoat",
+        "categories": ["Coat", "Outerwear"],
+        "subcategories": ["Trench", "Overcoat", "Topcoat"],
+        "colorFamilies": [],
+        "keywords": ["trench", "overcoat", "topcoat", "mac", "raincoat"]
+      },
+      {
+        "id": "black-dress-trousers",
+        "label": "Black dress trousers",
+        "categories": ["Trousers", "Pants"],
+        "subcategories": ["Dress Trousers"],
+        "colorFamilies": ["black"],
+        "keywords": ["black trouser", "dress trouser", "black pant"]
+      },
+      {
+        "id": "quality-shorts",
+        "label": "Quality shorts",
+        "categories": ["Shorts"],
+        "subcategories": [],
+        "colorFamilies": [],
+        "keywords": ["shorts", "chino short", "swim short", "boardshort"]
+      },
+      {
+        "id": "cardigan",
+        "label": "Cardigan",
+        "categories": ["Knitwear", "Cardigan"],
+        "subcategories": ["Cardigan"],
+        "colorFamilies": [],
+        "keywords": ["cardigan", "button-through knit"]
+      },
+      {
+        "id": "quality-watch",
+        "label": "Watch",
+        "categories": ["Watch", "Watches", "Accessories"],
+        "subcategories": [],
+        "colorFamilies": [],
+        "keywords": ["watch", "timepiece"]
+      },
+      {
+        "id": "bag-or-backpack",
+        "label": "Bag or backpack",
+        "categories": ["Bag", "Backpack", "Accessories"],
+        "subcategories": [],
+        "colorFamilies": [],
+        "keywords": ["bag", "backpack", "weekender", "tote", "briefcase", "holdall"]
+      },
+      {
+        "id": "navy-or-grey-suit",
+        "label": "Second suit (grey or alternative)",
+        "categories": ["Suit"],
+        "subcategories": [],
+        "colorFamilies": ["grey", "stone", "blue"],
+        "formality": ["business-formal", "formal"],
+        "keywords": ["suit", "two-piece"]
+      }
+    ],
+
+    "tier3": [
+      {
+        "id": "overcoat",
+        "label": "Heavy wool overcoat",
+        "categories": ["Coat", "Outerwear"],
+        "subcategories": ["Overcoat", "Wool Coat", "Camel Coat"],
+        "colorFamilies": [],
+        "keywords": ["wool coat", "overcoat", "camel coat", "heavy coat"]
+      },
+      {
+        "id": "tuxedo",
+        "label": "Tuxedo or dinner suit",
+        "categories": ["Suit", "Tuxedo"],
+        "subcategories": ["Tuxedo", "Dinner Suit", "Black Tie"],
+        "colorFamilies": ["black", "navy"],
+        "keywords": ["tuxedo", "dinner suit", "black tie", "smoking jacket"]
+      },
+      {
+        "id": "suede-shoe",
+        "label": "Suede derby or loafer",
+        "categories": ["Shoes", "Footwear"],
+        "subcategories": ["Suede Derby", "Suede Loafer"],
+        "colorFamilies": [],
+        "keywords": ["suede", "nubuck"]
+      },
+      {
+        "id": "rollneck",
+        "label": "Rollneck or turtleneck",
+        "categories": ["Knitwear", "Sweater", "Jumper"],
+        "subcategories": ["Rollneck", "Turtleneck", "Mock Neck"],
+        "colorFamilies": [],
+        "keywords": ["rollneck", "turtleneck", "polo neck", "mock neck"]
+      },
+      {
+        "id": "linen-shirt",
+        "label": "Linen shirt",
+        "categories": ["Shirt"],
+        "subcategories": [],
+        "colorFamilies": [],
+        "keywords": ["linen", "linen shirt"]
+      },
+      {
+        "id": "statement-sneaker",
+        "label": "Statement or designer sneaker",
+        "categories": ["Shoes", "Footwear", "Sneakers"],
+        "subcategories": ["High-Top Sneaker", "Designer Sneaker", "Technical Sneaker"],
+        "colorFamilies": [],
+        "keywords": ["designer sneaker", "high-top", "statement sneaker", "technical sneaker"]
+      },
+      {
+        "id": "overshirt",
+        "label": "Overshirt or chore coat",
+        "categories": ["Jacket", "Shirt"],
+        "subcategories": ["Overshirt", "Chore Coat", "CPO Shirt"],
+        "colorFamilies": [],
+        "keywords": ["overshirt", "chore coat", "cpo", "shacket"]
+      },
+      {
+        "id": "gilet",
+        "label": "Gilet or vest",
+        "categories": ["Jacket", "Outerwear"],
+        "subcategories": ["Gilet", "Vest", "Waistcoat"],
+        "colorFamilies": [],
+        "keywords": ["gilet", "vest", "waistcoat", "puffer vest"]
+      },
+      {
+        "id": "scarf",
+        "label": "Scarf",
+        "categories": ["Scarf", "Accessories"],
+        "subcategories": [],
+        "colorFamilies": [],
+        "keywords": ["scarf", "muffler", "wool scarf"]
+      },
+      {
+        "id": "canvas-tote",
+        "label": "Canvas tote or casual bag",
+        "categories": ["Bag", "Accessories"],
+        "subcategories": ["Tote", "Canvas Bag"],
+        "colorFamilies": [],
+        "keywords": ["tote", "canvas bag", "canvas tote"]
+      }
+    ]
+  }
+}

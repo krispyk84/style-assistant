@@ -4,9 +4,15 @@ import type { TripOutfitDay } from '@/services/trip-outfits';
 
 const STORAGE_KEY = 'style-assistant/trip-outfits';
 
-type StoredTripPlan = {
+export type StoredTripPlan = {
   tripId: string;
   destination: string;
+  country: string;
+  climateLabel: string;
+  styleVibe: string;
+  purposes: string[];
+  activities?: string;
+  dressCode?: string;
   days: TripOutfitDay[];
   generatedAt: string;
 };

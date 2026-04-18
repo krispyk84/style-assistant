@@ -1,13 +1,14 @@
+import { z } from 'zod';
 import { openAiClient } from '../../ai/openai-client.js';
-import { buildTripOutfitsPrompt, buildTripDaySketchPrompt } from '../../ai/prompts/trips.prompts.js';
+import { buildTripOutfitsPrompt, buildTripDaySketchPrompt, buildRegenerateDayPrompt } from '../../ai/prompts/trips.prompts.js';
 import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { closetRepository } from '../closet/closet.repository.js';
-import { tripOutfitsResponseSchema } from './trips.schemas.js';
-import type { GenerateTripOutfitsRequest, GenerateTripOutfitsResponse, TripOutfitDayDto } from '../../contracts/trips.contracts.js';
+import { tripOutfitsResponseSchema, tripDaySchema } from './trips.schemas.js';
+import type { GenerateTripOutfitsRequest, GenerateTripOutfitsResponse, RegenerateTripDayRequest, TripOutfitDayDto } from '../../contracts/trips.contracts.js';
 
 export const tripsService = {
   async generateTripOutfits(
@@ -53,6 +54,36 @@ export const tripsService = {
     const job = await closetRepository.createSketchJob();
     void generateDaySketch(job.id, params);
     return job.id;
+  },
+
+  async regenerateDay(
+    request: RegenerateTripDayRequest,
+    supabaseUserId: string,
+  ): Promise<TripOutfitDayDto> {
+    const profile = request.profileId
+      ? await profileRepository.findById(request.profileId)
+      : await profileRepository.findByUserId(supabaseUserId);
+
+    const { instructions, userContent, jsonSchema } = buildRegenerateDayPrompt(request, profile);
+
+    const regenerateDayResponseSchema = z.object({ day: tripDaySchema });
+
+    const result = await openAiClient.createStructuredResponse({
+      schema: regenerateDayResponseSchema,
+      jsonSchema,
+      instructions,
+      userContent,
+      supabaseUserId,
+      feature: 'trip-generation',
+    });
+
+    return {
+      ...result.day,
+      id: `${request.tripId}-day-${request.dayIndex}-r${Date.now()}`,
+      tripId: request.tripId,
+      bag: result.day.bag ?? null,
+      accessories: result.day.accessories ?? [],
+    };
   },
 
   async getDaySketchStatus(jobId: string) {

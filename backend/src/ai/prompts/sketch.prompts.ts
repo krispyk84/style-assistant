@@ -387,26 +387,135 @@ export type ClosetItemSketchInput = {
   category: string;
   type: string;
   color: string;
+  // Shared optional fields
   material?: string | null;
   silhouette?: string | null;
   details?: string | null;
   orientation?: string | null;
   stylingNotes?: string | null;
+  // Enhanced garment fields
+  constructionDetails?: string | null;
+  standoutFeatures?: string | null;
+  // Footwear-specific fields
+  colorDetails?: string | null;
+  secondaryMaterials?: string | null;
+  toeShape?: string | null;
+  vampConstruction?: string | null;
+  fasteningSystem?: string | null;
+  soleProfile?: string | null;
+  heelType?: string | null;
+  upperPaneling?: string | null;
+  stitchingDetails?: string | null;
+  hardwareDetails?: string | null;
+  distinctiveFeatures?: string | null;
+  brandLanguage?: string | null;
+  // Product fidelity — hard constraints for the image model
+  mustPreserve?: string[];
 };
 
-export function buildClosetItemSketchPrompt(input: ClosetItemSketchInput): string {
-  const itemLines = [
-    `- category: ${input.category}`,
-    `- type: ${input.type}`,
-    `- color: ${input.color}`,
-    input.material ? `- material: ${input.material}` : null,
-    input.silhouette ? `- silhouette: ${input.silhouette}` : null,
-    input.details ? `- details: ${input.details}` : null,
-    input.orientation ? `- orientation: ${input.orientation}` : null,
-    input.stylingNotes ? `- styling notes: ${input.stylingNotes}` : null,
-  ].filter(Boolean).join('\n');
+/**
+ * Builds the PRODUCT FIDELITY CONSTRAINTS block.
+ * This is injected immediately before the item description so the image model
+ * reads the must-preserve list before it forms any visual priors.
+ */
+function buildProductFidelityBlock(input: ClosetItemSketchInput): string | null {
+  const features = input.mustPreserve?.filter(Boolean) ?? [];
+  if (!features.length) return null;
 
-  return `${CLOSET_ITEM_STYLE_PREAMBLE}\n\nItem:\n${itemLines}\n\n${CLOSET_ITEM_QUALITY_ADDENDUM}\n\n${CLOSET_ITEM_COMPOSITION_RULES}`;
+  const isFootwear = input.category === 'footwear';
+
+  const lines: string[] = [
+    '⚠ PRODUCT FIDELITY CONSTRAINTS — NON-NEGOTIABLE:',
+    'This is a specific product, not a generic category illustration.',
+    'The following features MUST be preserved exactly in the rendered sketch.',
+    'Failure to render these features accurately is a critical prompt failure.',
+    '',
+    'MUST PRESERVE:',
+    ...features.map((f) => `  ✓ ${f}`),
+    '',
+    'DO NOT:',
+  ];
+
+  if (isFootwear) {
+    lines.push(
+      '  ✗ Substitute a generic sneaker, boot, or loafer silhouette',
+      '  ✗ Replace the sole profile with a generic rubber outsole',
+      '  ✗ Invent laces if the shoe is a slip-on; invent elastic if it is lace-up',
+      '  ✗ Round or sharpen the toe shape beyond what is described',
+      '  ✗ Collapse distinctive vamp construction into a plain unmarked vamp',
+      '  ✗ Simplify luxury/technical construction into a generic canvas or skate shoe',
+      '  ✗ Remove or generalize stitching, paneling, or hardware details listed above',
+    );
+  } else {
+    lines.push(
+      '  ✗ Substitute a generic version of this garment category',
+      '  ✗ Invent pockets, closures, or collar structures not described',
+      '  ✗ Simplify distinctive construction details into generic stitching',
+      '  ✗ Remove standout design features listed above',
+    );
+  }
+
+  lines.push(
+    '',
+    'The sketch must read as a faithful product rendering of THIS specific item, not a generic version of its category.',
+    'Product accuracy takes priority over illustrative simplification.',
+  );
+
+  return lines.join('\n');
+}
+
+export function buildClosetItemSketchPrompt(input: ClosetItemSketchInput): string {
+  const isFootwear = input.category === 'footwear';
+  const fidelityBlock = buildProductFidelityBlock(input);
+
+  // Build item description — footwear gets a richer structured block
+  let itemLines: string;
+
+  if (isFootwear) {
+    itemLines = [
+      `- category: ${input.category}`,
+      `- type: ${input.type}`,
+      `- color: ${input.color}`,
+      input.colorDetails   ? `- color details: ${input.colorDetails}` : null,
+      input.material       ? `- primary material: ${input.material}` : null,
+      input.secondaryMaterials ? `- secondary materials: ${input.secondaryMaterials}` : null,
+      input.silhouette     ? `- silhouette profile: ${input.silhouette}` : null,
+      input.toeShape       ? `- toe shape: ${input.toeShape}` : null,
+      input.vampConstruction ? `- vamp construction: ${input.vampConstruction}` : null,
+      input.fasteningSystem  ? `- fastening system: ${input.fasteningSystem}` : null,
+      input.soleProfile    ? `- sole profile: ${input.soleProfile}` : null,
+      input.heelType       ? `- heel type: ${input.heelType}` : null,
+      input.upperPaneling  ? `- upper paneling: ${input.upperPaneling}` : null,
+      input.stitchingDetails ? `- stitching: ${input.stitchingDetails}` : null,
+      input.hardwareDetails  ? `- hardware: ${input.hardwareDetails}` : null,
+      input.distinctiveFeatures ? `- distinctive features: ${input.distinctiveFeatures}` : null,
+      input.brandLanguage  ? `- brand language: ${input.brandLanguage}` : null,
+      input.stylingNotes   ? `- styling notes: ${input.stylingNotes}` : null,
+    ].filter(Boolean).join('\n');
+  } else {
+    itemLines = [
+      `- category: ${input.category}`,
+      `- type: ${input.type}`,
+      `- color: ${input.color}`,
+      input.material           ? `- material: ${input.material}` : null,
+      input.silhouette         ? `- silhouette: ${input.silhouette}` : null,
+      input.details            ? `- details: ${input.details}` : null,
+      input.constructionDetails ? `- construction: ${input.constructionDetails}` : null,
+      input.standoutFeatures   ? `- standout features: ${input.standoutFeatures}` : null,
+      input.orientation        ? `- orientation: ${input.orientation}` : null,
+      input.stylingNotes       ? `- styling notes: ${input.stylingNotes}` : null,
+    ].filter(Boolean).join('\n');
+  }
+
+  const parts = [
+    CLOSET_ITEM_STYLE_PREAMBLE,
+    fidelityBlock,
+    `Item:\n${itemLines}`,
+    CLOSET_ITEM_QUALITY_ADDENDUM,
+    CLOSET_ITEM_COMPOSITION_RULES,
+  ].filter(Boolean);
+
+  return parts.join('\n\n');
 }
 
 /**

@@ -249,6 +249,12 @@ export default function TravelPlannerScreen() {
       await tripOutfitsStorage.save({
         tripId,
         destination: destination.label,
+        country: destination.country,
+        climateLabel: climate || 'Not specified',
+        styleVibe,
+        purposes,
+        activities: activities.trim() || undefined,
+        dressCode: dressCode.trim() || undefined,
         days: result.days,
         generatedAt: new Date().toISOString(),
       });

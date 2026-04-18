@@ -45,3 +45,20 @@ export type GenerateTripOutfitsResponse = {
   tripId: string;
   days: TripOutfitDayDto[];
 };
+
+export type RegenerateTripDayRequest = {
+  tripId: string;
+  dayIndex: number;
+  date: string;
+  dayType: string;
+  destination: string;
+  country: string;
+  climateLabel: string;
+  activities?: string;
+  dressCode?: string;
+  styleVibe: string;
+  purposes: string[];
+  previousPieces: string[];
+  previousShoes?: string;
+  profileId?: string;
+};

@@ -2,21 +2,23 @@ import { createApiClient } from '@/lib/api/api-client';
 import type {
   GenerateTripOutfitsParams,
   GenerateTripOutfitsResponse,
+  RegenerateTripDayParams,
+  RegenerateTripDayResponse,
   TripDaySketchResponse,
   TripDaySketchStatusResponse,
   TripOutfitDay,
 } from './trip-outfit-types';
 
-type RawDay = Omit<TripOutfitDay, 'sketchStatus' | 'sketchUrl' | 'sketchJobId'>;
+type RawDay = Omit<TripOutfitDay, 'sketchStatus' | 'sketchUrl' | 'sketchJobId' | 'feedback'>;
 
-type RawResponse = {
+type RawGenerateResponse = {
   tripId: string;
   days: RawDay[];
 };
 
 export const tripOutfitsService = {
   async generateTripOutfits(params: GenerateTripOutfitsParams): Promise<GenerateTripOutfitsResponse> {
-    const response = await createApiClient().request<RawResponse>('/trips/generate', {
+    const response = await createApiClient().request<RawGenerateResponse>('/trips/generate', {
       method: 'POST',
       body: params,
     });
@@ -30,7 +32,25 @@ export const tripOutfitsService = {
       days: response.data.days.map((day) => ({
         ...day,
         sketchStatus: 'not_started' as const,
+        feedback: null,
       })),
+    };
+  },
+
+  async regenerateDay(params: RegenerateTripDayParams): Promise<TripOutfitDay> {
+    const response = await createApiClient().request<RegenerateTripDayResponse>('/trips/regenerate-day', {
+      method: 'POST',
+      body: params,
+    });
+
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message ?? 'Failed to regenerate day outfit.');
+    }
+
+    return {
+      ...response.data.day,
+      sketchStatus: 'not_started' as const,
+      feedback: null,
     };
   },
 
@@ -48,7 +68,9 @@ export const tripOutfitsService = {
     });
 
     if (!response.success || !response.data) {
-      throw new Error(response.error?.message ?? 'Failed to start sketch generation.');
+      const msg = response.error?.message ?? 'Failed to start sketch generation.';
+      console.warn('[TripSketch] startDaySketch failed:', msg, response.error);
+      throw new Error(msg);
     }
 
     return response.data;
@@ -60,6 +82,7 @@ export const tripOutfitsService = {
     );
 
     if (!response.success || !response.data) {
+      console.warn('[TripSketch] getDaySketchStatus failed for jobId:', jobId, response.error);
       return { sketchStatus: 'failed', sketchImageUrl: null };
     }
 

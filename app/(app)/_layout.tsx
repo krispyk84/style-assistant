@@ -164,6 +164,10 @@ export default function AppTabsLayout() {
         <Tabs.Screen name="travel-planner"       options={{ href: null }} />
         <Tabs.Screen name="trip-results"         options={{ href: null }} />
         <Tabs.Screen name="TripResultsScreen"    options={{ href: null }} />
+        <Tabs.Screen name="packing-list"         options={{ href: null }} />
+        <Tabs.Screen name="PackingListScreen"    options={{ href: null }} />
+        <Tabs.Screen name="wardrobe-score"       options={{ href: null }} />
+        <Tabs.Screen name="WardrobeScoreScreen"  options={{ href: null }} />
         <Tabs.Screen name="settings"            options={{ href: null }} />
         <Tabs.Screen name="profile"             options={{ href: null }} />
         {/* ── Hidden: modularization artifacts — not tabs ──────────────── */}

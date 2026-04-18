@@ -26,6 +26,23 @@ export type TripOutfitDay = {
   sketchStatus: 'not_started' | 'loading' | 'ready' | 'failed';
   sketchUrl?: string;
   sketchJobId?: string;
+  feedback?: 'love' | 'hate' | null;
+};
+
+export type RegenerateTripDayParams = {
+  tripId: string;
+  dayIndex: number;
+  date: string;
+  dayType: TripDayType;
+  destination: string;
+  country: string;
+  climateLabel: string;
+  activities?: string;
+  dressCode?: string;
+  styleVibe: string;
+  purposes: string[];
+  previousPieces: string[];
+  previousShoes?: string;
 };
 
 export type GenerateTripOutfitsParams = {
@@ -67,4 +84,8 @@ export type TripDaySketchResponse = {
 export type TripDaySketchStatusResponse = {
   sketchStatus: 'pending' | 'ready' | 'failed';
   sketchImageUrl: string | null;
+};
+
+export type RegenerateTripDayResponse = {
+  day: Omit<TripOutfitDay, 'sketchStatus' | 'sketchUrl' | 'sketchJobId' | 'feedback'>;
 };

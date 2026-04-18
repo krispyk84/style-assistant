@@ -1,4 +1,4 @@
-import type { GenerateTripOutfitsRequest } from '../../contracts/trips.contracts.js';
+import type { GenerateTripOutfitsRequest, RegenerateTripDayRequest } from '../../contracts/trips.contracts.js';
 import { formatProfileContext } from '../prompt-context.js';
 
 type PromptProfile = Parameters<typeof formatProfileContext>[0];
@@ -162,6 +162,87 @@ export function buildTripOutfitsPrompt(
     instructions,
     userContent: [{ type: 'input_text', text: userText }],
     jsonSchema,
+  };
+}
+
+// ── Regenerate single day prompt ─────────────────────────────────────────────
+
+export type RegenerateDayPrompt = {
+  instructions: string;
+  userContent: { type: 'input_text'; text: string }[];
+  jsonSchema: Record<string, unknown>;
+};
+
+export function buildRegenerateDayPrompt(
+  req: RegenerateTripDayRequest,
+  profile: PromptProfile,
+): RegenerateDayPrompt {
+  const dayLabel = formatDate(req.date);
+  const previousList = req.previousPieces.map((p) => `  • ${p}`).join('\n');
+  const previousShoes = req.previousShoes ? `  • ${req.previousShoes} (shoes)` : '';
+
+  const instructions = [
+    'You are an expert travel stylist. Generate ONE fresh outfit alternative for a single trip day.',
+    '',
+    'RULES:',
+    '- Return exactly one day object.',
+    '- dayIndex and date must match what is provided — do NOT change them.',
+    '- Keep the same dayType — do NOT change it.',
+    '- Do NOT repeat the previous outfit pieces. Generate a genuinely different look.',
+    '- title should be a different evocative label from before.',
+    '- Be specific about garment descriptions (color + fabric hint).',
+    '',
+    formatProfileContext(profile),
+  ].join('\n');
+
+  const userText = [
+    `TRIP: ${req.destination}, ${req.country}`,
+    `Climate: ${req.climateLabel || 'Not specified'}`,
+    req.activities ? `Activities: ${req.activities}` : '',
+    req.dressCode ? `Dress code: ${req.dressCode}` : '',
+    `Style vibe: ${req.styleVibe}`,
+    req.purposes.length > 0 ? `Trip purpose: ${req.purposes.join(', ')}` : '',
+    '',
+    `Day to regenerate: Day ${req.dayIndex + 1} — ${dayLabel} (${req.dayType})`,
+    '',
+    'PREVIOUS OUTFIT (do NOT repeat these pieces):',
+    previousList,
+    previousShoes,
+    '',
+    'Generate a fresh alternative outfit for this day.',
+  ].filter(Boolean).join('\n');
+
+  const daySchema = {
+    type: 'object',
+    properties: {
+      dayIndex:     { type: 'integer' },
+      date:         { type: 'string' },
+      title:        { type: 'string' },
+      dayType:      { type: 'string', enum: ['travel_day', 'sightseeing', 'business', 'meeting', 'dinner_out', 'beach_pool', 'adventure', 'wedding_event', 'relaxed', 'conference'] },
+      rationale:    { type: 'string' },
+      pieces:       { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 5 },
+      shoes:        { type: 'string' },
+      bag:          { type: ['string', 'null'] },
+      accessories:  { type: 'array', items: { type: 'string' }, maxItems: 3 },
+      contextTags:  { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 },
+    },
+    required: ['dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags'],
+    additionalProperties: false,
+  };
+
+  return {
+    instructions,
+    userContent: [{ type: 'input_text', text: userText }],
+    jsonSchema: {
+      name: 'trip_day_regeneration',
+      description: 'Single regenerated day outfit',
+      schema: {
+        type: 'object',
+        properties: { day: daySchema },
+        required: ['day'],
+        additionalProperties: false,
+      },
+    },
   };
 }
 

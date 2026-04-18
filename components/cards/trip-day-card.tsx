@@ -21,14 +21,57 @@ const DAY_TYPE_LABELS: Record<TripOutfitDay['dayType'], string> = {
   conference:    'Conference',
 };
 
+// ── Outfit section grouping ───────────────────────────────────────────────────
+
+type OutfitGroup = { label: string; items: string[] };
+
+const OUTERWEAR_KEYWORDS = ['jacket', 'coat', 'blazer', 'cardigan', 'hoodie', 'windbreaker', 'parka', 'vest', 'puffer', 'trench', 'overcoat', 'jumper'];
+const TOP_KEYWORDS = ['shirt', 'tee', 't-shirt', 'blouse', 'top', 'sweater', 'polo', 'tank', 'turtleneck', 'henley', 'pullover'];
+const BOTTOM_KEYWORDS = ['trouser', 'trousers', 'jeans', 'shorts', 'skirt', 'chino', 'chinos', 'legging', 'leggings', 'jogger', 'joggers', 'pant', 'pants', 'culottes', 'midi', 'maxi'];
+const DRESS_KEYWORDS = ['dress', 'jumpsuit', 'romper', 'overalls'];
+const SWIM_KEYWORDS = ['swimsuit', 'bikini', 'boardshort', 'swim trunks', 'one-piece', 'swimwear', 'wetsuit'];
+
+function categorizePiece(piece: string): string {
+  const lower = piece.toLowerCase();
+  if (SWIM_KEYWORDS.some((k) => lower.includes(k))) return 'Swimwear';
+  if (OUTERWEAR_KEYWORDS.some((k) => lower.includes(k))) return 'Outerwear';
+  if (DRESS_KEYWORDS.some((k) => lower.includes(k))) return 'Dress / Jumpsuit';
+  if (TOP_KEYWORDS.some((k) => lower.includes(k))) return 'Top';
+  if (BOTTOM_KEYWORDS.some((k) => lower.includes(k))) return 'Bottom';
+  return 'Top'; // fallback
+}
+
+function buildOutfitGroups(day: TripOutfitDay): OutfitGroup[] {
+  const groupMap: Record<string, string[]> = {};
+
+  for (const piece of day.pieces) {
+    const cat = categorizePiece(piece);
+    (groupMap[cat] ??= []).push(piece);
+  }
+
+  const groups: OutfitGroup[] = [];
+  for (const label of ['Swimwear', 'Outerwear', 'Dress / Jumpsuit', 'Top', 'Bottom']) {
+    if (groupMap[label]?.length) groups.push({ label, items: groupMap[label]! });
+  }
+
+  groups.push({ label: 'Shoes', items: [day.shoes] });
+  if (day.bag) groups.push({ label: 'Bag', items: [day.bag] });
+  if (day.accessories.length) groups.push({ label: 'Accessories', items: day.accessories });
+
+  return groups;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 type Props = {
   day: TripOutfitDay;
+  isRegenerating: boolean;
   onGenerateSketch: () => void;
+  onLove: () => void;
+  onHate: () => void;
 };
 
-export function TripDayCard({ day, onGenerateSketch }: Props) {
+export function TripDayCard({ day, isRegenerating, onGenerateSketch, onLove, onHate }: Props) {
   const { theme } = useTheme();
 
   const dayLabel = new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', {
@@ -38,9 +81,13 @@ export function TripDayCard({ day, onGenerateSketch }: Props) {
   });
 
   const hasSketch = day.sketchStatus === 'ready' && day.sketchUrl;
-  const isLoading = day.sketchStatus === 'loading';
-  const failed = day.sketchStatus === 'failed';
-  const notStarted = day.sketchStatus === 'not_started';
+  const isSketchLoading = day.sketchStatus === 'loading';
+  const sketchFailed = day.sketchStatus === 'failed';
+
+  const isLoved = day.feedback === 'love';
+  const isHated = day.feedback === 'hate';
+
+  const outfitGroups = buildOutfitGroups(day);
 
   return (
     <View
@@ -50,9 +97,10 @@ export function TripDayCard({ day, onGenerateSketch }: Props) {
         borderRadius: 24,
         borderWidth: 1,
         overflow: 'hidden',
+        opacity: isRegenerating ? 0.5 : 1,
       }}>
 
-      {/* ── Sketch image ─────────────────────────────────────────────────── */}
+      {/* ── Sketch / Placeholder ─────────────────────────────────────────── */}
       {hasSketch ? (
         <Image
           source={{ uri: day.sketchUrl }}
@@ -69,18 +117,25 @@ export function TripDayCard({ day, onGenerateSketch }: Props) {
             justifyContent: 'center',
             gap: spacing.sm,
           }}>
-          {isLoading ? (
+          {isSketchLoading ? (
             <>
               <ActivityIndicator color={theme.colors.accent} size="large" />
               <AppText style={{ color: theme.colors.mutedText, fontSize: 12 }}>
                 Generating sketch…
               </AppText>
             </>
+          ) : isRegenerating ? (
+            <>
+              <ActivityIndicator color={theme.colors.accent} size="large" />
+              <AppText style={{ color: theme.colors.mutedText, fontSize: 12 }}>
+                Finding a new outfit…
+              </AppText>
+            </>
           ) : (
             <>
               <AppIcon name="sparkles" color={theme.colors.subtleText} size={28} />
               <AppText style={{ color: theme.colors.mutedText, fontSize: 13, textAlign: 'center', paddingHorizontal: spacing.lg }}>
-                {failed ? 'Sketch failed. Try again.' : 'No sketch yet'}
+                {sketchFailed ? 'Sketch failed. Try again.' : 'No sketch yet'}
               </AppText>
               <Pressable
                 onPress={onGenerateSketch}
@@ -98,7 +153,7 @@ export function TripDayCard({ day, onGenerateSketch }: Props) {
                     letterSpacing: 0.6,
                     textTransform: 'uppercase',
                   }}>
-                  {failed ? 'Retry Sketch' : 'Generate Sketch'}
+                  {sketchFailed ? 'Retry Sketch' : 'Generate Sketch'}
                 </AppText>
               </Pressable>
             </>
@@ -131,34 +186,19 @@ export function TripDayCard({ day, onGenerateSketch }: Props) {
           <AppText tone="muted" style={{ fontSize: 13, lineHeight: 19 }}>{day.rationale}</AppText>
         </View>
 
-        {/* Outfit pieces */}
-        <View style={{ gap: spacing.xs }}>
-          <AppText style={{ color: theme.colors.mutedText, fontFamily: theme.fonts.sansMedium, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase' }}>
-            Outfit
-          </AppText>
-          {day.pieces.map((piece, i) => (
-            <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs }}>
-              <AppText style={{ color: theme.colors.accent, fontSize: 13, lineHeight: 20 }}>·</AppText>
-              <AppText style={{ flex: 1, fontSize: 13, lineHeight: 20 }}>{piece}</AppText>
-            </View>
-          ))}
-          {/* Shoes */}
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs }}>
-            <AppText style={{ color: theme.colors.accent, fontSize: 13, lineHeight: 20 }}>·</AppText>
-            <AppText style={{ flex: 1, fontSize: 13, lineHeight: 20 }}>{day.shoes} <AppText style={{ color: theme.colors.subtleText, fontSize: 11 }}>(shoes)</AppText></AppText>
-          </View>
-          {/* Bag */}
-          {day.bag ? (
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs }}>
-              <AppText style={{ color: theme.colors.accent, fontSize: 13, lineHeight: 20 }}>·</AppText>
-              <AppText style={{ flex: 1, fontSize: 13, lineHeight: 20 }}>{day.bag} <AppText style={{ color: theme.colors.subtleText, fontSize: 11 }}>(bag)</AppText></AppText>
-            </View>
-          ) : null}
-          {/* Accessories */}
-          {day.accessories.map((acc, i) => (
-            <View key={`acc-${i}`} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs }}>
-              <AppText style={{ color: theme.colors.accent, fontSize: 13, lineHeight: 20 }}>·</AppText>
-              <AppText style={{ flex: 1, fontSize: 13, lineHeight: 20 }}>{acc}</AppText>
+        {/* Outfit groups */}
+        <View style={{ gap: spacing.sm }}>
+          {outfitGroups.map((group) => (
+            <View key={group.label}>
+              <AppText style={{ color: theme.colors.mutedText, fontFamily: theme.fonts.sansMedium, fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 4 }}>
+                {group.label}
+              </AppText>
+              {group.items.map((item, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs }}>
+                  <AppText style={{ color: theme.colors.accent, fontSize: 13, lineHeight: 20 }}>·</AppText>
+                  <AppText style={{ flex: 1, fontSize: 13, lineHeight: 20 }}>{item}</AppText>
+                </View>
+              ))}
             </View>
           ))}
         </View>
@@ -181,17 +221,76 @@ export function TripDayCard({ day, onGenerateSketch }: Props) {
           </View>
         )}
 
-        {/* Sketch button — only shown when sketch is ready (to allow re-generation) */}
-        {hasSketch && (
-          <Pressable
-            onPress={onGenerateSketch}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' }}>
-            <AppIcon name="sparkles" color={theme.colors.accent} size={11} />
-            <AppText style={{ color: theme.colors.accent, fontFamily: theme.fonts.sansMedium, fontSize: 11, letterSpacing: 0.4 }}>
-              Regenerate Sketch
-            </AppText>
-          </Pressable>
-        )}
+        {/* ── Actions row ──────────────────────────────────────────────────── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs }}>
+
+          {/* Love / Hate */}
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Pressable
+              onPress={onLove}
+              disabled={isRegenerating}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                backgroundColor: isLoved ? theme.colors.text : theme.colors.subtleSurface,
+                borderRadius: 999,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.xs + 1,
+              }}>
+              <AppIcon
+                name="heart"
+                color={isLoved ? theme.colors.inverseText : theme.colors.subtleText}
+                size={13}
+              />
+              <AppText style={{
+                color: isLoved ? theme.colors.inverseText : theme.colors.subtleText,
+                fontFamily: theme.fonts.sansMedium,
+                fontSize: 12,
+              }}>
+                Love it
+              </AppText>
+            </Pressable>
+
+            <Pressable
+              onPress={onHate}
+              disabled={isRegenerating}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                backgroundColor: isHated ? theme.colors.text : theme.colors.subtleSurface,
+                borderRadius: 999,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.xs + 1,
+              }}>
+              <AppIcon
+                name="thumbs-down"
+                color={isHated ? theme.colors.inverseText : theme.colors.subtleText}
+                size={13}
+              />
+              <AppText style={{
+                color: isHated ? theme.colors.inverseText : theme.colors.subtleText,
+                fontFamily: theme.fonts.sansMedium,
+                fontSize: 12,
+              }}>
+                Hate it
+              </AppText>
+            </Pressable>
+          </View>
+
+          {/* Sketch actions */}
+          {hasSketch ? (
+            <Pressable
+              onPress={onGenerateSketch}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <AppIcon name="sparkles" color={theme.colors.accent} size={11} />
+              <AppText style={{ color: theme.colors.accent, fontFamily: theme.fonts.sansMedium, fontSize: 11, letterSpacing: 0.4 }}>
+                Redo sketch
+              </AppText>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
     </View>
   );

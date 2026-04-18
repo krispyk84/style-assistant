@@ -5,7 +5,7 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { parseWithSchema } from '../../lib/validation.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { tripsService } from './trips.service.js';
-import { generateTripOutfitsSchema, generateTripDaySketchSchema } from './trips.schemas.js';
+import { generateTripOutfitsSchema, generateTripDaySketchSchema, regenerateTripDaySchema } from './trips.schemas.js';
 
 export const tripsRouter = Router();
 
@@ -16,6 +16,16 @@ tripsRouter.post(
     const payload = parseWithSchema(generateTripOutfitsSchema, request.body);
     const result = await tripsService.generateTripOutfits(payload, request.userId!);
     return sendSuccess(response, result, 201);
+  })
+);
+
+tripsRouter.post(
+  '/trips/regenerate-day',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(regenerateTripDaySchema, request.body);
+    const day = await tripsService.regenerateDay(payload, request.userId!);
+    return sendSuccess(response, { day });
   })
 );
 

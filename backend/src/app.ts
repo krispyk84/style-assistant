@@ -22,6 +22,7 @@ import { selfieReviewRouter } from './modules/selfie-review/selfie-review.routes
 import { uploadsRouter } from './modules/uploads/uploads.routes.js';
 import { tripsRouter } from './modules/trips/trips.routes.js';
 import { usageRouter } from './modules/usage/usage.routes.js';
+import { wardrobeScoreRouter } from './modules/wardrobe-score/wardrobe-score.routes.js';
 
 export function createApp() {
   const app = express();
@@ -144,6 +145,7 @@ export function createApp() {
   apiRouter.use(uploadsRouter);
   apiRouter.use(tripsRouter);
   apiRouter.use(usageRouter);
+  apiRouter.use(wardrobeScoreRouter);
 
   app.use(apiRouter);
 
