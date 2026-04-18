@@ -13,6 +13,8 @@ export type DestinationResult = {
   lat?: number;
   /** Decimal longitude — present for all GeoNames results */
   lng?: number;
+  /** City/place population — used for popularity ranking */
+  population?: number;
 };
 
 export interface DestinationSearchService {

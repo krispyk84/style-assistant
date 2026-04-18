@@ -102,28 +102,13 @@ export function ClosetScreenView({
 
   const listHeaderContent = (
     <View style={{ gap: spacing.xl, paddingBottom: spacing.xs }}>
-      {/* Title + add button */}
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <View style={{ gap: spacing.sm, flex: 1 }}>
-          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
-            The Atelier
-          </AppText>
-          <AppText variant="heroSmall">My Closet</AppText>
-          <AppText tone="muted">Your catalogued wardrobe pieces.</AppText>
-        </View>
-        <Pressable
-          hitSlop={8}
-          onPress={onAddPress}
-          style={{
-            alignItems: 'center',
-            backgroundColor: theme.colors.accent,
-            borderRadius: 999,
-            height: 40,
-            justifyContent: 'center',
-            width: 40,
-          }}>
-          <AppIcon color="#FFF" name="add" size={22} />
-        </Pressable>
+      {/* Title */}
+      <View style={{ gap: spacing.sm }}>
+        <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+          The Atelier
+        </AppText>
+        <AppText variant="heroSmall">My Closet</AppText>
+        <AppText tone="muted">Your catalogued wardrobe pieces.</AppText>
       </View>
 
       {/* Loading bar */}
@@ -338,6 +323,29 @@ export function ClosetScreenView({
           onScrollToIndexFailed={() => undefined}
         />
       )}
+
+      {/* Floating add button — always visible while scrolling */}
+      <Pressable
+        hitSlop={8}
+        onPress={onAddPress}
+        style={{
+          alignItems: 'center',
+          backgroundColor: theme.colors.accent,
+          borderRadius: 999,
+          bottom: spacing.lg,
+          elevation: 4,
+          height: 52,
+          justifyContent: 'center',
+          position: 'absolute',
+          right: spacing.lg,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.18,
+          shadowRadius: 6,
+          width: 52,
+        }}>
+        <AppIcon color="#FFF" name="add" size={24} />
+      </Pressable>
 
       <SaveToClosetModal
         visible={addModalVisible}

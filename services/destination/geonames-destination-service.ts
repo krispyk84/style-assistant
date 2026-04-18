@@ -14,6 +14,7 @@
 
 import { appConfig } from '@/constants/config';
 import type { DestinationResult, DestinationSearchService, DestinationType } from './destination-types';
+import { rankDestinationResults } from './destination-ranking';
 
 type GeonamesItem = {
   geonameId: number;
@@ -25,6 +26,8 @@ type GeonamesItem = {
   // GeoNames returns these as strings in MEDIUM style
   lat?: string;
   lng?: string;
+  // Available in MEDIUM style — used for popularity ranking
+  population?: number;
 };
 
 type GeonamesResponse = {
@@ -55,9 +58,11 @@ function resolveType(fcl: string, fcode: string): DestinationType {
 
 export const geonamesDestinationService: DestinationSearchService = {
   async search(query: string): Promise<DestinationResult[]> {
+    // Fetch more candidates than we show so the re-ranker has a wide pool to
+    // work with. The final list is trimmed back to 8 after ranking.
     const params = [
       `q=${encodeURIComponent(query)}`,
-      'maxRows=8',
+      'maxRows=14',
       'featureClass=P',
       'featureClass=A',
       'orderby=relevance',
@@ -78,7 +83,7 @@ export const geonamesDestinationService: DestinationSearchService = {
       throw new Error(data.status.message);
     }
 
-    return (data.geonames ?? []).map((item) => ({
+    const results: DestinationResult[] = (data.geonames ?? []).map((item) => ({
       geonameId: item.geonameId,
       label: buildLabel(item),
       city: item.fcl === 'P' ? item.name : null,
@@ -87,6 +92,10 @@ export const geonamesDestinationService: DestinationSearchService = {
       type: resolveType(item.fcl, item.fcode),
       lat: item.lat != null ? parseFloat(item.lat) : undefined,
       lng: item.lng != null ? parseFloat(item.lng) : undefined,
+      population: item.population ?? undefined,
     }));
+
+    // Re-rank by match quality + popularity, then trim to display limit.
+    return rankDestinationResults(query, results).slice(0, 8);
   },
 };
