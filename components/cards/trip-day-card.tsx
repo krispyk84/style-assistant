@@ -1,10 +1,15 @@
-import { ActivityIndicator, Image, Pressable, View } from 'react-native';
+import { ActivityIndicator, Image, LayoutAnimation, Platform, Pressable, UIManager, View } from 'react-native';
+import { useEffect, useRef } from 'react';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import type { TripOutfitDay } from '@/services/trip-outfits';
+
+if (Platform.OS === 'android') {
+  UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
 
 // ── Day type badge ────────────────────────────────────────────────────────────
 
@@ -80,7 +85,7 @@ export function TripDayCard({ day, isRegenerating, onGenerateSketch, onLove, onH
     month: 'short',
   });
 
-  const hasSketch = day.sketchStatus === 'ready' && day.sketchUrl;
+  const hasSketch = day.sketchStatus === 'ready' && !!day.sketchUrl;
   const isSketchLoading = day.sketchStatus === 'loading';
   const sketchFailed = day.sketchStatus === 'failed';
 
@@ -88,6 +93,17 @@ export function TripDayCard({ day, isRegenerating, onGenerateSketch, onLove, onH
   const isHated = day.feedback === 'hate';
 
   const outfitGroups = buildOutfitGroups(day);
+
+  // Animate layout when sketch becomes ready so the card expands smoothly.
+  const prevHasSketch = useRef(hasSketch);
+  useEffect(() => {
+    if (!prevHasSketch.current && hasSketch) {
+      LayoutAnimation.configureNext(
+        LayoutAnimation.create(320, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity),
+      );
+    }
+    prevHasSketch.current = hasSketch;
+  }, [hasSketch]);
 
   return (
     <View
@@ -100,64 +116,64 @@ export function TripDayCard({ day, isRegenerating, onGenerateSketch, onLove, onH
         opacity: isRegenerating ? 0.5 : 1,
       }}>
 
-      {/* ── Sketch / Placeholder ─────────────────────────────────────────── */}
+      {/* ── Sketch area: three explicit height states ─────────────────────── */}
       {hasSketch ? (
+        // ── Ready: full aspect-ratio image, same as standard outfit card ──
         <Image
-          source={{ uri: day.sketchUrl }}
+          source={{ uri: day.sketchUrl! }}
           style={{ width: '100%', aspectRatio: 1024 / 1536 }}
           resizeMode="cover"
         />
-      ) : (
+      ) : isSketchLoading || isRegenerating ? (
+        // ── Loading / regenerating: compact spinner (not full-height) ──────
         <View
           style={{
             width: '100%',
-            aspectRatio: 1024 / 1536,
+            height: 140,
             backgroundColor: theme.colors.subtleSurface,
             alignItems: 'center',
             justifyContent: 'center',
+            gap: spacing.xs,
+          }}>
+          <ActivityIndicator color={theme.colors.subtleText} size="small" />
+          <AppText style={{ color: theme.colors.mutedText, fontSize: 12 }}>
+            {isRegenerating ? 'Finding a new outfit…' : 'Generating sketch…'}
+          </AppText>
+        </View>
+      ) : (
+        // ── Idle / failed: compact action strip (icon + label + CTA) ────────
+        <View
+          style={{
+            width: '100%',
+            paddingVertical: spacing.lg,
+            paddingHorizontal: spacing.lg,
+            backgroundColor: theme.colors.subtleSurface,
+            alignItems: 'center',
             gap: spacing.sm,
           }}>
-          {isSketchLoading ? (
-            <>
-              <ActivityIndicator color={theme.colors.accent} size="large" />
-              <AppText style={{ color: theme.colors.mutedText, fontSize: 12 }}>
-                Generating sketch…
-              </AppText>
-            </>
-          ) : isRegenerating ? (
-            <>
-              <ActivityIndicator color={theme.colors.accent} size="large" />
-              <AppText style={{ color: theme.colors.mutedText, fontSize: 12 }}>
-                Finding a new outfit…
-              </AppText>
-            </>
-          ) : (
-            <>
-              <AppIcon name="sparkles" color={theme.colors.subtleText} size={28} />
-              <AppText style={{ color: theme.colors.mutedText, fontSize: 13, textAlign: 'center', paddingHorizontal: spacing.lg }}>
-                {sketchFailed ? 'Sketch failed. Try again.' : 'No sketch yet'}
-              </AppText>
-              <Pressable
-                onPress={onGenerateSketch}
-                style={{
-                  backgroundColor: theme.colors.text,
-                  borderRadius: 999,
-                  paddingHorizontal: spacing.md,
-                  paddingVertical: spacing.xs,
-                }}>
-                <AppText
-                  style={{
-                    color: theme.colors.inverseText,
-                    fontFamily: theme.fonts.sansMedium,
-                    fontSize: 11,
-                    letterSpacing: 0.6,
-                    textTransform: 'uppercase',
-                  }}>
-                  {sketchFailed ? 'Retry Sketch' : 'Generate Sketch'}
-                </AppText>
-              </Pressable>
-            </>
-          )}
+          <AppIcon name="sparkles" color={theme.colors.subtleText} size={22} />
+          <AppText style={{ color: theme.colors.mutedText, fontSize: 12, textAlign: 'center' }}>
+            {sketchFailed ? 'Sketch failed. Try again.' : 'No sketch yet'}
+          </AppText>
+          <Pressable
+            onPress={onGenerateSketch}
+            style={{
+              backgroundColor: theme.colors.text,
+              borderRadius: 999,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.xs,
+            }}>
+            <AppText
+              style={{
+                color: theme.colors.inverseText,
+                fontFamily: theme.fonts.sansMedium,
+                fontSize: 11,
+                letterSpacing: 0.6,
+                textTransform: 'uppercase',
+              }}>
+              {sketchFailed ? 'Retry Sketch' : 'Generate Sketch'}
+            </AppText>
+          </Pressable>
         </View>
       )}
 
