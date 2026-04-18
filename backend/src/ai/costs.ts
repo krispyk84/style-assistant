@@ -30,7 +30,9 @@ export type AiFeature =
   | 'compatibility-check'
   | 'selfie-review'
   | 'second-opinion'
-  | 'help-me-pick';
+  | 'help-me-pick'
+  | 'trip-generation'
+  | 'trip-sketch';
 
 const TEXT_INPUT_COST_PER_TOKEN = 0.15 / 1_000_000;
 const TEXT_OUTPUT_COST_PER_TOKEN = 0.60 / 1_000_000;

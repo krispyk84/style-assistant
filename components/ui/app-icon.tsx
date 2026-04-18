@@ -44,6 +44,10 @@ export type AppIconName =
   | 'shirt'
   // Informational
   | 'info'
+  // More / navigation
+  | 'more-horizontal' | 'suitcase' | 'log-out'
+  // Tab-specific Streamline icons
+  | 'clothes-pattern' | 'nav-menu-vertical'
 
 // ── Shared stroke shorthand ──────────────────────────────────────────────────
 
@@ -504,6 +508,50 @@ const ICONS: Record<AppIconName, Render> = {
       <Circle cx={7} cy={7} r={6.5} />
       <Path d="M7 6.5v4" />
       <Circle cx={7} cy={4.25} r={0.5} fill={c} stroke={c} strokeWidth={0} />
+    </G>
+  ),
+
+  'more-horizontal': (c) => (
+    // three filled horizontal dots
+    <G>
+      <Circle cx={2} cy={7} r={1.25} fill={c} />
+      <Circle cx={7} cy={7} r={1.25} fill={c} />
+      <Circle cx={12} cy={7} r={1.25} fill={c} />
+    </G>
+  ),
+
+  suitcase: (c, sw) => (
+    // travel suitcase — rect body + handle arc + horizontal divider
+    <G {...S} stroke={c} strokeWidth={sw}>
+      <Rect x={1} y={4.5} width={12} height={9} rx={1} />
+      <Path d="M4.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5" />
+      <Path d="M1 8.5h12" />
+    </G>
+  ),
+
+  'log-out': (c, sw) => (
+    // door frame + arrow pointing right
+    <G {...S} stroke={c} strokeWidth={sw}>
+      <Path d="M5.5 13.5H2a1 1 0 0 1-1-1V1.5A1 1 0 0 1 2 .5h3.5" />
+      <Path d="M9.5 10.5L13.5 7l-4-3.5" />
+      <Path d="M5.5 7h8" />
+    </G>
+  ),
+
+  'clothes-pattern': (c, sw) => (
+    // T-shirt silhouette — Streamline shopping-categories-shirt
+    <Path
+      d="M10.5 1.5l3 3l-2 2l-1-1v6a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-6l-1 1l-2-2l3-3Z"
+      {...S} stroke={c} strokeWidth={sw}
+    />
+  ),
+
+  'nav-menu-vertical': (c) => (
+    // Three vertical dots — Navigation Menu Vertical 2
+    <G>
+      <Circle cx={7} cy={2} r={1.5} fill={c} />
+      <Circle cx={7} cy={7} r={1.5} fill={c} />
+      <Circle cx={7} cy={12} r={1.5} fill={c} />
     </G>
   ),
 };

@@ -17,14 +17,14 @@ export default function ProfileScreen() {
 
   if (!isHydrated) {
     return (
-      <AppScreen>
+      <AppScreen floatingBack>
         <LoadingState label="Loading profile..." />
       </AppScreen>
     );
   }
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable floatingBack>
       <View style={{ gap: spacing.xl }}>
         <SectionHeader
           title="Profile"

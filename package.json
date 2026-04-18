@@ -7,7 +7,7 @@
     "ios": "expo run:ios",
     "lint": "expo lint",
     "bump": "node scripts/bump-patch.js",
-    "deploy": "xcodebuild -workspace ios/Vesture.xcworkspace -scheme Vesture -configuration Release -destination 'id=00008140-000C6D860082201C' -allowProvisioningUpdates -derivedDataPath /tmp/vesture-build && xcrun devicectl device install app --device 00008140-000C6D860082201C /tmp/vesture-build/Build/Products/Release-iphoneos/Vesture.app",
+    "deploy": "xcodebuild -workspace ios/Vesture.xcworkspace -scheme Vesture -configuration Release -destination 'id=00008140-000C6D860082201C' -allowProvisioningUpdates -derivedDataPath /tmp/vesture-build -UseNewBuildSystem=NO && xcrun devicectl device install app --device 00008140-000C6D860082201C /tmp/vesture-build/Build/Products/Release-iphoneos/Vesture.app",
     "android": "expo run:android"
   },
   "dependencies": {

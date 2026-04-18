@@ -13,6 +13,8 @@ type AppScreenProps = PropsWithChildren<{
   topInset?: boolean;
   /** When true, shows a floating "Back" button after the user scrolls down. */
   floatingBack?: boolean;
+  /** When true, shows a permanent back chevron row above the content. */
+  backButton?: boolean;
   /** Optional ref forwarded to the inner ScrollView (only meaningful when scrollable=true). */
   scrollRef?: RefObject<ScrollView>;
   /** Optional scroll handler forwarded to the inner ScrollView. */
@@ -21,7 +23,7 @@ type AppScreenProps = PropsWithChildren<{
 
 const FLOATING_BACK_THRESHOLD = 80;
 
-export function AppScreen({ children, scrollable = false, topInset = true, floatingBack = false, scrollRef, onScroll }: AppScreenProps) {
+export function AppScreen({ children, scrollable = false, topInset = true, floatingBack = false, backButton = false, scrollRef, onScroll }: AppScreenProps) {
   const [showFloatingBack, setShowFloatingBack] = useState(false);
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
@@ -56,6 +58,21 @@ export function AppScreen({ children, scrollable = false, topInset = true, float
     <SafeAreaView
       style={{ flex: 1, backgroundColor: theme.colors.background }}
       edges={topInset ? ['top', 'left', 'right'] : ['left', 'right']}>
+      {backButton ? (
+        <Pressable
+          onPress={() => router.back()}
+          style={{
+            alignItems: 'center',
+            flexDirection: 'row',
+            gap: spacing.xs,
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.sm,
+            paddingBottom: spacing.xs,
+          }}>
+          <AppIcon color={theme.colors.text} name="chevron-left" size={18} />
+          <AppText style={{ fontSize: 15 }}>Back</AppText>
+        </Pressable>
+      ) : null}
       {scrollable ? (
         <ScrollView
           ref={scrollRef}

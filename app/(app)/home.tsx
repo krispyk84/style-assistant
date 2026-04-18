@@ -32,20 +32,37 @@ export default function HomeScreen() {
 
         {/* Greeting */}
         <View style={{ gap: spacing.sm }}>
-          <View
-            style={{
-              alignSelf: 'flex-start',
-              borderColor: theme.colors.accent,
-              borderRadius: 999,
-              borderWidth: 1,
-              paddingHorizontal: spacing.sm,
-              paddingVertical: 3,
-            }}>
-            <AppText
-              variant="eyebrow"
-              style={{ color: theme.colors.accent, letterSpacing: 0.6 }}>
-              The Atelier
-            </AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <View
+              style={{
+                alignSelf: 'flex-start',
+                borderColor: theme.colors.accent,
+                borderRadius: 999,
+                borderWidth: 1,
+                paddingHorizontal: spacing.sm,
+                paddingVertical: 3,
+              }}>
+              <AppText
+                variant="eyebrow"
+                style={{ color: theme.colors.accent, letterSpacing: 0.6 }}>
+                The Atelier
+              </AppText>
+            </View>
+            <Pressable
+              accessibilityLabel="View and edit your profile"
+              onPress={() => router.push('/profile')}
+              style={{
+                alignItems: 'center',
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+                borderRadius: 999,
+                borderWidth: 1,
+                height: 36,
+                justifyContent: 'center',
+                width: 36,
+              }}>
+              <AppIcon color={theme.colors.text} name="person" size={16} />
+            </Pressable>
           </View>
           <AppText variant="hero" style={{ color: theme.colors.text }}>
             {getGreeting()},{'\n'}{firstName}.

@@ -1,0 +1,38 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import type { TripOutfitDay } from '@/services/trip-outfits';
+
+const STORAGE_KEY = 'style-assistant/trip-outfits';
+
+type StoredTripPlan = {
+  tripId: string;
+  destination: string;
+  days: TripOutfitDay[];
+  generatedAt: string;
+};
+
+export const tripOutfitsStorage = {
+  async save(plan: StoredTripPlan): Promise<void> {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY).catch(() => null);
+    const map: Record<string, StoredTripPlan> = raw ? JSON.parse(raw) : {};
+    map[plan.tripId] = plan;
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+  },
+
+  async load(tripId: string): Promise<StoredTripPlan | null> {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY).catch(() => null);
+    if (!raw) return null;
+    const map: Record<string, StoredTripPlan> = JSON.parse(raw);
+    return map[tripId] ?? null;
+  },
+
+  async updateDay(tripId: string, updatedDay: TripOutfitDay): Promise<void> {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY).catch(() => null);
+    if (!raw) return;
+    const map: Record<string, StoredTripPlan> = JSON.parse(raw);
+    const plan = map[tripId];
+    if (!plan) return;
+    plan.days = plan.days.map((d) => (d.id === updatedDay.id ? updatedDay : d));
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+  },
+};

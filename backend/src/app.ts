@@ -20,6 +20,7 @@ import { profileRouter } from './modules/profile/profile.routes.js';
 import { secondOpinionRouter } from './modules/second-opinion/second-opinion.routes.js';
 import { selfieReviewRouter } from './modules/selfie-review/selfie-review.routes.js';
 import { uploadsRouter } from './modules/uploads/uploads.routes.js';
+import { tripsRouter } from './modules/trips/trips.routes.js';
 import { usageRouter } from './modules/usage/usage.routes.js';
 
 export function createApp() {
@@ -141,6 +142,7 @@ export function createApp() {
   apiRouter.use(selfieReviewRouter);
   apiRouter.use(secondOpinionRouter);
   apiRouter.use(uploadsRouter);
+  apiRouter.use(tripsRouter);
   apiRouter.use(usageRouter);
 
   app.use(apiRouter);

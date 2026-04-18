@@ -1,13 +1,11 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { PanResponder, Pressable, View } from 'react-native';
 
-import { ProfileForm } from '@/components/forms/profile-form';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme, type AppearanceMode } from '@/contexts/theme-context';
-import { useAppSession } from '@/hooks/use-app-session';
 import { useLogout } from './useLogout';
 import { useSettings } from './useSettings';
 
@@ -22,12 +20,10 @@ const APPEARANCE_OPTIONS: { value: AppearanceMode; label: string; description: s
 // ── Screen ─────────────────────────────────────────────────────────────────────
 
 export function SettingsScreen() {
-  const { isSaving, profile, saveProfile } = useAppSession();
   const { user } = useAuth();
   const { theme, appearanceMode, setAppearanceMode } = useTheme();
   const { sensitivity, handleSensitivityChange, monthlyAiCost, sensitivityLabel, appVersion } = useSettings();
   const { handleLogout } = useLogout();
-  const [isSavedMessageVisible, setIsSavedMessageVisible] = useState(false);
 
   const cardStyle = {
     backgroundColor: theme.colors.surface,
@@ -39,28 +35,14 @@ export function SettingsScreen() {
   } as const;
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable floatingBack>
       <View style={{ gap: spacing.xl }}>
         <View style={{ gap: spacing.xs }}>
           <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 2 }}>
             The Atelier
           </AppText>
           <AppText variant="heroSmall">Settings</AppText>
-          <AppText tone="muted">Profile and app details.</AppText>
-        </View>
-
-        {/* Profile */}
-        <View style={cardStyle}>
-          <ProfileForm
-            initialValue={profile}
-            submitLabel={isSaving ? 'Saving...' : 'Save profile'}
-            disabled={isSaving}
-            onSubmit={async (nextProfile) => {
-              await saveProfile(nextProfile, true);
-              setIsSavedMessageVisible(true);
-            }}
-          />
-          {isSavedMessageVisible ? <AppText tone="muted">Profile updated.</AppText> : null}
+          <AppText tone="muted">App details and preferences.</AppText>
         </View>
 
         {/* Appearance */}

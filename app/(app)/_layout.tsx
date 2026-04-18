@@ -1,8 +1,9 @@
 import { Redirect, router, Tabs } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MoreBottomSheet } from '@/components/more/more-bottom-sheet';
 import { AppIcon } from '@/components/ui/app-icon';
 import { BrandSplash } from '@/components/ui/brand-splash';
 import { AppText } from '@/components/ui/app-text';
@@ -10,6 +11,7 @@ import { spacing, theme as staticTheme } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
+import { useLogout } from './useLogout';
 
 const TAB_ICON_SIZE = 22;
 
@@ -52,6 +54,8 @@ export default function AppTabsLayout() {
   const { hasCompletedOnboarding, isHydrated } = useAppSession();
   const { user } = useAuth();
   const { theme } = useTheme();
+  const { handleLogout } = useLogout();
+  const [moreSheetVisible, setMoreSheetVisible] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -77,6 +81,12 @@ export default function AppTabsLayout() {
 
   return (
     <View style={{ flex: 1 }}>
+      {moreSheetVisible ? (
+        <MoreBottomSheet
+          onClose={() => setMoreSheetVisible(false)}
+          onSignOut={handleLogout}
+        />
+      ) : null}
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -123,7 +133,7 @@ export default function AppTabsLayout() {
           options={{
             title: 'Looks',
             tabBarIcon: ({ color, focused }) => (
-              <AppIcon name="person" color={color} size={TAB_ICON_SIZE} strokeWidth={focused ? 1.6 : 1.1} />
+              <AppIcon name="clothes-pattern" color={color} size={TAB_ICON_SIZE} strokeWidth={focused ? 1.6 : 1.1} />
             ),
           }}
         />
@@ -137,14 +147,24 @@ export default function AppTabsLayout() {
           }}
         />
         <Tabs.Screen
-          name="settings"
+          name="more"
           options={{
-            title: 'Settings',
-            tabBarIcon: ({ color, focused }) => (
-              <AppIcon name="settings" color={color} size={TAB_ICON_SIZE} strokeWidth={focused ? 1.6 : 1.1} />
+            title: 'More',
+            tabBarIcon: ({ color }) => (
+              <AppIcon name="nav-menu-vertical" color={color} size={TAB_ICON_SIZE} />
             ),
           }}
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              setMoreSheetVisible(true);
+            },
+          }}
         />
+        <Tabs.Screen name="travel-planner"       options={{ href: null }} />
+        <Tabs.Screen name="trip-results"         options={{ href: null }} />
+        <Tabs.Screen name="TripResultsScreen"    options={{ href: null }} />
+        <Tabs.Screen name="settings"            options={{ href: null }} />
         <Tabs.Screen name="profile"             options={{ href: null }} />
         {/* ── Hidden: modularization artifacts — not tabs ──────────────── */}
         <Tabs.Screen name="ClosetScreenView"    options={{ href: null }} />
