@@ -257,7 +257,7 @@ function buildMustPreserveFromFootwear(
     shoe.hardwareDetails !== 'none' && shoe.hardwareDetails !== 'no hardware' ? shoe.hardwareDetails : null,
     shoe.distinctiveFeatures,
     ...shoe.mustPreserve,
-  ].filter((v): v is string => Boolean(v) && v.length > 3);
+  ].filter((v): v is string => v != null && v.length > 3);
 
   // Deduplicate while preserving order
   const seen = new Set<string>();

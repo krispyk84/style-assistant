@@ -1,4 +1,5 @@
 import type { GenerateTripOutfitsRequest, RegenerateTripDayRequest } from '../../contracts/trips.contracts.js';
+import type { JsonSchemaConfig } from '../openai-request-builder.js';
 import { formatProfileContext } from '../prompt-context.js';
 
 type PromptProfile = Parameters<typeof formatProfileContext>[0];
@@ -170,7 +171,7 @@ export function buildTripOutfitsPrompt(
 export type RegenerateDayPrompt = {
   instructions: string;
   userContent: { type: 'input_text'; text: string }[];
-  jsonSchema: Record<string, unknown>;
+  jsonSchema: JsonSchemaConfig;
 };
 
 export function buildRegenerateDayPrompt(
