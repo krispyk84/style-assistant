@@ -131,6 +131,7 @@ export default function TravelPlannerScreen() {
   const [savedTripsLoading, setSavedTripsLoading] = useState(false);
   const [savedTripsError, setSavedTripsError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pastExpanded, setPastExpanded] = useState(false);
 
   function loadSavedTrips() {
     setSavedTripsLoading(true);
@@ -389,18 +390,72 @@ export default function TravelPlannerScreen() {
               title="No saved trips"
               message="Generate a trip plan and tap the bookmark to save it here."
             />
-          ) : (
-            <View style={{ gap: spacing.md }}>
-              {savedTrips.map((trip) => (
-                <SavedTripCard
-                  key={trip.id}
-                  trip={trip}
-                  onPress={() => handleOpenSavedTrip(trip)}
-                  onDelete={() => void handleDeleteSavedTrip(trip.id)}
-                />
-              ))}
-            </View>
-          )
+          ) : (() => {
+            const today = new Date().toISOString().split('T')[0]!;
+            const upcoming = savedTrips
+              .filter((t) => t.departureDate >= today)
+              .sort((a, b) => a.departureDate.localeCompare(b.departureDate));
+            const past = savedTrips
+              .filter((t) => t.departureDate < today)
+              .sort((a, b) => b.departureDate.localeCompare(a.departureDate));
+
+            return (
+              <View style={{ gap: spacing.md }}>
+                {/* Past trips toggle */}
+                {past.length > 0 && (
+                  <Pressable
+                    onPress={() => setPastExpanded((v) => !v)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: spacing.xs,
+                      paddingVertical: spacing.xs,
+                    }}>
+                    <AppIcon name="archive" color={theme.colors.mutedText} size={13} />
+                    <AppText style={{
+                      color: theme.colors.mutedText,
+                      fontFamily: staticTheme.fonts.sansMedium,
+                      fontSize: 13,
+                      flex: 1,
+                    }}>
+                      {past.length} past {past.length === 1 ? 'trip' : 'trips'}
+                    </AppText>
+                    <AppIcon
+                      name={pastExpanded ? 'chevron-up' : 'chevron-down'}
+                      color={theme.colors.mutedText}
+                      size={13}
+                    />
+                  </Pressable>
+                )}
+
+                {/* Past trips (expanded) */}
+                {pastExpanded && past.map((trip) => (
+                  <SavedTripCard
+                    key={trip.id}
+                    trip={trip}
+                    onPress={() => handleOpenSavedTrip(trip)}
+                    onDelete={() => void handleDeleteSavedTrip(trip.id)}
+                  />
+                ))}
+
+                {/* Upcoming trips */}
+                {upcoming.length === 0 && past.length > 0 ? (
+                  <AppText tone="muted" style={{ fontSize: 13, textAlign: 'center', paddingVertical: spacing.md }}>
+                    No upcoming trips saved.
+                  </AppText>
+                ) : (
+                  upcoming.map((trip) => (
+                    <SavedTripCard
+                      key={trip.id}
+                      trip={trip}
+                      onPress={() => handleOpenSavedTrip(trip)}
+                      onDelete={() => void handleDeleteSavedTrip(trip.id)}
+                    />
+                  ))
+                )}
+              </View>
+            );
+          })()
         )}
 
         {/* ── New Trip form ─────────────────────────────────────────────────── */}
