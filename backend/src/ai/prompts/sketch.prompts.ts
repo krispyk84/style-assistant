@@ -16,7 +16,7 @@ import type { AnchorColorMetadata } from '../../modules/outfits/anchor-descripti
 // Slot 0: establishes headless mannequin as the figure type before anything
 // else activates human-figure rendering priors. Must be the first thing the
 // model reads. A soft "no face" buried in framing instructions is ignored.
-const HEADLESS_GUARD =
+export const HEADLESS_GUARD =
   'SUBJECT: headless fashion mannequin — no head — no face — no hair — no facial features — no skin above the collar. ' +
   'The mannequin is cut cleanly at the collar/neckline. Above the collar line is empty paper background only. ' +
   'Generating a head, face, hair, or any facial feature is a critical failure of this prompt. ' +
@@ -24,14 +24,14 @@ const HEADLESS_GUARD =
 
 // Slot 1: locks the visual style before any aesthetic framing takes hold.
 // Prevents the model from drifting into cartoon, portrait, or anime territory.
-const STYLE_GUARD =
+export const STYLE_GUARD =
   'STYLE: soft editorial watercolor fashion illustration on warm matte paper. ' +
   'Fine ink linework under transparent watercolor washes. Matte paper texture. Refined and sophisticated. ' +
   'NOT cartoon. NOT anime. NOT manga. NOT comic art. NOT exaggerated character illustration. ' +
   'NOT photo-realistic portrait. NOT digital concept art. NOT fashion avatar. ' +
   'The mood is quiet, elegant, and premium — like a hand-drawn page from a luxury fashion sketchbook.';
 
-const STYLE_PREAMBLE =
+export const STYLE_PREAMBLE =
   'CANVAS FRAMING: 1024×1536 portrait canvas. ' +
   'The figure — collar/neckline down to shoe soles — is centered and occupies approximately the middle 70% of the canvas height. ' +
   'The collar/neckline sits approximately 230px from the top edge. ' +
@@ -582,7 +582,7 @@ export function buildSunglassesSketchPrompt(input: {
 // ── Outfit quality addendum ───────────────────────────────────────────────────
 // Appended after the outfit bullet list to push rendering quality and fidelity.
 
-const QUALITY_ADDENDUM =
+export const QUALITY_ADDENDUM =
   'Push the rendering toward a high-end fashion concept sketch — the kind printed in a luxury menswear style board or editorial lookbook. ' +
   'Make the outfit feel more stylish, directional, and modern, with sharper taste, stronger styling, and more confident silhouette choices while staying completely true to the provided garments. ' +
   'Increase color fidelity: the anchor piece and every described clothing item must match the real garment color as accurately as possible, prioritizing the exact hue, depth, temperature, and saturation of the source item rather than drifting toward generic beige, tan, or neutralized approximations. ' +
@@ -592,7 +592,7 @@ const QUALITY_ADDENDUM =
   'Use layered ink and tonal depth, nuanced shadowing, and tactile surface detail so the garments feel luxurious and dimensional. ' +
   'Avoid color drift, generic neutralization, flat fills, or loss of garment-specific detail.';
 
-const QUALITY_ADDENDUM_2 =
+export const QUALITY_ADDENDUM_2 =
   'HEADLESS VERIFICATION (check first): Does the figure have a head, face, hair, or any facial feature? If yes, that is a critical failure — the subject must be a headless mannequin cut at the collar/neckline. Above the neckline must be empty paper only. ' +
   'Increase the level of garment and accessory detail. ' +
   'Show more construction and material information: seam placement, topstitching, rib knit texture, zipper teeth and puller, pocket welts, plackets, collar structure, cuff shape, waistband finish, belt hardware, shoe panels, laces, sole edges, watch case detail, and subtle fabric grain. ' +

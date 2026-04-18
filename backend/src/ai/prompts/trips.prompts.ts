@@ -1,6 +1,7 @@
 import type { GenerateTripOutfitsRequest, RegenerateTripDayRequest } from '../../contracts/trips.contracts.js';
 import type { JsonSchemaConfig } from '../openai-request-builder.js';
 import { formatProfileContext } from '../prompt-context.js';
+import { HEADLESS_GUARD, STYLE_GUARD, STYLE_PREAMBLE, QUALITY_ADDENDUM, QUALITY_ADDENDUM_2 } from './sketch.prompts.js';
 
 type PromptProfile = Parameters<typeof formatProfileContext>[0];
 
@@ -248,6 +249,11 @@ export function buildRegenerateDayPrompt(
 }
 
 // ── Trip day sketch prompt ────────────────────────────────────────────────────
+// Uses the same 8-slot assembly as buildTierSketchPrompt so travel sketches
+// are visually indistinguishable in style from standard outfit sketches.
+// Slot order: HEADLESS_GUARD → STYLE_GUARD → subjectBrief → STYLE_PREAMBLE
+//           → outfitSection → QUALITY_ADDENDUM → QUALITY_ADDENDUM_2
+// (No anchor color block — trip outfits have no uploaded anchor item.)
 
 export function buildTripDaySketchPrompt(params: {
   destination: string;
@@ -260,24 +266,28 @@ export function buildTripDaySketchPrompt(params: {
 }): string {
   const { destination, dayTitle, climateLabel, pieces, shoes, accessories, subjectBrief } = params;
 
-  const outfitLines = [
-    ...pieces.map((p) => `  • ${p}`),
-    `  • ${shoes} (footwear)`,
-    ...accessories.map((a) => `  • ${a}`),
+  const outfitLines: string[] = [
+    ...pieces.map((p) => `- garment: ${p}`),
+    `- shoes: ${shoes}`,
+    ...accessories.map((a) => `- accessory: ${a}`),
+  ];
+
+  // Setting note sits inside the outfit section so it informs garment rendering
+  // context without overriding any style directive.
+  const outfitSection = [
+    `Outfit (${dayTitle} — ${destination}, ${climateLabel}):`,
+    outfitLines.join('\n'),
   ].join('\n');
 
-  return [
-    'Editorial travel fashion illustration, ultra-clean white background, full-body front-facing view.',
-    '',
-    `Subject: ${subjectBrief}`,
-    '',
-    `Setting: "${dayTitle}" — ${destination}`,
-    `Climate: ${climateLabel}`,
-    '',
-    'Outfit:',
-    outfitLines,
-    '',
-    'Style: Clean fashion sketch aesthetic, precise garment details, confident relaxed pose. Soft shadow underfoot. No face detail.',
-    'Mood: Effortless travel chic — practical yet polished.',
-  ].join('\n');
+  const parts = [
+    HEADLESS_GUARD,
+    STYLE_GUARD,
+    subjectBrief,
+    STYLE_PREAMBLE,
+    outfitSection,
+    QUALITY_ADDENDUM,
+    QUALITY_ADDENDUM_2,
+  ].filter(Boolean);
+
+  return parts.join('\n\n');
 }
