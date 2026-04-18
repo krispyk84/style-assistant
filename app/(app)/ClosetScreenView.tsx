@@ -4,7 +4,7 @@ import {
   Animated, FlatList, LayoutAnimation, Modal, Platform, Pressable, ScrollView,
   SectionList, View, useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
@@ -78,7 +78,18 @@ export function ClosetScreenView({
   translateX,
 }: ClosetScreenViewProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const activeLabel = selectedCategory ?? 'All Items';
+
+  // ── Floating add button — appears once header scrolls out of view ────────────
+  const [fabVisible, setFabVisible] = useState(false);
+
+  const handleScroll = useCallback(
+    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+      setFabVisible(e.nativeEvent.contentOffset.y > 80);
+    },
+    [],
+  );
 
   // ── Options accordion ────────────────────────────────────────────────────────
   const [optionsOpen, setOptionsOpen] = useState(false);
@@ -102,13 +113,28 @@ export function ClosetScreenView({
 
   const listHeaderContent = (
     <View style={{ gap: spacing.xl, paddingBottom: spacing.xs }}>
-      {/* Title */}
-      <View style={{ gap: spacing.sm }}>
-        <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
-          The Atelier
-        </AppText>
-        <AppText variant="heroSmall">My Closet</AppText>
-        <AppText tone="muted">Your catalogued wardrobe pieces.</AppText>
+      {/* Title + add button (original position) */}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <View style={{ gap: spacing.sm, flex: 1 }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+            The Atelier
+          </AppText>
+          <AppText variant="heroSmall">My Closet</AppText>
+          <AppText tone="muted">Your catalogued wardrobe pieces.</AppText>
+        </View>
+        <Pressable
+          hitSlop={8}
+          onPress={onAddPress}
+          style={{
+            alignItems: 'center',
+            backgroundColor: theme.colors.accent,
+            borderRadius: 999,
+            height: 40,
+            justifyContent: 'center',
+            width: 40,
+          }}>
+          <AppIcon color="#FFF" name="add" size={22} />
+        </Pressable>
       </View>
 
       {/* Loading bar */}
@@ -289,6 +315,8 @@ export function ClosetScreenView({
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={handleScroll}
           onScrollToIndexFailed={(info) => {
             flatListRef.current?.scrollToOffset({
               offset: info.averageItemLength * info.index,
@@ -320,32 +348,41 @@ export function ClosetScreenView({
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={handleScroll}
           onScrollToIndexFailed={() => undefined}
         />
       )}
 
-      {/* Floating add button — always visible while scrolling */}
-      <Pressable
-        hitSlop={8}
-        onPress={onAddPress}
-        style={{
-          alignItems: 'center',
-          backgroundColor: theme.colors.accent,
-          borderRadius: 999,
-          bottom: spacing.lg,
-          elevation: 4,
-          height: 52,
-          justifyContent: 'center',
-          position: 'absolute',
-          right: spacing.lg,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.18,
-          shadowRadius: 6,
-          width: 52,
-        }}>
-        <AppIcon color="#FFF" name="add" size={24} />
-      </Pressable>
+      {/* Floating add button — appears over content once header scrolls off screen,
+          mirrors the AppScreen floatingBack pattern exactly */}
+      {fabVisible ? (
+        <Pressable
+          hitSlop={8}
+          onPress={onAddPress}
+          style={{
+            alignItems: 'center',
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            borderRadius: 999,
+            borderWidth: 1,
+            elevation: 4,
+            flexDirection: 'row',
+            gap: spacing.xs,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.sm,
+            position: 'absolute',
+            right: spacing.lg,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            top: insets.top + spacing.md,
+          }}>
+          <AppIcon color={theme.colors.text} name="add" size={16} />
+          <AppText style={{ fontSize: 14 }}>Add</AppText>
+        </Pressable>
+      ) : null}
 
       <SaveToClosetModal
         visible={addModalVisible}
