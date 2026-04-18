@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -7,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
 import { PrimaryButton } from '@/components/ui/primary-button';
@@ -122,7 +122,7 @@ export function ClosetScreenView({
             justifyContent: 'center',
             width: 40,
           }}>
-          <Ionicons color="#FFF" name="add" size={22} />
+          <AppIcon color="#FFF" name="add" size={22} />
         </Pressable>
       </View>
 
@@ -177,7 +177,7 @@ export function ClosetScreenView({
             paddingVertical: spacing.sm,
           }}>
           <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>{activeLabel}</AppText>
-          <Ionicons color={theme.colors.mutedText} name="chevron-down" size={14} />
+          <AppIcon color={theme.colors.mutedText} name="chevron-down" size={14} />
         </Pressable>
       ) : null}
 
@@ -197,7 +197,7 @@ export function ClosetScreenView({
               Options
             </AppText>
             <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
-              <Ionicons color={theme.colors.mutedText} name="chevron-forward" size={14} />
+              <AppIcon color={theme.colors.mutedText} name="chevron-right" size={14} />
             </Animated.View>
           </Pressable>
 
@@ -217,12 +217,12 @@ export function ClosetScreenView({
                     paddingHorizontal: spacing.lg,
                     paddingVertical: spacing.md,
                   }}>
-                  <Ionicons color={theme.colors.accent} name="sparkles" size={18} />
+                  <AppIcon color={theme.colors.accent} name="sparkles" size={18} />
                   <View style={{ flex: 1, gap: 2 }}>
                     <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Help me pick an anchor</AppText>
                     <AppText tone="muted" style={{ fontSize: 12 }}>Let a stylist choose your starting piece</AppText>
                   </View>
-                  <Ionicons color={theme.colors.subtleText} name="chevron-forward" size={16} />
+                  <AppIcon color={theme.colors.subtleText} name="chevron-right" size={16} />
                 </Pressable>
 
                 <Pressable
@@ -238,12 +238,12 @@ export function ClosetScreenView({
                     paddingHorizontal: spacing.lg,
                     paddingVertical: spacing.md,
                   }}>
-                  <Ionicons color={theme.colors.accent} name="analytics-outline" size={18} />
+                  <AppIcon color={theme.colors.accent} name="layers" size={18} />
                   <View style={{ flex: 1, gap: 2 }}>
                     <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Analyse My Closet</AppText>
                     <AppText tone="muted" style={{ fontSize: 12 }}>See how complete and versatile your wardrobe is</AppText>
                   </View>
-                  <Ionicons color={theme.colors.subtleText} name="chevron-forward" size={16} />
+                  <AppIcon color={theme.colors.subtleText} name="chevron-right" size={16} />
                 </Pressable>
               </View>
             ) : eligibleItemCount > 0 ? (
@@ -267,7 +267,7 @@ export function ClosetScreenView({
             gap: spacing.md,
             padding: spacing.xl,
           }}>
-          <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />
+          <AppIcon color={theme.colors.subtleText} name="shirt" size={40} />
           <View style={{ alignItems: 'center', gap: spacing.xs }}>
             <AppText variant="sectionTitle">Your closet is empty</AppText>
             <AppText tone="muted" style={{ textAlign: 'center' }}>
@@ -427,9 +427,9 @@ const ClosetGridItem = React.memo(function ClosetGridItem({ item, cellWidth, onP
           ) : primaryUri ? (
             <Image contentFit="cover" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
           ) : item.sketchStatus === 'pending' ? (
-            <Ionicons color={theme.colors.subtleText} name="time-outline" size={22} />
+            <AppIcon color={theme.colors.subtleText} name="clock" size={22} />
           ) : (
-            <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={22} />
+            <AppIcon color={theme.colors.subtleText} name="shirt" size={22} />
           )}
 
           {hasBoth ? (

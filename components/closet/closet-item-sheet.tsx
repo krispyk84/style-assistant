@@ -1,5 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+
+import { AppIcon } from '@/components/ui/app-icon';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 
@@ -123,13 +124,13 @@ export function ClosetItemSheet({
             {/* Header */}
             <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
               <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-                <Ionicons color={theme.colors.accent} name="checkmark-circle" size={16} />
+                <AppIcon color={theme.colors.accent} name="check-circle" size={16} />
                 <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
                   In Your Closet
                 </AppText>
               </View>
               <Pressable hitSlop={8} onPress={dismissAndClose}>
-                <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+                <AppIcon color={theme.colors.mutedText} name="close" size={22} />
               </Pressable>
             </View>
 
@@ -160,7 +161,7 @@ export function ClosetItemSheet({
                 </View>
               ) : item === null ? (
                 <View style={{ alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg }}>
-                  <Ionicons color={theme.colors.subtleText} name="search-outline" size={32} />
+                  <AppIcon color={theme.colors.subtleText} name="search" size={32} />
                   <AppText tone="muted" style={{ fontSize: 13, textAlign: 'center' }}>
                     No suitable match could be found.
                   </AppText>
@@ -179,14 +180,14 @@ export function ClosetItemSheet({
                 if (item.sketchStatus === 'pending') {
                   return (
                     <View style={{ alignItems: 'center', gap: spacing.sm }}>
-                      <Ionicons color={theme.colors.subtleText} name="time-outline" size={32} />
+                      <AppIcon color={theme.colors.subtleText} name="clock" size={32} />
                       <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>
                         Sketch generating...
                       </AppText>
                     </View>
                   );
                 }
-                return <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={40} />;
+                return <AppIcon color={theme.colors.subtleText} name="shirt" size={40} />;
               })()}
             </View>
 
@@ -253,9 +254,9 @@ export function ClosetItemSheet({
                     paddingHorizontal: spacing.sm,
                     paddingVertical: spacing.xs,
                   }}>
-                  <Ionicons
+                  <AppIcon
                     color={localThumb === 'up' ? theme.colors.accent : theme.colors.mutedText}
-                    name={localThumb === 'up' ? 'thumbs-up' : 'thumbs-up-outline'}
+                    name="thumbs-up"
                     size={16}
                   />
                 </Pressable>
@@ -271,9 +272,9 @@ export function ClosetItemSheet({
                     paddingHorizontal: spacing.sm,
                     paddingVertical: spacing.xs,
                   }}>
-                  <Ionicons
+                  <AppIcon
                     color={localThumb === 'down' ? theme.colors.danger : theme.colors.mutedText}
-                    name={localThumb === 'down' ? 'thumbs-down' : 'thumbs-down-outline'}
+                    name="thumbs-down"
                     size={16}
                   />
                 </Pressable>

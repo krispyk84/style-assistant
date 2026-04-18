@@ -1,5 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+
+import { AppIcon } from '@/components/ui/app-icon';
 import { useRef } from 'react';
 import { Animated, Keyboard, PanResponder, Pressable, ScrollView, TextInput, View } from 'react-native';
 
@@ -204,13 +205,13 @@ export function SaveToClosetForm({
       {/* Header */}
       <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
         <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-          <Ionicons color={theme.colors.accent} name="archive-outline" size={18} />
+          <AppIcon color={theme.colors.accent} name="archive" size={18} />
           <AppText variant="eyebrow" style={{ letterSpacing: 1.8, color: theme.colors.mutedText }}>
             {isInQueue ? `Item ${currentQueueIndex} of ${queueTotal}` : 'Save to Closet'}
           </AppText>
         </View>
         <Pressable hitSlop={8} onPress={onClose}>
-          <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+          <AppIcon color={theme.colors.mutedText} name="close" size={22} />
         </Pressable>
       </View>
 
@@ -228,7 +229,7 @@ export function SaveToClosetForm({
             paddingHorizontal: spacing.md,
             paddingVertical: spacing.sm,
           }}>
-          <Ionicons color={theme.colors.accent} name="sync-outline" size={14} />
+          <AppIcon color={theme.colors.accent} name="refresh" size={14} />
           <AppText tone="muted" style={{ flex: 1, fontSize: 13 }}>
             Your outfit recommendations are generating in the background — save your anchor piece while you wait.
           </AppText>
@@ -281,7 +282,7 @@ export function SaveToClosetForm({
                   top: 8,
                   width: 32,
                 }}>
-                <Ionicons color="#FFF" name="trash-outline" size={15} />
+                <AppIcon color="#FFF" name="trash" size={15} />
               </Pressable>
             ) : null}
           </View>
@@ -313,7 +314,7 @@ export function SaveToClosetForm({
             </View>
           ) : sketchImageUrl ? (
             <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-              <Ionicons color={theme.colors.accent} name="checkmark-circle-outline" size={16} />
+              <AppIcon color={theme.colors.accent} name="check-circle" size={16} />
               <AppText tone="muted" style={{ fontSize: 12 }}>Sketch ready — swipe left to see original photo</AppText>
             </View>
           ) : (
@@ -331,7 +332,7 @@ export function SaveToClosetForm({
                 paddingHorizontal: spacing.md,
                 paddingVertical: spacing.sm,
               }}>
-              <Ionicons color={theme.colors.accent} name="color-wand-outline" size={16} />
+              <AppIcon color={theme.colors.accent} name="magic-wand" size={16} />
               <AppText variant="eyebrow" style={{ color: theme.colors.accent, letterSpacing: 1.4 }}>
                 Generate Sketch
               </AppText>
@@ -359,7 +360,7 @@ export function SaveToClosetForm({
                 paddingHorizontal: spacing.md,
                 paddingVertical: spacing.sm,
               }}>
-              <Ionicons color={theme.colors.accent} name="sparkles-outline" size={16} />
+              <AppIcon color={theme.colors.accent} name="sparkles" size={16} />
               <AppText variant="eyebrow" style={{ color: theme.colors.accent, letterSpacing: 1.4 }}>
                 AI Autofill
               </AppText>
@@ -405,7 +406,7 @@ export function SaveToClosetForm({
                   opacity: isPicking ? 0.5 : 1,
                   paddingHorizontal: spacing.md,
                 }}>
-                <Ionicons color={theme.colors.text} name="image-outline" size={16} />
+                <AppIcon color={theme.colors.text} name="image" size={16} />
                 <AppText>{isPickingLibrary ? 'Opening...' : 'Library'}</AppText>
               </Pressable>
 
@@ -426,7 +427,7 @@ export function SaveToClosetForm({
                   opacity: isPicking ? 0.5 : 1,
                   paddingHorizontal: spacing.md,
                 }}>
-                <Ionicons color={theme.colors.text} name="camera-outline" size={16} />
+                <AppIcon color={theme.colors.text} name="camera" size={16} />
                 <AppText>{isPickingCamera ? 'Opening...' : 'Camera'}</AppText>
               </Pressable>
             </View>

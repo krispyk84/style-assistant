@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { buildTierHref } from '@/lib/look-route';
@@ -56,7 +56,7 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: O
               minHeight: 36,
               minWidth: 36,
             }}>
-            <Ionicons color={theme.colors.danger} name="trash-outline" size={20} />
+            <AppIcon color={theme.colors.danger} name="trash" size={20} />
           </Pressable>
         ) : null}
       </View>
@@ -102,7 +102,7 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: O
             minHeight: 48,
             paddingHorizontal: spacing.md,
           }}>
-          <Ionicons color={theme.colors.text} name="calendar-outline" size={18} />
+          <AppIcon color={theme.colors.text} name="calendar" size={18} />
           <AppText>Add to week</AppText>
         </Pressable>
       ) : null}

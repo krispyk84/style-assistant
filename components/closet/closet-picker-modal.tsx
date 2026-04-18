@@ -1,8 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { BottomSheetModal } from '@/components/ui/bottom-sheet-modal';
 import { spacing } from '@/constants/theme';
@@ -47,7 +47,7 @@ export function ClosetPickerModal({ visible, items, onSelect, onClose }: ClosetP
           Select from Closet
         </AppText>
         <Pressable hitSlop={8} onPress={onClose}>
-          <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+          <AppIcon color={theme.colors.mutedText} name="close" size={22} />
         </Pressable>
       </View>
 
@@ -114,7 +114,7 @@ export function ClosetPickerModal({ visible, items, onSelect, onClose }: ClosetP
                       style={{ height: '100%', width: '100%' }}
                     />
                   ) : (
-                    <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={22} />
+                    <AppIcon color={theme.colors.subtleText} name="shirt" size={22} />
                   )}
                 </View>
                 <AppText

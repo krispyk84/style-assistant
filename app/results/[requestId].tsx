@@ -1,8 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-
+import { AppIcon } from '@/components/ui/app-icon';
 import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
 import { LookResultCard } from '@/components/cards/look-result-card';
 import { LookRequestReviewCard } from '@/components/cards/look-request-review-card';
@@ -178,9 +177,9 @@ export default function ResultDetailsScreen() {
                 paddingHorizontal: spacing.md,
               }}>
               <View style={{ position: 'relative' }}>
-                <Ionicons color={theme.colors.text} name="shirt-outline" size={18} />
+                <AppIcon color={theme.colors.text} name="shirt" size={18} />
                 <View style={{ alignItems: 'center', backgroundColor: theme.colors.text, borderRadius: 999, height: 11, justifyContent: 'center', position: 'absolute', right: -3, top: -3, width: 11 }}>
-                  <Ionicons color={theme.colors.background} name="add" size={8} />
+                  <AppIcon color={theme.colors.background} name="add" size={8} />
                 </View>
               </View>
               <AppText>Add anchor to closet</AppText>

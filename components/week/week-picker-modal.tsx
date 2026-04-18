@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
+import { AppIcon, weatherIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
@@ -9,7 +9,7 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { spacing, theme } from '@/constants/theme';
 import { useAppSession } from '@/hooks/use-app-session';
 import { formatTemperatureRange } from '@/lib/temperature-format';
-import { formatTierLabel, weatherIconName } from '@/lib/outfit-utils';
+import { formatTierLabel } from '@/lib/outfit-utils';
 import { getNextSevenDays, loadWeekPlan } from '@/lib/week-plan-storage';
 import { loadNextSevenDayForecast, type WeekForecastDay } from '@/services/weather/current-weather-service';
 import type { WeekPlannedOutfit } from '@/types/style';
@@ -163,9 +163,9 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
                       paddingHorizontal: spacing.lg,
                     }}>
                     <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm, flex: 1 }}>
-                      <Ionicons
+                      <AppIcon
                         color={isAssigned ? theme.colors.accent : theme.colors.subtleText}
-                        name={isAssigned ? 'calendar' : 'ellipse-outline'}
+                        name={isAssigned ? 'calendar' : 'circle'}
                         size={18}
                       />
                       <AppText style={{ flexShrink: 1 }}>{day.dayLabel}</AppText>
@@ -173,7 +173,7 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
                     <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
                       {forecast ? (
                         <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-                          <Ionicons color={theme.colors.subtleText} name={weatherIconName(forecast.weatherCode)} size={16} />
+                          <AppIcon color={theme.colors.subtleText} name={weatherIcon(forecast.weatherCode)} size={16} />
                           <AppText tone="muted">{formatTemperatureRange(forecast.highTempC, forecast.lowTempC, profile.temperatureUnit)}</AppText>
                         </View>
                       ) : null}

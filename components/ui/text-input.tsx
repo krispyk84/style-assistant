@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, TextInput as RNTextInput, View, type TextInputProps as RNTextInputProps } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
@@ -63,9 +63,9 @@ export function TextInput({ label, error, secureTextEntry = false, ...rest }: Te
         />
         {secureTextEntry ? (
           <Pressable hitSlop={8} onPress={() => setIsRevealed((v) => !v)}>
-            <Ionicons
+            <AppIcon
               color={theme.colors.subtleText}
-              name={isRevealed ? 'eye-off-outline' : 'eye-outline'}
+              name={isRevealed ? 'eye-off' : 'eye'}
               size={18}
             />
           </Pressable>

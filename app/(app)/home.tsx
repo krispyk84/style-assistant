@@ -1,8 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { WeatherCard } from '@/components/cards/weather-card';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
@@ -182,7 +182,7 @@ function HeroCardContent() {
             justifyContent: 'center',
             width: 48,
           }}>
-          <Ionicons color="#FFFFFF" name="arrow-forward" size={20} />
+          <AppIcon color="#FFFFFF" name="arrow-right" size={20} />
         </View>
       </View>
     </View>

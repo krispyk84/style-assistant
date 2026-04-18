@@ -1,6 +1,7 @@
 import { ActivityIndicator, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+
+import { AppIcon, type AppIconName } from '@/components/ui/app-icon';
 
 import { spacing, theme } from '@/constants/theme';
 import type { CreateLookInput, LookAnchorItem, LookTierSlug } from '@/types/look-request';
@@ -14,10 +15,10 @@ import { useRef, useEffect, useState } from 'react';
 
 const VIBE_SUGGESTIONS = ['Old Money', 'Resort', 'Minimalist', 'European Summer', 'Streetwear', 'Coastal'];
 
-const tierConfig: Record<LookTierSlug, { label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }> = {
-  business: { label: 'Business', icon: 'briefcase-outline' },
-  'smart-casual': { label: 'Smart\nCasual', icon: 'sparkles-outline' },
-  casual: { label: 'Casual', icon: 'cafe-outline' },
+const tierConfig: Record<LookTierSlug, { label: string; icon: AppIconName }> = {
+  business: { label: 'Business', icon: 'briefcase' },
+  'smart-casual': { label: 'Smart\nCasual', icon: 'sparkles' },
+  casual: { label: 'Casual', icon: 'coffee' },
 };
 
 export type CreateLookRequestFormViewProps = {
@@ -121,7 +122,7 @@ export function CreateLookRequestFormView({
             opacity: anchorItems.length >= 5 ? 0.5 : 1,
             paddingVertical: spacing.md,
           }}>
-          <Ionicons color={theme.colors.mutedText} name="add" size={16} />
+          <AppIcon color={theme.colors.mutedText} name="add" size={16} />
           <AppText tone="muted">
             {anchorItems.length >= 5 ? 'Maximum of 5 items reached' : 'Add Item'}
           </AppText>
@@ -155,7 +156,7 @@ export function CreateLookRequestFormView({
               justifyContent: 'center',
               width: 28,
             }}>
-            <Ionicons
+            <AppIcon
               color={theme.colors.text}
               name={isKeywordsExpanded ? 'chevron-up' : 'chevron-down'}
               size={14}
@@ -233,10 +234,10 @@ export function CreateLookRequestFormView({
                 }}>
                 {isSelected ? (
                   <View style={{ position: 'absolute', right: spacing.sm, top: spacing.sm }}>
-                    <Ionicons color="#FFFFFF" name="checkmark-circle" size={16} />
+                    <AppIcon color="#FFFFFF" name="check-circle" size={16} />
                   </View>
                 ) : null}
-                <Ionicons
+                <AppIcon
                   color={isSelected ? '#FFFFFF' : theme.colors.text}
                   name={config.icon}
                   size={24}
@@ -372,7 +373,7 @@ function AnchorItemCard({
               onRemove();
             }}
             style={{ marginLeft: 'auto' }}>
-            <Ionicons color={theme.colors.subtleText} name="close" size={20} />
+            <AppIcon color={theme.colors.subtleText} name="close" size={20} />
           </Pressable>
         )}
       </View>
@@ -410,20 +411,20 @@ function AnchorItemCard({
         {/* Photo buttons — labels are always stable to prevent row reflow */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
           <ActionPill
-            icon="image-outline"
+            icon="image"
             label="Library"
             loading={isPickingLibrary}
             onPress={pickFromLibrary}
           />
           <ActionPill
-            icon="camera-outline"
+            icon="camera"
             label="Camera"
             loading={isPickingCamera}
             onPress={takePhoto}
           />
           {onPickFromCloset ? (
             <ActionPill
-              icon="shirt-outline"
+              icon="shirt"
               label="Closet"
               onPress={onPickFromCloset}
             />
@@ -462,9 +463,9 @@ function AnchorItemCard({
               gap: spacing.sm,
               paddingVertical: spacing.xs,
             }}>
-            <Ionicons
+            <AppIcon
               color={saveToCloset ? theme.colors.accent : theme.colors.mutedText}
-              name={saveToCloset ? 'checkbox' : 'square-outline'}
+              name={saveToCloset ? 'check-circle' : 'circle'}
               size={22}
             />
             <AppText tone="muted" style={{ flex: 1, fontSize: 14 }}>
@@ -487,7 +488,7 @@ function ActionPill({
   loading = false,
 }: {
   label: string;
-  icon?: React.ComponentProps<typeof Ionicons>['name'];
+  icon?: AppIconName;
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
@@ -512,7 +513,7 @@ function ActionPill({
       {loading ? (
         <ActivityIndicator color={theme.colors.accent} size={14} />
       ) : icon ? (
-        <Ionicons color={theme.colors.text} name={icon} size={16} />
+        <AppIcon color={theme.colors.text} name={icon} size={16} />
       ) : null}
       <AppText style={loading ? { color: theme.colors.accent } : undefined}>{label}</AppText>
     </Pressable>

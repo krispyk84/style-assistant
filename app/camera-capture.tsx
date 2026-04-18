@@ -1,6 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+
+import { AppIcon } from '@/components/ui/app-icon';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -115,7 +116,7 @@ export default function CameraCaptureScreen() {
             borderRadius: 999,
             padding: spacing.sm,
           }}>
-          <Ionicons name="camera-reverse-outline" size={26} color="#FFF" />
+          <AppIcon name="camera-flip" size={26} color="#FFF" />
         </Pressable>
       ) : null}
 

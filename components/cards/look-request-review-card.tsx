@@ -1,6 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { View } from 'react-native';
+
+import { AppIcon } from '@/components/ui/app-icon';
 
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
@@ -34,7 +35,7 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
       <View style={{ padding: spacing.lg, gap: spacing.md }}>
         <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
           <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-            <Ionicons color={theme.colors.accent} name="shirt-outline" size={16} />
+            <AppIcon color={theme.colors.accent} name="shirt" size={16} />
             <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
               Wardrobe Anchors
             </AppText>
@@ -78,7 +79,7 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
                     style={{ height: 56, width: 56 }}
                   />
                 ) : (
-                  <Ionicons color={theme.colors.subtleText} name="image-outline" size={22} />
+                  <AppIcon color={theme.colors.subtleText} name="image" size={22} />
                 )}
               </View>
 
@@ -99,7 +100,7 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
       {/* ── Styling DNA ── */}
       <View style={{ gap: spacing.lg, padding: spacing.lg }}>
         <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-          <Ionicons color={theme.colors.accent} name="sparkles-outline" size={16} />
+          <AppIcon color={theme.colors.accent} name="sparkles" size={16} />
           <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
             Styling DNA
           </AppText>
@@ -109,7 +110,7 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
         {vibeChips.length > 0 ? (
           <View style={{ gap: spacing.sm }}>
             <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-              <Ionicons color={theme.colors.subtleText} name="pricetag-outline" size={13} />
+              <AppIcon color={theme.colors.subtleText} name="tag" size={13} />
               <AppText variant="eyebrow" tone="subtle" style={{ letterSpacing: 1.6 }}>
                 Aesthetic Vibe
               </AppText>
@@ -136,7 +137,7 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
         {/* Target Tier */}
         <View style={{ gap: spacing.sm }}>
           <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-            <Ionicons color={theme.colors.subtleText} name="layers-outline" size={13} />
+            <AppIcon color={theme.colors.subtleText} name="layers" size={13} />
             <AppText variant="eyebrow" tone="subtle" style={{ letterSpacing: 1.6 }}>
               Target Tier
             </AppText>
@@ -175,9 +176,9 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
               gap: spacing.sm,
               padding: spacing.md,
             }}>
-            <Ionicons
+            <AppIcon
               color={theme.colors.mutedText}
-              name="information-circle-outline"
+              name="info"
               size={18}
               style={{ marginTop: 1 }}
             />

@@ -1,5 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Pressable, View } from 'react-native';
+
+import { AppIcon } from '@/components/ui/app-icon';
 
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
@@ -27,7 +28,7 @@ export function TierPieceListView({
       {hasAnyMatch ? (
         <View
           style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, paddingBottom: spacing.xs }}>
-          <Ionicons color={theme.colors.accent} name="checkmark-circle-outline" size={13} />
+          <AppIcon color={theme.colors.accent} name="check-circle" size={13} />
           <AppText tone="muted" style={{ fontSize: 12 }}>
             You already own a similar piece
           </AppText>
@@ -60,7 +61,7 @@ export function TierPieceListView({
                 hitSlop={8}
                 onPress={() => onPiecePress(piece.matchedClosetItem!, piece.value, piece.confidencePercent)}
                 style={{ paddingTop: 2 }}>
-                <Ionicons color={theme.colors.accent} name="checkmark-circle" size={22} />
+                <AppIcon color={theme.colors.accent} name="check-circle" size={22} />
               </Pressable>
             ) : null}
           </View>

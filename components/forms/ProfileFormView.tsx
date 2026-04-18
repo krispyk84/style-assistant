@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { FormField } from '@/components/ui/form-field';
 import { PrimaryButton } from '@/components/ui/primary-button';
@@ -273,7 +273,7 @@ function PickerField({ value, displayValue, onPress }: { value: string; displayV
         paddingHorizontal: spacing.md,
       }}>
       <AppText style={{ textTransform: displayValue ? 'none' : 'capitalize' }}>{label}</AppText>
-      <Ionicons color={theme.colors.subtleText} name="chevron-down" size={18} />
+      <AppIcon color={theme.colors.subtleText} name="chevron-down" size={18} />
     </Pressable>
   );
 }
@@ -349,7 +349,7 @@ function PickerModal({
                   <AppText style={{ textTransform: displayLabels ? 'none' : 'capitalize' }}>
                     {displayLabels?.[option] ?? option.replaceAll('-', ' ')}
                   </AppText>
-                  {isSelected ? <Ionicons color={theme.colors.accent} name="checkmark-circle" size={20} /> : null}
+                  {isSelected ? <AppIcon color={theme.colors.accent} name="check-circle" size={20} /> : null}
                 </Pressable>
               );
             })}

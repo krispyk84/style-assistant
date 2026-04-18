@@ -1,7 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Href, Link } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
+import { AppIcon, type AppIconName } from '@/components/ui/app-icon';
 import { spacing, theme } from '@/constants/theme';
 import { AppText } from '@/components/ui/app-text';
 
@@ -9,10 +9,10 @@ type ActionCardProps = {
   title: string;
   description: string;
   href?: Href;
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: AppIconName;
 };
 
-export function ActionCard({ title, description, href, icon = 'arrow-forward-outline' }: ActionCardProps) {
+export function ActionCard({ title, description, href, icon = 'arrow-right' }: ActionCardProps) {
   const content = (
     <View
       style={{
@@ -23,7 +23,7 @@ export function ActionCard({ title, description, href, icon = 'arrow-forward-out
         padding: spacing.lg,
         gap: spacing.sm,
       }}>
-      <Ionicons color={theme.colors.text} name={icon} size={20} />
+      <AppIcon color={theme.colors.text} name={icon} size={20} />
       <AppText variant="title">{title}</AppText>
       <AppText tone="muted">{description}</AppText>
     </View>

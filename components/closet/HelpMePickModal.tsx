@@ -1,5 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+
+import { AppIcon } from '@/components/ui/app-icon';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Animated, Easing, Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
@@ -121,7 +122,7 @@ export function HelpMePickModal({ hook, onUseItem }: HelpMePickModalProps) {
               <AppText tone="muted" style={{ fontSize: 13 }}>Let a stylist choose your anchor piece</AppText>
             </View>
             <Pressable hitSlop={8} onPress={dismissAndClose}>
-              <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+              <AppIcon color={theme.colors.mutedText} name="close" size={22} />
             </Pressable>
           </View>
 
@@ -224,9 +225,9 @@ function IntentForm({
                 </View>
                 <AppText variant="sectionTitle" style={{ textAlign: 'center' }}>{stylist.name}</AppText>
                 {isSelected ? (
-                  <Ionicons color={theme.colors.accent} name="checkmark-circle" size={16} />
+                  <AppIcon color={theme.colors.accent} name="check-circle" size={16} />
                 ) : (
-                  <Ionicons color={theme.colors.border} name="ellipse-outline" size={16} />
+                  <AppIcon color={theme.colors.border} name="circle" size={16} />
                 )}
               </Pressable>
             );
@@ -392,7 +393,7 @@ function ResultCard({ result, onUseItem, onPickAgain, onClose }: ResultCardProps
               height: 120,
               justifyContent: 'center',
             }}>
-            <Ionicons color={theme.colors.subtleText} name="shirt-outline" size={36} />
+            <AppIcon color={theme.colors.subtleText} name="shirt" size={36} />
           </View>
         )}
         <View style={{ gap: spacing.xs, padding: spacing.md }}>

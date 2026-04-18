@@ -1,5 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+
+import { AppIcon } from '@/components/ui/app-icon';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 
@@ -101,7 +102,7 @@ export function ClosetAnalyzerModal({ hook }: ClosetAnalyzerModalProps) {
               <AppText tone="muted" style={{ fontSize: 13 }}>Wardrobe completeness report</AppText>
             </View>
             <Pressable hitSlop={8} onPress={dismissAndClose}>
-              <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+              <AppIcon color={theme.colors.mutedText} name="close" size={22} />
             </Pressable>
           </View>
 
@@ -152,7 +153,7 @@ type ErrorViewProps = {
 function ErrorView({ error, onRetry, onClose }: ErrorViewProps) {
   return (
     <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xl }}>
-      <Ionicons color={theme.colors.danger} name="alert-circle-outline" size={36} />
+      <AppIcon color={theme.colors.danger} name="warning" size={36} />
       <AppText style={{ textAlign: 'center', color: theme.colors.danger }}>
         {error ?? 'Something went wrong. Please try again.'}
       </AppText>

@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 
+import { AppIcon, weatherIcon } from '@/components/ui/app-icon';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -10,7 +10,7 @@ import { RemoteImagePanel, SKETCH_ASPECT_RATIO } from '@/components/ui/remote-im
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { buildTierHref } from '@/lib/look-route';
-import { formatTierLabel, weatherIconName } from '@/lib/outfit-utils';
+import { formatTierLabel } from '@/lib/outfit-utils';
 import { buildSavedOutfitId } from '@/lib/saved-outfits-storage';
 import { getNextSevenDays } from '@/lib/week-plan-storage';
 import { formatTemperatureRange } from '@/lib/temperature-format';
@@ -64,7 +64,7 @@ export function WeekScreen() {
                     <AppText variant="sectionTitle">{day.dayLabel}</AppText>
                     {forecast ? (
                       <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-                        <Ionicons color={theme.colors.subtleText} name={weatherIconName(forecast.weatherCode)} size={16} />
+                        <AppIcon color={theme.colors.subtleText} name={weatherIcon(forecast.weatherCode)} size={16} />
                         <AppText tone="muted">{formatTemperatureRange(forecast.highTempC, forecast.lowTempC, profile.temperatureUnit)}</AppText>
                       </View>
                     ) : null}
@@ -102,7 +102,7 @@ export function WeekScreen() {
                       <AppText variant="sectionTitle">{day.dayLabel}</AppText>
                       {forecast ? (
                         <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-                          <Ionicons color={theme.colors.subtleText} name={weatherIconName(forecast.weatherCode)} size={16} />
+                          <AppIcon color={theme.colors.subtleText} name={weatherIcon(forecast.weatherCode)} size={16} />
                           <AppText tone="muted">{formatTemperatureRange(forecast.highTempC, forecast.lowTempC, profile.temperatureUnit)}</AppText>
                         </View>
                       ) : null}
@@ -113,7 +113,7 @@ export function WeekScreen() {
                         event.stopPropagation();
                         void handleRemove(day.dayKey);
                       }}>
-                      <Ionicons color={theme.colors.danger} name="close" size={20} />
+                      <AppIcon color={theme.colors.danger} name="close" size={20} />
                     </Pressable>
                   </View>
 
@@ -146,9 +146,9 @@ export function WeekScreen() {
                       minHeight: 48,
                       paddingHorizontal: spacing.md,
                     }}>
-                    <Ionicons
+                    <AppIcon
                       color={theme.colors.text}
-                      name={isSaved ? 'bookmark' : 'bookmark-outline'}
+                      name="bookmark"
                       size={18}
                     />
                     <AppText>

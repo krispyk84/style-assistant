@@ -1,5 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
+
+import { AppIcon, weatherIcon } from '@/components/ui/app-icon';
 import { Pressable, View } from 'react-native';
 
 import { WeatherForecastModal } from '@/components/weather/weather-forecast-modal';
@@ -7,7 +8,6 @@ import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
-import { weatherIconName } from '@/lib/outfit-utils';
 import { formatTemperature } from '@/lib/temperature-format';
 import type { WeatherContext } from '@/types/weather';
 
@@ -50,9 +50,9 @@ export function WeatherCard({ weather, isLoading = false, errorMessage }: Weathe
                   justifyContent: 'center',
                   width: 52,
                 }}>
-                <Ionicons
+                <AppIcon
                   color={theme.colors.accent}
-                  name={weatherIconName(weather.weatherCode)}
+                  name={weatherIcon(weather.weatherCode)}
                   size={24}
                 />
               </View>
@@ -88,7 +88,7 @@ export function WeatherCard({ weather, isLoading = false, errorMessage }: Weathe
                 ) : null}
               </View>
               {/* Tap indicator */}
-              <Ionicons color={theme.colors.subtleText} name="chevron-forward" size={16} />
+              <AppIcon color={theme.colors.subtleText} name="chevron-right" size={16} />
             </View>
 
             {/* Styling hint */}

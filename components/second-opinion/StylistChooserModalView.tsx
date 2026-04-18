@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
@@ -80,7 +80,7 @@ export function StylistChooserModal({ visible, recommendation, onClose }: Stylis
                 <AppText tone="muted" style={{ fontSize: 13 }}>Choose your stylist</AppText>
               </View>
               <Pressable hitSlop={8} onPress={handleClose}>
-                <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+                <AppIcon color={theme.colors.mutedText} name="close" size={22} />
               </Pressable>
             </View>
 
@@ -142,9 +142,9 @@ export function StylistChooserModal({ visible, recommendation, onClose }: Stylis
                         </View>
 
                         {isSelected ? (
-                          <Ionicons color={theme.colors.accent} name="checkmark-circle" size={18} />
+                          <AppIcon color={theme.colors.accent} name="check-circle" size={18} />
                         ) : (
-                          <Ionicons color={theme.colors.border} name="ellipse-outline" size={18} />
+                          <AppIcon color={theme.colors.border} name="circle" size={18} />
                         )}
                       </Pressable>
                     );

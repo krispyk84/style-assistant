@@ -1,9 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Redirect } from 'expo-router';
 import { type ReactNode, useEffect, useRef } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { BrandSplash } from '@/components/ui/brand-splash';
 import { PrimaryButton } from '@/components/ui/primary-button';
@@ -576,7 +576,7 @@ export function OnboardingScreen() {
         }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Pressable onPress={flowHook.goBack} hitSlop={12}>
-            <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
+            <AppIcon name="chevron-left" size={24} color={theme.colors.text} />
           </Pressable>
           <AppText tone="subtle" style={{ fontSize: 12 }}>
             {flowHook.stepIndex + 1} / {flowHook.totalSteps}

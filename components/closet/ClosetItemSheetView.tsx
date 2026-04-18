@@ -1,5 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+
+import { AppIcon } from '@/components/ui/app-icon';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -191,10 +192,10 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
                 {!editor.isEditing ? (
                   <>
                     <Pressable hitSlop={8} onPress={() => editor.setIsEditing(true)}>
-                      <Ionicons color={theme.colors.mutedText} name="pencil-outline" size={20} />
+                      <AppIcon color={theme.colors.mutedText} name="pencil" size={20} />
                     </Pressable>
                     <Pressable hitSlop={8} onPress={() => editor.setConfirmDelete(true)}>
-                      <Ionicons color="#D26A5C" name="trash-outline" size={20} />
+                      <AppIcon color="#D26A5C" name="trash" size={20} />
                     </Pressable>
                   </>
                 ) : null}
@@ -204,7 +205,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
                   </Pressable>
                 ) : (
                   <Pressable hitSlop={8} onPress={dismissAndClose}>
-                    <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+                    <AppIcon color={theme.colors.mutedText} name="close" size={22} />
                   </Pressable>
                 )}
               </View>
@@ -259,12 +260,12 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
                 <Image contentFit="contain" source={{ uri: images[0]! }} style={{ height: '100%', width: '100%' }} />
               ) : item?.sketchStatus === 'pending' ? (
                 <View style={{ alignItems: 'center', gap: spacing.sm }}>
-                  <Ionicons color={theme.colors.subtleText} name="time-outline" size={32} />
+                  <AppIcon color={theme.colors.subtleText} name="clock" size={32} />
                   <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>Sketch generating...</AppText>
                 </View>
               ) : (
                 <Pressable onPress={() => void handleReplacePhoto()} style={{ alignItems: 'center', gap: spacing.sm }}>
-                  <Ionicons color={theme.colors.subtleText} name={isReplacingPhoto ? 'cloud-upload-outline' : 'camera-outline'} size={32} />
+                  <AppIcon color={theme.colors.subtleText} name={isReplacingPhoto ? 'upload' : 'camera'} size={32} />
                   <AppText tone="muted" style={{ fontSize: 12 }}>
                     {isReplacingPhoto ? 'Uploading...' : 'Tap to add photo'}
                   </AppText>
@@ -286,7 +287,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
                   paddingHorizontal: spacing.md,
                   paddingVertical: spacing.sm,
                 }}>
-                <Ionicons color="#FFF" name="shirt-outline" size={16} />
+                <AppIcon color="#FFF" name="shirt" size={16} />
                 <AppText variant="eyebrow" style={{ color: '#FFF', letterSpacing: 1.4 }}>
                   Anchor to Outfit
                 </AppText>
@@ -342,7 +343,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
                     paddingHorizontal: spacing.md,
                     paddingVertical: spacing.sm + 2,
                   }}>
-                  <Ionicons color={theme.colors.mutedText} name="camera-outline" size={16} />
+                  <AppIcon color={theme.colors.mutedText} name="camera" size={16} />
                   <AppText style={{ color: theme.colors.mutedText, fontSize: 14, fontFamily: staticTheme.fonts.sansMedium }}>
                     {isReplacingPhoto ? 'Uploading photo...' : item?.uploadedImageUrl ? 'Replace photo' : 'Add photo'}
                   </AppText>
@@ -370,7 +371,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
                     paddingHorizontal: spacing.md,
                     paddingVertical: spacing.sm + 2,
                   }}>
-                  <Ionicons color={theme.colors.accent} name="color-wand-outline" size={16} />
+                  <AppIcon color={theme.colors.accent} name="magic-wand" size={16} />
                   <AppText style={{ color: theme.colors.accent, fontSize: 14, fontFamily: staticTheme.fonts.sansMedium }}>
                     {editor.isAnalyzing ? 'Analyzing image...' : 'AI Auto-Fill Metadata'}
                   </AppText>

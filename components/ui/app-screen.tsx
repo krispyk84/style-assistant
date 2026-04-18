@@ -1,9 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, type PropsWithChildren, type RefObject, useState } from 'react';
 import { Pressable, ScrollView, View, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
@@ -93,7 +93,7 @@ export function AppScreen({ children, scrollable = false, topInset = true, float
             shadowOpacity: 0.1,
             shadowRadius: 8,
           }}>
-          <Ionicons color={theme.colors.text} name="arrow-back" size={16} />
+          <AppIcon color={theme.colors.text} name="arrow-left" size={16} />
           <AppText style={{ fontSize: 14 }}>Back</AppText>
         </Pressable>
       ) : null}

@@ -1,8 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Href, router } from 'expo-router';
 import { Animated, Easing, Pressable, View } from 'react-native';
 import { useEffect, useRef } from 'react';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { formatTierLabel } from '@/lib/outfit-utils';
@@ -121,9 +121,9 @@ export function LookResultCardView({
                   gap: spacing.xs,
                 },
               ]}>
-              <Ionicons
+              <AppIcon
                 color={isSelected ? theme.colors.background : theme.colors.mutedText}
-                name={thumb === 'love' ? 'heart-outline' : 'thumbs-down-outline'}
+                name={thumb === 'love' ? 'heart' : 'thumbs-down'}
                 size={16}
               />
               <AppText style={{ color: isSelected ? theme.colors.background : theme.colors.mutedText }}>
@@ -152,9 +152,9 @@ export function LookResultCardView({
             { backgroundColor: isSaved ? theme.colors.border : theme.colors.card },
           ]}>
           <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-            <Ionicons
+            <AppIcon
               color={theme.colors.text}
-              name={isSaved ? 'bookmark' : 'bookmark-outline'}
+              name="bookmark"
               size={18}
             />
             <AppText>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}</AppText>
@@ -162,7 +162,7 @@ export function LookResultCardView({
         </Pressable>
         <Pressable disabled={!onAddToWeek} onPress={onAddToWeek} style={actionButtonStyle}>
           <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-            <Ionicons color={theme.colors.text} name="calendar-outline" size={18} />
+            <AppIcon color={theme.colors.text} name="calendar" size={18} />
             <AppText>Add to week</AppText>
           </View>
         </Pressable>
@@ -188,7 +188,7 @@ export function LookResultCardView({
               width: '100%',
             },
           ]}>
-          <Ionicons color={theme.colors.inverseText} name="checkmark-circle-outline" size={18} />
+          <AppIcon color={theme.colors.inverseText} name="check-circle" size={18} />
           <AppText style={{ color: theme.colors.inverseText }}>Check Look</AppText>
         </Pressable>
 
@@ -204,7 +204,7 @@ export function LookResultCardView({
               borderColor: theme.colors.accent,
             },
           ]}>
-          <Ionicons color={theme.colors.accent} name="chatbubble-ellipses-outline" size={18} />
+          <AppIcon color={theme.colors.accent} name="chat" size={18} />
           <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
         </Pressable>
       </View>

@@ -1,12 +1,11 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 
+import { AppIcon, weatherIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { BottomSheetModal } from '@/components/ui/bottom-sheet-modal';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import { weatherIconName } from '@/lib/outfit-utils';
 import { formatTemperature } from '@/lib/temperature-format';
 import { loadNextSevenDayForecast, type WeekForecastDay } from '@/services/weather/current-weather-service';
 import { useAppSession } from '@/hooks/use-app-session';
@@ -68,7 +67,7 @@ export function WeatherForecastModal({ visible, onClose }: WeatherForecastModalP
           7-Day Forecast
         </AppText>
         <Pressable hitSlop={8} onPress={onClose}>
-          <Ionicons color={theme.colors.mutedText} name="close" size={22} />
+          <AppIcon color={theme.colors.mutedText} name="close" size={22} />
         </Pressable>
       </View>
 
@@ -112,9 +111,9 @@ export function WeatherForecastModal({ visible, onClose }: WeatherForecastModalP
               </AppText>
 
               <View style={{ alignItems: 'center', width: 36 }}>
-                <Ionicons
+                <AppIcon
                   color={index === 0 ? theme.colors.accent : theme.colors.mutedText}
-                  name={weatherIconName(day.weatherCode)}
+                  name={weatherIcon(day.weatherCode)}
                   size={20}
                 />
               </View>

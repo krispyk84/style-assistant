@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, View } from 'react-native';
@@ -7,6 +6,7 @@ import { MockAnalysisCard } from '@/components/cards/mock-analysis-card';
 import { ClosetPickerModal } from '@/components/closet/closet-picker-modal';
 import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
 import { ImagePickerField } from '@/components/forms/image-picker-field';
+import { AppIcon } from '@/components/ui/app-icon';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { ErrorState } from '@/components/ui/error-state';
@@ -94,7 +94,7 @@ export function CheckPieceScreen() {
               padding: spacing.md,
             }}>
             <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-              <Ionicons color={theme.colors.accent} name="checkmark-circle" size={16} />
+              <AppIcon color={theme.colors.accent} name="check-circle" size={16} />
               <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
                 From Your Closet
               </AppText>
@@ -139,7 +139,7 @@ export function CheckPieceScreen() {
                 paddingHorizontal: spacing.md,
                 paddingVertical: spacing.sm,
               }}>
-              <Ionicons color={theme.colors.text} name="swap-horizontal-outline" size={15} />
+              <AppIcon color={theme.colors.text} name="swap" size={15} />
               <AppText style={{ fontSize: 13 }}>Change item</AppText>
             </Pressable>
           </View>
@@ -188,7 +188,7 @@ export function CheckPieceScreen() {
                 minHeight: 48,
                 paddingHorizontal: spacing.lg,
               }}>
-              <Ionicons color={theme.colors.text} name="shirt-outline" size={16} />
+              <AppIcon color={theme.colors.text} name="shirt" size={16} />
               <AppText>Choose from Closet</AppText>
             </Pressable>
           </View>

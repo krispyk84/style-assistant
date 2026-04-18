@@ -1,8 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, useWindowDimensions, View } from 'react-native';
 
+import { AppIcon, type AppIconName } from '@/components/ui/app-icon';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
@@ -56,7 +56,7 @@ export default function AuthWelcomeScreen() {
         {/* Social sign-in */}
         <View style={{ gap: spacing.sm }}>
           <SocialButton
-            icon="logo-apple"
+            icon="apple"
             label="Continue with Apple"
             loading={loadingProvider === 'apple'}
             disabled={isLoading}
@@ -69,7 +69,7 @@ export default function AuthWelcomeScreen() {
             iconColor={theme.dark ? '#000000' : '#FFFFFF'}
           />
           <SocialButton
-            icon="logo-google"
+            icon="google"
             label="Continue with Google"
             loading={loadingProvider === 'google'}
             disabled={isLoading}
@@ -160,7 +160,7 @@ export default function AuthWelcomeScreen() {
 // ── Social button ──────────────────────────────────────────────────────────────
 
 type SocialButtonProps = {
-  icon: 'logo-apple' | 'logo-google';
+  icon: AppIconName;
   label: string;
   loading?: boolean;
   disabled?: boolean;
@@ -193,7 +193,7 @@ function SocialButton({ icon, label, loading, disabled, onPress, style, textColo
       {loading ? (
         <ActivityIndicator color={iconColor} size="small" />
       ) : (
-        <Ionicons color={iconColor} name={icon} size={20} />
+        <AppIcon color={iconColor} name={icon} size={20} />
       )}
       <AppText style={{
         color: textColor,

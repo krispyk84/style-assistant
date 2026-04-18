@@ -1,9 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Redirect, router, Tabs } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { BrandSplash } from '@/components/ui/brand-splash';
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme as staticTheme } from '@/constants/theme';
@@ -12,15 +12,6 @@ import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
 
 const TAB_ICON_SIZE = 22;
-
-// Icon names for selected/unselected states
-const TAB_ICONS = {
-  home:     { active: 'home',          inactive: 'home-outline' },
-  week:     { active: 'calendar',      inactive: 'calendar-outline' },
-  history:  { active: 'body',            inactive: 'body-outline' },
-  closet:   { active: 'shirt',         inactive: 'shirt-outline' },
-  settings: { active: 'options',       inactive: 'options-outline' },
-} as const;
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
   const { theme } = useTheme();
@@ -114,11 +105,7 @@ export default function AppTabsLayout() {
           options={{
             title: 'Home',
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons
-                color={color}
-                name={focused ? TAB_ICONS.home.active : TAB_ICONS.home.inactive}
-                size={TAB_ICON_SIZE}
-              />
+              <AppIcon name="home" color={color} size={TAB_ICON_SIZE} strokeWidth={focused ? 1.6 : 1.1} />
             ),
           }}
         />
@@ -127,11 +114,7 @@ export default function AppTabsLayout() {
           options={{
             title: 'Week',
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons
-                color={color}
-                name={focused ? TAB_ICONS.week.active : TAB_ICONS.week.inactive}
-                size={TAB_ICON_SIZE}
-              />
+              <AppIcon name="calendar" color={color} size={TAB_ICON_SIZE} strokeWidth={focused ? 1.6 : 1.1} />
             ),
           }}
         />
@@ -140,11 +123,7 @@ export default function AppTabsLayout() {
           options={{
             title: 'Looks',
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons
-                color={color}
-                name={focused ? TAB_ICONS.history.active : TAB_ICONS.history.inactive}
-                size={TAB_ICON_SIZE}
-              />
+              <AppIcon name="person" color={color} size={TAB_ICON_SIZE} strokeWidth={focused ? 1.6 : 1.1} />
             ),
           }}
         />
@@ -153,11 +132,7 @@ export default function AppTabsLayout() {
           options={{
             title: 'Closet',
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons
-                color={color}
-                name={focused ? TAB_ICONS.closet.active : TAB_ICONS.closet.inactive}
-                size={TAB_ICON_SIZE}
-              />
+              <AppIcon name="closet" color={color} size={TAB_ICON_SIZE} strokeWidth={focused ? 1.6 : 1.1} />
             ),
           }}
         />
@@ -166,11 +141,7 @@ export default function AppTabsLayout() {
           options={{
             title: 'Settings',
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons
-                color={color}
-                name={focused ? TAB_ICONS.settings.active : TAB_ICONS.settings.inactive}
-                size={TAB_ICON_SIZE}
-              />
+              <AppIcon name="settings" color={color} size={TAB_ICON_SIZE} strokeWidth={focused ? 1.6 : 1.1} />
             ),
           }}
         />
