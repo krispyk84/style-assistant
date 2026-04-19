@@ -61,14 +61,12 @@ export const selfieReviewService = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       verdict: aiOutput.verdict,
-      strengths: aiOutput.strengths,
-      issues: aiOutput.issues,
-      recommendedAdjustments: aiOutput.recommendedAdjustments,
-      stylistNotes: [
-        ...aiOutput.strengths.map((strength: string) => `Strength: ${strength}`),
-        ...aiOutput.issues.map((issue: string) => `Issue: ${issue}`),
-      ],
-      suggestedChanges: aiOutput.recommendedAdjustments,
+      lookFidelity: aiOutput.lookFidelity,
+      overallLook: aiOutput.overallLook,
+      summary: aiOutput.summary,
+      substitutionImpact: aiOutput.substitutionImpact,
+      stylistNotes: aiOutput.summary ? [aiOutput.summary, ...aiOutput.substitutionImpact] : aiOutput.substitutionImpact,
+      suggestedChanges: [],
     };
 
     await selfieReviewRepository.create({

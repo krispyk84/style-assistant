@@ -64,11 +64,12 @@ export const compatibilityService = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       verdict: aiOutput.verdict,
-      explanation: aiOutput.explanation,
-      concerns: aiOutput.concerns,
-      suggestedAlternatives: aiOutput.suggestedAlternatives,
-      stylistNotes: [aiOutput.explanation, ...aiOutput.concerns.map((concern: string) => `Concern: ${concern}`)],
-      suggestedChanges: aiOutput.suggestedAlternatives,
+      itemMatch: aiOutput.itemMatch,
+      outfitFit: aiOutput.outfitFit,
+      summary: aiOutput.summary,
+      outfitImpact: aiOutput.outfitImpact,
+      stylistNotes: aiOutput.summary ? [aiOutput.summary, ...aiOutput.outfitImpact] : aiOutput.outfitImpact,
+      suggestedChanges: [],
     };
 
     await compatibilityRepository.create({

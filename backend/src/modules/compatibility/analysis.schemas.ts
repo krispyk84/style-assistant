@@ -1,77 +1,55 @@
 import { z } from 'zod';
 
 const verdictEnum = z.enum(['Works great', 'Works okay', "Doesn't work"]);
+const strengthEnum = z.enum(['Strong', 'Moderate', 'Weak']);
+
+// ── Compatibility (Check Outfit) ──────────────────────────────────────────────
 
 export const compatibilityModelSchema = z.object({
-  verdict: verdictEnum,
-  explanation: z.string().min(1),
-  concerns: z.array(z.string().min(1)).min(1).max(4),
-  suggestedAlternatives: z.array(z.string().min(1)).min(1).max(4),
+  verdict:      verdictEnum,
+  itemMatch:    strengthEnum,   // how closely the candidate resembles the intended piece
+  outfitFit:    strengthEnum,   // how well the candidate works in the full outfit context
+  summary:      z.string().min(1).max(300),
+  outfitImpact: z.array(z.string().min(1).max(200)).max(3),
 });
-
-export const selfieReviewModelSchema = z.object({
-  verdict: verdictEnum,
-  strengths: z.array(z.string().min(1)).min(1).max(4),
-  issues: z.array(z.string().min(1)).min(1).max(4),
-  recommendedAdjustments: z.array(z.string().min(1)).min(1).max(4),
-});
-
-export type CompatibilityModelOutput = z.infer<typeof compatibilityModelSchema>;
-export type SelfieReviewModelOutput = z.infer<typeof selfieReviewModelSchema>;
 
 export const compatibilityJsonSchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    verdict: {
-      type: 'string',
-      enum: verdictEnum.options,
-    },
-    explanation: {
-      type: 'string',
-    },
-    concerns: {
-      type: 'array',
-      items: {
-        type: 'string',
-      },
-    },
-    suggestedAlternatives: {
-      type: 'array',
-      items: {
-        type: 'string',
-      },
-    },
+    verdict:      { type: 'string', enum: verdictEnum.options },
+    itemMatch:    { type: 'string', enum: strengthEnum.options },
+    outfitFit:    { type: 'string', enum: strengthEnum.options },
+    summary:      { type: 'string' },
+    outfitImpact: { type: 'array', items: { type: 'string' } },
   },
-  required: ['verdict', 'explanation', 'concerns', 'suggestedAlternatives'],
+  required: ['verdict', 'itemMatch', 'outfitFit', 'summary', 'outfitImpact'],
 } as const;
+
+// ── Selfie Review ─────────────────────────────────────────────────────────────
+
+const fidelityEnum = z.enum(['Close', 'Adjusted', 'Different']);
+
+export const selfieReviewModelSchema = z.object({
+  verdict:           verdictEnum,
+  lookFidelity:      fidelityEnum,  // how closely the worn look follows the recommendation
+  overallLook:       strengthEnum,  // how well the final result works as an outfit
+  summary:           z.string().min(1).max(300),
+  substitutionImpact: z.array(z.string().min(1).max(200)).max(3),
+});
 
 export const selfieReviewJsonSchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    verdict: {
-      type: 'string',
-      enum: verdictEnum.options,
-    },
-    strengths: {
-      type: 'array',
-      items: {
-        type: 'string',
-      },
-    },
-    issues: {
-      type: 'array',
-      items: {
-        type: 'string',
-      },
-    },
-    recommendedAdjustments: {
-      type: 'array',
-      items: {
-        type: 'string',
-      },
-    },
+    verdict:            { type: 'string', enum: verdictEnum.options },
+    lookFidelity:       { type: 'string', enum: fidelityEnum.options },
+    overallLook:        { type: 'string', enum: strengthEnum.options },
+    summary:            { type: 'string' },
+    substitutionImpact: { type: 'array', items: { type: 'string' } },
   },
-  required: ['verdict', 'strengths', 'issues', 'recommendedAdjustments'],
+  required: ['verdict', 'lookFidelity', 'overallLook', 'summary', 'substitutionImpact'],
 } as const;
+
+export type CompatibilityModelOutput = z.infer<typeof compatibilityModelSchema>;
+export type SelfieReviewModelOutput   = z.infer<typeof selfieReviewModelSchema>;

@@ -32,10 +32,23 @@ export type GenerateOutfitsRequest = CreateLookInput & {
 export type GenerateOutfitsResponse = LookRequestResponse;
 
 export type AnalysisVerdict = 'Works great' | 'Works okay' | "Doesn't work";
+export type StrengthLabel = 'Strong' | 'Moderate' | 'Weak';
+export type FidelityLabel = 'Close' | 'Adjusted' | 'Different';
 
 export type AnalysisResponse = {
   id?: string;
   verdict: AnalysisVerdict;
+  // ── Compatibility (Check Outfit) ──────────────────────
+  itemMatch?: StrengthLabel;
+  outfitFit?: StrengthLabel;
+  outfitImpact?: string[];
+  // ── Selfie Review ─────────────────────────────────────
+  lookFidelity?: FidelityLabel;
+  overallLook?: StrengthLabel;
+  substitutionImpact?: string[];
+  // ── Shared ────────────────────────────────────────────
+  summary?: string;
+  // ── Legacy (kept for historical stored results) ───────
   explanation?: string;
   concerns?: string[];
   suggestedAlternatives?: string[];

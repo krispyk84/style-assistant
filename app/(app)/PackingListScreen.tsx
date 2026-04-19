@@ -54,10 +54,10 @@ function buildPackingList(days: TripOutfitDay[]): PackingGroup[] {
   }
 
   for (const day of days) {
-    for (const piece of day.pieces) add(piece, categorizeItem(piece));
-    add(day.shoes, 'Shoes');
+    for (const piece of (day.pieces ?? [])) { if (piece) add(piece, categorizeItem(piece)); }
+    if (day.shoes) add(day.shoes, 'Shoes');
     if (day.bag) add(day.bag, 'Bags');
-    for (const acc of day.accessories) add(acc, 'Accessories');
+    for (const acc of (day.accessories ?? [])) { if (acc) add(acc, 'Accessories'); }
   }
 
   const groupMap = new Map<string, PackingItem[]>();
@@ -102,7 +102,6 @@ async function exportToReminders(destination: string, groups: PackingGroup[]): P
     color: '#5B4FCF',
     entityType: Calendar.EntityTypes.REMINDER,
     sourceId: remindersSource.id,
-    source: remindersSource,
     name: `Pack for ${destination}`,
     ownerAccount: 'personal',
     accessLevel: Calendar.CalendarAccessLevel.OWNER,
