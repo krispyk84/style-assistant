@@ -66,15 +66,21 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
       <ScrollView
-        contentContainerStyle={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: 32 }}
+        contentContainerStyle={{ padding: 24, paddingTop: 48 }}
         onTouchEnd={retry}>
-        <Text style={{ color: '#e00', fontSize: 15, fontWeight: '600', marginBottom: 8, textAlign: 'center' }}>
+        <Text style={{ color: '#e00', fontSize: 15, fontWeight: '600', marginBottom: 12 }}>
           Something went wrong
         </Text>
-        <Text style={{ color: '#666', fontSize: 13, textAlign: 'center' }}>
+        <Text style={{ color: '#333', fontSize: 13, fontWeight: '600', marginBottom: 4 }}>
+          {error?.name ?? 'Error'}
+        </Text>
+        <Text style={{ color: '#666', fontSize: 12, marginBottom: 16 }}>
           {error?.message ?? 'An unexpected error occurred.'}
         </Text>
-        <Text style={{ color: '#aaa', fontSize: 12, marginTop: 16, textAlign: 'center' }}>
+        <Text style={{ color: '#999', fontSize: 11, fontFamily: 'Courier', lineHeight: 16 }}>
+          {error?.stack ?? ''}
+        </Text>
+        <Text style={{ color: '#aaa', fontSize: 12, marginTop: 24, textAlign: 'center' }}>
           Tap anywhere to retry
         </Text>
       </ScrollView>
