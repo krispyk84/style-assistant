@@ -632,3 +632,5 @@ const inputStyle = {
   minHeight: 54,
   paddingHorizontal: spacing.md,
 } as const;
+
+export { OnboardingScreen as default };

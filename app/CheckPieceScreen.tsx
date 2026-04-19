@@ -284,3 +284,5 @@ export function CheckPieceScreen() {
     </AppScreen>
   );
 }
+
+export { CheckPieceScreen as default };

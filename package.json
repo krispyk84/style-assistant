@@ -8,7 +8,8 @@
     "lint": "expo lint",
     "bump": "node scripts/bump-patch.js",
     "deploy": "xcodebuild -workspace ios/Vesture.xcworkspace -scheme Vesture -configuration Release -destination 'id=00008140-000C6D860082201C' -allowProvisioningUpdates -derivedDataPath /tmp/vesture-build -UseNewBuildSystem=NO && xcrun devicectl device install app --device 00008140-000C6D860082201C /tmp/vesture-build/Build/Products/Release-iphoneos/Vesture.app",
-    "android": "expo run:android"
+    "android": "expo run:android",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -58,6 +59,8 @@
     "@types/react": "~19.1.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "patch-package": "^8.0.1",
+    "postinstall-postinstall": "^2.1.0",
     "typescript": "~5.9.2"
   },
   "private": true
