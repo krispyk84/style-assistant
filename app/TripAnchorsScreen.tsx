@@ -13,21 +13,23 @@ import { router } from 'expo-router';
 import { ClosetPickerModal } from '@/components/closet/closet-picker-modal';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
-import { spacing, theme as staticTheme } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { useAppSession } from '@/hooks/use-app-session';
 import { useImagePicker } from '@/hooks/use-image-picker';
 import type { LocalImageAsset } from '@/types/media';
 import type { TripDraft } from '@/lib/trip-draft-storage';
 import { tripDraftStorage } from '@/lib/trip-draft-storage';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
 import {
-  closetCategoryMatchesAnchor,
+  rankCandidatesForSlot,
   recommendTripAnchors,
 } from '@/lib/trip-anchor-recommender';
 import type {
   AnchorCategory,
   AnchorRecommendation,
   AnchorSlot,
+  ScoredAnchorCandidate,
 } from '@/lib/trip-anchor-recommender';
 import { closetService } from '@/services/closet';
 import { saveTripPlanDraft, saveTripPlanAnchors } from '@/services/trip-plans';
@@ -50,6 +52,10 @@ type SelectedAnchor = {
   closetItemImageUrl?: string;
   localImageUri?: string;
   rationale?: string;
+  /** Scored alternates for "Try something else" (auto mode). */
+  alternates?: ScoredAnchorCandidate[];
+  /** Index into alternates currently shown (for cycling). */
+  alternateIndex?: number;
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -608,6 +614,7 @@ function ManualPanel({
 
 export function TripAnchorsScreen() {
   const { theme } = useTheme();
+  const { profile } = useAppSession();
 
   // ── Draft loading ───────────────────────────────────────────────────────────
 
@@ -636,21 +643,22 @@ export function TripAnchorsScreen() {
 
   // ── Recommendation ──────────────────────────────────────────────────────────
 
-  const recommendation = draft
-    ? recommendTripAnchors({
-        numDays:        draft.numDays,
-        destination:    draft.destinationLabel,
-        purposes:       draft.purposes,
-        willSwim:       draft.willSwim,
-        fancyNights:    draft.fancyNights,
-        workoutClothes: draft.workoutClothes,
-        laundryAccess:  draft.laundryAccess,
-        shoesCount:     draft.shoesCount,
-        carryOnOnly:    draft.carryOnOnly,
-        climateLabel:   draft.climateLabel,
-        styleVibe:      draft.styleVibe,
-      })
-    : null;
+  const tripCtx = draft ? {
+    numDays:        draft.numDays,
+    destination:    draft.destinationLabel,
+    purposes:       draft.purposes,
+    willSwim:       draft.willSwim,
+    fancyNights:    draft.fancyNights,
+    workoutClothes: draft.workoutClothes,
+    laundryAccess:  draft.laundryAccess,
+    shoesCount:     draft.shoesCount,
+    carryOnOnly:    draft.carryOnOnly,
+    climateLabel:   draft.climateLabel,
+    styleVibe:      draft.styleVibe,
+    gender:         profile.gender as 'man' | 'woman' | 'non-binary' | undefined,
+  } : null;
+
+  const recommendation = tripCtx ? recommendTripAnchors(tripCtx) : null;
 
   // ── Mode & anchor state ─────────────────────────────────────────────────────
 
@@ -662,9 +670,6 @@ export function TripAnchorsScreen() {
   // Auto mode: pre-filled list (may be swapped)
   const [autoAnchors, setAutoAnchors] = useState<SelectedAnchor[]>([]);
   const [autoLoadState, setAutoLoadState] = useState<'loading' | 'ready' | 'empty'>('loading');
-  // Per-slot cycle index for "Try something else"
-  const autoRetryCountRef = useRef<Record<string, number>>({});
-
   // Manual mode: free list
   const [manualAnchors, setManualAnchors] = useState<SelectedAnchor[]>([]);
 
@@ -696,53 +701,69 @@ export function TripAnchorsScreen() {
 
   // ── Auto-suggest on closet load + mode change ───────────────────────────────
 
+  /**
+   * Build auto-mode anchor suggestions using proper scoring.
+   * For each slot: rank all eligible closet items by fit score (climate,
+   * formality, color, metadata quality), pick the best unused candidate,
+   * and stash the remaining ranked candidates as alternates for "Try something else".
+   */
   const buildAutoSuggestions = useCallback((
     slots: ReturnType<typeof recommendTripAnchors>['slots'],
     items: ClosetItem[],
+    ctx: NonNullable<typeof tripCtx>,
   ): SelectedAnchor[] => {
     if (items.length === 0) return [];
-    const used = new Set<string>();
+    const usedItemIds = new Set<string>();
     const anchors: SelectedAnchor[] = [];
 
     for (const slot of slots) {
-      // Find first unused closet item matching this slot's category
-      const match = items.find(
-        (item) => !used.has(item.id) && closetCategoryMatchesAnchor(item.category ?? '', slot.category as AnchorCategory)
-      );
-      if (match) {
-        used.add(match.id);
+      // Get all candidates ranked best-first (already filtered by category + gender)
+      const allCandidates = rankCandidatesForSlot(items, slot, ctx);
+      // Find the best candidate that hasn't been used by a previous slot
+      const unusedCandidates = allCandidates.filter((c) => !usedItemIds.has(c.item.id));
+
+      if (unusedCandidates.length > 0) {
+        const best = unusedCandidates[0]!;
+        usedItemIds.add(best.item.id);
+        // Keep remaining candidates as alternates (skip any also already used)
+        const alternates = unusedCandidates.slice(1).filter((c) => !usedItemIds.has(c.item.id));
         anchors.push({
           id:                 `auto-${slot.id}`,
           slotId:             slot.id,
-          label:              match.title,
+          label:              best.item.title,
           category:           slot.category,
           source:             'closet',
-          closetItemId:       match.id,
-          closetItemTitle:    match.title,
-          closetItemImageUrl: match.sketchImageUrl ?? match.uploadedImageUrl ?? undefined,
-          rationale:          slot.rationale,
+          closetItemId:       best.item.id,
+          closetItemTitle:    best.item.title,
+          closetItemImageUrl: best.item.sketchImageUrl ?? best.item.uploadedImageUrl ?? undefined,
+          rationale:          best.rationale,
+          alternates,
+          alternateIndex:     0,
         });
       } else {
-        // Suggest the slot type as AI-suggested placeholder
+        // No matching closet items — placeholder for this slot
         anchors.push({
           id:        `auto-${slot.id}`,
           slotId:    slot.id,
           label:     slot.label,
           category:  slot.category,
           source:    'ai_suggested',
-          rationale: slot.rationale,
+          rationale: `We couldn't find a strong match for "${slot.label}" in your closet. You can add one below.`,
         });
       }
     }
     return anchors;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (mode !== 'auto' || !recommendation || !closetLoaded) return;
+    if (mode !== 'auto' || !recommendation || !closetLoaded || !tripCtx) return;
     setAutoLoadState('loading');
-    const suggestions = buildAutoSuggestions(recommendation.slots, closetItems);
+    const suggestions = buildAutoSuggestions(recommendation.slots, closetItems, tripCtx);
     setAutoAnchors(suggestions);
     setAutoLoadState(suggestions.length === 0 ? 'empty' : 'ready');
+  // tripCtx is derived from draft + profile; stable reference not needed since effect depends on mode/recommendation/closetItems
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, recommendation, closetItems, closetLoaded, buildAutoSuggestions]);
 
   // ── Anchor mutations ────────────────────────────────────────────────────────
@@ -825,32 +846,27 @@ export function TripAnchorsScreen() {
     addAnchorFromClosetItem(target.slotId, target.mode, item);
   }
 
-  // Auto mode: "Try something else" — cycle to next matching closet item
+  // Auto mode: "Try something else" — cycle through scored alternates for this slot
   function handleAutoRetry(anchor: SelectedAnchor) {
-    if (!recommendation) return;
-    const slotId = anchor.slotId ?? anchor.id;
-    const slot = recommendation.slots.find((s) => s.id === slotId);
-    if (!slot) return;
+    const alternates = anchor.alternates ?? [];
+    if (alternates.length === 0) return;
 
-    const matching = closetItems.filter(
-      (item) => closetCategoryMatchesAnchor(item.category ?? '', slot.category as AnchorCategory)
-    );
-    if (matching.length === 0) return;
-
-    const count = autoRetryCountRef.current[slotId] ?? 0;
-    const next = matching[(count + 1) % matching.length]!;
-    autoRetryCountRef.current[slotId] = (count + 1) % matching.length;
+    const currentIdx = anchor.alternateIndex ?? 0;
+    const nextIdx = (currentIdx + 1) % alternates.length;
+    const next = alternates[nextIdx]!;
 
     setAutoAnchors((prev) =>
       prev.map((a) =>
         a.id === anchor.id
           ? {
               ...a,
-              label:              next.title,
+              label:              next.item.title,
               source:             'closet',
-              closetItemId:       next.id,
-              closetItemTitle:    next.title,
-              closetItemImageUrl: next.sketchImageUrl ?? next.uploadedImageUrl ?? undefined,
+              closetItemId:       next.item.id,
+              closetItemTitle:    next.item.title,
+              closetItemImageUrl: next.item.sketchImageUrl ?? next.item.uploadedImageUrl ?? undefined,
+              rationale:          next.rationale,
+              alternateIndex:     nextIdx,
             }
           : a
       )
