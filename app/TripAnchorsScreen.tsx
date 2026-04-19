@@ -394,7 +394,7 @@ function AutoPanel({
 }: {
   loadState: 'loading' | 'ready' | 'empty';
   anchors: SelectedAnchor[];
-  onRetry: (anchor: SelectedAnchor) => void;
+  onRetry:  (anchor: SelectedAnchor) => void;
   onReplace: (anchor: SelectedAnchor) => void;
 }) {
   const { theme } = useTheme();
@@ -483,20 +483,60 @@ function AutoPanel({
                   {anchor.rationale}
                 </AppText>
               )}
-              <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.xs }}>
-                <Pressable
-                  onPress={() => onRetry(anchor)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <AppIcon name="refresh" color={theme.colors.accent} size={11} />
-                  <AppText style={{ color: theme.colors.accent, fontFamily: theme.fonts.sansMedium, fontSize: 12 }}>
-                    Try something else
-                  </AppText>
-                </Pressable>
+              <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs }}>
+                {/* Try something else */}
+                {(() => {
+                  const hasAlts = (anchor.alternates?.length ?? 0) > 0;
+                  return (
+                    <Pressable
+                      onPress={() => hasAlts ? onRetry(anchor) : undefined}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 5,
+                        backgroundColor: theme.colors.subtleSurface,
+                        borderColor: hasAlts ? theme.colors.accent : theme.colors.border,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        paddingHorizontal: spacing.sm,
+                        paddingVertical: spacing.sm,
+                        opacity: hasAlts ? 1 : 0.4,
+                      }}>
+                      <AppIcon name="refresh" color={hasAlts ? theme.colors.accent : theme.colors.subtleText} size={12} />
+                      <AppText style={{
+                        color: hasAlts ? theme.colors.accent : theme.colors.subtleText,
+                        fontFamily: theme.fonts.sansMedium,
+                        fontSize: 12,
+                      }}>
+                        {hasAlts ? 'Try something else' : 'Only match'}
+                      </AppText>
+                    </Pressable>
+                  );
+                })()}
+                {/* Replace manually */}
                 <Pressable
                   onPress={() => onReplace(anchor)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <AppIcon name="swap" color={theme.colors.mutedText} size={11} />
-                  <AppText style={{ color: theme.colors.mutedText, fontFamily: theme.fonts.sansMedium, fontSize: 12 }}>
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 5,
+                    backgroundColor: theme.colors.subtleSurface,
+                    borderColor: theme.colors.border,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.sm,
+                  }}>
+                  <AppIcon name="swap" color={theme.colors.text} size={12} />
+                  <AppText style={{
+                    color: theme.colors.text,
+                    fontFamily: theme.fonts.sansMedium,
+                    fontSize: 12,
+                  }}>
                     Replace manually
                   </AppText>
                 </Pressable>
