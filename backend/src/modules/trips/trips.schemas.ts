@@ -17,9 +17,19 @@ export const tripOutfitsResponseSchema = z.object({
   days: z.array(tripDaySchema).min(1).max(14),
 });
 
+const tripAnchorInputSchema = z.object({
+  label:       z.string().min(1),
+  category:    z.string().min(1),
+  source:      z.enum(['closet', 'camera', 'library', 'ai_suggested']),
+  closetItemId: z.string().optional(),
+  rationale:   z.string().optional(),
+});
+
 export const generateTripOutfitsSchema = z.object({
   tripId:       z.string().min(1),
   profileId:    z.string().optional(),
+  anchors:      z.array(tripAnchorInputSchema).optional(),
+  anchorMode:   z.enum(['guided', 'auto', 'manual']).optional(),
   destination:  z.string().min(1),
   country:      z.string().min(1),
   departureDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

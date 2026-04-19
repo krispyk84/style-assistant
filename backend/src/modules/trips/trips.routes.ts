@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import { sendSuccess } from '../../lib/api-response.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { HttpError } from '../../lib/http-error.js';
 import { parseWithSchema } from '../../lib/validation.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { tripsService } from './trips.service.js';
@@ -9,11 +10,23 @@ import { generateTripOutfitsSchema, generateTripDaySketchSchema, regenerateTripD
 
 export const tripsRouter = Router();
 
+const MAX_TRIP_DAYS = 8;
+
+function tripLengthDays(departureDate: string, returnDate: string): number {
+  const dep = new Date(departureDate);
+  const ret = new Date(returnDate);
+  return Math.round((ret.getTime() - dep.getTime()) / 86_400_000) + 1;
+}
+
 tripsRouter.post(
   '/trips/generate',
   requireAuth,
   asyncHandler(async (request, response) => {
     const payload = parseWithSchema(generateTripOutfitsSchema, request.body);
+    const numDays = tripLengthDays(payload.departureDate, payload.returnDate);
+    if (numDays > MAX_TRIP_DAYS) {
+      throw new HttpError(400, `Trips can be up to ${MAX_TRIP_DAYS} days long right now.`);
+    }
     const result = await tripsService.generateTripOutfits(payload, request.userId!);
     return sendSuccess(response, result, 201);
   })

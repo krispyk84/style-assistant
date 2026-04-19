@@ -14,11 +14,10 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { TextInput } from '@/components/ui/text-input';
 import { spacing, theme as staticTheme } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
+import { tripDraftStorage } from '@/lib/trip-draft-storage';
 import type { DestinationResult } from '@/services/destination';
 import { savedTripsService } from '@/services/saved-trips';
 import type { SavedTripSummary } from '@/services/saved-trips';
-import { tripOutfitsService } from '@/services/trip-outfits';
 import type { TravelClimateProfile } from '@/services/travel-climate';
 import { inferTravelClimate } from '@/services/travel-climate';
 
@@ -260,67 +259,68 @@ export default function TravelPlannerScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const canSubmit = destination !== null && departureDate !== null && returnDate !== null && !isSubmitting;
-
   function toISODate(d: Date): string {
     return d.toISOString().split('T')[0]!;
   }
 
+  function tripDays(): number {
+    if (!departureDate || !returnDate) return 0;
+    const dep = new Date(departureDate.getFullYear(), departureDate.getMonth(), departureDate.getDate());
+    const ret = new Date(returnDate.getFullYear(), returnDate.getMonth(), returnDate.getDate());
+    return Math.round((ret.getTime() - dep.getTime()) / 86_400_000) + 1;
+  }
+
+  const numDays = tripDays();
+  const exceedsMaxDays = numDays > 8;
+  const canSubmit = destination !== null && departureDate !== null && returnDate !== null && !isSubmitting && !exceedsMaxDays;
+
   async function handleSubmit() {
     if (!destination || !departureDate || !returnDate) return;
+
+    if (exceedsMaxDays) {
+      setSubmitError('Trips can be up to 8 days long right now.');
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError(null);
 
-    const tripId = `trip-${Date.now()}`;
-
     try {
-      const result = await tripOutfitsService.generateTripOutfits({
-        tripId,
-        destination: destination.label,
-        country: destination.country,
-        departureDate: toISODate(departureDate),
-        returnDate: toISODate(returnDate),
+      // Save trip draft locally and navigate to anchor selection
+      const draftId = `draft-${Date.now()}`;
+      await tripDraftStorage.save({
+        draftId,
+        destinationLabel: destination.label,
+        country:          destination.country,
+        lat:              destination.lat,
+        lng:              destination.lng,
+        geonameId:        destination.geonameId,
+        departureDate:    toISODate(departureDate),
+        returnDate:       toISODate(returnDate),
+        numDays,
         travelParty,
         purposes,
-        climateLabel: climate || 'Not specified',
-        avgHighC: climateProfile?.avgHighC,
-        avgLowC: climateProfile?.avgLowC,
-        tempBand: climateProfile?.tempBand,
-        precipChar: climateProfile?.precipChar,
-        packingTag: climateProfile?.packingTag,
-        dressSeason: climateProfile?.dressSeason,
-        activities: activities.trim() || undefined,
-        dressCode: dressCode.trim() || undefined,
+        climateLabel:     climate || 'Not specified',
+        avgHighC:         climateProfile?.avgHighC,
+        avgLowC:          climateProfile?.avgLowC,
+        tempBand:         climateProfile?.tempBand,
+        precipChar:       climateProfile?.precipChar,
+        packingTag:       climateProfile?.packingTag,
+        dressSeason:      climateProfile?.dressSeason,
+        activities:       activities.trim() || undefined,
+        dressCode:        dressCode.trim() || undefined,
         styleVibe,
-        willSwim: willSwim === 'Yes',
-        fancyNights: fancyNights === 'Yes',
-        workoutClothes: workoutClothes === 'Yes',
+        willSwim:         willSwim === 'Yes',
+        fancyNights:      fancyNights === 'Yes',
+        workoutClothes:   workoutClothes === 'Yes',
         laundryAccess,
         shoesCount,
-        carryOnOnly: carryOnOnly === 'Yes',
-        specialNeeds: specialNeeds.trim() || undefined,
+        carryOnOnly:      carryOnOnly === 'Yes',
+        specialNeeds:     specialNeeds.trim() || undefined,
+        createdAt:        new Date().toISOString(),
       });
 
-      await tripOutfitsStorage.save({
-        tripId,
-        destination: destination.label,
-        country: destination.country,
-        departureDate: toISODate(departureDate),
-        returnDate: toISODate(returnDate),
-        travelParty,
-        climateLabel: climate || 'Not specified',
-        styleVibe,
-        purposes,
-        activities: activities.trim() || undefined,
-        dressCode: dressCode.trim() || undefined,
-        days: result.days,
-        generatedAt: new Date().toISOString(),
-      });
-
-      router.push({
-        pathname: '/trip-results',
-        params: { tripId, destination: destination.label },
-      });
+      router.push({ pathname: '/trip-anchors' });
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
@@ -650,9 +650,14 @@ export default function TravelPlannerScreen() {
             {submitError}
           </AppText>
         ) : null}
+        {exceedsMaxDays && (
+          <AppText style={{ color: theme.colors.danger, fontSize: 13, textAlign: 'center' }}>
+            Trips can be up to 8 days long right now.
+          </AppText>
+        )}
         <PrimaryButton
           disabled={!canSubmit}
-          label={isSubmitting ? 'Building Your Plan…' : 'Build My Packing List'}
+          label={isSubmitting ? 'Saving…' : 'Choose Anchors →'}
           onPress={() => void handleSubmit()}
         />
 

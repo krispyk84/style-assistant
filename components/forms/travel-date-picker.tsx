@@ -8,6 +8,7 @@ import { useTheme } from '@/contexts/theme-context';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
+const MAX_TRIP_DAYS = 8;
 const CELL_HEIGHT = 42;
 const CIRCLE_SIZE = 36;
 // Vertical offset so the range bar is centred in the cell
@@ -46,6 +47,15 @@ function nightsLabel(dep: Date, ret: Date): string {
   const nights = Math.round((ret.getTime() - dep.getTime()) / 86_400_000);
   if (nights === 0) return 'Same-day trip';
   return nights === 1 ? '1 night' : `${nights} nights`;
+}
+
+function tripDays(dep: Date, ret: Date): number {
+  return Math.round((ret.getTime() - dep.getTime()) / 86_400_000) + 1;
+}
+
+/** Latest allowed return date given a departure (inclusive, MAX_TRIP_DAYS total). */
+function maxReturnDate(dep: Date): Date {
+  return new Date(dep.getTime() + (MAX_TRIP_DAYS - 1) * 86_400_000);
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -137,9 +147,10 @@ export function TravelDatePicker({ departureDate, returnDate, onDepartureChange,
     const isInRange = hasBothEnds && !isSameDay && cellDate > dep! && cellDate < ret!;
 
     const isPast = cellDate < today;
+    const maxRet = dep ? maxReturnDate(dep) : null;
     const isDisabled = mode === 'departure'
       ? isPast
-      : dep === null || cellDate < dep;
+      : dep === null || cellDate < dep || (maxRet !== null && cellDate > maxRet);
 
     // Range bar halves: left half coloured for in-range or return day; right half for in-range or departure day.
     const leftBar = hasBothEnds && !isSameDay && (isInRange || isRet);
@@ -304,10 +315,24 @@ export function TravelDatePicker({ departureDate, returnDate, onDepartureChange,
 
       {/* Duration + change hint — shown only when both dates are set and calendar is closed */}
       {hasBothEnds && !isOpen ? (
-        <AppText style={{ color: theme.colors.mutedText, fontSize: 13, textAlign: 'center' }}>
-          {nightsLabel(dep!, ret!)} · Tap a date to change
-        </AppText>
+        <View style={{ gap: 4 }}>
+          <AppText style={{ color: theme.colors.mutedText, fontSize: 13, textAlign: 'center' }}>
+            {nightsLabel(dep!, ret!)} · Tap a date to change
+          </AppText>
+          {tripDays(dep!, ret!) >= MAX_TRIP_DAYS && (
+            <AppText style={{ color: theme.colors.accent, fontSize: 11, textAlign: 'center' }}>
+              Max trip length reached ({MAX_TRIP_DAYS} days)
+            </AppText>
+          )}
+        </View>
       ) : null}
+
+      {/* Return mode: show max return date hint */}
+      {isOpen && mode === 'return' && dep && (
+        <AppText style={{ color: theme.colors.subtleText, fontSize: 11, textAlign: 'center' }}>
+          Max return: {formatDisplayDate(maxReturnDate(dep))} · Trips up to {MAX_TRIP_DAYS} days
+        </AppText>
+      )}
 
       {/* Calendar */}
       {isOpen ? (

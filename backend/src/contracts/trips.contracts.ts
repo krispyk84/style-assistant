@@ -13,9 +13,19 @@ export type TripOutfitDayDto = {
   contextTags: string[];  // e.g. ["layered", "beach-ready", "wrinkle-resistant"]
 };
 
+export type TripAnchorInputDto = {
+  label: string;
+  category: string;
+  source: 'closet' | 'camera' | 'library' | 'ai_suggested';
+  closetItemId?: string;
+  rationale?: string;
+};
+
 export type GenerateTripOutfitsRequest = {
   tripId: string;
   profileId?: string;
+  anchors?: TripAnchorInputDto[];
+  anchorMode?: 'guided' | 'auto' | 'manual';
   destination: string;       // human-readable label
   country: string;
   departureDate: string;     // YYYY-MM-DD

@@ -45,8 +45,19 @@ export type RegenerateTripDayParams = {
   previousShoes?: string;
 };
 
+export type TripAnchorInput = {
+  label: string;
+  category: string;
+  source: 'closet' | 'camera' | 'library' | 'ai_suggested';
+  closetItemId?: string;
+  rationale?: string;
+};
+
 export type GenerateTripOutfitsParams = {
   tripId: string;
+  /** Anchor pieces to build outfits around (optional). */
+  anchors?: TripAnchorInput[];
+  anchorMode?: 'guided' | 'auto' | 'manual';
   destination: string;
   country: string;
   departureDate: string;   // YYYY-MM-DD

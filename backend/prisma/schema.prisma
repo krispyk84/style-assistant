@@ -265,6 +265,67 @@ model SavedTrip {
   @@index([supabaseUserId])
 }
 
+// ── Trip Planning ─────────────────────────────────────────────────────────────
+
+model TripPlan {
+  id             String       @id @default(cuid())
+  supabaseUserId String
+  // Destination
+  destination    String
+  country        String
+  // Dates
+  departureDate  String                    // YYYY-MM-DD
+  returnDate     String                    // YYYY-MM-DD
+  numDays        Int
+  // Trip details
+  travelParty    String
+  purposes       Json                      // string[]
+  // Climate
+  climateLabel   String
+  styleVibe      String
+  // Smart packing
+  willSwim       Boolean      @default(false)
+  fancyNights    Boolean      @default(false)
+  workoutClothes Boolean      @default(false)
+  laundryAccess  String       @default("Unsure")
+  shoesCount     String       @default("2")
+  carryOnOnly    Boolean      @default(false)
+  activities     String?
+  dressCode      String?
+  specialNeeds   String?
+  // Anchor selection
+  anchorMode     String?                   // guided | auto | manual
+  // Lifecycle
+  status         String       @default("draft")  // draft | generating | generated
+  tripId         String?                   // set after generation
+  anchors        TripAnchor[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([supabaseUserId])
+}
+
+model TripAnchor {
+  id              String    @id @default(cuid())
+  tripPlanId      String
+  tripPlan        TripPlan  @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+  supabaseUserId  String
+  slotId          String?                // guided-mode slot reference
+  label           String
+  category        String
+  source          String                 // closet | camera | library | ai_suggested
+  closetItemId    String?
+  uploadedImageId String?
+  imageUrl        String?
+  rationale       String?
+  position        Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([tripPlanId])
+  @@index([supabaseUserId])
+}
+
 model StyleGuideDocument {
   id                  String   @id @default(cuid())
   name                String
