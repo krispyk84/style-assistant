@@ -89,25 +89,22 @@ async function exportToReminders(destination: string, groups: PackingGroup[]): P
     throw new Error('Reminders permission denied.');
   }
 
-  // Find or create a dedicated source (use default reminders source on iOS)
-  const sources = await Calendar.getSourcesAsync();
-  const remindersSource = sources.find((s) => s.type === Calendar.SourceType.LOCAL)
-    ?? sources[0];
+  // Get the source from an existing reminders calendar (most reliable on iOS)
+  const reminderCalendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.REMINDER);
+  const sourceId = reminderCalendars.find((c) => c.allowsModifications)?.source.id
+    ?? reminderCalendars[0]?.source.id;
 
-  if (!remindersSource) throw new Error('No reminders source available.');
+  if (!sourceId) throw new Error('No reminders source available.');
 
   // Create the list
   const listId = await Calendar.createCalendarAsync({
     title: `Pack for ${destination}`,
     color: '#5B4FCF',
     entityType: Calendar.EntityTypes.REMINDER,
-    sourceId: remindersSource.id,
-    name: `Pack for ${destination}`,
-    ownerAccount: 'personal',
-    accessLevel: Calendar.CalendarAccessLevel.OWNER,
+    sourceId,
   });
 
-  // Add each item as a reminder (category as a prefix for grouping)
+  // Add each item as a reminder
   const tasks: Promise<string>[] = [];
   for (const group of groups) {
     for (const item of group.items) {
