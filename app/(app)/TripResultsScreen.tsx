@@ -76,6 +76,9 @@ export default function TripResultsScreen() {
       if (!loaded) { setErrorMessage('Trip plan not found. Please go back and try again.'); }
       else { setPlan(loaded); setDays(loaded.days); }
       setIsLoading(false);
+    }).catch(() => {
+      setErrorMessage('Could not load trip. Please go back and try again.');
+      setIsLoading(false);
     });
   }, [tripId, savedTripId]);
 

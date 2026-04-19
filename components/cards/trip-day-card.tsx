@@ -49,7 +49,8 @@ function categorizePiece(piece: string): string {
 function buildOutfitGroups(day: TripOutfitDay): OutfitGroup[] {
   const groupMap: Record<string, string[]> = {};
 
-  for (const piece of day.pieces) {
+  for (const piece of (day.pieces ?? [])) {
+    if (!piece) continue;
     const cat = categorizePiece(piece);
     (groupMap[cat] ??= []).push(piece);
   }
@@ -59,9 +60,9 @@ function buildOutfitGroups(day: TripOutfitDay): OutfitGroup[] {
     if (groupMap[label]?.length) groups.push({ label, items: groupMap[label]! });
   }
 
-  groups.push({ label: 'Shoes', items: [day.shoes] });
+  if (day.shoes) groups.push({ label: 'Shoes', items: [day.shoes] });
   if (day.bag) groups.push({ label: 'Bag', items: [day.bag] });
-  if (day.accessories.length) groups.push({ label: 'Accessories', items: day.accessories });
+  if ((day.accessories ?? []).length) groups.push({ label: 'Accessories', items: day.accessories });
 
   return groups;
 }
@@ -220,7 +221,7 @@ export function TripDayCard({ day, isRegenerating, onGenerateSketch, onLove, onH
         </View>
 
         {/* Context tags */}
-        {day.contextTags.length > 0 && (
+        {(day.contextTags ?? []).length > 0 && (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
             {day.contextTags.map((tag) => (
               <View
