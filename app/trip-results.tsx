@@ -1,1 +1,1 @@
-export { default } from './(app)/TripResultsScreen';
+export { default } from './TripResultsScreen';

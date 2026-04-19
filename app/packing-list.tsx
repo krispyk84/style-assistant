@@ -1,1 +1,1 @@
-export { default } from './(app)/PackingListScreen';
+export { default } from './PackingListScreen';
