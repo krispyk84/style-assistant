@@ -55,9 +55,6 @@ function AppNavigation() {
         <Stack.Screen name="trip-results" options={{ headerShown: false }} />
         <Stack.Screen name="trip-anchors" options={{ headerShown: false }} />
         <Stack.Screen name="packing-list" options={{ headerShown: false }} />
-        <Stack.Screen name="TripResultsScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="PackingListScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="TripAnchorsScreen" options={{ headerShown: false }} />
         <Stack.Screen name="camera-capture" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
       </Stack>

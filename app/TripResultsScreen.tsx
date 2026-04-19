@@ -354,3 +354,5 @@ export function TripResultsScreen() {
     </SafeAreaView>
   );
 }
+
+export { TripResultsScreen as default };

@@ -1303,3 +1303,4 @@ export function TripAnchorsScreen() {
     </SafeAreaView>
   );
 }
+export { TripAnchorsScreen as default };
