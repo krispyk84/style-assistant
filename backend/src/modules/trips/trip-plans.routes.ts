@@ -66,7 +66,7 @@ tripPlansRouter.post(
     const numDays = Math.round((ret.getTime() - dep.getTime()) / 86_400_000) + 1;
 
     if (numDays > MAX_TRIP_DAYS) {
-      throw new HttpError(400, `Trips can be up to ${MAX_TRIP_DAYS} days long right now.`);
+      throw new HttpError(400, 'TRIP_TOO_LONG', `Trips can be up to ${MAX_TRIP_DAYS} days long right now.`);
     }
 
     const plan = await tripPlansService.createPlan({
@@ -84,8 +84,9 @@ tripPlansRouter.get(
   '/trips/plan/:id',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const plan = await tripPlansService.getPlan(req.params.id!, req.userId!);
-    if (!plan) throw new HttpError(404, 'Trip plan not found.');
+    const planId = req.params['id'] as string;
+    const plan = await tripPlansService.getPlan(planId, req.userId!);
+    if (!plan) throw new HttpError(404, 'NOT_FOUND', 'Trip plan not found.');
     return sendSuccess(res, plan);
   })
 );
@@ -95,10 +96,11 @@ tripPlansRouter.patch(
   '/trips/plan/:id/anchors',
   requireAuth,
   asyncHandler(async (req, res) => {
+    const planId = req.params['id'] as string;
     const { anchorMode, anchors } = parseWithSchema(setAnchorsSchema, req.body);
-    const plan = await tripPlansService.getPlan(req.params.id!, req.userId!);
-    if (!plan) throw new HttpError(404, 'Trip plan not found.');
-    const updated = await tripPlansService.setAnchors(req.params.id!, req.userId!, anchorMode, anchors);
+    const plan = await tripPlansService.getPlan(planId, req.userId!);
+    if (!plan) throw new HttpError(404, 'NOT_FOUND', 'Trip plan not found.');
+    const updated = await tripPlansService.setAnchors(planId, req.userId!, anchorMode, anchors);
     return sendSuccess(res, updated);
   })
 );

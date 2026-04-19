@@ -25,7 +25,7 @@ tripsRouter.post(
     const payload = parseWithSchema(generateTripOutfitsSchema, request.body);
     const numDays = tripLengthDays(payload.departureDate, payload.returnDate);
     if (numDays > MAX_TRIP_DAYS) {
-      throw new HttpError(400, `Trips can be up to ${MAX_TRIP_DAYS} days long right now.`);
+      throw new HttpError(400, 'TRIP_TOO_LONG', `Trips can be up to ${MAX_TRIP_DAYS} days long right now.`);
     }
     const result = await tripsService.generateTripOutfits(payload, request.userId!);
     return sendSuccess(response, result, 201);
