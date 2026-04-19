@@ -1,1 +1,1 @@
-export { default } from './PackingListScreen';
+export { PackingListScreen as default } from './PackingListScreen';

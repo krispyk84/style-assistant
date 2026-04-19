@@ -16,7 +16,7 @@ import type { TripOutfitDay } from '@/services/trip-outfits';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
-export default function TripResultsScreen() {
+export function TripResultsScreen() {
   const { tripId, destination, savedTripId } = useLocalSearchParams<{
     tripId: string;
     destination: string;

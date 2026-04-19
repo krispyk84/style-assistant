@@ -1,1 +1,1 @@
-export { default } from './WardrobeScoreScreen';
+export { WardrobeScoreScreen as default } from './WardrobeScoreScreen';

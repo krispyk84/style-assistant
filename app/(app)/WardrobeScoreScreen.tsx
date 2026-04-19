@@ -329,7 +329,7 @@ function TrendRelevanceCard({ data }: { data: TrendRelevanceScore }) {
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
-export default function WardrobeScoreScreen() {
+export function WardrobeScoreScreen() {
   const { theme } = useTheme();
   const [score, setScore] = useState<WardrobeScore | null>(null);
   const [isLoading, setIsLoading] = useState(true);

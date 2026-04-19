@@ -122,7 +122,7 @@ async function exportToReminders(destination: string, groups: PackingGroup[]): P
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
-export default function PackingListScreen() {
+export function PackingListScreen() {
   const { tripId, savedTripId } = useLocalSearchParams<{ tripId: string; savedTripId?: string }>();
   const { theme } = useTheme();
 
