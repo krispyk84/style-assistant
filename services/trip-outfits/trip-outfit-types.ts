@@ -37,6 +37,8 @@ export type RegenerateTripDayParams = {
   destination: string;
   country: string;
   climateLabel: string;
+  avgHighC?: number;
+  avgLowC?: number;
   activities?: string;
   dressCode?: string;
   styleVibe: string;
@@ -81,6 +83,8 @@ export type GenerateTripOutfitsParams = {
   shoesCount: string;
   carryOnOnly: boolean;
   specialNeeds?: string;
+  generateOnlyDayIndex?: number;
+  previousDaysSummary?: string[];
 };
 
 export type GenerateTripOutfitsResponse = {

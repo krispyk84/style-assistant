@@ -41,6 +41,7 @@
       [
         "expo-calendar",
         {
+          "calendarPermission": "Vesture uses your calendar to schedule outfit events.",
           "remindersPermission": "Vesture needs access to Reminders to export your packing list."
         }
       ],

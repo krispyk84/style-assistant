@@ -12,6 +12,8 @@ export type StoredTripPlan = {
   returnDate?: string;     // YYYY-MM-DD
   travelParty?: string;
   climateLabel: string;
+  avgHighC?: number;
+  avgLowC?: number;
   styleVibe: string;
   purposes: string[];
   activities?: string;
@@ -42,6 +44,18 @@ export const tripOutfitsStorage = {
     const plan = map[tripId];
     if (!plan) return;
     plan.days = plan.days.map((d) => (d.id === updatedDay.id ? updatedDay : d));
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+  },
+
+  async appendDay(tripId: string, day: TripOutfitDay): Promise<void> {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY).catch(() => null);
+    if (!raw) return;
+    const map: Record<string, StoredTripPlan> = JSON.parse(raw);
+    const plan = map[tripId];
+    if (!plan) return;
+    // Replace if already exists (idempotent), otherwise append
+    const exists = plan.days.some((d) => d.id === day.id);
+    plan.days = exists ? plan.days.map((d) => (d.id === day.id ? day : d)) : [...plan.days, day];
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(map));
   },
 };

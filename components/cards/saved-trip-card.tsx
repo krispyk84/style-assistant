@@ -6,6 +6,34 @@ import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import type { SavedTripSummary } from '@/services/saved-trips';
 
+// ── Country → flag emoji ──────────────────────────────────────────────────────
+
+const COUNTRY_CODES: Record<string, string> = {
+  'Afghanistan': 'AF', 'Albania': 'AL', 'Algeria': 'DZ', 'Argentina': 'AR',
+  'Australia': 'AU', 'Austria': 'AT', 'Belgium': 'BE', 'Brazil': 'BR',
+  'Canada': 'CA', 'Chile': 'CL', 'China': 'CN', 'Colombia': 'CO',
+  'Croatia': 'HR', 'Czech Republic': 'CZ', 'Denmark': 'DK', 'Egypt': 'EG',
+  'Finland': 'FI', 'France': 'FR', 'Germany': 'DE', 'Greece': 'GR',
+  'Hong Kong': 'HK', 'Hungary': 'HU', 'Iceland': 'IS', 'India': 'IN',
+  'Indonesia': 'ID', 'Iran': 'IR', 'Ireland': 'IE', 'Israel': 'IL',
+  'Italy': 'IT', 'Japan': 'JP', 'Jordan': 'JO', 'Kenya': 'KE',
+  'Malaysia': 'MY', 'Maldives': 'MV', 'Mexico': 'MX', 'Morocco': 'MA',
+  'Netherlands': 'NL', 'New Zealand': 'NZ', 'Nigeria': 'NG', 'Norway': 'NO',
+  'Peru': 'PE', 'Philippines': 'PH', 'Poland': 'PL', 'Portugal': 'PT',
+  'Romania': 'RO', 'Russia': 'RU', 'Saudi Arabia': 'SA', 'Singapore': 'SG',
+  'South Africa': 'ZA', 'South Korea': 'KR', 'Spain': 'ES', 'Sweden': 'SE',
+  'Switzerland': 'CH', 'Taiwan': 'TW', 'Thailand': 'TH', 'Turkey': 'TR',
+  'Ukraine': 'UA', 'United Arab Emirates': 'AE', 'United Kingdom': 'GB',
+  'United States': 'US', 'Vietnam': 'VN',
+};
+
+function countryFlag(countryName: string): string {
+  const code = COUNTRY_CODES[countryName];
+  if (!code) return '';
+  const A = 0x1F1E6 - 65;
+  return String.fromCodePoint(A + code.charCodeAt(0), A + code.charCodeAt(1));
+}
+
 type Props = {
   trip: SavedTripSummary;
   onPress: () => void;
@@ -26,6 +54,7 @@ function formatDateRange(departure: string, returnDate: string): string {
 
 export function SavedTripCard({ trip, onPress, onDelete }: Props) {
   const { theme } = useTheme();
+  const flag = countryFlag(trip.country);
 
   return (
     <Pressable
@@ -44,7 +73,9 @@ export function SavedTripCard({ trip, onPress, onDelete }: Props) {
         {/* Top row: destination + delete */}
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <View style={{ flex: 1, gap: 3, paddingRight: spacing.md }}>
-            <AppText variant="sectionTitle" style={{ fontSize: 17 }}>{trip.destination}</AppText>
+            <AppText variant="sectionTitle" style={{ fontSize: 17 }}>
+              {flag ? `${flag} ` : ''}{trip.destination}
+            </AppText>
             <AppText tone="muted" style={{ fontSize: 13 }}>
               {formatDateRange(trip.departureDate, trip.returnDate)}
             </AppText>

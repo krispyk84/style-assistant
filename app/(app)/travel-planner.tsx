@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 
 import { SavedTripCard } from '@/components/cards/saved-trip-card';
@@ -125,6 +125,9 @@ export default function TravelPlannerScreen() {
   // Top-level tab
   const [activeTab, setActiveTab] = useState<PlannerTab>('new');
 
+  // Set to true when we navigate to trip-anchors; on re-focus we reset the form
+  const navigatedToAnchorsRef = useRef(false);
+
   // Saved trips state
   const [savedTrips, setSavedTrips] = useState<SavedTripSummary[]>([]);
   const [savedTripsLoading, setSavedTripsLoading] = useState(false);
@@ -144,24 +147,60 @@ export default function TravelPlannerScreen() {
     });
   }
 
-  // Reload saved trips whenever this screen comes into focus
+  // Reload saved trips whenever this screen comes into focus; reset form if returning from anchors
   useFocusEffect(
     useCallback(() => {
       loadSavedTrips();
+      if (navigatedToAnchorsRef.current) {
+        navigatedToAnchorsRef.current = false;
+        setDestination(null);
+        setDepartureDate(null);
+        setReturnDate(null);
+        setTravelParty('Solo');
+        setPurposes([]);
+        setClimate('');
+        setClimateAutoFilled(false);
+        setClimateProfile(null);
+        climateManualRef.current = false;
+        setActivities('');
+        setDressCode('');
+        setStyleVibe('Mix');
+        setWillSwim('No');
+        setFancyNights('No');
+        setWorkoutClothes('No');
+        setLaundryAccess('Unsure');
+        setShoesCount('2');
+        setCarryOnOnly('No');
+        setSpecialNeeds('');
+        setSubmitError(null);
+      }
     }, [])
   );
 
-  async function handleDeleteSavedTrip(id: string) {
+  function handleDeleteSavedTrip(id: string) {
     if (deletingId) return;
-    setDeletingId(id);
-    try {
-      await savedTripsService.delete(id);
-      setSavedTrips((prev) => prev.filter((t) => t.id !== id));
-    } catch {
-      // Fail silently
-    } finally {
-      setDeletingId(null);
-    }
+    Alert.alert(
+      'Delete Trip',
+      'Remove this saved trip? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingId(id);
+            try {
+              await savedTripsService.delete(id);
+              setSavedTrips((prev) => prev.filter((t) => t.id !== id));
+            } catch {
+              // Fail silently
+            } finally {
+              setDeletingId(null);
+            }
+          },
+        },
+      ],
+    );
   }
 
   function handleOpenSavedTrip(trip: SavedTripSummary) {
@@ -320,6 +359,7 @@ export default function TravelPlannerScreen() {
         createdAt:        new Date().toISOString(),
       });
 
+      navigatedToAnchorsRef.current = true;
       router.push({ pathname: '/trip-anchors' });
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -434,7 +474,7 @@ export default function TravelPlannerScreen() {
                     key={trip.id}
                     trip={trip}
                     onPress={() => handleOpenSavedTrip(trip)}
-                    onDelete={() => void handleDeleteSavedTrip(trip.id)}
+                    onDelete={() => handleDeleteSavedTrip(trip.id)}
                   />
                 ))}
 
@@ -449,7 +489,7 @@ export default function TravelPlannerScreen() {
                       key={trip.id}
                       trip={trip}
                       onPress={() => handleOpenSavedTrip(trip)}
-                      onDelete={() => void handleDeleteSavedTrip(trip.id)}
+                      onDelete={() => handleDeleteSavedTrip(trip.id)}
                     />
                   ))
                 )}

@@ -1,19 +1,15 @@
 diff --git a/build/useScreens.js b/build/useScreens.js
-index 1234567..abcdefg 100644
 --- a/build/useScreens.js
 +++ b/build/useScreens.js
-@@ -125,7 +125,14 @@ function useScreens(context, layout, options, order) {
+@@ -126,8 +126,11 @@ function useScreens(context, layout, options, order) {
      }), [sorted, protectedScreens]);
  }
 -function fromImport(value, { ErrorBoundary, ...component }) {
 -    // If possible, add a more helpful display name for the component stack to improve debugging of React errors such as `Text strings must be rendered within a <Text> component.`.
 -    if (component?.default && __DEV__) {
 +function fromImport(value, importedModule) {
-+    // [VESTURE-DEBUG] Guard: log the exact route before destructuring so we know which file is undefined
 +    if (importedModule == null) {
-+        const routeInfo = 'route=' + (value && value.route) + ' contextKey=' + (value && value.contextKey);
-+        console.error('[VESTURE-DEBUG] fromImport received ' + importedModule + ' for ' + routeInfo);
-+        throw new Error('[VESTURE-DEBUG] Route module is ' + importedModule + '. ' + routeInfo);
++        return { default: EmptyRoute_1.EmptyRoute };
 +    }
 +    const { ErrorBoundary, ...component } = importedModule;
 +    // If possible, add a more helpful display name for the component stack to improve debugging of React errors such as `Text strings must be rendered within a <Text> component.`.

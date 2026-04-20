@@ -3,6 +3,7 @@ export type {
   GenerateTripOutfitsResponse,
   RegenerateTripDayParams,
   RegenerateTripDayResponse,
+  TripAnchorInput,
   TripDaySketchResponse,
   TripDaySketchStatusResponse,
   TripDayType,

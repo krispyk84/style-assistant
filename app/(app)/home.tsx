@@ -22,7 +22,7 @@ function getGreeting() {
 // ── Screen ─────────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const { weather, weatherLoading, weatherError, profile, hasRealImages, currentImageUrl } = useHomeData();
+  const { weather, weatherLoading, weatherError, profile, currentImageUrl } = useHomeData();
   const { theme } = useTheme();
   const firstName = profile.name.trim() || 'there';
 
@@ -89,21 +89,19 @@ export default function HomeScreen() {
               }}
             />
 
-            {/* Default placeholder image — shown only when no saved outfits; gender-aware */}
-            {!hasRealImages ? (
-              <Image
-                contentFit="cover"
-                source={
-                  profile.gender === 'woman'
-                    ? require('../../assets/images/defaultoutfit-female.jpg')
-                    : require('../../assets/images/defaultoutfit.png')
-                }
-                style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, height: '100%', width: '100%' }}
-              />
-            ) : null}
+            {/* Default placeholder — always rendered as the base layer; gender-aware */}
+            <Image
+              contentFit="cover"
+              source={
+                profile.gender === 'woman'
+                  ? require('../../assets/images/defaultoutfit-female.jpg')
+                  : require('../../assets/images/defaultoutfit.png')
+              }
+              style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, height: '100%', width: '100%' }}
+            />
 
-            {/* Carousel image — shown only when real saved outfits exist */}
-            {hasRealImages && currentImageUrl ? (
+            {/* Carousel image — fades in over default once a saved outfit sketch is ready */}
+            {currentImageUrl ? (
               <Image
                 contentFit="cover"
                 source={{ uri: currentImageUrl }}

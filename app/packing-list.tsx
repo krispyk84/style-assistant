@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -8,9 +8,12 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { findBestClosetMatch } from '@/lib/closet-match';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
+import { closetService } from '@/services/closet';
 import { savedTripsService } from '@/services/saved-trips';
 import type { TripOutfitDay } from '@/services/trip-outfits';
+import type { ClosetItem } from '@/types/closet';
 
 // ── Category detection ────────────────────────────────────────────────────────
 
@@ -119,6 +122,13 @@ export default function PackingList() {
   const [isLoading,   setIsLoading]   = useState(true);
   const [loadError,   setLoadError]   = useState(false);
   const [exportState, setExportState] = useState<ExportState>('idle');
+  const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
+
+  useEffect(() => {
+    closetService.getItems().then((res) => {
+      if (res.success && res.data) setClosetItems(res.data.items ?? []);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!tripId && !savedTripId) { setIsLoading(false); return; }
@@ -148,6 +158,17 @@ export default function PackingList() {
   }, [tripId, savedTripId]);
 
   const totalItems = groups.reduce((sum, g) => sum + g.items.length, 0);
+
+  const matchedItemNames = useMemo(() => {
+    if (!closetItems.length) return new Set<string>();
+    const matched = new Set<string>();
+    for (const group of groups) {
+      for (const item of group.items) {
+        if (findBestClosetMatch(item.name, closetItems)) matched.add(item.name);
+      }
+    }
+    return matched;
+  }, [closetItems, groups]);
 
   async function handleExportToReminders() {
     if (exportState === 'exporting' || groups.length === 0) return;
@@ -318,6 +339,9 @@ export default function PackingList() {
                       borderBottomColor: theme.colors.border,
                     }}>
                     <AppText style={{ flex: 1, fontSize: 14, lineHeight: 20 }}>{item.name}</AppText>
+                    {matchedItemNames.has(item.name) && (
+                      <AppIcon name="check-circle" color={theme.colors.accent} size={14} style={{ marginTop: 3 }} />
+                    )}
                     {item.count > 1 && (
                       <View style={{
                         backgroundColor: theme.colors.subtleSurface,
@@ -327,7 +351,7 @@ export default function PackingList() {
                         marginLeft: spacing.sm,
                       }}>
                         <AppText style={{ color: theme.colors.mutedText, fontSize: 11, fontFamily: theme.fonts.sansMedium }}>
-                          ×{item.count}
+                          Worn ×{item.count}
                         </AppText>
                       </View>
                     )}

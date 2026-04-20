@@ -53,6 +53,8 @@ export const generateTripOutfitsSchema = z.object({
   shoesCount:   z.string().min(1),
   carryOnOnly:  z.boolean(),
   specialNeeds: z.string().optional(),
+  generateOnlyDayIndex: z.number().int().min(0).optional(),
+  previousDaysSummary: z.array(z.string()).optional(),
 });
 
 export const generateTripDaySketchSchema = z.object({
@@ -73,6 +75,8 @@ export const regenerateTripDaySchema = z.object({
   destination:   z.string().min(1),
   country:       z.string().min(1),
   climateLabel:  z.string().default(''),
+  avgHighC:      z.number().optional(),
+  avgLowC:       z.number().optional(),
   activities:    z.string().optional(),
   dressCode:     z.string().optional(),
   styleVibe:     z.string().min(1),

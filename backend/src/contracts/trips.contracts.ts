@@ -49,6 +49,10 @@ export type GenerateTripOutfitsRequest = {
   shoesCount: string;        // 1 | 2 | 3 | 4+
   carryOnOnly: boolean;
   specialNeeds?: string;
+  /** Progressive generation: generate only this day (0-based index). */
+  generateOnlyDayIndex?: number;
+  /** Summaries of already-generated days to avoid piece repetition. */
+  previousDaysSummary?: string[];
 };
 
 export type GenerateTripOutfitsResponse = {
@@ -64,6 +68,8 @@ export type RegenerateTripDayRequest = {
   destination: string;
   country: string;
   climateLabel: string;
+  avgHighC?: number;
+  avgLowC?: number;
   activities?: string;
   dressCode?: string;
   styleVibe: string;

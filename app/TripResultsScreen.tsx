@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -8,21 +8,27 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { tripDraftStorage } from '@/lib/trip-draft-storage';
 import type { StoredTripPlan } from '@/lib/trip-outfits-storage';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
 import { savedTripsService } from '@/services/saved-trips';
+import { closetService } from '@/services/closet';
 import { tripOutfitsService } from '@/services/trip-outfits';
 import type { TripOutfitDay } from '@/services/trip-outfits';
+import type { ClosetItem } from '@/types/closet';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export function TripResultsScreen() {
-  const { tripId, destination, savedTripId } = useLocalSearchParams<{
+  const { tripId, destination, savedTripId, isProgressiveGeneration } = useLocalSearchParams<{
     tripId: string;
     destination: string;
     savedTripId?: string;
+    isProgressiveGeneration?: string;
   }>();
   const { theme } = useTheme();
+
+  const isProgressive = isProgressiveGeneration === '1';
 
   const [plan, setPlan] = useState<StoredTripPlan | null>(null);
   const [days, setDays] = useState<TripOutfitDay[]>([]);
@@ -30,12 +36,136 @@ export function TripResultsScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [regeneratingDays, setRegeneratingDays] = useState<Set<string>>(new Set());
 
+  // Progressive generation progress
+  const [progressDay, setProgressDay] = useState(0);
+  const [totalProgressDays, setTotalProgressDays] = useState(0);
+
   // Save button state
   const [isSaving, setIsSaving] = useState(false);
   const [savedDbId, setSavedDbId] = useState<string | null>(savedTripId ?? null);
 
+  // Closet items for match indicators
+  const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
+
   // Track active sketch poll intervals keyed by dayId
   const pollIntervals = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  const progressiveRunning = useRef(false);
+
+  // Load closet items for match indicators (best-effort, non-blocking)
+  useEffect(() => {
+    closetService.getItems().then((res) => {
+      if (res.success && res.data) setClosetItems(res.data.items ?? []);
+    }).catch(() => {});
+  }, []);
+
+  // ── Progressive generation ─────────────────────────────────────────────────
+
+  const runProgressiveGeneration = useCallback(async (tid: string) => {
+    if (progressiveRunning.current) return;
+    progressiveRunning.current = true;
+
+    const draft = await tripDraftStorage.load().catch(() => null);
+    if (!draft) {
+      setErrorMessage('Trip details not found. Please go back and try again.');
+      setIsLoading(false);
+      progressiveRunning.current = false;
+      return;
+    }
+
+    const totalDays = Math.min(8, draft.numDays);
+    setTotalProgressDays(totalDays);
+    setProgressDay(0);
+
+    const planMeta: StoredTripPlan = {
+      tripId: tid,
+      destination:   draft.destinationLabel,
+      country:       draft.country,
+      departureDate: draft.departureDate,
+      returnDate:    draft.returnDate,
+      travelParty:   draft.travelParty,
+      climateLabel:  draft.climateLabel,
+      avgHighC:      draft.avgHighC,
+      avgLowC:       draft.avgLowC,
+      styleVibe:     draft.styleVibe,
+      purposes:      draft.purposes,
+      activities:    draft.activities,
+      dressCode:     draft.dressCode,
+      days:          [],
+      generatedAt:   new Date().toISOString(),
+    };
+
+    await tripOutfitsStorage.save(planMeta);
+
+    const generatedDays: TripOutfitDay[] = [];
+
+    for (let i = 0; i < totalDays; i++) {
+      setProgressDay(i);
+
+      const previousDaysSummary = generatedDays.map((d) =>
+        `Day ${d.dayIndex + 1} (${d.date}, ${d.dayType}): ${d.pieces.join(', ')}${d.shoes ? `, ${d.shoes}` : ''}`
+      );
+
+      let result;
+      try {
+        result = await tripOutfitsService.generateTripOutfits({
+          tripId: tid,
+          destination:    draft.destinationLabel,
+          country:        draft.country,
+          departureDate:  draft.departureDate,
+          returnDate:     draft.returnDate,
+          travelParty:    draft.travelParty,
+          purposes:       draft.purposes,
+          climateLabel:   draft.climateLabel,
+          avgHighC:       draft.avgHighC,
+          avgLowC:        draft.avgLowC,
+          tempBand:       draft.tempBand,
+          precipChar:     draft.precipChar,
+          packingTag:     draft.packingTag,
+          dressSeason:    draft.dressSeason,
+          activities:     draft.activities,
+          dressCode:      draft.dressCode,
+          styleVibe:      draft.styleVibe,
+          willSwim:       draft.willSwim,
+          fancyNights:    draft.fancyNights,
+          workoutClothes: draft.workoutClothes,
+          laundryAccess:  draft.laundryAccess,
+          shoesCount:     draft.shoesCount,
+          carryOnOnly:    draft.carryOnOnly,
+          specialNeeds:   draft.specialNeeds,
+          anchors:        draft.pendingAnchors,
+          anchorMode:     draft.pendingAnchorMode,
+          generateOnlyDayIndex:  i,
+          previousDaysSummary,
+        });
+      } catch (err) {
+        setErrorMessage(err instanceof Error ? err.message : 'Generation failed. Please go back and try again.');
+        setIsLoading(false);
+        progressiveRunning.current = false;
+        return;
+      }
+
+      const newDay = result.days[0];
+      if (!newDay) continue;
+
+      generatedDays.push(newDay);
+      setDays([...generatedDays]);
+
+      if (i === 0) {
+        setPlan({ ...planMeta, days: generatedDays });
+        setIsLoading(false);
+      }
+
+      await tripOutfitsStorage.appendDay(tid, newDay);
+    }
+
+    // All days done — update plan with full list and clear draft
+    setPlan((prev) => prev ? { ...prev, days: generatedDays } : null);
+    setTotalProgressDays(0); // hides the "still generating" indicator
+    void tripDraftStorage.clear();
+    progressiveRunning.current = false;
+  }, []);
+
+  // ── Data loading ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!tripId && !savedTripId) {
@@ -45,7 +175,6 @@ export function TripResultsScreen() {
     }
 
     if (savedTripId) {
-      // Load from API (opened from Saved Trips list)
       savedTripsService.getById(savedTripId).then((detail) => {
         const fakePlan: StoredTripPlan = {
           tripId: detail.tripId,
@@ -72,6 +201,11 @@ export function TripResultsScreen() {
       return;
     }
 
+    if (isProgressive) {
+      void runProgressiveGeneration(tripId!);
+      return;
+    }
+
     tripOutfitsStorage.load(tripId!).then((loaded) => {
       if (!loaded) { setErrorMessage('Trip plan not found. Please go back and try again.'); }
       else { setPlan(loaded); setDays(loaded.days); }
@@ -80,7 +214,8 @@ export function TripResultsScreen() {
       setErrorMessage('Could not load trip. Please go back and try again.');
       setIsLoading(false);
     });
-  }, [tripId, savedTripId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Clear all intervals on unmount
   useEffect(() => {
@@ -184,6 +319,8 @@ export function TripResultsScreen() {
         destination: plan.destination,
         country: plan.country,
         climateLabel: plan.climateLabel,
+        avgHighC: plan.avgHighC,
+        avgLowC: plan.avgLowC,
         activities: plan.activities,
         dressCode: plan.dressCode,
         styleVibe: plan.styleVibe,
@@ -211,7 +348,6 @@ export function TripResultsScreen() {
     if (!plan || isSaving) return;
     setIsSaving(true);
     try {
-      // Normalise sketch states: 'loading' can't resume after a reload, so reset to 'not_started'.
       const daysToSave = days.map((d) =>
         d.sketchStatus === 'loading' ? { ...d, sketchStatus: 'not_started' as const } : d,
       );
@@ -254,6 +390,7 @@ export function TripResultsScreen() {
 
   const showContent = !isLoading && !errorMessage;
   const isSaved = savedDbId !== null;
+  const isStillGenerating = isProgressive && totalProgressDays > 0 && !isLoading;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'bottom']}>
@@ -262,53 +399,97 @@ export function TripResultsScreen() {
         showsVerticalScrollIndicator={false}>
 
         {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-          <Pressable
-            onPress={() => router.back()}
-            style={{ padding: spacing.xs }}>
-            <AppIcon name="arrow-left" color={theme.colors.text} size={20} />
-          </Pressable>
-          <View style={{ flex: 1, gap: 2 }}>
-            <AppText variant="heroSmall">Trip Outfit Plan</AppText>
-            <AppText tone="muted">{destination ?? plan?.destination ?? 'Your trip'}</AppText>
+        <View style={{ gap: spacing.sm }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <Pressable
+              onPress={() => router.back()}
+              style={{ padding: spacing.xs }}>
+              <AppIcon name="arrow-left" color={theme.colors.text} size={20} />
+            </Pressable>
+            <View style={{ flex: 1, gap: 2 }}>
+              <AppText variant="heroSmall">Trip Outfit Plan</AppText>
+              <AppText tone="muted">{destination ?? plan?.destination ?? 'Your trip'}</AppText>
+            </View>
           </View>
+
+          {/* Save trip button — below title */}
           {showContent && (
             <Pressable
-              onPress={() => void handleSaveTrip()}
+              onPress={isSaved ? undefined : () => void handleSaveTrip()}
               disabled={isSaving}
-              style={{ padding: spacing.xs }}>
+              style={{
+                alignSelf: 'flex-start',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.xs,
+                backgroundColor: isSaved ? theme.colors.subtleSurface : theme.colors.text,
+                borderRadius: 999,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm - 1,
+              }}>
               {isSaving ? (
-                <ActivityIndicator size="small" color={theme.colors.accent} />
+                <ActivityIndicator size="small" color={theme.colors.inverseText} />
               ) : (
                 <AppIcon
                   name={isSaved ? 'bookmark-filled' : 'bookmark'}
-                  color={isSaved ? theme.colors.accent : theme.colors.subtleText}
-                  size={22}
+                  color={isSaved ? theme.colors.accent : theme.colors.inverseText}
+                  size={13}
                 />
               )}
+              <AppText style={{
+                color: isSaved ? theme.colors.mutedText : theme.colors.inverseText,
+                fontFamily: theme.fonts.sansMedium,
+                fontSize: 12,
+                letterSpacing: 0.4,
+              }}>
+                {isSaving ? 'Saving…' : isSaved ? 'Saved' : 'Save Trip'}
+              </AppText>
             </Pressable>
           )}
         </View>
 
         {isLoading ? (
-          <View style={{ alignItems: 'center', paddingVertical: spacing.xxl }}>
-            <ActivityIndicator size="large" />
+          <View style={{ alignItems: 'center', paddingVertical: spacing.xxl, gap: spacing.md }}>
+            <ActivityIndicator size="large" color={theme.colors.accent} />
+            {isProgressive && (
+              <>
+                <AppText variant="sectionTitle">Building your plan…</AppText>
+                {totalProgressDays > 0 && (
+                  <AppText tone="muted">
+                    Day {progressDay + 1} of {totalProgressDays}
+                  </AppText>
+                )}
+              </>
+            )}
           </View>
         ) : errorMessage ? (
           <AppText tone="muted" style={{ textAlign: 'center', paddingVertical: spacing.xl }}>
             {errorMessage}
           </AppText>
         ) : (
-          days.map((day) => (
-            <TripDayCard
-              key={day.id}
-              day={day}
-              isRegenerating={regeneratingDays.has(day.id)}
-              onGenerateSketch={() => void handleGenerateSketch(day)}
-              onLove={() => void handleLove(day)}
-              onHate={() => void handleHate(day)}
-            />
-          ))
+          <>
+            {days.map((day) => (
+              <TripDayCard
+                key={day.id}
+                day={day}
+                closetItems={closetItems}
+                isRegenerating={regeneratingDays.has(day.id)}
+                onGenerateSketch={() => void handleGenerateSketch(day)}
+                onLove={() => void handleLove(day)}
+                onHate={() => void handleHate(day)}
+              />
+            ))}
+
+            {/* Progressive generation "still building" footer */}
+            {isStillGenerating && (
+              <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md }}>
+                <ActivityIndicator color={theme.colors.accent} />
+                <AppText tone="muted" style={{ fontSize: 13 }}>
+                  Day {progressDay + 1} of {totalProgressDays}…
+                </AppText>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
 

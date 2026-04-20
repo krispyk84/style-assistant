@@ -1,5 +1,5 @@
 import { ThemeProvider } from '@react-navigation/native';
-import { router, Stack } from 'expo-router';
+import { router, Stack, useNavigationContainerRef } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { ScrollView, Text } from 'react-native';
@@ -13,10 +13,28 @@ import { AppSessionProvider } from '@/contexts/app-session-provider';
 import { useAppSession } from '@/hooks/use-app-session';
 import { ScreenTracker } from '@/lib/analytics';
 
+// [BOOT-DIAG] Module evaluated — if you see this, the JS bundle loaded and
+// this file was required successfully. Missing = bundle failed to parse.
+console.log('[BOOT] _layout module loaded');
+
 function AppNavigation() {
   const { appInstanceKey } = useAppSession();
   const { theme } = useTheme();
   const navTheme = buildNavTheme(theme);
+  const navigationRef = useNavigationContainerRef();
+
+  // [BOOT-DIAG] Log when this component first renders and when nav becomes ready.
+  useEffect(() => {
+    console.log('[BOOT] AppNavigation mounted');
+    const interval = setInterval(() => {
+      if (navigationRef.isReady()) {
+        console.log('[BOOT] NavigationContainer isReady — splash should hide now');
+        clearInterval(interval);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!appInstanceKey) {
@@ -64,6 +82,10 @@ function AppNavigation() {
 }
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  // [BOOT-DIAG] If the root layout throws before NavigationContainer mounts,
+  // onReady never fires and the splash stays up. Log the error here so it
+  // appears in the device console even if the UI is obscured by the splash.
+  console.error('[BOOT] RootLayout ErrorBoundary caught:', error?.message, error?.stack);
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
       <ScrollView
@@ -90,6 +112,8 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
 }
 
 export default function RootLayout() {
+  // [BOOT-DIAG] First render — providers are about to mount.
+  console.log('[BOOT] RootLayout rendering');
   return (
     <AppThemeProvider>
       <AuthProvider>

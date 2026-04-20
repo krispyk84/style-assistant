@@ -215,7 +215,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
             <View
               onLayout={(e) => setCellWidth(e.nativeEvent.layout.width)}
               style={{
-                height: 240,
+                aspectRatio: 3 / 4,
                 backgroundColor: theme.colors.card,
                 borderRadius: 20,
                 overflow: 'hidden',

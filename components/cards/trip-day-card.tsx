@@ -1,11 +1,13 @@
-import { ActivityIndicator, Image, LayoutAnimation, Platform, Pressable, UIManager, View } from 'react-native';
-import { useEffect, useRef } from 'react';
+import { ActivityIndicator, Animated, Image, LayoutAnimation, Platform, Pressable, UIManager, View } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { findBestClosetMatch } from '@/lib/closet-match';
 import type { TripOutfitDay } from '@/services/trip-outfits';
+import type { ClosetItem } from '@/types/closet';
 
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -71,13 +73,14 @@ function buildOutfitGroups(day: TripOutfitDay): OutfitGroup[] {
 
 type Props = {
   day: TripOutfitDay;
+  closetItems?: ClosetItem[];
   isRegenerating: boolean;
   onGenerateSketch: () => void;
   onLove: () => void;
   onHate: () => void;
 };
 
-export function TripDayCard({ day, isRegenerating, onGenerateSketch, onLove, onHate }: Props) {
+export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch, onLove, onHate }: Props) {
   const { theme } = useTheme();
 
   const dayLabel = new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', {
@@ -95,6 +98,21 @@ export function TripDayCard({ day, isRegenerating, onGenerateSketch, onLove, onH
 
   const outfitGroups = buildOutfitGroups(day);
 
+  // Pre-compute which items have a closet match (keyed by item string)
+  const closetMatches = useMemo(() => {
+    if (!closetItems?.length) return new Set<string>();
+    const matched = new Set<string>();
+    for (const piece of (day.pieces ?? [])) {
+      if (piece && findBestClosetMatch(piece, closetItems)) matched.add(piece);
+    }
+    if (day.shoes && findBestClosetMatch(day.shoes, closetItems)) matched.add(day.shoes);
+    if (day.bag && findBestClosetMatch(day.bag, closetItems)) matched.add(day.bag);
+    for (const acc of (day.accessories ?? [])) {
+      if (acc && findBestClosetMatch(acc, closetItems)) matched.add(acc);
+    }
+    return matched;
+  }, [day.pieces, day.shoes, day.bag, day.accessories, closetItems]);
+
   // Animate layout when sketch becomes ready so the card expands smoothly.
   const prevHasSketch = useRef(hasSketch);
   useEffect(() => {
@@ -106,6 +124,20 @@ export function TripDayCard({ day, isRegenerating, onGenerateSketch, onLove, onH
     prevHasSketch.current = hasSketch;
   }, [hasSketch]);
 
+  // Looping progress bar for regeneration state
+  const regenAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!isRegenerating) { regenAnim.setValue(0); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(regenAnim, { toValue: 1, duration: 1400, useNativeDriver: true }),
+        Animated.timing(regenAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isRegenerating, regenAnim]);
+
   return (
     <View
       style={{
@@ -114,7 +146,6 @@ export function TripDayCard({ day, isRegenerating, onGenerateSketch, onLove, onH
         borderRadius: 24,
         borderWidth: 1,
         overflow: 'hidden',
-        opacity: isRegenerating ? 0.5 : 1,
       }}>
 
       {/* ── Sketch area: three explicit height states ─────────────────────── */}
@@ -125,12 +156,43 @@ export function TripDayCard({ day, isRegenerating, onGenerateSketch, onLove, onH
           style={{ width: '100%', aspectRatio: 1024 / 1536 }}
           resizeMode="cover"
         />
-      ) : isSketchLoading || isRegenerating ? (
-        // ── Loading / regenerating: compact spinner (not full-height) ──────
+      ) : isRegenerating ? (
+        // ── Regenerating: animated loading bar ───────────────────────────────
         <View
           style={{
             width: '100%',
-            height: 140,
+            height: 80,
+            backgroundColor: theme.colors.subtleSurface,
+            justifyContent: 'center',
+            gap: spacing.sm,
+            paddingHorizontal: spacing.lg,
+          }}>
+          <AppText style={{ color: theme.colors.mutedText, fontSize: 12, textAlign: 'center' }}>
+            Finding a new outfit…
+          </AppText>
+          <View style={{ height: 3, backgroundColor: theme.colors.border, borderRadius: 999, overflow: 'hidden' }}>
+            <Animated.View
+              style={{
+                height: '100%',
+                width: '40%',
+                backgroundColor: theme.colors.accent,
+                borderRadius: 999,
+                transform: [{
+                  translateX: regenAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-80, 260],
+                  }),
+                }],
+              }}
+            />
+          </View>
+        </View>
+      ) : isSketchLoading ? (
+        // ── Sketch loading: compact spinner ──────────────────────────────────
+        <View
+          style={{
+            width: '100%',
+            height: 80,
             backgroundColor: theme.colors.subtleSurface,
             alignItems: 'center',
             justifyContent: 'center',
@@ -138,7 +200,7 @@ export function TripDayCard({ day, isRegenerating, onGenerateSketch, onLove, onH
           }}>
           <ActivityIndicator color={theme.colors.subtleText} size="small" />
           <AppText style={{ color: theme.colors.mutedText, fontSize: 12 }}>
-            {isRegenerating ? 'Finding a new outfit…' : 'Generating sketch…'}
+            Generating sketch…
           </AppText>
         </View>
       ) : (
@@ -214,6 +276,9 @@ export function TripDayCard({ day, isRegenerating, onGenerateSketch, onLove, onH
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs }}>
                   <AppText style={{ color: theme.colors.accent, fontSize: 13, lineHeight: 20 }}>·</AppText>
                   <AppText style={{ flex: 1, fontSize: 13, lineHeight: 20 }}>{item}</AppText>
+                  {closetMatches.has(item) && (
+                    <AppIcon name="check-circle" color={theme.colors.accent} size={13} style={{ marginTop: 3 }} />
+                  )}
                 </View>
               ))}
             </View>

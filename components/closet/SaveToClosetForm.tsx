@@ -243,7 +243,7 @@ export function SaveToClosetForm({
             <View
               onLayout={(e) => onImageLayout(e.nativeEvent.layout.width)}
               style={{
-                aspectRatio: 4 / 3,
+                aspectRatio: 3 / 4,
                 backgroundColor: theme.colors.card,
                 borderRadius: 18,
                 overflow: 'hidden',

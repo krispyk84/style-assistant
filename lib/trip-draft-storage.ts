@@ -2,6 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'style-assistant/trip-draft';
 
+type PendingAnchorInput = {
+  label: string;
+  category: string;
+  source: 'closet' | 'camera' | 'library' | 'ai_suggested';
+  closetItemId?: string;
+  rationale?: string;
+};
+
 export type TripDraft = {
   draftId: string;
   // Destination
@@ -37,6 +45,9 @@ export type TripDraft = {
   shoesCount: string;
   carryOnOnly: boolean;
   specialNeeds?: string;
+  // Anchors saved just before progressive generation starts
+  pendingAnchors?: PendingAnchorInput[];
+  pendingAnchorMode?: 'guided' | 'auto' | 'manual';
   // Meta
   createdAt: string;
 };

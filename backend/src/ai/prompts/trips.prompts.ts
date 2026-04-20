@@ -65,6 +65,14 @@ function buildTripContext(req: GenerateTripOutfitsRequest): string {
   lines.push(`  Workout clothes needed: ${req.workoutClothes ? 'Yes — include at least one activewear day' : 'No'}`);
   if (req.specialNeeds?.trim()) lines.push(`  Special needs: ${req.specialNeeds.trim()}`);
 
+  // Previously generated days — for progressive (per-day) generation coherence
+  if (req.previousDaysSummary && req.previousDaysSummary.length > 0) {
+    lines.push('', 'ALREADY-PLANNED DAYS (vary garments — do NOT reuse identical pieces):');
+    for (const summary of req.previousDaysSummary) {
+      lines.push(`  ${summary}`);
+    }
+  }
+
   // Anchor pieces — included when user selected specific pieces to build around
   if (req.anchors && req.anchors.length > 0) {
     lines.push('', 'ANCHOR PIECES (build outfits around these core items):');
@@ -84,6 +92,20 @@ function buildTripContext(req: GenerateTripOutfitsRequest): string {
 
 function buildDayList(req: GenerateTripOutfitsRequest): string {
   const totalDays = Math.min(14, daysBetween(req.departureDate, req.returnDate));
+
+  // Single-day mode: progressive generation
+  if (req.generateOnlyDayIndex !== undefined) {
+    const i = req.generateOnlyDayIndex;
+    const date = addDays(req.departureDate, i);
+    const label =
+      i === 0 ? '(Departure / travel day)' :
+      i === totalDays - 1 && totalDays > 1 ? '(Return / travel day)' : '';
+    return [
+      'DAY TO PLAN:',
+      `  Day ${i + 1} of ${totalDays}: ${date}${label ? ' ' + label : ''}`,
+    ].join('\n');
+  }
+
   const dayLines: string[] = ['DAYS TO PLAN (generate one outfit per day):'];
   for (let i = 0; i < totalDays; i++) {
     const date = addDays(req.departureDate, i);
@@ -111,6 +133,19 @@ export function buildTripOutfitsPrompt(
 ): TripOutfitsPrompt {
   const totalDays = Math.min(14, daysBetween(req.departureDate, req.returnDate));
 
+  const tempRuleLines: string[] = [];
+  if (req.avgHighC != null) {
+    if (req.avgHighC >= 24) {
+      tempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): HOT. Use ONLY lightweight, breathable fabrics (linen, cotton, jersey, silk). Absolutely NO coats, wool sweaters, heavy knitwear, parkas, or thick layers.`);
+    } else if (req.avgHighC >= 18) {
+      tempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): WARM. Light fabrics preferred. A light denim jacket or unlined blazer is the maximum outerwear — no heavy coats or wool.`);
+    } else if (req.avgHighC >= 10) {
+      tempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): MILD-COOL. Medium-weight layers acceptable; a jacket or light coat is fine. No heavy parkas or extreme cold-weather gear.`);
+    } else {
+      tempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): COLD. Warm layers, coats, knitwear appropriate.`);
+    }
+  }
+
   const instructions = [
     'You are an expert travel stylist. Generate a practical, stylish, day-by-day outfit plan for a trip.',
     '',
@@ -127,16 +162,21 @@ export function buildTripOutfitsPrompt(
     '- bag: one bag/backpack choice, or null.',
     '- accessories: 0–3 items.',
     '- contextTags: 1–4 short tags (e.g. "beach-ready", "breathable", "semi-formal", "layerable").',
+    ...tempRuleLines,
     '',
     formatProfileContext(profile),
   ].join('\n');
+
+  const generateInstruction = req.generateOnlyDayIndex !== undefined
+    ? `Generate exactly 1 outfit object for Day ${req.generateOnlyDayIndex + 1} only. The day title should feel specific to ${req.destination} and the activities planned.`
+    : `Generate exactly ${totalDays} outfit objects — one per day in order. All day titles should feel specific to the destination and activities.`;
 
   const userText = [
     buildTripContext(req),
     '',
     buildDayList(req),
     '',
-    `Generate exactly ${totalDays} outfit objects — one per day in order. All day titles should feel specific to the destination and activities.`,
+    generateInstruction,
   ].join('\n');
 
   const jsonSchema: TripOutfitsPrompt['jsonSchema'] = {
@@ -197,6 +237,19 @@ export function buildRegenerateDayPrompt(
   const previousList = req.previousPieces.map((p) => `  • ${p}`).join('\n');
   const previousShoes = req.previousShoes ? `  • ${req.previousShoes} (shoes)` : '';
 
+  const regenTempRuleLines: string[] = [];
+  if (req.avgHighC != null) {
+    if (req.avgHighC >= 24) {
+      regenTempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): HOT. Use ONLY lightweight, breathable fabrics (linen, cotton, jersey, silk). Absolutely NO coats, wool sweaters, heavy knitwear, parkas, or thick layers.`);
+    } else if (req.avgHighC >= 18) {
+      regenTempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): WARM. Light fabrics preferred. A light denim jacket or unlined blazer is the maximum outerwear — no heavy coats or wool.`);
+    } else if (req.avgHighC >= 10) {
+      regenTempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): MILD-COOL. Medium-weight layers acceptable; a jacket or light coat is fine. No heavy parkas or extreme cold-weather gear.`);
+    } else {
+      regenTempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): COLD. Warm layers, coats, knitwear appropriate.`);
+    }
+  }
+
   const instructions = [
     'You are an expert travel stylist. Generate ONE fresh outfit alternative for a single trip day.',
     '',
@@ -207,6 +260,7 @@ export function buildRegenerateDayPrompt(
     '- Do NOT repeat the previous outfit pieces. Generate a genuinely different look.',
     '- title should be a different evocative label from before.',
     '- Be specific about garment descriptions (color + fabric hint).',
+    ...regenTempRuleLines,
     '',
     formatProfileContext(profile),
   ].join('\n');

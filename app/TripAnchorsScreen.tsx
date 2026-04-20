@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Image,
   Modal,
   Pressable,
@@ -171,10 +172,19 @@ function SourcePickerSheet({
   onDismiss: () => void;
 }) {
   const { theme } = useTheme();
+  const slideAnim = useRef(new Animated.Value(300)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
+    } else {
+      slideAnim.setValue(300);
+    }
+  }, [visible, slideAnim]);
 
   const options: { icon: string; label: string; onPress: () => void; disabled?: boolean }[] = [
     { icon: 'camera',  label: 'Take photo',            onPress: onPickCamera },
-    { icon: 'image',   label: 'Upload from library',   onPress: onPickLibrary },
+    { icon: 'upload',  label: 'Upload from library',   onPress: onPickLibrary },
     { icon: 'closet',  label: hasCloset ? 'Select from closet' : 'No closet items yet', onPress: onPickCloset, disabled: !hasCloset },
   ];
 
@@ -182,14 +192,15 @@ function SourcePickerSheet({
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onDismiss}>
       <Pressable
         style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}
         onPress={onDismiss}>
         <View style={{ flex: 1 }} />
         <Pressable onPress={() => {/* stop propagation */}}>
-          <View style={{
+          <Animated.View style={{
+            transform: [{ translateY: slideAnim }],
             backgroundColor: theme.colors.surface,
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
@@ -246,7 +257,7 @@ function SourcePickerSheet({
                 Cancel
               </AppText>
             </Pressable>
-          </View>
+          </Animated.View>
         </Pressable>
       </Pressable>
     </Modal>
@@ -458,7 +469,7 @@ function AutoPanel({
             {imageUri && (
               <Image
                 source={{ uri: imageUri }}
-                style={{ width: '100%', height: 160 }}
+                style={{ width: '100%', aspectRatio: 3 / 4 }}
                 resizeMode="cover"
               />
             )}
@@ -498,7 +509,7 @@ function AutoPanel({
                         gap: 5,
                         backgroundColor: theme.colors.subtleSurface,
                         borderColor: hasAlts ? theme.colors.accent : theme.colors.border,
-                        borderRadius: 10,
+                        borderRadius: 14,
                         borderWidth: 1,
                         paddingHorizontal: spacing.sm,
                         paddingVertical: spacing.sm,
@@ -934,13 +945,10 @@ export function TripAnchorsScreen() {
 
   const canContinue = (() => {
     if (!draft) return false;
-    if (mode === 'guided') {
-      const required = recommendation?.slots.filter((s) => s.required) ?? [];
-      return required.every((s) => guidedAnchors[s.id] !== undefined);
-    }
-    if (mode === 'auto') return autoAnchors.length > 0 && autoLoadState === 'ready';
-    if (mode === 'manual') return manualAnchors.length >= 1 && !manualExceedsCap;
-    return false;
+    if (manualExceedsCap) return false;
+    // Auto mode: wait for suggestions to finish loading before allowing continue
+    if (mode === 'auto') return autoLoadState !== 'loading';
+    return true;
   })();
 
   // ── Generation ──────────────────────────────────────────────────────────────
@@ -986,7 +994,7 @@ export function TripAnchorsScreen() {
     const anchorInputs: TripAnchorInput[] = activeAnchors.map((a) => ({
       label:        a.label,
       category:     a.category,
-      source:       a.source,
+      source:       a.source as TripAnchorInput['source'],
       closetItemId: a.closetItemId,
       rationale:    a.rationale,
     }));
@@ -999,57 +1007,17 @@ export function TripAnchorsScreen() {
         void saveTripPlanAnchors(planIdRef.current, mode, anchorInputs);
       }
 
-      const result = await tripOutfitsService.generateTripOutfits({
-        tripId,
-        destination:    draft.destinationLabel,
-        country:        draft.country,
-        departureDate:  draft.departureDate,
-        returnDate:     draft.returnDate,
-        travelParty:    draft.travelParty,
-        purposes:       draft.purposes,
-        climateLabel:   draft.climateLabel,
-        avgHighC:       draft.avgHighC,
-        avgLowC:        draft.avgLowC,
-        tempBand:       draft.tempBand,
-        precipChar:     draft.precipChar,
-        packingTag:     draft.packingTag,
-        dressSeason:    draft.dressSeason,
-        activities:     draft.activities,
-        dressCode:      draft.dressCode,
-        styleVibe:      draft.styleVibe,
-        willSwim:       draft.willSwim,
-        fancyNights:    draft.fancyNights,
-        workoutClothes: draft.workoutClothes,
-        laundryAccess:  draft.laundryAccess,
-        shoesCount:     draft.shoesCount,
-        carryOnOnly:    draft.carryOnOnly,
-        specialNeeds:   draft.specialNeeds,
-        anchors:        anchorInputs.length > 0 ? anchorInputs : undefined,
-        anchorMode:     mode,
+      // Save anchors to draft so results screen can run progressive generation
+      await tripDraftStorage.save({
+        ...draft,
+        pendingAnchors:     anchorInputs.length > 0 ? anchorInputs : undefined,
+        pendingAnchorMode:  mode,
       });
 
-      await tripOutfitsStorage.save({
-        tripId,
-        destination:  draft.destinationLabel,
-        country:      draft.country,
-        departureDate: draft.departureDate,
-        returnDate:   draft.returnDate,
-        travelParty:  draft.travelParty,
-        climateLabel: draft.climateLabel,
-        styleVibe:    draft.styleVibe,
-        purposes:     draft.purposes,
-        activities:   draft.activities,
-        dressCode:    draft.dressCode,
-        days:         result.days,
-        generatedAt:  new Date().toISOString(),
-      });
-
-      // Clear the draft now that generation is done
-      void tripDraftStorage.clear();
-
+      // Navigate immediately — results screen handles day-by-day generation
       router.push({
         pathname: '/trip-results',
-        params: { tripId, destination: draft.destinationLabel },
+        params: { tripId, destination: draft.destinationLabel, isProgressiveGeneration: '1' },
       });
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -1243,7 +1211,7 @@ export function TripAnchorsScreen() {
           if (remaining > 0) {
             return (
               <AppText style={{ color: theme.colors.mutedText, fontSize: 12, textAlign: 'center' }}>
-                {remaining} required slot{remaining !== 1 ? 's' : ''} remaining
+                {remaining} recommended slot{remaining !== 1 ? 's' : ''} unfilled — you can still continue
               </AppText>
             );
           }
