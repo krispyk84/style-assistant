@@ -360,7 +360,7 @@ export default function TravelPlannerScreen() {
       });
 
       navigatedToAnchorsRef.current = true;
-      router.push({ pathname: '/trip-anchors' });
+      router.push({ pathname: '/trip-mode' });
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {

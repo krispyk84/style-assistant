@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 import { ClosetPickerModal } from '@/components/closet/closet-picker-modal';
 import { AppIcon } from '@/components/ui/app-icon';
@@ -63,46 +63,7 @@ type SelectedAnchor = {
   alternateIndex?: number;
 };
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const MODE_CONFIG: { id: AnchorMode; title: string; label: string; copy: string }[] = [
-  {
-    id:    'guided',
-    title: 'Guided',
-    label: 'We recommend anchors for this trip.',
-    copy:  'Vesture guides you to the right number and types of core pieces.',
-  },
-  {
-    id:    'auto',
-    title: 'Auto',
-    label: 'Let Vesture choose anchors for me.',
-    copy:  'AI selects the strongest anchor set based on your trip and closet.',
-  },
-  {
-    id:    'manual',
-    title: 'Manual',
-    label: "I'll pick my own anchors.",
-    copy:  'Choose your own core pieces from your closet or camera.',
-  },
-];
-
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function SectionLabel({ children }: { children: string }) {
-  const { theme } = useTheme();
-  return (
-    <AppText style={{
-      color: theme.colors.mutedText,
-      fontFamily: theme.fonts.sansMedium,
-      fontSize: 10,
-      letterSpacing: 1.4,
-      textTransform: 'uppercase',
-      marginBottom: spacing.xs,
-    }}>
-      {children}
-    </AppText>
-  );
-}
 
 function AnchorChip({
   anchor,
@@ -713,6 +674,10 @@ export function TripAnchorsScreen() {
   const { theme } = useTheme();
   const { profile } = useAppSession();
 
+  // Mode is selected on the preceding /trip-mode screen and passed as a URL param
+  const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
+  const mode = (modeParam ?? 'guided') as AnchorMode;
+
   // ── Draft loading ───────────────────────────────────────────────────────────
 
   const [draft, setDraft] = useState<TripDraft | null>(null);
@@ -759,9 +724,7 @@ export function TripAnchorsScreen() {
 
   const recommendation = tripCtx ? recommendTripAnchors(tripCtx) : null;
 
-  // ── Mode & anchor state ─────────────────────────────────────────────────────
-
-  const [mode, setMode] = useState<AnchorMode>('guided');
+  // ── Anchor state by mode ────────────────────────────────────────────────────
 
   // Guided mode: map from slotId → selected anchor
   const [guidedAnchors, setGuidedAnchors] = useState<Record<string, SelectedAnchor>>({});
@@ -1150,9 +1113,17 @@ export function TripAnchorsScreen() {
             <AppIcon name="arrow-left" color={theme.colors.text} size={20} />
           </Pressable>
           <View style={{ flex: 1, gap: 4 }}>
-            <AppText variant="heroSmall">Choose Your Anchors</AppText>
+            <AppText variant="heroSmall">
+              {mode === 'guided' ? 'Guided Anchors'
+               : mode === 'auto' ? 'Auto-Selected Anchors'
+               : 'Pick Your Anchors'}
+            </AppText>
             <AppText tone="muted" style={{ fontSize: 13, lineHeight: 19 }}>
-              Pick the key pieces Vesture will build your trip outfits around.
+              {mode === 'guided'
+                ? 'Fill each slot Vesture recommends for your trip.'
+                : mode === 'auto'
+                  ? 'Review what Vesture picked from your closet.'
+                  : 'Choose the core pieces for your trip.'}
             </AppText>
             {draft && (
               <AppText style={{ color: theme.colors.accent, fontFamily: theme.fonts.sansMedium, fontSize: 12, marginTop: 4 }}>
@@ -1162,65 +1133,7 @@ export function TripAnchorsScreen() {
           </View>
         </View>
 
-        {/* ── Mode selector ────────────────────────────────────────────────── */}
-        <View style={{ gap: spacing.sm }}>
-          <SectionLabel>Choose your mode</SectionLabel>
-          {MODE_CONFIG.map((m) => {
-            const isActive = mode === m.id;
-            return (
-              <Pressable
-                key={m.id}
-                onPress={() => setMode(m.id)}
-                style={{
-                  backgroundColor: isActive ? theme.colors.surface : theme.colors.background,
-                  borderColor:     isActive ? theme.colors.text : theme.colors.border,
-                  borderRadius: 18,
-                  borderWidth: isActive ? 2 : 1,
-                  padding: spacing.lg,
-                  gap: spacing.xs,
-                  flexDirection: 'row',
-                  alignItems: 'flex-start',
-                }}>
-                {/* Radio indicator */}
-                <View style={{
-                  width: 18, height: 18,
-                  borderRadius: 9,
-                  borderWidth: 2,
-                  borderColor: isActive ? theme.colors.text : theme.colors.border,
-                  backgroundColor: isActive ? theme.colors.text : 'transparent',
-                  marginTop: 2,
-                  alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {isActive && (
-                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.inverseText }} />
-                  )}
-                </View>
-
-                <View style={{ flex: 1, gap: 4 }}>
-                  <AppText style={{
-                    fontFamily: theme.fonts.sansMedium,
-                    fontSize: 15,
-                    color: isActive ? theme.colors.text : theme.colors.mutedText,
-                  }}>
-                    {m.title}
-                  </AppText>
-                  <AppText style={{
-                    fontFamily: theme.fonts.sansMedium,
-                    fontSize: 13,
-                    color: isActive ? theme.colors.text : theme.colors.mutedText,
-                  }}>
-                    {m.label}
-                  </AppText>
-                  <AppText style={{ color: theme.colors.subtleText, fontSize: 12, lineHeight: 17 }}>
-                    {m.copy}
-                  </AppText>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* ── Mode panels ──────────────────────────────────────────────────── */}
+        {/* ── Mode-specific anchor panels ───────────────────────────────── */}
         {recommendation && (
           <>
             {mode === 'guided' && (
