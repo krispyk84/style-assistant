@@ -22,7 +22,7 @@ export type AnchorSlot = {
 export type AnchorRecommendation = {
   minCount: number;
   maxCount: number;
-  /** Hard cap for manual mode: numDays × 3 */
+  /** Hard cap for all modes: numDays + 3 */
   manualCap: number;
   summary: string;
   slots: AnchorSlot[];
@@ -42,6 +42,9 @@ export type TripAnchorContext = {
   styleVibe: string;
   /** User profile gender — drives anchor taxonomy and closet matching. */
   gender?: 'man' | 'woman' | 'non-binary';
+  /** Average daily high in °C — overrides climateLabel text for warm/cold detection when present. */
+  avgHighC?: number;
+  avgLowC?: number;
 };
 
 export type ScoredAnchorCandidate = {
@@ -115,8 +118,8 @@ export function scoreClosetItemForSlot(
   let score = 0;
   const notes: string[] = [];
 
-  const isWarm = /warm|hot|tropical|humid|beach|sunny/i.test(ctx.climateLabel);
-  const isCold = /cold|cool|chilly|winter|freezing|crisp/i.test(ctx.climateLabel);
+  const isWarm = ctx.avgHighC !== undefined ? ctx.avgHighC >= 21 : /warm|hot|tropical|humid|beach|sunny/i.test(ctx.climateLabel);
+  const isCold = ctx.avgHighC !== undefined ? ctx.avgHighC < 12 : /cold|cool|chilly|winter|freezing|crisp/i.test(ctx.climateLabel);
   const isBusiness = ctx.purposes.some((p) => ['Business', 'Conference'].includes(p));
   const isLeisure  = ctx.purposes.some((p) => ['Leisure', 'Beach / Resort', 'Adventure'].includes(p));
   const isPolished = ctx.styleVibe === 'Polished' || isBusiness;
@@ -263,8 +266,8 @@ export function recommendTripAnchors(ctx: TripAnchorContext): AnchorRecommendati
   const isPolished  = styleVibe === 'Polished';
 
   const climateLC = climateLabel.toLowerCase();
-  const isWarm = /warm|hot|tropical|humid|beach|sunny/i.test(climateLC);
-  const isCold = /cold|cool|chilly|winter|freezing|crisp/i.test(climateLC);
+  const isWarm = ctx.avgHighC !== undefined ? ctx.avgHighC >= 21 : /warm|hot|tropical|humid|beach|sunny/i.test(climateLC);
+  const isCold = ctx.avgHighC !== undefined ? ctx.avgHighC < 12 : /cold|cool|chilly|winter|freezing|crisp/i.test(climateLC);
 
   // ── Base range by duration ─────────────────────────────────────────────────
 
@@ -286,7 +289,7 @@ export function recommendTripAnchors(ctx: TripAnchorContext): AnchorRecommendati
 
   minCount = Math.min(minCount, 6);
   maxCount = Math.min(maxCount, 8);
-  const manualCap = numDays * 3;
+  const manualCap = numDays + 3;
 
   // ── Slot generation ────────────────────────────────────────────────────────
 
@@ -463,4 +466,54 @@ export function recommendTripAnchors(ctx: TripAnchorContext): AnchorRecommendati
     `we recommend ${minCount}–${maxCount} anchors: ${slotLabels}.`;
 
   return { minCount, maxCount, manualCap, summary, slots: safeSlots };
+}
+
+/**
+ * Returns the next anchor slot to add beyond the initial recommendation.
+ * Cycles through base slots that aren't yet in `usedSlotIds`, then falls
+ * back to generic "extra variety" slots.
+ */
+export function nextAnchorSlot(
+  ctx: TripAnchorContext,
+  usedSlotIds: string[],
+): AnchorSlot {
+  const rec = recommendTripAnchors(ctx);
+  const unused = rec.slots.find((s) => !usedSlotIds.includes(s.id));
+  if (unused) return unused;
+
+  // All base slots used — generate a numbered extra slot
+  const extraCount = usedSlotIds.filter((id) => id.startsWith('extra-')).length;
+  const isMens = ctx.gender === 'man';
+  const extraSlots: AnchorSlot[] = [
+    {
+      id:       `extra-${extraCount}`,
+      category: 'top',
+      label:    isMens ? 'Extra shirt or tee for variety' : 'Extra top for variety',
+      rationale: 'Adds outfit flexibility across the trip',
+      required: false,
+    },
+    {
+      id:       `extra-${extraCount}`,
+      category: 'bottom',
+      label:    isMens ? 'Second pair of trousers or jeans' : 'Second bottom or skirt',
+      rationale: 'Doubles outfit combinations without extra bulk',
+      required: false,
+    },
+    {
+      id:       `extra-${extraCount}`,
+      category: 'outerwear',
+      label:    isMens ? 'Light jacket or cardigan' : 'Light layer or cardigan',
+      rationale: 'Useful for temperature changes and evenings',
+      required: false,
+    },
+    {
+      id:       `extra-${extraCount}`,
+      category: 'shoes',
+      label:    isMens ? 'Second shoe option' : 'Second pair of shoes',
+      rationale: 'Alternates between casual and dressier looks',
+      required: false,
+    },
+  ];
+
+  return extraSlots[extraCount % extraSlots.length]!;
 }

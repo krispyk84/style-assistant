@@ -22,7 +22,7 @@ function getGreeting() {
 // ── Screen ─────────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const { weather, weatherLoading, weatherError, profile, currentImageUrl } = useHomeData();
+  const { weather, weatherLoading, weatherError, profile, currentImageUrl, isResolved } = useHomeData();
   const { theme } = useTheme();
   const firstName = profile.name.trim() || 'there';
 
@@ -89,24 +89,25 @@ export default function HomeScreen() {
               }}
             />
 
-            {/* Default placeholder — always rendered as the base layer; gender-aware */}
-            <Image
-              contentFit="cover"
-              source={
-                profile.gender === 'woman'
-                  ? require('../../assets/images/defaultoutfit-female.jpg')
-                  : require('../../assets/images/defaultoutfit.png')
-              }
-              style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, height: '100%', width: '100%' }}
-            />
+            {/* Default placeholder — shown only when no saved-outfit image is ready */}
+            {(!isResolved || !currentImageUrl) && (
+              <Image
+                contentFit="cover"
+                source={
+                  profile.gender === 'woman'
+                    ? require('../../assets/images/defaultoutfit-female.jpg')
+                    : require('../../assets/images/defaultoutfit.png')
+                }
+                style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, height: '100%', width: '100%' }}
+              />
+            )}
 
-            {/* Carousel image — fades in over default once a saved outfit sketch is ready */}
-            {currentImageUrl ? (
+            {/* Carousel image — already prefetched when isResolved=true, so no fade needed */}
+            {isResolved && currentImageUrl ? (
               <Image
                 contentFit="cover"
                 source={{ uri: currentImageUrl }}
                 style={{ bottom: 0, height: '100%', left: 0, position: 'absolute', right: 0, top: 0, width: '100%' }}
-                transition={600}
               />
             ) : null}
 

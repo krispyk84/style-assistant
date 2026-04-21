@@ -18,6 +18,7 @@ export function useHomeData() {
 
   const [carouselImages, setCarouselImages] = useState<string[]>([]);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [isResolved, setIsResolved] = useState(false);
   // Track focus so the carousel is skipped when on another tab
   const isFocusedRef = useRef(true);
 
@@ -38,13 +39,22 @@ export function useHomeData() {
         .filter((url): url is string => Boolean(url));
       // Shuffle so a different outfit leads each session
       const shuffled = [...urls].sort(() => Math.random() - 0.5);
-      // Prefetch all images into expo-image's cache so carousel transitions are instant
+
       if (shuffled.length > 0) {
-        void Image.prefetch(shuffled);
+        // Await the first image (with a 1.5 s cap) so the hero card opens with
+        // the real image already in cache — no default → carousel flash.
+        await Promise.race([
+          Image.prefetch(shuffled[0]!),
+          new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+        ]);
+        // Prefetch the rest in the background
+        if (shuffled.length > 1) void Image.prefetch(shuffled.slice(1));
       }
+
       setCarouselImages(shuffled);
+      setIsResolved(true);
     }
-    void loadImages();
+    void loadImages().catch(() => setIsResolved(true));
   }, []);
 
   useEffect(() => {
@@ -68,5 +78,6 @@ export function useHomeData() {
     profile,
     hasRealImages,
     currentImageUrl,
+    isResolved,
   };
 }

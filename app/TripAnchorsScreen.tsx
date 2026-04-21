@@ -23,6 +23,7 @@ import type { TripDraft } from '@/lib/trip-draft-storage';
 import { tripDraftStorage } from '@/lib/trip-draft-storage';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
 import {
+  nextAnchorSlot,
   rankCandidatesForSlot,
   recommendTripAnchors,
 } from '@/lib/trip-anchor-recommender';
@@ -53,9 +54,12 @@ type SelectedAnchor = {
   closetItemImageUrl?: string;
   localImageUri?: string;
   rationale?: string;
+  /** What the slot is looking for (displayed above the item name in auto mode). */
+  slotLabel?: string;
+  slotRationale?: string;
   /** Scored alternates for "Try something else" (auto mode). */
   alternates?: ScoredAnchorCandidate[];
-  /** Index into alternates currently shown (for cycling). */
+  /** Index of the alternate currently shown (-1 = showing best candidate). */
   alternateIndex?: number;
 };
 
@@ -172,15 +176,22 @@ function SourcePickerSheet({
   onDismiss: () => void;
 }) {
   const { theme } = useTheme();
-  const slideAnim = useRef(new Animated.Value(300)).current;
+  const slideAnim   = useRef(new Animated.Value(300)).current;
+  const backdropAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
+      backdropAnim.setValue(0);
+      slideAnim.setValue(300);
+      Animated.parallel([
+        Animated.timing(backdropAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.spring(slideAnim,   { toValue: 0, useNativeDriver: true, bounciness: 4 }),
+      ]).start();
     } else {
+      backdropAnim.setValue(0);
       slideAnim.setValue(300);
     }
-  }, [visible, slideAnim]);
+  }, [visible, slideAnim, backdropAnim]);
 
   const options: { icon: string; label: string; onPress: () => void; disabled?: boolean }[] = [
     { icon: 'camera',  label: 'Take photo',            onPress: onPickCamera },
@@ -192,8 +203,9 @@ function SourcePickerSheet({
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="none"
       onRequestClose={onDismiss}>
+      <Animated.View style={{ flex: 1, opacity: backdropAnim }}>
       <Pressable
         style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}
         onPress={onDismiss}>
@@ -260,6 +272,7 @@ function SourcePickerSheet({
           </Animated.View>
         </Pressable>
       </Pressable>
+      </Animated.View>
     </Modal>
   );
 }
@@ -400,13 +413,17 @@ function GuidedPanel({
 function AutoPanel({
   loadState,
   anchors,
+  numDays,
   onRetry,
   onReplace,
+  onAddAnchor,
 }: {
   loadState: 'loading' | 'ready' | 'empty';
   anchors: SelectedAnchor[];
-  onRetry:  (anchor: SelectedAnchor) => void;
-  onReplace: (anchor: SelectedAnchor) => void;
+  numDays: number;
+  onRetry:    (anchor: SelectedAnchor) => void;
+  onReplace:  (anchor: SelectedAnchor) => void;
+  onAddAnchor: () => void;
 }) {
   const { theme } = useTheme();
 
@@ -455,7 +472,7 @@ function AutoPanel({
       </View>
 
       {anchors.map((anchor) => {
-        const imageUri = anchor.closetItemImageUrl ?? anchor.localImageUri;
+        const imageUri = anchor.source !== 'ai_suggested' ? (anchor.closetItemImageUrl ?? anchor.localImageUri) : undefined;
         return (
           <View
             key={anchor.id}
@@ -486,8 +503,14 @@ function AutoPanel({
                   </AppText>
                 </View>
               </View>
+              {/* Slot guidance — what Vesture was looking for */}
+              {anchor.slotLabel && (
+                <AppText style={{ color: theme.colors.mutedText, fontSize: 12, lineHeight: 17 }}>
+                  Looking for: {anchor.slotLabel}
+                </AppText>
+              )}
               <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>
-                {anchor.label}
+                {anchor.source === 'ai_suggested' ? anchor.label : anchor.closetItemTitle ?? anchor.label}
               </AppText>
               {anchor.rationale && (
                 <AppText style={{ color: theme.colors.mutedText, fontSize: 12, lineHeight: 17 }}>
@@ -556,6 +579,29 @@ function AutoPanel({
           </View>
         );
       })}
+
+      {/* Add extra anchor piece */}
+      {anchors.length < numDays + 3 && (
+        <Pressable
+          onPress={onAddAnchor}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: spacing.sm,
+            backgroundColor: theme.colors.subtleSurface,
+            borderRadius: 14,
+            borderColor: theme.colors.border,
+            borderWidth: 1,
+            borderStyle: 'dashed',
+            paddingVertical: spacing.md,
+          }}>
+          <AppIcon name="add" color={theme.colors.mutedText} size={14} />
+          <AppText style={{ color: theme.colors.mutedText, fontFamily: theme.fonts.sansMedium, fontSize: 13 }}>
+            Add anchor piece
+          </AppText>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -576,7 +622,7 @@ function ManualPanel({
   onRemove: (id: string) => void;
 }) {
   const { theme } = useTheme();
-  const cap = numDays * 3;
+  const cap = numDays + 3;
   const atCap = anchors.length >= cap;
 
   return (
@@ -595,7 +641,7 @@ function ManualPanel({
           </AppText>
         </View>
         <AppText style={{ color: theme.colors.subtleText, fontSize: 11, marginLeft: spacing.lg + spacing.sm }}>
-          You can choose up to {cap} anchors for this {numDays}-day trip.
+          Up to {cap} anchors for a {numDays}-day trip.
         </AppText>
       </View>
 
@@ -707,6 +753,8 @@ export function TripAnchorsScreen() {
     climateLabel:   draft.climateLabel,
     styleVibe:      draft.styleVibe,
     gender:         profile.gender as 'man' | 'woman' | 'non-binary' | undefined,
+    avgHighC:       draft.avgHighC,
+    avgLowC:        draft.avgLowC,
   } : null;
 
   const recommendation = tripCtx ? recommendTripAnchors(tripCtx) : null;
@@ -776,8 +824,8 @@ export function TripAnchorsScreen() {
       if (unusedCandidates.length > 0) {
         const best = unusedCandidates[0]!;
         usedItemIds.add(best.item.id);
-        // Keep remaining candidates as alternates (skip any also already used)
-        const alternates = unusedCandidates.slice(1).filter((c) => !usedItemIds.has(c.item.id));
+        // All remaining ranked candidates become alternates (cycling them shows variety)
+        const alternates = unusedCandidates.slice(1);
         anchors.push({
           id:                 `auto-${slot.id}`,
           slotId:             slot.id,
@@ -788,18 +836,22 @@ export function TripAnchorsScreen() {
           closetItemTitle:    best.item.title,
           closetItemImageUrl: best.item.sketchImageUrl ?? best.item.uploadedImageUrl ?? undefined,
           rationale:          best.rationale,
+          slotLabel:          slot.label,
+          slotRationale:      slot.rationale,
           alternates,
-          alternateIndex:     0,
+          alternateIndex:     -1,
         });
       } else {
         // No matching closet items — placeholder for this slot
         anchors.push({
-          id:        `auto-${slot.id}`,
-          slotId:    slot.id,
-          label:     slot.label,
-          category:  slot.category,
-          source:    'ai_suggested',
-          rationale: `We couldn't find a strong match for "${slot.label}" in your closet. You can add one below.`,
+          id:           `auto-${slot.id}`,
+          slotId:       slot.id,
+          label:        slot.label,
+          category:     slot.category,
+          source:       'ai_suggested',
+          slotLabel:    slot.label,
+          slotRationale: slot.rationale,
+          rationale:    `We couldn't find a strong match for "${slot.label}" in your closet. You can add one below.`,
         });
       }
     }
@@ -902,7 +954,7 @@ export function TripAnchorsScreen() {
     const alternates = anchor.alternates ?? [];
     if (alternates.length === 0) return;
 
-    const currentIdx = anchor.alternateIndex ?? 0;
+    const currentIdx = anchor.alternateIndex ?? -1;
     const nextIdx = (currentIdx + 1) % alternates.length;
     const next = alternates[nextIdx]!;
 
@@ -930,6 +982,40 @@ export function TripAnchorsScreen() {
     openSourceSheet(slotId, 'auto');
   }
 
+  // Auto mode: "Add anchor piece" → generate next logical slot and open source sheet
+  function handleAddAutoAnchor() {
+    if (!tripCtx || !recommendation) return;
+    const usedIds = autoAnchors.map((a) => a.slotId ?? a.id);
+    const slot = nextAnchorSlot(tripCtx, usedIds);
+    // Best closet match for this new slot (if any) — auto-pick it
+    const candidates = rankCandidatesForSlot(closetItems, slot, tripCtx);
+    const usedItemIds = new Set(autoAnchors.map((a) => a.closetItemId).filter(Boolean));
+    const best = candidates.find((c) => !usedItemIds.has(c.item.id));
+    if (best) {
+      setAutoAnchors((prev) => [
+        ...prev,
+        {
+          id:                 `auto-extra-${Date.now()}`,
+          slotId:             slot.id,
+          label:              best.item.title,
+          category:           slot.category,
+          source:             'closet',
+          closetItemId:       best.item.id,
+          closetItemTitle:    best.item.title,
+          closetItemImageUrl: best.item.sketchImageUrl ?? best.item.uploadedImageUrl ?? undefined,
+          rationale:          best.rationale,
+          slotLabel:          slot.label,
+          slotRationale:      slot.rationale,
+          alternates:         candidates.slice(candidates.indexOf(best) + 1),
+          alternateIndex:     -1,
+        },
+      ]);
+    } else {
+      // No closet match — open source sheet for manual selection
+      openSourceSheet(slot.id, 'auto');
+    }
+  }
+
   // ── Active anchors for the current mode ─────────────────────────────────────
 
   const activeAnchors: SelectedAnchor[] = (() => {
@@ -940,7 +1026,7 @@ export function TripAnchorsScreen() {
 
   // ── Validation ──────────────────────────────────────────────────────────────
 
-  const manualCap = (draft?.numDays ?? 7) * 3;
+  const manualCap = (draft?.numDays ?? 7) + 3;
   const manualExceedsCap = mode === 'manual' && manualAnchors.length > manualCap;
 
   const canContinue = (() => {
@@ -1150,12 +1236,14 @@ export function TripAnchorsScreen() {
               />
             )}
 
-            {mode === 'auto' && (
+            {mode === 'auto' && draft && (
               <AutoPanel
                 loadState={autoLoadState}
                 anchors={autoAnchors}
+                numDays={draft.numDays}
                 onRetry={handleAutoRetry}
                 onReplace={handleAutoReplace}
+                onAddAnchor={handleAddAutoAnchor}
               />
             )}
 
