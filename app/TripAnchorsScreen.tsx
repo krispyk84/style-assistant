@@ -243,13 +243,19 @@ function SourcePickerSheet({
 function GuidedPanel({
   recommendation,
   guidedAnchors,
+  extraSlots,
+  numDays,
   onAddToSlot,
   onClearSlot,
+  onAddExtraSlot,
 }: {
   recommendation: AnchorRecommendation;
   guidedAnchors: Record<string, SelectedAnchor | undefined>;
+  extraSlots: AnchorSlot[];
+  numDays: number;
   onAddToSlot: (slotId: string) => void;
   onClearSlot: (slotId: string) => void;
+  onAddExtraSlot: () => void;
 }) {
   const { theme } = useTheme();
 
@@ -270,9 +276,10 @@ function GuidedPanel({
         </View>
       </View>
 
-      {/* Slots */}
-      {recommendation.slots.map((slot) => {
+      {/* Recommendation slots + extra slots */}
+      {[...recommendation.slots, ...extraSlots].map((slot) => {
         const selected = guidedAnchors[slot.id];
+        const isExtra = !recommendation.slots.some((s) => s.id === slot.id);
         return (
           <View
             key={slot.id}
@@ -299,7 +306,7 @@ function GuidedPanel({
                   letterSpacing: 0.8,
                   textTransform: 'uppercase',
                 }}>
-                  {slot.required ? 'Required' : 'Optional'}
+                  {isExtra ? 'Extra' : slot.required ? 'Required' : 'Optional'}
                 </AppText>
               </View>
               <AppText style={{
@@ -365,6 +372,29 @@ function GuidedPanel({
           </View>
         );
       })}
+
+      {/* Add extra anchor slot */}
+      {recommendation.slots.length + extraSlots.length < numDays + 3 && (
+        <Pressable
+          onPress={onAddExtraSlot}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: spacing.sm,
+            backgroundColor: theme.colors.subtleSurface,
+            borderRadius: 14,
+            borderColor: theme.colors.border,
+            borderWidth: 1,
+            borderStyle: 'dashed',
+            paddingVertical: spacing.md,
+          }}>
+          <AppIcon name="add" color={theme.colors.mutedText} size={14} />
+          <AppText style={{ color: theme.colors.mutedText, fontFamily: theme.fonts.sansMedium, fontSize: 13 }}>
+            Add anchor piece
+          </AppText>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -728,6 +758,8 @@ export function TripAnchorsScreen() {
 
   // Guided mode: map from slotId → selected anchor
   const [guidedAnchors, setGuidedAnchors] = useState<Record<string, SelectedAnchor>>({});
+  // Extra slots added by the user beyond the initial recommendation
+  const [extraGuidedSlots, setExtraGuidedSlots] = useState<AnchorSlot[]>([]);
 
   // Auto mode: pre-filled list (may be swapped)
   const [autoAnchors, setAutoAnchors] = useState<SelectedAnchor[]>([]);
@@ -910,6 +942,14 @@ export function TripAnchorsScreen() {
     closetPickerTargetRef.current = null;
     setClosetPickerVisible(false);
     addAnchorFromClosetItem(target.slotId, target.mode, item);
+  }
+
+  // Guided mode: "Add anchor piece" — append next logical slot
+  function handleAddGuidedSlot() {
+    if (!tripCtx || !recommendation) return;
+    const usedIds = [...recommendation.slots, ...extraGuidedSlots].map((s) => s.id);
+    const slot = nextAnchorSlot(tripCtx, usedIds);
+    setExtraGuidedSlots((prev) => [...prev, slot]);
   }
 
   // Auto mode: "Try something else" — cycle through scored alternates for this slot
@@ -1136,16 +1176,19 @@ export function TripAnchorsScreen() {
         {/* ── Mode-specific anchor panels ───────────────────────────────── */}
         {recommendation && (
           <>
-            {mode === 'guided' && (
+            {mode === 'guided' && draft && (
               <GuidedPanel
                 recommendation={recommendation}
                 guidedAnchors={guidedAnchors}
+                extraSlots={extraGuidedSlots}
+                numDays={draft.numDays}
                 onAddToSlot={(slotId) => openSourceSheet(slotId, 'guided')}
                 onClearSlot={(slotId) => setGuidedAnchors((prev) => {
                   const next = { ...prev };
                   delete next[slotId];
                   return next;
                 })}
+                onAddExtraSlot={handleAddGuidedSlot}
               />
             )}
 
