@@ -51,21 +51,34 @@ export type ClosetIndexItem = {
   times_anchored: number;
 };
 
+const SEASON_GUIDE: Record<string, string> = {
+  spring: 'Spring (mild transitional weather — favour lighter fabrics, transitional layering pieces, spring-appropriate colours)',
+  summer: 'Summer (hot weather — favour lightweight breathable pieces; avoid heavy knits, thick outerwear, or winter-weight fabrics)',
+  fall:   'Fall (cool transitional weather — favour medium-weight layers, autumnal textures and tones)',
+  winter: 'Winter (cold weather — favour warm fabrics, heavier knits, appropriate outerwear)',
+};
+
 export function buildHelpMePickUserPrompt(params: {
   index: ClosetIndexItem[];
   dayType: string;
   vibe: string;
   risk: string;
+  season?: string;
   recentlyPickedIds?: string[];
 }): string {
   const recentlyPickedLine = params.recentlyPickedIds && params.recentlyPickedIds.length > 0
     ? `Recently chosen items (do not select these — pick something different): ${params.recentlyPickedIds.join(', ')}`
     : null;
 
+  const seasonLine = params.season && SEASON_GUIDE[params.season]
+    ? `Season: ${SEASON_GUIDE[params.season]}`
+    : null;
+
   return [
     `Occasion: ${params.dayType}`,
     `Vibe: ${params.vibe}`,
     `Style risk: ${params.risk}`,
+    seasonLine,
     '',
     recentlyPickedLine,
     '',
@@ -74,6 +87,7 @@ export function buildHelpMePickUserPrompt(params: {
     '',
     'Pick ONE item from the list above as the anchor piece.',
     'Prioritise items near the top of the list — they have been anchored less often and deserve consideration.',
+    params.season ? `The user selected ${params.season} as their season — prefer pieces appropriate for that season.` : null,
     'Return its exact id from the list and a one-sentence reason.',
   ].filter((line) => line !== null).join('\n');
 }

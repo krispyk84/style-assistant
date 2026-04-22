@@ -85,6 +85,7 @@ export const helpMePickSchema = z.object({
   dayType: z.string().min(1),
   vibe: z.string().min(1),
   risk: z.string().min(1),
+  season: z.enum(['spring', 'summer', 'fall', 'winter']).optional(),
   rejectedIds: z.array(z.string()).optional(),
 });
 

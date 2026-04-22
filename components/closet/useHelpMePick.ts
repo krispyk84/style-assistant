@@ -25,6 +25,7 @@ export function useHelpMePick() {
   const [dayType, setDayType] = useState('casual');
   const [vibe, setVibe] = useState('classic');
   const [risk, setRisk] = useState('balanced');
+  const [season, setSeason] = useState('');
 
   function open() {
     setModalState('intent');
@@ -41,7 +42,7 @@ export function useHelpMePick() {
   async function handlePick() {
     setModalState('loading');
     setError(null);
-    const response = await closetService.helpMePick({ stylistId, dayType, vibe, risk, rejectedIds });
+    const response = await closetService.helpMePick({ stylistId, dayType, vibe, risk, season: season || undefined, rejectedIds });
     if (!response.success || !response.data) {
       setError(response.error?.message ?? 'Could not pick an item. Please try again.');
       setModalState('intent');
@@ -68,6 +69,7 @@ export function useHelpMePick() {
     dayType, setDayType,
     vibe, setVibe,
     risk, setRisk,
+    season, setSeason,
     handlePick,
     handlePickAgain,
   };

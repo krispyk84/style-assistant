@@ -36,6 +36,14 @@ const RISK_OPTIONS = [
   { value: 'adventurous', label: 'Surprise me' },
 ] as const;
 
+const SEASON_OPTIONS = [
+  { value: '', label: 'No preference' },
+  { value: 'spring', label: 'Spring' },
+  { value: 'summer', label: 'Summer' },
+  { value: 'fall', label: 'Fall' },
+  { value: 'winter', label: 'Winter' },
+] as const;
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type HelpMePickModalProps = {
@@ -75,6 +83,7 @@ export function HelpMePickModal({ hook, onUseItem }: HelpMePickModalProps) {
     isOpen, modalState, error,
     result, stylistId, setStylistId,
     dayType, setDayType, vibe, setVibe, risk, setRisk,
+    season, setSeason,
     handlePick, handlePickAgain,
   } = hook;
 
@@ -151,6 +160,8 @@ export function HelpMePickModal({ hook, onUseItem }: HelpMePickModalProps) {
               onVibeChange={setVibe}
               risk={risk}
               onRiskChange={setRisk}
+              season={season}
+              onSeasonChange={setSeason}
               error={error}
               onPick={() => void handlePick()}
             />
@@ -172,6 +183,8 @@ type IntentFormProps = {
   onVibeChange: (v: string) => void;
   risk: string;
   onRiskChange: (v: string) => void;
+  season: string;
+  onSeasonChange: (v: string) => void;
   error: string | null;
   onPick: () => void;
 };
@@ -181,6 +194,7 @@ function IntentForm({
   dayType, onDayTypeChange,
   vibe, onVibeChange,
   risk, onRiskChange,
+  season, onSeasonChange,
   error, onPick,
 }: IntentFormProps) {
   return (
@@ -257,6 +271,14 @@ function IntentForm({
         options={RISK_OPTIONS as unknown as readonly { value: string; label: string }[]}
         value={risk}
         onChange={onRiskChange}
+      />
+
+      {/* Season */}
+      <OptionRow
+        label="Season?"
+        options={SEASON_OPTIONS as unknown as readonly { value: string; label: string }[]}
+        value={season}
+        onChange={onSeasonChange}
       />
 
       {error ? (

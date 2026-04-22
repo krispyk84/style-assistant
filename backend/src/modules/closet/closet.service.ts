@@ -310,7 +310,7 @@ export const closetService = {
         schema: helpMePickResponseSchema,
         jsonSchema: HELP_ME_PICK_JSON_SCHEMA,
         instructions: buildHelpMePickSystemPrompt(payload.stylistId),
-        userContent: [{ type: 'input_text' as const, text: buildHelpMePickUserPrompt({ index, dayType: payload.dayType, vibe: payload.vibe, risk: payload.risk, recentlyPickedIds }) }],
+        userContent: [{ type: 'input_text' as const, text: buildHelpMePickUserPrompt({ index, dayType: payload.dayType, vibe: payload.vibe, risk: payload.risk, season: payload.season, recentlyPickedIds }) }],
         supabaseUserId,
         feature: 'help-me-pick',
       });

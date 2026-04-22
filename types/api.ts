@@ -234,6 +234,7 @@ export type HelpMePickRequest = {
   dayType: string;
   vibe: string;
   risk: string;
+  season?: string;
   rejectedIds?: string[];
 };
 
