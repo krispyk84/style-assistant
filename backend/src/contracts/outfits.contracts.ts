@@ -40,6 +40,8 @@ export type GenerateOutfitsRequest = {
     locationLabel: string | null;
     fetchedAt: string;
   } | null;
+  /** Season explicitly selected by the user. When present, overrides weather-driven styling in the prompt. */
+  manualSeason?: 'winter' | 'spring' | 'summer' | 'fall' | null;
 };
 
 export type TierRecommendationDto = {
@@ -75,6 +77,7 @@ export type OutfitResponse = {
     photoPending: boolean;
     selectedTiers: OutfitTierSlug[];
     weatherContext?: GenerateOutfitsRequest['weatherContext'];
+    manualSeason?: GenerateOutfitsRequest['manualSeason'];
   };
   recommendations: TierRecommendationDto[];
 };

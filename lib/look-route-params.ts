@@ -43,4 +43,5 @@ export type LookRouteParams = {
   weatherLocationLabel?: string;
   weatherFetchedAt?: string;
   addAnchorToCloset?: string;
+  manualSeason?: string;
 };

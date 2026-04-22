@@ -1,6 +1,7 @@
 import type { Href } from 'expo-router';
 
 import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
+import type { WeatherSeason } from '@/types/weather';
 import { type LookTierSlug, LOOK_TIER_OPTIONS } from '@/types/look-request';
 import type { LookRouteParams } from './look-route-params';
 import {
@@ -39,6 +40,9 @@ export function parseLookInput(params: LookRouteParams): CreateLookInput | null 
     photoPending: params.photoPending === 'true',
     selectedTiers,
     weatherContext: parseWeatherContext(params),
+    manualSeason: params.manualSeason && ['winter', 'spring', 'summer', 'fall'].includes(params.manualSeason)
+      ? params.manualSeason as WeatherSeason
+      : null,
     uploadedAnchorImage: primaryAnchorItem?.uploadedImage ?? parseUploadedAnchorImage(params),
     anchorImage: primaryAnchorItem?.image ?? null,
   };
@@ -72,6 +76,7 @@ export function buildLookRouteParams(requestId: string, input: CreateLookInput) 
     weatherStylingHint: input.weatherContext?.stylingHint,
     weatherLocationLabel: input.weatherContext?.locationLabel ?? undefined,
     weatherFetchedAt: input.weatherContext?.fetchedAt,
+    manualSeason: input.manualSeason ?? undefined,
   };
 }
 

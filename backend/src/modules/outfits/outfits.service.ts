@@ -96,7 +96,7 @@ export const outfitsService = {
         profile?.gender === 'woman' ? 'womenswear styling guidance' : 'menswear styling guidance',
         ...anchorItems.map((item, index) => `anchor item ${index + 1}: ${item.description.trim() || 'image-led reference'}`),
         `requested tiers: ${tiersToGenerate.join(', ')}`,
-        input.weatherContext ? `season: ${input.weatherContext.season}` : null,
+        (input.manualSeason || input.weatherContext?.season) ? `season: ${input.manualSeason ?? input.weatherContext!.season}` : null,
         // Vibe keywords override saved style/fit for retrieval — only one set is used
         vibeKeywords ? `style direction: ${vibeKeywords}` : null,
         !vibeKeywords && profile?.stylePreference ? `user style preference: ${profile.stylePreference}` : null,
@@ -167,6 +167,7 @@ export const outfitsService = {
         photoPending: input.photoPending,
         selectedTiers,
         weatherContext: input.weatherContext ?? null,
+        manualSeason: input.manualSeason ?? null,
       },
       recommendations: tiersToGenerate.map((tier) => {
         const recommendation = recommendationMap.get(tier);
@@ -211,7 +212,7 @@ export const outfitsService = {
         profile?.gender === 'woman' ? 'womenswear styling guidance for regenerating one outfit tier' : 'menswear styling guidance for regenerating one outfit tier',
         `tier: ${tier}`,
         ...anchorItems.map((item, index) => `anchor item ${index + 1}: ${item.description.trim() || 'image-led reference'}`),
-        existing.input.weatherContext ? `season: ${existing.input.weatherContext.season}` : null,
+        (existing.input.manualSeason || existing.input.weatherContext?.season) ? `season: ${existing.input.manualSeason ?? existing.input.weatherContext!.season}` : null,
         currentRecommendation ? `current styling direction: ${currentRecommendation.stylingDirection}` : null,
       ]
         .filter(Boolean)

@@ -40,9 +40,25 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: O
       }}>
       <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md, justifyContent: 'space-between' }}>
         <View style={{ flex: 1, gap: spacing.xs }}>
-          <AppText variant="meta">
-            {formatTierLabel(result.recommendation.tier)} tier
-          </AppText>
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
+            <AppText variant="meta">
+              {formatTierLabel(result.recommendation.tier)} tier
+            </AppText>
+            {result.input.weatherContext?.season ? (
+              <View style={{
+                backgroundColor: theme.colors.subtleSurface,
+                borderColor: theme.colors.border,
+                borderRadius: 999,
+                borderWidth: 1,
+                paddingHorizontal: spacing.sm,
+                paddingVertical: 2,
+              }}>
+                <AppText style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'capitalize', color: theme.colors.mutedText }}>
+                  {result.input.weatherContext.season}
+                </AppText>
+              </View>
+            ) : null}
+          </View>
           <AppText tone="subtle">{dateLabel ?? `Saved ${formatSavedAt(result.savedAt)}`}</AppText>
         </View>
         {onDelete ? (

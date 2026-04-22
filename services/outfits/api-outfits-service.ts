@@ -27,6 +27,7 @@ export const apiOutfitsService: OutfitsService = {
         selectedTiers: request.selectedTiers,
         generateOnlyTier: request.generateOnlyTier,
         weatherContext: request.weatherContext ?? null,
+        manualSeason: request.manualSeason ?? undefined,
       },
     });
 

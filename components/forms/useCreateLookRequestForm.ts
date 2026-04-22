@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import type { CreateLookInput, LookTierSlug } from '@/types/look-request';
+import type { WeatherSeason } from '@/types/weather';
 
 export function useCreateLookRequestForm(initialValue: CreateLookInput) {
   const [vibeKeywords, setVibeKeywords] = useState(initialValue.vibeKeywords ?? '');
@@ -8,6 +9,7 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
   // Auto-expand if the form was initialised with pre-filled keywords (e.g. anchor flows)
   const [isKeywordsExpanded, setIsKeywordsExpanded] = useState(() => !!(initialValue.vibeKeywords?.trim()));
   const [tierError, setTierError] = useState<string | null>(null);
+  const [selectedSeason, setSelectedSeason] = useState<WeatherSeason | null>(null);
 
   function toggleTier(tier: LookTierSlug) {
     setSelectedTiers((current) => {
@@ -39,10 +41,12 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
     selectedTiers,
     isKeywordsExpanded,
     tierError,
+    selectedSeason,
     // Setters
     setVibeKeywords,
     setIsKeywordsExpanded,
     setTierError,
+    setSelectedSeason,
     // Mutations
     toggleTier,
     toggleVibeKeyword,

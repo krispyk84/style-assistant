@@ -45,6 +45,7 @@ export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE }: 
         selectedTiers: lookForm.selectedTiers,
         shouldAddAnchorToCloset: anchorForm.shouldAddAnchorToCloset,
         weatherContext,
+        manualSeason: lookForm.selectedSeason,
       }),
     });
   }
@@ -66,6 +67,9 @@ export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE }: 
       onToggleSaveToCloset={anchorForm.toggleShouldAddAnchorToCloset}
       onClosetItemSelected={anchorForm.handleClosetItemSelected}
       onClosetPickerClose={anchorForm.handleClosetPickerClose}
+      // Season
+      selectedSeason={lookForm.selectedSeason}
+      onSelectSeason={lookForm.setSelectedSeason}
       // Vibe keywords
       vibeKeywords={lookForm.vibeKeywords}
       isKeywordsExpanded={lookForm.isKeywordsExpanded}

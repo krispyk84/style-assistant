@@ -13,6 +13,7 @@ import { spacing, theme as staticTheme } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
 import { formatTierLabel } from '@/lib/outfit-utils';
+import type { WeatherSeason } from '@/types/weather';
 import { useFavouritesData } from './useFavouritesData';
 import { useHistoryData } from './useHistoryData';
 import { useHistoryActions } from './useHistoryActions';
@@ -21,12 +22,21 @@ import { useHistoryActions } from './useHistoryActions';
 
 type ActiveTab = 'favourites' | 'history';
 type TierFilter = 'all' | LookTierSlug;
+type SeasonFilter = 'all' | WeatherSeason;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const TIER_FILTER_OPTIONS: { value: TierFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   ...LOOK_TIER_OPTIONS.map((t) => ({ value: t as TierFilter, label: formatTierLabel(t) })),
+];
+
+const SEASON_FILTER_OPTIONS: { value: SeasonFilter; label: string }[] = [
+  { value: 'all',    label: 'All Seasons' },
+  { value: 'spring', label: 'Spring' },
+  { value: 'summer', label: 'Summer' },
+  { value: 'fall',   label: 'Fall' },
+  { value: 'winter', label: 'Winter' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -45,6 +55,8 @@ export function LooksScreen() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('favourites');
   const [favouritesFilter, setFavouritesFilter] = useState<TierFilter>('all');
   const [historyFilter, setHistoryFilter] = useState<TierFilter>('all');
+  const [favouritesSeasonFilter, setFavouritesSeasonFilter] = useState<SeasonFilter>('all');
+  const [historySeasonFilter, setHistorySeasonFilter] = useState<SeasonFilter>('all');
   // Ref guards against duplicate loadMore calls on the same scroll event burst
   const loadingMoreRef = useRef(false);
 
@@ -172,11 +184,49 @@ export function LooksScreen() {
           })}
         </ScrollView>
 
+        {/* Season filter pills */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: spacing.xs }}
+          style={{ flexShrink: 0 }}>
+          {SEASON_FILTER_OPTIONS.map(({ value, label }) => {
+            const activeSeasonFilter = activeTab === 'favourites' ? favouritesSeasonFilter : historySeasonFilter;
+            const setSeasonFilter = activeTab === 'favourites' ? setFavouritesSeasonFilter : setHistorySeasonFilter;
+            const isActive = activeSeasonFilter === value;
+            return (
+              <Pressable
+                key={value}
+                onPress={() => setSeasonFilter(value)}
+                style={{
+                  backgroundColor: isActive ? theme.colors.accent : 'transparent',
+                  borderColor: isActive ? theme.colors.accent : theme.colors.border,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.xs,
+                }}>
+                <AppText
+                  style={{
+                    color: isActive ? '#FFFFFF' : theme.colors.mutedText,
+                    fontFamily: staticTheme.fonts.sansMedium,
+                    fontSize: 12,
+                    letterSpacing: 0.3,
+                  }}>
+                  {label}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
         {/* Favourites tab content */}
         {activeTab === 'favourites' ? (() => {
-          const filtered = favouritesFilter === 'all'
-            ? favouritesHook.favourites
-            : favouritesHook.favourites.filter((r) => r.recommendation.tier === favouritesFilter);
+          const filtered = favouritesHook.favourites.filter((r) => {
+            const tierMatch = favouritesFilter === 'all' || r.recommendation.tier === favouritesFilter;
+            const seasonMatch = favouritesSeasonFilter === 'all' || r.input.weatherContext?.season === favouritesSeasonFilter;
+            return tierMatch && seasonMatch;
+          });
           return favouritesHook.favouritesLoading ? (
             <LoadingState label="Loading saved outfits..." />
           ) : favouritesHook.favouritesError ? (
@@ -197,7 +247,7 @@ export function LooksScreen() {
           ) : favouritesHook.favourites.length ? (
             <EmptyState
               title="No matches"
-              message={`No saved outfits for ${formatTierLabel(favouritesFilter as LookTierSlug)}.`}
+              message="No saved outfits match the selected filters."
             />
           ) : (
             <EmptyState
@@ -211,9 +261,11 @@ export function LooksScreen() {
 
         {/* History tab content */}
         {activeTab === 'history' ? (() => {
-          const filtered = historyFilter === 'all'
-            ? historyHook.historyCards
-            : historyHook.historyCards.filter((c) => c.recommendation.tier === historyFilter);
+          const filtered = historyHook.historyCards.filter((c) => {
+            const tierMatch = historyFilter === 'all' || c.recommendation.tier === historyFilter;
+            const seasonMatch = historySeasonFilter === 'all' || (c.input as any)?.weatherContext?.season === historySeasonFilter;
+            return tierMatch && seasonMatch;
+          });
           return historyHook.historyLoading ? (
             <LoadingState label="Loading history..." />
           ) : historyHook.historyError ? (
@@ -244,7 +296,7 @@ export function LooksScreen() {
           ) : historyHook.historyCards.length ? (
             <EmptyState
               title="No matches"
-              message={`No generated looks for ${formatTierLabel(historyFilter as LookTierSlug)}.`}
+              message="No generated looks match the selected filters."
             />
           ) : (
             <EmptyState

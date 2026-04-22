@@ -6,6 +6,7 @@ import { AppIcon, type AppIconName } from '@/components/ui/app-icon';
 import { spacing, theme } from '@/constants/theme';
 import type { CreateLookInput, LookAnchorItem, LookTierSlug } from '@/types/look-request';
 import { LOOK_TIER_OPTIONS } from '@/types/look-request';
+import type { WeatherSeason } from '@/types/weather';
 import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
@@ -14,6 +15,13 @@ import { ClosetPickerModal } from '@/components/closet/closet-picker-modal';
 import { useRef, useEffect, useState } from 'react';
 
 const VIBE_SUGGESTIONS = ['Old Money', 'Resort', 'Minimalist', 'European Summer', 'Streetwear', 'Coastal'];
+
+const SEASON_OPTIONS: { value: WeatherSeason; label: string; icon: AppIconName }[] = [
+  { value: 'spring', label: 'Spring', icon: 'sparkles' },
+  { value: 'summer', label: 'Summer', icon: 'sun' },
+  { value: 'fall',   label: 'Fall',   icon: 'wind' },
+  { value: 'winter', label: 'Winter', icon: 'snow' },
+];
 
 const tierConfig: Record<LookTierSlug, { label: string; icon: AppIconName }> = {
   business: { label: 'Business', icon: 'briefcase' },
@@ -37,6 +45,9 @@ export type CreateLookRequestFormViewProps = {
   onToggleSaveToCloset: () => void;
   onClosetItemSelected: (item: ClosetItem) => void;
   onClosetPickerClose: () => void;
+  // Season
+  selectedSeason: WeatherSeason | null;
+  onSelectSeason: (season: WeatherSeason | null) => void;
   // Vibe keywords
   vibeKeywords: string;
   isKeywordsExpanded: boolean;
@@ -67,6 +78,8 @@ export function CreateLookRequestFormView({
   onToggleSaveToCloset,
   onClosetItemSelected,
   onClosetPickerClose,
+  selectedSeason,
+  onSelectSeason,
   vibeKeywords,
   isKeywordsExpanded,
   onChangeVibeKeywords,
@@ -135,6 +148,36 @@ export function CreateLookRequestFormView({
         onSelect={onClosetItemSelected}
         onClose={onClosetPickerClose}
       />
+
+      {/* Season */}
+      <View style={{ gap: spacing.md }}>
+        <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Season</AppText>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {SEASON_OPTIONS.map(({ value, label, icon }) => {
+            const isSelected = selectedSeason === value;
+            return (
+              <Pressable
+                key={value}
+                onPress={() => onSelectSeason(isSelected ? null : value)}
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: isSelected ? theme.colors.accent : theme.colors.surface,
+                  borderColor: isSelected ? theme.colors.accent : theme.colors.border,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  flex: 1,
+                  gap: spacing.xs,
+                  paddingVertical: spacing.md,
+                }}>
+                <AppIcon color={isSelected ? '#FFFFFF' : theme.colors.text} name={icon} size={18} />
+                <AppText variant="eyebrow" style={{ color: isSelected ? '#FFFFFF' : theme.colors.text, letterSpacing: 1 }}>
+                  {label}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
 
       {/* Style Keywords — collapsible */}
       <View style={{ gap: spacing.md }}>

@@ -67,6 +67,27 @@ export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[]
   ].join(' ');
 }
 
+function buildSeasonInstruction(season: string, isManual: boolean): string {
+  const seasonGuide: Record<string, string> = {
+    summer: 'Hot-weather styling: lightweight fabrics (linen, cotton, breathable blends), minimal layering, no heavy jackets, coats, wool layers, sweaters, chunky knits, or cold-weather outerwear unless the user specifically requested them.',
+    spring: 'Mild transitional styling: light layers, transitional fabrics, breathable mid-weight pieces. Avoid heavy winter coats or thick knits.',
+    fall:   'Cool transitional styling: medium-weight layers, autumnal textures and tones. Light-to-medium outerwear appropriate. Avoid summer-only lightweight pieces.',
+    winter: 'Cold-weather styling: warm layering, heavier fabrics (wool, cashmere, flannel), appropriate outerwear and knits. Embrace cold-weather pieces.',
+  };
+  const guide = seasonGuide[season] ?? 'Style appropriately for the season.';
+
+  if (isManual) {
+    return [
+      `SEASON OVERRIDE — USER EXPLICITLY SELECTED: ${season.toUpperCase()}`,
+      `The user has manually chosen "${season}" as the styling season for this request. This is the PRIMARY styling constraint and takes full precedence over any weather data, temperature values, or climate inferences.`,
+      `Treat this as: ${guide}`,
+      'Do NOT introduce cold-weather pieces for a summer selection or warm-weather-only pieces for a winter selection based on weather data. The user\'s season choice is authoritative.',
+    ].join('\n');
+  }
+
+  return `- currentSeason: ${season} (weather-derived — ${guide})`;
+}
+
 export function buildGenerateOutfitsUserPrompt(
   input: GenerateOutfitsRequest,
   profile: PromptProfile,
@@ -86,12 +107,16 @@ export function buildGenerateOutfitsUserPrompt(
   const vibeOverride = input.vibeKeywords?.trim() || null;
   const isFemale = profile?.gender === 'woman';
 
+  const effectiveSeason = input.manualSeason || input.weatherContext?.season || null;
+  const isManualSeason = Boolean(input.manualSeason);
+
   return [
     formatProfileContext(profile, vibeOverride),
     isFemale ? buildFemaleStyleFramework() : null,
     isFemale && profile?.bodyType ? buildFemaleBodyTypeGuidance(profile.bodyType) : null,
     isFemale && (profile as any)?.weightDistribution ? buildFemaleWeightDistributionGuidance((profile as any).weightDistribution) : null,
     styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
+    isManualSeason && effectiveSeason ? buildSeasonInstruction(effectiveSeason, true) : null,
     'Styling request:',
     ...anchorItems.map(
       (item, index) =>
@@ -100,13 +125,17 @@ export function buildGenerateOutfitsUserPrompt(
     input.vibeKeywords?.trim() ? `- vibeKeywords: ${input.vibeKeywords.trim()}` : '- vibeKeywords: none provided',
     `- selectedTiersFromClient: ${input.selectedTiers.join(', ')}`,
     `- photoPending: ${String(input.photoPending)}`,
-    input.weatherContext
-      ? `- currentSeason: ${input.weatherContext.season}`
-      : '- currentSeason: unavailable',
+    !isManualSeason && effectiveSeason
+      ? buildSeasonInstruction(effectiveSeason, false)
+      : !isManualSeason
+        ? '- currentSeason: unavailable'
+        : null,
     `Return recommendations only for: ${input.selectedTiers.join(', ')}.`,
     'Each recommendation should include a specific title, anchor item wording, key pieces, shoes, accessories, fit notes, why it works, styling direction, and detail notes.',
     'When vibe keywords are present, visibly reflect them in the recommendations instead of treating them as secondary decoration.',
-    'Use only the season to influence fabric weight, layering, palette, and overall styling direction. Do not infer extra constraints from current weather conditions.',
+    isManualSeason
+      ? 'The season is user-selected and is the single authoritative styling constraint. Do not let any weather data or temperature inference override it.'
+      : 'Use only the season to influence fabric weight, layering, palette, and overall styling direction. Do not infer extra constraints from current weather conditions.',
     'If the season is summer and the profile says prefer-trousers for summer bottoms, keep recommending longer bottoms instead of shorts.',
   ].filter(Boolean).join('\n');
 }
@@ -157,9 +186,13 @@ export function buildRegenerateTierUserPrompt(input: {
       ? `- vibeKeywords: ${input.existing.input.vibeKeywords.trim()}`
       : '- vibeKeywords: none provided',
     `- requestedTier: ${input.tier}`,
-    input.existing.input.weatherContext
-      ? `- currentSeason: ${input.existing.input.weatherContext.season}`
-      : '- currentSeason: unavailable',
+    (() => {
+      const manualSeason = input.existing.input.manualSeason;
+      const weatherSeason = input.existing.input.weatherContext?.season;
+      const effectiveSeason = manualSeason || weatherSeason || null;
+      if (!effectiveSeason) return '- currentSeason: unavailable';
+      return buildSeasonInstruction(effectiveSeason, Boolean(manualSeason));
+    })(),
     previousTier
       ? [
           'Previous recommendation to replace:',
@@ -173,6 +206,8 @@ export function buildRegenerateTierUserPrompt(input: {
       : 'There is no previous recommendation for the requested tier.',
     'Return one new recommendation for the requested tier only.',
     'Make the vibe keywords materially visible in the regenerated outfit if they were provided.',
-    'Use only the season to shape the styling update. Do not treat current weather details as constraints.',
+    input.existing.input.manualSeason
+      ? 'The season is user-selected — it is the authoritative styling constraint. Do not override it with weather-based reasoning.'
+      : 'Use only the season to shape the styling update. Do not treat current weather details as constraints.',
   ].filter(Boolean).join('\n');
 }
