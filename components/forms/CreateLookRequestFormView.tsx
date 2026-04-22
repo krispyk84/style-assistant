@@ -47,7 +47,9 @@ export type CreateLookRequestFormViewProps = {
   onClosetPickerClose: () => void;
   // Season
   selectedSeason: WeatherSeason | null;
+  isSeasonExpanded: boolean;
   onSelectSeason: (season: WeatherSeason | null) => void;
+  onToggleSeasonExpanded: () => void;
   // Vibe keywords
   vibeKeywords: string;
   isKeywordsExpanded: boolean;
@@ -79,7 +81,9 @@ export function CreateLookRequestFormView({
   onClosetItemSelected,
   onClosetPickerClose,
   selectedSeason,
+  isSeasonExpanded,
   onSelectSeason,
+  onToggleSeasonExpanded,
   vibeKeywords,
   isKeywordsExpanded,
   onChangeVibeKeywords,
@@ -149,34 +153,73 @@ export function CreateLookRequestFormView({
         onClose={onClosetPickerClose}
       />
 
-      {/* Season */}
+      {/* Season — collapsible */}
       <View style={{ gap: spacing.md }}>
-        <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Season</AppText>
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          {SEASON_OPTIONS.map(({ value, label, icon }) => {
-            const isSelected = selectedSeason === value;
-            return (
-              <Pressable
-                key={value}
-                onPress={() => onSelectSeason(isSelected ? null : value)}
-                style={{
-                  alignItems: 'center',
-                  backgroundColor: isSelected ? theme.colors.accent : theme.colors.surface,
-                  borderColor: isSelected ? theme.colors.accent : theme.colors.border,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  flex: 1,
-                  gap: spacing.xs,
-                  paddingVertical: spacing.md,
-                }}>
-                <AppIcon color={isSelected ? '#FFFFFF' : theme.colors.text} name={icon} size={18} />
-                <AppText variant="eyebrow" style={{ color: isSelected ? '#FFFFFF' : theme.colors.text, letterSpacing: 1 }}>
-                  {label}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isSeasonExpanded }}
+          accessibilityLabel={isSeasonExpanded ? 'Collapse Season' : 'Expand Season'}
+          onPress={onToggleSeasonExpanded}
+          style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+            <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Season</AppText>
+            {selectedSeason && !isSeasonExpanded ? (
+              <View style={{
+                backgroundColor: theme.colors.accent,
+                borderRadius: 999,
+                paddingHorizontal: spacing.sm,
+                paddingVertical: 2,
+              }}>
+                <AppText variant="eyebrow" style={{ color: '#FFFFFF', letterSpacing: 1 }}>
+                  {selectedSeason.charAt(0).toUpperCase() + selectedSeason.slice(1)}
                 </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
+              </View>
+            ) : null}
+          </View>
+          <View style={{
+            alignItems: 'center',
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            borderRadius: 999,
+            borderWidth: 1,
+            height: 28,
+            justifyContent: 'center',
+            width: 28,
+          }}>
+            <AppIcon
+              color={theme.colors.text}
+              name={isSeasonExpanded ? 'chevron-up' : 'chevron-down'}
+              size={14}
+            />
+          </View>
+        </Pressable>
+        {isSeasonExpanded ? (
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {SEASON_OPTIONS.map(({ value, label, icon }) => {
+              const isSelected = selectedSeason === value;
+              return (
+                <Pressable
+                  key={value}
+                  onPress={() => onSelectSeason(isSelected ? null : value)}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: isSelected ? theme.colors.accent : theme.colors.surface,
+                    borderColor: isSelected ? theme.colors.accent : theme.colors.border,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    flex: 1,
+                    gap: spacing.xs,
+                    paddingVertical: spacing.md,
+                  }}>
+                  <AppIcon color={isSelected ? '#FFFFFF' : theme.colors.text} name={icon} size={18} />
+                  <AppText variant="eyebrow" style={{ color: isSelected ? '#FFFFFF' : theme.colors.text, letterSpacing: 1 }}>
+                    {label}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
       </View>
 
       {/* Style Keywords — collapsible */}

@@ -69,7 +69,9 @@ export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE }: 
       onClosetPickerClose={anchorForm.handleClosetPickerClose}
       // Season
       selectedSeason={lookForm.selectedSeason}
+      isSeasonExpanded={lookForm.isSeasonExpanded}
       onSelectSeason={lookForm.setSelectedSeason}
+      onToggleSeasonExpanded={() => lookForm.setIsSeasonExpanded((v) => !v)}
       // Vibe keywords
       vibeKeywords={lookForm.vibeKeywords}
       isKeywordsExpanded={lookForm.isKeywordsExpanded}

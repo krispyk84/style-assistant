@@ -10,6 +10,7 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
   const [isKeywordsExpanded, setIsKeywordsExpanded] = useState(() => !!(initialValue.vibeKeywords?.trim()));
   const [tierError, setTierError] = useState<string | null>(null);
   const [selectedSeason, setSelectedSeason] = useState<WeatherSeason | null>(null);
+  const [isSeasonExpanded, setIsSeasonExpanded] = useState(false);
 
   function toggleTier(tier: LookTierSlug) {
     setSelectedTiers((current) => {
@@ -42,9 +43,11 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
     isKeywordsExpanded,
     tierError,
     selectedSeason,
+    isSeasonExpanded,
     // Setters
     setVibeKeywords,
     setIsKeywordsExpanded,
+    setIsSeasonExpanded,
     setTierError,
     setSelectedSeason,
     // Mutations
