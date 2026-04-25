@@ -28,6 +28,8 @@ export const apiOutfitsService: OutfitsService = {
         generateOnlyTier: request.generateOnlyTier,
         weatherContext: request.weatherContext ?? null,
         manualSeason: request.manualSeason ?? undefined,
+        includeBag: request.includeBag ?? false,
+        includeHat: request.includeHat ?? false,
       },
     });
 

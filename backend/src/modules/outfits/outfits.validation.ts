@@ -36,6 +36,8 @@ export const generateOutfitsSchema = z.object({
     .nullable()
     .optional(),
   manualSeason: z.enum(['winter', 'spring', 'summer', 'fall']).nullable().optional(),
+  includeBag: z.boolean().optional(),
+  includeHat: z.boolean().optional(),
 }).superRefine((value, ctx) => {
   const hasAnchorItems = Boolean(
     value.anchorItems?.some((item) => item.description.trim() || item.imageId || item.imageUrl)

@@ -45,6 +45,8 @@ export function parseLookInput(params: LookRouteParams): CreateLookInput | null 
       : null,
     uploadedAnchorImage: primaryAnchorItem?.uploadedImage ?? parseUploadedAnchorImage(params),
     anchorImage: primaryAnchorItem?.image ?? null,
+    includeBag: params.includeBag === 'true',
+    includeHat: params.includeHat === 'true',
   };
 }
 
@@ -77,6 +79,8 @@ export function buildLookRouteParams(requestId: string, input: CreateLookInput) 
     weatherLocationLabel: input.weatherContext?.locationLabel ?? undefined,
     weatherFetchedAt: input.weatherContext?.fetchedAt,
     manualSeason: input.manualSeason ?? undefined,
+    includeBag: input.includeBag ? 'true' : undefined,
+    includeHat: input.includeHat ? 'true' : undefined,
   };
 }
 

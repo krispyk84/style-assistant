@@ -87,6 +87,33 @@ function buildBagSelectionRule(gender?: string | null): string {
   ].join(' ');
 }
 
+/**
+ * Optional-items rule — applied when the user explicitly checked "Include a bag"
+ * or "Include a hat" on the create-look form. When neither is set, do not inject
+ * either piece beyond what existing logic would produce.
+ */
+function buildOptionalItemsRule(opts: { includeBag: boolean; includeHat: boolean; gender?: string | null }): string | null {
+  if (!opts.includeBag && !opts.includeHat) return null;
+  const isMens = opts.gender !== 'woman';
+  const lines: string[] = ['USER-REQUESTED OPTIONAL ITEMS — these MUST appear in the accessories array:'];
+  if (opts.includeBag) {
+    lines.push(
+      '- The user requested that this outfit include a BAG. Include exactly one bag in accessories that fits the outfit\'s context, formality, and styling direction. Choose the bag TYPE deliberately (briefcase, messenger, structured work bag, shoulder bag, top-handle, crossbody, satchel, weekender, backpack, daypack, sling, or — only when genuinely appropriate — a tote in a material/color that matches the look). Do NOT default to a generic canvas tote. Specify color and material.'
+    );
+  }
+  if (opts.includeHat) {
+    const mensHatExamples = 'baseball cap, beanie, wool flat cap, fedora-style hat, panama, bucket hat, structured wide-brim, or knit watch cap';
+    const womensHatExamples = 'baseball cap, beanie, wide-brim straw or felt hat, bucket hat, fedora-style hat, panama, beret, or knit watch cap';
+    lines.push(
+      `- The user requested that this outfit include a HAT. Include exactly one hat in accessories with metadata.category = "Hat", chosen so it reinforces the outfit's tier and styling direction. Choose the hat TYPE deliberately from options like ${isMens ? mensHatExamples : womensHatExamples}. The hat must not clash with the tier (no baseball cap on a formal-business look, no fedora on activewear). Specify color and material (e.g. "Charcoal wool flat cap", "Black ribbed-knit beanie", "Camel wide-brim wool felt hat", "Stone canvas baseball cap").`
+    );
+  }
+  lines.push(
+    'These items are user-requested and must be present — do not omit them. If the look already has a bag (or hat) from the anchor or other logic, do not duplicate; the requested type is the primary one.'
+  );
+  return lines.join('\n');
+}
+
 function buildSeasonInstruction(season: string, isManual: boolean): string {
   const seasonGuide: Record<string, string> = {
     summer: 'Hot-weather styling: lightweight fabrics (linen, cotton, breathable blends), minimal layering, no heavy jackets, coats, wool layers, sweaters, chunky knits, or cold-weather outerwear unless the user specifically requested them.',
@@ -137,6 +164,7 @@ export function buildGenerateOutfitsUserPrompt(
     isFemale && (profile as any)?.weightDistribution ? buildFemaleWeightDistributionGuidance((profile as any).weightDistribution) : null,
     styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
     isManualSeason && effectiveSeason ? buildSeasonInstruction(effectiveSeason, true) : null,
+    buildOptionalItemsRule({ includeBag: !!input.includeBag, includeHat: !!input.includeHat, gender: profile?.gender }),
     'Styling request:',
     ...anchorItems.map(
       (item, index) =>
@@ -193,6 +221,11 @@ export function buildRegenerateTierUserPrompt(input: {
     isFemale && input.profile?.bodyType ? buildFemaleBodyTypeGuidance(input.profile.bodyType) : null,
     isFemale && (input.profile as any)?.weightDistribution ? buildFemaleWeightDistributionGuidance((input.profile as any).weightDistribution) : null,
     input.styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
+    buildOptionalItemsRule({
+      includeBag: !!input.existing.input.includeBag,
+      includeHat: !!input.existing.input.includeHat,
+      gender: input.profile?.gender,
+    }),
     'Original styling request:',
     ...(input.existing.input.anchorItems?.length
       ? input.existing.input.anchorItems.map(

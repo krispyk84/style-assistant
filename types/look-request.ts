@@ -113,6 +113,10 @@ export type CreateLookInput = {
   weatherContext?: WeatherContext | null;
   /** Season explicitly selected by the user in the create-look form. Takes precedence over weather-derived season in prompt logic. */
   manualSeason?: WeatherSeason | null;
+  /** User opted to have an outfit-appropriate bag included in the generated look. */
+  includeBag?: boolean;
+  /** User opted to have an outfit-appropriate hat included in the generated look. */
+  includeHat?: boolean;
 };
 
 export type LookTierDefinition = {

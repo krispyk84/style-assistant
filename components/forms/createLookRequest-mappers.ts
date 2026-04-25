@@ -38,8 +38,10 @@ export function buildSubmitRouteParams(params: {
   shouldAddAnchorToCloset: boolean;
   weatherContext: WeatherContext | null;
   manualSeason: WeatherSeason | null;
+  includeBag: boolean;
+  includeHat: boolean;
 }) {
-  const { populatedAnchorItems, vibeKeywords, selectedTiers, shouldAddAnchorToCloset, weatherContext, manualSeason } = params;
+  const { populatedAnchorItems, vibeKeywords, selectedTiers, shouldAddAnchorToCloset, weatherContext, manualSeason, includeBag, includeHat } = params;
 
   const SEASON_HINT: Record<WeatherSeason, string> = {
     spring: 'Mild transitional weather — light layers appropriate.',
@@ -84,6 +86,8 @@ export function buildSubmitRouteParams(params: {
       selectedTiers,
       weatherContext: effectiveWeatherContext,
       manualSeason,
+      includeBag,
+      includeHat,
     }),
     addAnchorToCloset: shouldAddAnchorToCloset ? 'true' : undefined,
   };

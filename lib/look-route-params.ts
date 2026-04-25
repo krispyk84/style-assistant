@@ -44,4 +44,6 @@ export type LookRouteParams = {
   weatherFetchedAt?: string;
   addAnchorToCloset?: string;
   manualSeason?: string;
+  includeBag?: string;
+  includeHat?: string;
 };

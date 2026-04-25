@@ -168,6 +168,8 @@ export const outfitsService = {
         selectedTiers,
         weatherContext: input.weatherContext ?? null,
         manualSeason: input.manualSeason ?? null,
+        includeBag: input.includeBag ?? false,
+        includeHat: input.includeHat ?? false,
       },
       recommendations: tiersToGenerate.map((tier) => {
         const recommendation = recommendationMap.get(tier);

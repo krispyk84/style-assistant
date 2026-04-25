@@ -11,6 +11,8 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
   const [tierError, setTierError] = useState<string | null>(null);
   const [selectedSeason, setSelectedSeason] = useState<WeatherSeason | null>(null);
   const [isSeasonExpanded, setIsSeasonExpanded] = useState(false);
+  const [includeBag, setIncludeBag] = useState<boolean>(initialValue.includeBag ?? false);
+  const [includeHat, setIncludeHat] = useState<boolean>(initialValue.includeHat ?? false);
 
   function toggleTier(tier: LookTierSlug) {
     setSelectedTiers((current) => {
@@ -44,6 +46,8 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
     tierError,
     selectedSeason,
     isSeasonExpanded,
+    includeBag,
+    includeHat,
     // Setters
     setVibeKeywords,
     setIsKeywordsExpanded,
@@ -53,5 +57,7 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
     // Mutations
     toggleTier,
     toggleVibeKeyword,
+    toggleIncludeBag: () => setIncludeBag((v) => !v),
+    toggleIncludeHat: () => setIncludeHat((v) => !v),
   };
 }

@@ -46,6 +46,8 @@ export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE }: 
         shouldAddAnchorToCloset: anchorForm.shouldAddAnchorToCloset,
         weatherContext,
         manualSeason: lookForm.selectedSeason,
+        includeBag: lookForm.includeBag,
+        includeHat: lookForm.includeHat,
       }),
     });
   }
@@ -82,6 +84,11 @@ export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE }: 
       selectedTiers={lookForm.selectedTiers}
       tierError={lookForm.tierError}
       onToggleTier={lookForm.toggleTier}
+      // Optional items
+      includeBag={lookForm.includeBag}
+      includeHat={lookForm.includeHat}
+      onToggleIncludeBag={lookForm.toggleIncludeBag}
+      onToggleIncludeHat={lookForm.toggleIncludeHat}
       // Submit
       hasAnyInput={anchorForm.populatedAnchorItems.length > 0}
       onContinue={() => void handleContinue()}

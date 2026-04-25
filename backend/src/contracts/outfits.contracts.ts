@@ -42,6 +42,10 @@ export type GenerateOutfitsRequest = {
   } | null;
   /** Season explicitly selected by the user. When present, overrides weather-driven styling in the prompt. */
   manualSeason?: 'winter' | 'spring' | 'summer' | 'fall' | null;
+  /** User opted to have an outfit-appropriate bag included in the generated look. */
+  includeBag?: boolean;
+  /** User opted to have an outfit-appropriate hat included in the generated look. */
+  includeHat?: boolean;
 };
 
 export type TierRecommendationDto = {
@@ -78,6 +82,8 @@ export type OutfitResponse = {
     selectedTiers: OutfitTierSlug[];
     weatherContext?: GenerateOutfitsRequest['weatherContext'];
     manualSeason?: GenerateOutfitsRequest['manualSeason'];
+    includeBag?: boolean;
+    includeHat?: boolean;
   };
   recommendations: TierRecommendationDto[];
 };

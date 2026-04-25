@@ -60,6 +60,11 @@ export type CreateLookRequestFormViewProps = {
   selectedTiers: LookTierSlug[];
   tierError: string | null;
   onToggleTier: (tier: LookTierSlug) => void;
+  // Optional items
+  includeBag: boolean;
+  includeHat: boolean;
+  onToggleIncludeBag: () => void;
+  onToggleIncludeHat: () => void;
   // Submit
   hasAnyInput: boolean;
   onContinue: () => void;
@@ -92,6 +97,10 @@ export function CreateLookRequestFormView({
   selectedTiers,
   tierError,
   onToggleTier,
+  includeBag,
+  includeHat,
+  onToggleIncludeBag,
+  onToggleIncludeHat,
   hasAnyInput,
   onContinue,
 }: CreateLookRequestFormViewProps) {
@@ -295,6 +304,33 @@ export function CreateLookRequestFormView({
             </View>
           </View>
         ) : null}
+      </View>
+
+      {/* Optional Items */}
+      <View style={{ gap: spacing.md }}>
+        <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Optional Items</AppText>
+        <View style={{
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.border,
+          borderRadius: 18,
+          borderWidth: 1,
+          gap: spacing.xs,
+          padding: spacing.md,
+        }}>
+          <OptionalItemRow
+            label="Include a bag"
+            description="We'll pick a bag type that suits the look."
+            checked={includeBag}
+            onToggle={onToggleIncludeBag}
+          />
+          <View style={{ backgroundColor: theme.colors.border, height: 1, marginVertical: spacing.xs }} />
+          <OptionalItemRow
+            label="Include a hat"
+            description="We'll choose a hat that matches the styling direction."
+            checked={includeHat}
+            onToggle={onToggleIncludeHat}
+          />
+        </View>
       </View>
 
       {/* Occasion Formality */}
@@ -561,6 +597,48 @@ function AnchorItemCard({
         ) : null}
       </View>
     </View>
+  );
+}
+
+// ── OptionalItemRow ───────────────────────────────────────────────────────────
+
+function OptionalItemRow({
+  label,
+  description,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={label}
+      onPress={onToggle}
+      style={{
+        alignItems: 'center',
+        flexDirection: 'row',
+        gap: spacing.sm,
+        paddingVertical: spacing.xs,
+      }}>
+      <AppIcon
+        color={checked ? theme.colors.accent : theme.colors.mutedText}
+        name={checked ? 'check-circle' : 'circle'}
+        size={22}
+      />
+      <View style={{ flex: 1, gap: 2 }}>
+        <AppText style={{ color: theme.colors.text, fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>
+          {label}
+        </AppText>
+        <AppText tone="muted" style={{ fontSize: 12, lineHeight: 17 }}>
+          {description}
+        </AppText>
+      </View>
+    </Pressable>
   );
 }
 
