@@ -638,7 +638,7 @@ function ManualPanel({
 
       {/* Hint chips */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
-        {(['top', 'bottom', 'shoes', 'outerwear'] as AnchorCategory[]).map((cat) => {
+        {(['top', 'bottom', 'shoes', 'outerwear', 'bag'] as AnchorCategory[]).map((cat) => {
           const hasCat = anchors.some((a) => a.category === cat);
           return (
             <View

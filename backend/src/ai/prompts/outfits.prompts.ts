@@ -64,6 +64,26 @@ export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[]
     'IMPORTANT — anchor deduplication: the anchor item must NOT appear in keyPieces. keyPieces contains only supporting pieces that complement the anchor. If the anchor is a shirt, do not add the same shirt again as a keyPiece top.',
     'IMPORTANT — anchorPiece field: always populate anchorPiece with a structured representation of the anchor item. display_name must match the anchorItem string. metadata.category must be the exact enum value that best fits the anchor (e.g. "Knitwear" for a quarter-zip, "Outerwear" for a bomber, "Trousers" for cargo pants). metadata.color is the dominant color. metadata.formality must match the tier.',
     'IMPORTANT — category assignment reflects item TYPE, not material: a merino wool tie is "Tie", not "Knitwear"; a cashmere pocket square is "Scarf" or "Tie", not "Knitwear"; a leather belt is "Belt"; a silk scarf is "Scarf". Never assign "Knitwear" to accessories just because they contain wool, merino, or cashmere.',
+    buildBagSelectionRule(gender),
+  ].join(' ');
+}
+
+/**
+ * Bag selection rule — discourages the canvas-tote default and picks the bag
+ * TYPE based on tier formality, anchor piece, and gender mode.
+ */
+function buildBagSelectionRule(gender?: string | null): string {
+  const isMens = gender !== 'woman';
+  const mensBias = isMens
+    ? 'For menswear profiles, choose briefcase, structured work bag, messenger, backpack, weekender, holdall, slim crossbody, or shoulder bag — avoid clutches, top-handle handbags, hobo bags, and other feminine-coded silhouettes.'
+    : 'For womenswear profiles, the bag silhouette should reinforce the outfit — structured top-handle or shoulder bag for refined looks, clutch or small structured bag for evening, soft shoulder bag or hobo for relaxed daytime, backpack or sling for active days, briefcase or structured work bag for business.';
+  return [
+    'IMPORTANT — bag selection (when accessories include a bag): the bag is a deliberate styling choice, not a fallback.',
+    'Do NOT default to "natural canvas tote", "canvas tote", or any generic tote unless the outfit\'s tier and anchor genuinely call for that exact piece (e.g. an explicitly stated weekend-uniform brief).',
+    'Choose the bag TYPE by tier and occasion: business → briefcase, structured work bag, slim leather messenger, or refined laptop bag; smart-casual → leather shoulder bag, top-handle, messenger, soft tote in an elevated material, or refined crossbody; casual → varies (suede shoulder bag, leather crossbody, structured backpack, technical sling, etc.) chosen for the outfit\'s palette and material story.',
+    mensBias,
+    'The bag must specify color and material (e.g. "Tan grained-leather briefcase", "Espresso suede shoulder bag", "Black nappa clutch") — never a vague description like "tote bag" or "canvas tote" without justification.',
+    'When the user provides anchor metadata indicating the outfit already includes a bag, build around that bag instead of introducing a different one.',
   ].join(' ');
 }
 
@@ -151,6 +171,7 @@ export function buildRegenerateTierInstructions(gender?: string | null) {
     'The new recommendation must stay faithful to the anchor item and overall wardrobe direction while being materially different from the previous version.',
     'If vibe keywords were provided, keep them prominent in the regenerated outfit.',
     'Do not repeat the previous title or the exact same key pieces.',
+    buildBagSelectionRule(gender),
   ].join(' ');
 }
 

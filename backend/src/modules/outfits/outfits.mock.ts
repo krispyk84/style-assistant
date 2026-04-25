@@ -95,7 +95,7 @@ const recommendationVariants: Record<
       ],
       shoes: [p('White leather low-top sneaker', 'Sneakers', 'White', 'Casual', 'Leather')],
       accessories: [
-        p('Natural canvas tote', 'Bag', 'Stone', 'Casual', 'Canvas'),
+        p('Cognac suede shoulder bag', 'Bag', 'Brown', 'Casual', 'Suede'),
         p('Simple black sunglasses', 'Sunglasses', 'Black', 'Casual'),
       ],
       fitNotes: ['Let the denim sit straight', 'The tee should skim the torso', 'Keep the sneaker clean'],

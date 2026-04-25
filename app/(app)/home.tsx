@@ -89,8 +89,10 @@ export default function HomeScreen() {
               }}
             />
 
-            {/* Default placeholder — shown only when no saved-outfit image is ready */}
-            {(!isResolved || !currentImageUrl) && (
+            {/* Default placeholder — shown only after we've confirmed there are no
+                saved looks. Hidden during the initial async resolution so the card
+                never flashes the default before swapping to a saved-look image. */}
+            {isResolved && !currentImageUrl && (
               <Image
                 contentFit="cover"
                 source={

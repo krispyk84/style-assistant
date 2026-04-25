@@ -9,7 +9,8 @@ export type AnchorCategory =
   | 'shoes'
   | 'formal-top'
   | 'evening-top'
-  | 'dress';
+  | 'dress'
+  | 'bag';
 
 export type AnchorSlot = {
   id: string;
@@ -67,6 +68,7 @@ const DEFAULT_CATEGORY_KEYWORDS: Record<AnchorCategory, string[]> = {
   'formal-top': ['blazer', 'shirt', 'blouse', 'suit', 'formal'],
   'evening-top':['blouse', 'top', 'shirt', 'dress'],
   dress:        ['dress', 'jumpsuit', 'romper', 'overalls'],
+  bag:          ['bag', 'tote', 'backpack', 'briefcase', 'handbag', 'satchel', 'crossbody', 'messenger', 'weekender', 'duffel', 'clutch', 'shoulder bag', 'holdall', 'pouch'],
 };
 
 /**
@@ -82,6 +84,8 @@ const MENSWEAR_CATEGORY_KEYWORDS: Record<AnchorCategory, string[]> = {
   'evening-top':['shirt', 'polo', 'top', 'knit', 'turtleneck', 'henley'],
   // 'dress' intentionally has no menswear keywords — mens mode never matches this
   dress:        [],
+  // Menswear-friendly bag types — excludes handbag/clutch which read feminine
+  bag:          ['bag', 'backpack', 'briefcase', 'satchel', 'crossbody', 'messenger', 'weekender', 'duffel', 'shoulder bag', 'holdall', 'tote', 'pouch'],
 };
 
 function getCategoryKeywords(category: AnchorCategory, gender?: string): string[] {
@@ -245,6 +249,64 @@ export function rankCandidatesForSlot(
   return matching
     .map((item) => scoreClosetItemForSlot(item, slot, ctx))
     .sort((a, b) => b.score - a.score);
+}
+
+// ── Bag slot builder ───────────────────────────────────────────────────────────
+
+/**
+ * Build a context-aware bag anchor slot.
+ *
+ * Picks the bag *type* (briefcase / backpack / weekender / shoulder bag / etc.)
+ * that fits the trip's primary purpose, formality, and gender mode. Never
+ * defaults to "canvas tote" — the type is always intentionally chosen.
+ */
+function buildBagSlot(ctx: TripAnchorContext): AnchorSlot {
+  const isMens = ctx.gender === 'man';
+  const isBusiness  = ctx.purposes.some((p) => ['Business', 'Conference'].includes(p));
+  const isAdventure = ctx.purposes.some((p) => p === 'Adventure');
+  const isBeach     = ctx.purposes.some((p) => p === 'Beach / Resort');
+  const isFormal    = ctx.purposes.some((p) => p === 'Wedding / Event');
+  const isPolished  = ctx.styleVibe === 'Polished';
+  const isWarm = ctx.avgHighC !== undefined
+    ? ctx.avgHighC >= 21
+    : /warm|hot|tropical|humid|beach|sunny/i.test(ctx.climateLabel);
+
+  let label: string;
+  let rationale: string;
+
+  if (isBusiness) {
+    label     = isMens ? 'Briefcase or structured work bag' : 'Structured work bag or slim briefcase';
+    rationale = 'Carries laptop and documents while keeping the look polished';
+  } else if (isFormal) {
+    label     = isMens ? 'Slim leather pouch or document holder for the event' : 'Clutch or small structured evening bag';
+    rationale = 'Keeps the formal silhouette uncluttered';
+  } else if (isAdventure) {
+    label     = 'Practical backpack or daypack';
+    rationale = 'Hands-free carry for active days and uneven terrain';
+  } else if (isBeach && isWarm) {
+    label     = isMens ? 'Lightweight tote or beach-friendly crossbody' : 'Roomy summer tote or beach-friendly crossbody';
+    rationale = 'Holds sun gear and is easy to clean';
+  } else if (ctx.carryOnOnly && ctx.numDays >= 3) {
+    label     = isMens ? 'Weekender or duffel that fits as a personal item' : 'Weekender or carry-all that fits as a personal item';
+    rationale = 'Doubles as your travel-day bag';
+  } else if (isPolished) {
+    label     = isMens ? 'Refined leather shoulder bag or messenger' : 'Refined leather shoulder bag or top-handle';
+    rationale = 'Pairs cleanly with elevated daytime looks';
+  } else {
+    label     = isMens ? 'Versatile shoulder bag or messenger' : 'Versatile day bag or shoulder bag';
+    rationale = 'Pairs with most outfits across the trip';
+  }
+
+  return { id: 'bag-1', category: 'bag', label, rationale, required: false };
+}
+
+/** Whether this trip context warrants suggesting a bag anchor at all. */
+function shouldSuggestBag(ctx: TripAnchorContext): boolean {
+  const isBusiness  = ctx.purposes.some((p) => ['Business', 'Conference'].includes(p));
+  const isAdventure = ctx.purposes.some((p) => p === 'Adventure');
+  const isBeach     = ctx.purposes.some((p) => p === 'Beach / Resort');
+  const isFormal    = ctx.purposes.some((p) => p === 'Wedding / Event');
+  return isBusiness || isAdventure || isBeach || isFormal || ctx.numDays >= 3;
 }
 
 // ── Recommender ────────────────────────────────────────────────────────────────
@@ -438,6 +500,15 @@ export function recommendTripAnchors(ctx: TripAnchorContext): AnchorRecommendati
     });
   }
 
+  // ── Slot 8: Bag (optional, context-aware) ─────────────────────────────────
+  // Bag adds capacity rather than displacing other anchors, since it's a
+  // genuinely separate piece type and most real trips need one.
+  const wantsBag = shouldSuggestBag(ctx);
+  if (wantsBag) {
+    maxCount += 1;
+    slots.push(buildBagSlot(ctx));
+  }
+
   // Trim to maxCount
   const finalSlots = slots.slice(0, maxCount);
 
@@ -511,6 +582,13 @@ export function nextAnchorSlot(
       category: 'shoes',
       label:    isMens ? 'Second shoe option' : 'Second pair of shoes',
       rationale: 'Alternates between casual and dressier looks',
+      required: false,
+    },
+    {
+      id:       `extra-${extraCount}`,
+      category: 'bag',
+      label:    isMens ? 'Additional bag for the trip' : 'Additional bag option',
+      rationale: 'Switch between day and evening looks, or daytime and active needs',
       required: false,
     },
   ];
