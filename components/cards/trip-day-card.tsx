@@ -6,7 +6,8 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import { findBestClosetMatch } from '@/lib/closet-match';
+import { buildMatchedItemNameSet } from '@/lib/trip-closet-matches';
+import { buildTripOutfitGroups, getTripDayItemNames } from '@/lib/trip-outfit-display';
 import type { TripOutfitDay } from '@/services/trip-outfits';
 import type { ClosetItem } from '@/types/closet';
 
@@ -28,47 +29,6 @@ const DAY_TYPE_LABELS: Record<TripOutfitDay['dayType'], string> = {
   relaxed:       'Relaxed',
   conference:    'Conference',
 };
-
-// ── Outfit section grouping ───────────────────────────────────────────────────
-
-type OutfitGroup = { label: string; items: string[] };
-
-const OUTERWEAR_KEYWORDS = ['jacket', 'coat', 'blazer', 'cardigan', 'hoodie', 'windbreaker', 'parka', 'vest', 'puffer', 'trench', 'overcoat', 'jumper'];
-const TOP_KEYWORDS = ['shirt', 'tee', 't-shirt', 'blouse', 'top', 'sweater', 'polo', 'tank', 'turtleneck', 'henley', 'pullover'];
-const BOTTOM_KEYWORDS = ['trouser', 'trousers', 'jeans', 'shorts', 'skirt', 'chino', 'chinos', 'legging', 'leggings', 'jogger', 'joggers', 'pant', 'pants', 'culottes', 'midi', 'maxi'];
-const DRESS_KEYWORDS = ['dress', 'jumpsuit', 'romper', 'overalls'];
-const SWIM_KEYWORDS = ['swimsuit', 'bikini', 'boardshort', 'swim trunks', 'one-piece', 'swimwear', 'wetsuit'];
-
-function categorizePiece(piece: string): string {
-  const lower = piece.toLowerCase();
-  if (SWIM_KEYWORDS.some((k) => lower.includes(k))) return 'Swimwear';
-  if (OUTERWEAR_KEYWORDS.some((k) => lower.includes(k))) return 'Outerwear';
-  if (DRESS_KEYWORDS.some((k) => lower.includes(k))) return 'Dress / Jumpsuit';
-  if (TOP_KEYWORDS.some((k) => lower.includes(k))) return 'Top';
-  if (BOTTOM_KEYWORDS.some((k) => lower.includes(k))) return 'Bottom';
-  return 'Top'; // fallback
-}
-
-function buildOutfitGroups(day: TripOutfitDay): OutfitGroup[] {
-  const groupMap: Record<string, string[]> = {};
-
-  for (const piece of (day.pieces ?? [])) {
-    if (!piece) continue;
-    const cat = categorizePiece(piece);
-    (groupMap[cat] ??= []).push(piece);
-  }
-
-  const groups: OutfitGroup[] = [];
-  for (const label of ['Swimwear', 'Outerwear', 'Dress / Jumpsuit', 'Top', 'Bottom']) {
-    if (groupMap[label]?.length) groups.push({ label, items: groupMap[label]! });
-  }
-
-  if (day.shoes) groups.push({ label: 'Shoes', items: [day.shoes] });
-  if (day.bag) groups.push({ label: 'Bag', items: [day.bag] });
-  if ((day.accessories ?? []).length) groups.push({ label: 'Accessories', items: day.accessories });
-
-  return groups;
-}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -95,22 +55,12 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
   const isLoved = day.feedback === 'love';
   const isHated = day.feedback === 'hate';
 
-  const outfitGroups = buildOutfitGroups(day);
+  const outfitGroups = buildTripOutfitGroups(day);
 
   // Pre-compute which items have a closet match (keyed by item string)
   const closetMatches = useMemo(() => {
-    if (!closetItems?.length) return new Set<string>();
-    const matched = new Set<string>();
-    for (const piece of (day.pieces ?? [])) {
-      if (piece && findBestClosetMatch(piece, closetItems)) matched.add(piece);
-    }
-    if (day.shoes && findBestClosetMatch(day.shoes, closetItems)) matched.add(day.shoes);
-    if (day.bag && findBestClosetMatch(day.bag, closetItems)) matched.add(day.bag);
-    for (const acc of (day.accessories ?? [])) {
-      if (acc && findBestClosetMatch(acc, closetItems)) matched.add(acc);
-    }
-    return matched;
-  }, [day.pieces, day.shoes, day.bag, day.accessories, closetItems]);
+    return buildMatchedItemNameSet(getTripDayItemNames(day), closetItems);
+  }, [day, closetItems]);
 
   // Animate layout when sketch becomes ready so the card expands smoothly.
   const prevHasSketch = useRef(hasSketch);
