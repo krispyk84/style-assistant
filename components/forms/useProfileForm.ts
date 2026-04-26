@@ -72,7 +72,6 @@ export function useProfileForm(initialValue: Profile = defaultProfile) {
     setHeightInches('');
     setWeightUnit('kg');
     setWeightValue(initialWeightValue(initialValue.weightKg));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialValue]);
 
   function updateField<K extends keyof Profile>(key: K, value: Profile[K]) {
@@ -172,7 +171,6 @@ export function useProfileForm(initialValue: Profile = defaultProfile) {
         onChange: (value) => updateField('skinTone', value as Profile['skinTone']),
       },
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [profile],
   );
 

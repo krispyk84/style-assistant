@@ -1,6 +1,13 @@
 import { router } from 'expo-router';
 import { useCallback, type PropsWithChildren, type RefObject, useState } from 'react';
-import { Pressable, ScrollView, View, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  View,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
+  type ScrollViewProps,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/app-icon';
@@ -19,11 +26,22 @@ type AppScreenProps = PropsWithChildren<{
   scrollRef?: RefObject<ScrollView>;
   /** Optional scroll handler forwarded to the inner ScrollView. */
   onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  /** Optional refresh control forwarded to the inner ScrollView. */
+  refreshControl?: ScrollViewProps['refreshControl'];
 }>;
 
 const FLOATING_BACK_THRESHOLD = 80;
 
-export function AppScreen({ children, scrollable = false, topInset = true, floatingBack = false, backButton = false, scrollRef, onScroll }: AppScreenProps) {
+export function AppScreen({
+  children,
+  scrollable = false,
+  topInset = true,
+  floatingBack = false,
+  backButton = false,
+  scrollRef,
+  onScroll,
+  refreshControl,
+}: AppScreenProps) {
   const [showFloatingBack, setShowFloatingBack] = useState(false);
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
@@ -80,6 +98,7 @@ export function AppScreen({ children, scrollable = false, topInset = true, float
           contentContainerStyle={{ flexGrow: 1 }}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
+          refreshControl={refreshControl}
           showsVerticalScrollIndicator={false}
           {...scrollProps}>
           {content}

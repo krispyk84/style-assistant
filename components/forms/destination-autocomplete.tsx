@@ -59,7 +59,7 @@ export function DestinationAutocomplete({ value, onChange }: Props) {
         const data = await destinationService.search(inputText);
         setResults(data);
         setIsOpen(data.length > 0);
-      } catch (e) {
+      } catch {
         setError('Could not load suggestions. Check your connection.');
         setIsOpen(true); // keep dropdown open so error is visible
       } finally {

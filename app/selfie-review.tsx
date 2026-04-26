@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';

@@ -53,7 +53,7 @@ export function StylistOpinionResultView({ result, onReset }: StylistOpinionResu
           padding: spacing.md,
         }}>
         <AppText tone="muted" style={{ fontStyle: 'italic', lineHeight: 24 }}>
-          "{result.perspective}"
+          &quot;{result.perspective}&quot;
         </AppText>
       </View>
 

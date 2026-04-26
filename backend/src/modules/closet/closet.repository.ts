@@ -64,10 +64,12 @@ export const closetRepository = {
   },
 
   async updateItem(id: string, supabaseUserId: string, data: {
-    title: string;
-    brand: string;
-    size: string;
-    category: string;
+    title?: string;
+    brand?: string;
+    size?: string;
+    category?: string;
+    uploadedImageUrl?: string;
+    sketchImageUrl?: string;
   } & ClosetItemMetadata) {
     return prisma.closetItem.updateMany({ where: { id, supabaseUserId }, data });
   },

@@ -40,7 +40,6 @@ export function useAnchorItemsForm(initialValue: CreateLookInput) {
   // Reset checkbox if primary anchor no longer has a photo-based upload
   useEffect(() => {
     if (!showAddToClosetCheckbox) setShouldAddAnchorToCloset(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAddToClosetCheckbox]);
 
   // ── Anchor item mutations ───────────────────────────────────────────────────

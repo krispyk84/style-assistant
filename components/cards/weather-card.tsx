@@ -100,7 +100,7 @@ export function WeatherCard({ weather, isLoading = false, errorMessage }: Weathe
                   paddingLeft: spacing.md,
                 }}>
                 <AppText tone="muted" style={{ fontStyle: 'italic', lineHeight: 22 }}>
-                  "{weather.stylingHint}"
+                  &quot;{weather.stylingHint}&quot;
                 </AppText>
               </View>
             ) : null}

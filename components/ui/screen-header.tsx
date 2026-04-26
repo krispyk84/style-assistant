@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/app-icon';
-import { spacing, theme } from '@/constants/theme';
+import { theme } from '@/constants/theme';
 import { AppText } from '@/components/ui/app-text';
 
 type ScreenHeaderProps = {

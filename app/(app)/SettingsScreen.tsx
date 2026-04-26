@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { PanResponder, Pressable, View } from 'react-native';
+import { PanResponder, Pressable, View, type DimensionValue } from 'react-native';
 
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
@@ -191,7 +191,7 @@ function SensitivitySlider({ value, onChange }: { value: number; onChange: (v: n
     })
   ).current;
 
-  const thumbPercent = `${value}%`;
+  const thumbPercent = `${value}%` as DimensionValue;
 
   return (
     <View

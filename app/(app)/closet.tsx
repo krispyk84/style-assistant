@@ -31,7 +31,6 @@ export default function ClosetScreen() {
     filterModalVisible, setFilterModalVisible,
     addModalVisible, setAddModalVisible,
     editingItem, setEditingItem,
-    displayItems: _displayItems,
     filteredRows,
     flatListRef, sectionListRef,
   } = useClosetNavigation({ items, sections });

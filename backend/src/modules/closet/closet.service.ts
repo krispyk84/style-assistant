@@ -197,6 +197,8 @@ export const closetService = {
       brand: payload.brand,
       size: payload.size,
       category: payload.category,
+      uploadedImageUrl: payload.uploadedImageUrl,
+      sketchImageUrl: payload.sketchImageUrl,
       subcategory: payload.subcategory,
       primaryColor: payload.primaryColor,
       colorFamily: payload.colorFamily,

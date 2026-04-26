@@ -1,10 +1,10 @@
-import { ActivityIndicator, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 
 import { AppIcon, type AppIconName } from '@/components/ui/app-icon';
 
 import { spacing, theme } from '@/constants/theme';
-import type { CreateLookInput, LookAnchorItem, LookTierSlug } from '@/types/look-request';
+import type { LookAnchorItem, LookTierSlug } from '@/types/look-request';
 import { LOOK_TIER_OPTIONS } from '@/types/look-request';
 import type { WeatherSeason } from '@/types/weather';
 import { AppText } from '@/components/ui/app-text';

@@ -1,5 +1,4 @@
-import { useEffect, type MutableRefObject } from 'react';
-import type { Dispatch, SetStateAction } from 'react';
+import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 
 import { outfitsService } from '@/services/outfits';
 import type { GenerateOutfitsResponse } from '@/types/api';

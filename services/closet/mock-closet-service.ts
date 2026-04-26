@@ -126,10 +126,12 @@ export const mockClosetService: ClosetService = {
     }
     const updated: ClosetItem = {
       ...existing,
-      title: request.title,
-      brand: request.brand,
-      size: request.size,
-      category: request.category,
+      title: request.title ?? existing.title,
+      brand: request.brand ?? existing.brand,
+      size: request.size ?? existing.size,
+      category: request.category ?? existing.category,
+      uploadedImageUrl: request.uploadedImageUrl ?? existing.uploadedImageUrl,
+      sketchImageUrl: request.sketchImageUrl ?? existing.sketchImageUrl,
       subcategory: request.subcategory ?? existing.subcategory,
       primaryColor: request.primaryColor ?? existing.primaryColor,
       colorFamily: (request.colorFamily ?? existing.colorFamily) as ClosetItem['colorFamily'],

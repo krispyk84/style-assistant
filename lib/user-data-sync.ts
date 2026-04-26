@@ -16,7 +16,9 @@ const SESSION_KEY = 'style-assistant/session';
 
 /** Wipes all per-user local data. Call on sign-out so the next user starts clean. */
 export async function clearAllLocalUserData(): Promise<void> {
-  await AsyncStorage.multiRemove([CLOSET_KEY, OUTFITS_KEY, WEEK_KEY, SESSION_KEY]);
+  await Promise.all(
+    [CLOSET_KEY, OUTFITS_KEY, WEEK_KEY, SESSION_KEY].map((key) => AsyncStorage.removeItem(key)),
+  );
 }
 
 /**
