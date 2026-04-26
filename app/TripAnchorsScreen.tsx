@@ -17,11 +17,10 @@ import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
-import { useImagePicker } from '@/hooks/use-image-picker';
-import type { LocalImageAsset } from '@/types/media';
+import { useUploadedImage } from '@/hooks/use-uploaded-image';
+import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 import type { TripDraft } from '@/lib/trip-draft-storage';
 import { tripDraftStorage } from '@/lib/trip-draft-storage';
-import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
 import {
   nextAnchorSlot,
   rankCandidatesForSlot,
@@ -35,7 +34,6 @@ import type {
 } from '@/lib/trip-anchor-recommender';
 import { closetService } from '@/services/closet';
 import { saveTripPlanDraft, saveTripPlanAnchors } from '@/services/trip-plans';
-import { tripOutfitsService } from '@/services/trip-outfits';
 import type { TripAnchorInput } from '@/services/trip-outfits';
 import type { ClosetItem } from '@/types/closet';
 
@@ -53,6 +51,8 @@ type SelectedAnchor = {
   closetItemTitle?: string;
   closetItemImageUrl?: string;
   localImageUri?: string;
+  uploadedImageId?: string;
+  imageUrl?: string;
   rationale?: string;
   /** What the slot is looking for (displayed above the item name in auto mode). */
   slotLabel?: string;
@@ -73,7 +73,7 @@ function AnchorChip({
   onRemove: () => void;
 }) {
   const { theme } = useTheme();
-  const imageUri = anchor.closetItemImageUrl ?? anchor.localImageUri;
+  const imageUri = anchor.closetItemImageUrl ?? anchor.localImageUri ?? anchor.imageUrl;
 
   return (
     <View style={{
@@ -458,12 +458,12 @@ function AutoPanel({
       }}>
         <AppIcon name="sparkles" color={theme.colors.accent} size={13} />
         <AppText style={{ flex: 1, color: theme.colors.mutedText, fontSize: 12, lineHeight: 18 }}>
-          We'll build your outfits around these core pieces. Tap "Try something else" to swap any anchor.
+          We will build your outfits around these core pieces. Use Try something else to swap any anchor.
         </AppText>
       </View>
 
       {anchors.map((anchor) => {
-        const imageUri = anchor.source !== 'ai_suggested' ? (anchor.closetItemImageUrl ?? anchor.localImageUri) : undefined;
+        const imageUri = anchor.source !== 'ai_suggested' ? (anchor.closetItemImageUrl ?? anchor.localImageUri ?? anchor.imageUrl) : undefined;
         return (
           <View
             key={anchor.id}
@@ -691,7 +691,7 @@ function ManualPanel({
 
       {atCap && (
         <AppText style={{ color: theme.colors.accent, fontSize: 12, textAlign: 'center' }}>
-          You've reached the maximum number of anchors for this trip.
+          You have reached the maximum number of anchors for this trip.
         </AppText>
       )}
     </View>
@@ -769,19 +769,24 @@ export function TripAnchorsScreen() {
 
   // ── Image picker ────────────────────────────────────────────────────────────
 
-  const { image: pickedImage, pickFromLibrary, takePhoto } = useImagePicker();
+  const {
+    image: pickedImage,
+    uploadedImage,
+    pickFromLibrary,
+    takePhoto,
+  } = useUploadedImage('anchor-item');
   const pendingSlotRef = useRef<{ slotId: string; mode: AnchorMode; imageSource: 'camera' | 'library' } | null>(null);
-  const prevImageUriRef = useRef<string | null>(null);
+  const prevUploadedImageIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!pickedImage?.uri || pickedImage.uri === prevImageUriRef.current) return;
-    prevImageUriRef.current = pickedImage.uri;
+    if (!uploadedImage?.id || uploadedImage.id === prevUploadedImageIdRef.current) return;
+    prevUploadedImageIdRef.current = uploadedImage.id;
     const pending = pendingSlotRef.current;
-    if (!pending) return;
+    if (!pending || !pickedImage) return;
     pendingSlotRef.current = null;
-    addAnchorFromLocalImage(pending.slotId, pending.mode, pending.imageSource, pickedImage);
+    addAnchorFromUploadedImage(pending.slotId, pending.mode, pending.imageSource, pickedImage, uploadedImage);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pickedImage?.uri]);
+  }, [uploadedImage?.id, pickedImage?.uri]);
 
   // ── Closet picker state ─────────────────────────────────────────────────────
 
@@ -851,7 +856,6 @@ export function TripAnchorsScreen() {
       }
     }
     return anchors;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -880,7 +884,13 @@ export function TripAnchorsScreen() {
     applyAnchorToMode(slotId, anchorMode, anchor, slotLabel);
   }
 
-  function addAnchorFromLocalImage(slotId: string, anchorMode: AnchorMode, imageSource: 'camera' | 'library', img: LocalImageAsset) {
+  function addAnchorFromUploadedImage(
+    slotId: string,
+    anchorMode: AnchorMode,
+    imageSource: 'camera' | 'library',
+    img: LocalImageAsset,
+    uploaded: UploadedImageAsset,
+  ) {
     const catHint = getSlotCategory(slotId, anchorMode);
     const anchor: SelectedAnchor = {
       id:           `anchor-${Date.now()}`,
@@ -889,6 +899,8 @@ export function TripAnchorsScreen() {
       category:     catHint ?? 'top',
       source:       imageSource,
       localImageUri: img.uri,
+      uploadedImageId: uploaded.id,
+      imageUrl:     uploaded.publicUrl,
     };
     applyAnchorToMode(slotId, anchorMode, anchor);
   }
@@ -1081,10 +1093,13 @@ export function TripAnchorsScreen() {
     setGenerateError(null);
 
     const anchorInputs: TripAnchorInput[] = activeAnchors.map((a) => ({
+      slotId:       a.slotId,
       label:        a.label,
       category:     a.category,
       source:       a.source as TripAnchorInput['source'],
       closetItemId: a.closetItemId,
+      uploadedImageId: a.uploadedImageId,
+      imageUrl:     a.imageUrl,
       rationale:    a.rationale,
     }));
 
@@ -1230,7 +1245,7 @@ export function TripAnchorsScreen() {
         )}
         {manualExceedsCap && (
           <AppText style={{ color: theme.colors.danger, fontSize: 13, textAlign: 'center' }}>
-            You've reached the maximum number of anchors for this trip.
+            You have reached the maximum number of anchors for this trip.
           </AppText>
         )}
 

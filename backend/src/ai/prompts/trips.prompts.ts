@@ -79,7 +79,12 @@ function buildTripContext(req: GenerateTripOutfitsRequest): string {
     lines.push('  The user has chosen these key pieces to anchor their trip wardrobe.');
     lines.push('  Re-use and style these pieces across multiple days where appropriate.');
     for (const anchor of req.anchors) {
-      const source = anchor.source === 'closet' ? ' (from closet)' : anchor.source === 'ai_suggested' ? ' (suggested)' : ' (user upload)';
+      const hasImageReference = Boolean(anchor.uploadedImageId || anchor.imageUrl);
+      const source = anchor.source === 'closet'
+        ? ' (from closet)'
+        : anchor.source === 'ai_suggested'
+          ? ' (suggested)'
+          : hasImageReference ? ' (user upload; see attached image)' : ' (user upload)';
       lines.push(`  - [${anchor.category}] ${anchor.label}${source}${anchor.rationale ? ` — ${anchor.rationale}` : ''}`);
     }
     if (req.anchorMode === 'guided') {

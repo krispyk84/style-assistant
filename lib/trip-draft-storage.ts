@@ -3,10 +3,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const STORAGE_KEY = 'style-assistant/trip-draft';
 
 type PendingAnchorInput = {
+  slotId?: string;
   label: string;
   category: string;
   source: 'closet' | 'camera' | 'library' | 'ai_suggested';
   closetItemId?: string;
+  uploadedImageId?: string;
+  imageUrl?: string;
   rationale?: string;
 };
 
