@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 
 import { SavedTripCard } from '@/components/cards/saved-trip-card';
@@ -14,37 +14,19 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { TextInput } from '@/components/ui/text-input';
 import { spacing, theme as staticTheme } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import { tripDraftStorage } from '@/lib/trip-draft-storage';
-import type { DestinationResult } from '@/services/destination';
-import { savedTripsService } from '@/services/saved-trips';
 import type { SavedTripSummary } from '@/services/saved-trips';
-import type { TravelClimateProfile } from '@/services/travel-climate';
-import { inferTravelClimate } from '@/services/travel-climate';
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-type YesNo = 'Yes' | 'No';
-type YesNoUnsure = 'Yes' | 'No' | 'Unsure';
-type TravelParty = 'Solo' | 'Couple' | 'Family' | 'Group';
-type ShoeCount = '1' | '2' | '3' | '4+';
-type StyleVibe = 'Relaxed' | 'Smart Cas' | 'Polished' | 'Mix';
-
-type TripPurpose =
-  | 'Business'
-  | 'Conference'
-  | 'Leisure'
-  | 'Wedding / Event'
-  | 'Beach / Resort'
-  | 'Adventure';
-
-const PURPOSES: TripPurpose[] = [
-  'Business',
-  'Conference',
-  'Leisure',
-  'Wedding / Event',
-  'Beach / Resort',
-  'Adventure',
-];
+import { useSavedTripsData } from './useSavedTripsData';
+import { useTravelPlannerForm } from './useTravelPlannerForm';
+import {
+  PURPOSES,
+  type PlannerTab,
+  type ShoeCount,
+  type StyleVibe,
+  type TravelParty,
+  type TripPurpose,
+  type YesNo,
+  type YesNoUnsure,
+} from './travel-planner-types';
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
@@ -115,8 +97,6 @@ function ChipGrid({
   );
 }
 
-type PlannerTab = 'new' | 'saved';
-
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 export default function TravelPlannerScreen() {
@@ -128,24 +108,62 @@ export default function TravelPlannerScreen() {
   // Set to true when we navigate to trip-anchors; on re-focus we reset the form
   const navigatedToAnchorsRef = useRef(false);
 
-  // Saved trips state
-  const [savedTrips, setSavedTrips] = useState<SavedTripSummary[]>([]);
-  const [savedTripsLoading, setSavedTripsLoading] = useState(false);
-  const [savedTripsError, setSavedTripsError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [pastExpanded, setPastExpanded] = useState(false);
+  const {
+    savedTrips,
+    savedTripsLoading,
+    savedTripsError,
+    pastExpanded,
+    setPastExpanded,
+    upcomingTrips,
+    pastTrips,
+    loadSavedTrips,
+    deleteSavedTrip,
+  } = useSavedTripsData();
 
-  function loadSavedTrips() {
-    setSavedTripsLoading(true);
-    setSavedTripsError(null);
-    savedTripsService.list().then((trips) => {
-      setSavedTrips(trips);
-    }).catch(() => {
-      setSavedTripsError('Could not load saved trips.');
-    }).finally(() => {
-      setSavedTripsLoading(false);
-    });
-  }
+  const plannerForm = useTravelPlannerForm();
+  const {
+    destination,
+    setDestination,
+    departureDate,
+    setDepartureDate,
+    returnDate,
+    setReturnDate,
+    travelParty,
+    setTravelParty,
+    purposes,
+    togglePurpose,
+    climate,
+    climateAutoFilled,
+    climateLoading,
+    handleClimateChange,
+    handleClimateRefresh,
+    activities,
+    setActivities,
+    dressCode,
+    setDressCode,
+    styleVibe,
+    setStyleVibe,
+    willSwim,
+    setWillSwim,
+    fancyNights,
+    setFancyNights,
+    workoutClothes,
+    setWorkoutClothes,
+    laundryAccess,
+    setLaundryAccess,
+    shoesCount,
+    setShoesCount,
+    carryOnOnly,
+    setCarryOnOnly,
+    specialNeeds,
+    setSpecialNeeds,
+    isSubmitting,
+    submitError,
+    exceedsMaxDays,
+    canSubmit,
+    resetForm,
+    saveDraft,
+  } = plannerForm;
 
   // Reload saved trips whenever this screen comes into focus; reset form if returning from anchors
   useFocusEffect(
@@ -153,55 +171,10 @@ export default function TravelPlannerScreen() {
       loadSavedTrips();
       if (navigatedToAnchorsRef.current) {
         navigatedToAnchorsRef.current = false;
-        setDestination(null);
-        setDepartureDate(null);
-        setReturnDate(null);
-        setTravelParty('Solo');
-        setPurposes([]);
-        setClimate('');
-        setClimateAutoFilled(false);
-        setClimateProfile(null);
-        climateManualRef.current = false;
-        setActivities('');
-        setDressCode('');
-        setStyleVibe('Mix');
-        setWillSwim('No');
-        setFancyNights('No');
-        setWorkoutClothes('No');
-        setLaundryAccess('Unsure');
-        setShoesCount('2');
-        setCarryOnOnly('No');
-        setSpecialNeeds('');
-        setSubmitError(null);
+        resetForm();
       }
-    }, [])
+    }, [loadSavedTrips, resetForm])
   );
-
-  function handleDeleteSavedTrip(id: string) {
-    if (deletingId) return;
-    Alert.alert(
-      'Delete Trip',
-      'Remove this saved trip? This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeletingId(id);
-            try {
-              await savedTripsService.delete(id);
-              setSavedTrips((prev) => prev.filter((t) => t.id !== id));
-            } catch {
-              // Fail silently
-            } finally {
-              setDeletingId(null);
-            }
-          },
-        },
-      ],
-    );
-  }
 
   function handleOpenSavedTrip(trip: SavedTripSummary) {
     router.push({
@@ -210,162 +183,12 @@ export default function TravelPlannerScreen() {
     });
   }
 
-  // Trip details
-  const [destination, setDestination] = useState<DestinationResult | null>(null);
-  const [departureDate, setDepartureDate] = useState<Date | null>(null);
-  const [returnDate, setReturnDate] = useState<Date | null>(null);
-  const [travelParty, setTravelParty] = useState<TravelParty>('Solo');
-  const [purposes, setPurposes] = useState<TripPurpose[]>([]);
-
-  function togglePurpose(v: TripPurpose) {
-    setPurposes((prev) => prev.includes(v) ? prev.filter((p) => p !== v) : [...prev, v]);
-  }
-
-  // Packing context — climate is auto-filled from destination + dates
-  const [climate, setClimate] = useState('');
-  const [climateAutoFilled, setClimateAutoFilled] = useState(false);
-  const [climateLoading, setClimateLoading] = useState(false);
-  const [climateProfile, setClimateProfile] = useState<TravelClimateProfile | null>(null);
-  // Tracks whether the user has manually edited the climate field.
-  // Using a ref so it doesn't re-trigger the inference effect on every keystroke.
-  const climateManualRef = useRef(false);
-  // Incrementing this forces a re-fetch even after manual edits.
-  const [climateRefreshToken, setClimateRefreshToken] = useState(0);
-
-  const [activities, setActivities] = useState('');
-  const [dressCode, setDressCode] = useState('');
-  const [styleVibe, setStyleVibe] = useState<StyleVibe>('Mix');
-
-
-  // Smart packing
-  const [willSwim, setWillSwim] = useState<YesNo>('No');
-  const [fancyNights, setFancyNights] = useState<YesNo>('No');
-  const [workoutClothes, setWorkoutClothes] = useState<YesNo>('No');
-  const [laundryAccess, setLaundryAccess] = useState<YesNoUnsure>('Unsure');
-  const [shoesCount, setShoesCount] = useState<ShoeCount>('2');
-  const [carryOnOnly, setCarryOnOnly] = useState<YesNo>('No');
-
-  // Notes
-  const [specialNeeds, setSpecialNeeds] = useState('');
-
-  // ── Climate auto-fill ─────────────────────────────────────────────────────
-
-  useEffect(() => {
-    const lat = destination?.lat;
-    const lng = destination?.lng;
-    if (lat == null || lng == null || !departureDate || !returnDate) return;
-    if (climateManualRef.current) return; // Respect manual edits
-
-    let cancelled = false;
-    setClimateLoading(true);
-
-    inferTravelClimate({ lat, lng, departureDate, returnDate })
-      .then((profile) => {
-        if (cancelled || climateManualRef.current) return;
-        setClimate(profile.climateLabel);
-        setClimateProfile(profile);
-        setClimateAutoFilled(true);
-      })
-      .catch(() => {}) // Fail silently — field stays editable and empty
-      .finally(() => {
-        if (!cancelled) setClimateLoading(false);
-      });
-
-    return () => { cancelled = true; };
-  }, [
-    destination?.geonameId,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    departureDate?.getTime(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    returnDate?.getTime(),
-    climateRefreshToken,
-  ]);
-
-  function handleClimateChange(text: string) {
-    setClimate(text);
-    climateManualRef.current = true;
-    if (climateAutoFilled) setClimateAutoFilled(false);
-  }
-
-  function handleClimateRefresh() {
-    climateManualRef.current = false;
-    setClimateAutoFilled(false);
-    setClimateRefreshToken((t) => t + 1);
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
-  function toISODate(d: Date): string {
-    return d.toISOString().split('T')[0]!;
-  }
-
-  function tripDays(): number {
-    if (!departureDate || !returnDate) return 0;
-    const dep = new Date(departureDate.getFullYear(), departureDate.getMonth(), departureDate.getDate());
-    const ret = new Date(returnDate.getFullYear(), returnDate.getMonth(), returnDate.getDate());
-    return Math.round((ret.getTime() - dep.getTime()) / 86_400_000) + 1;
-  }
-
-  const numDays = tripDays();
-  const exceedsMaxDays = numDays > 8;
-  const canSubmit = destination !== null && departureDate !== null && returnDate !== null && !isSubmitting && !exceedsMaxDays;
 
   async function handleSubmit() {
-    if (!destination || !departureDate || !returnDate) return;
-
-    if (exceedsMaxDays) {
-      setSubmitError('Trips can be up to 8 days long right now.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setSubmitError(null);
-
-    try {
-      // Save trip draft locally and navigate to anchor selection
-      const draftId = `draft-${Date.now()}`;
-      await tripDraftStorage.save({
-        draftId,
-        destinationLabel: destination.label,
-        country:          destination.country,
-        lat:              destination.lat,
-        lng:              destination.lng,
-        geonameId:        destination.geonameId,
-        departureDate:    toISODate(departureDate),
-        returnDate:       toISODate(returnDate),
-        numDays,
-        travelParty,
-        purposes,
-        climateLabel:     climate || 'Not specified',
-        avgHighC:         climateProfile?.avgHighC,
-        avgLowC:          climateProfile?.avgLowC,
-        tempBand:         climateProfile?.tempBand,
-        precipChar:       climateProfile?.precipChar,
-        packingTag:       climateProfile?.packingTag,
-        dressSeason:      climateProfile?.dressSeason,
-        activities:       activities.trim() || undefined,
-        dressCode:        dressCode.trim() || undefined,
-        styleVibe,
-        willSwim:         willSwim === 'Yes',
-        fancyNights:      fancyNights === 'Yes',
-        workoutClothes:   workoutClothes === 'Yes',
-        laundryAccess,
-        shoesCount,
-        carryOnOnly:      carryOnOnly === 'Yes',
-        specialNeeds:     specialNeeds.trim() || undefined,
-        createdAt:        new Date().toISOString(),
-      });
-
-      navigatedToAnchorsRef.current = true;
-      router.push({ pathname: '/trip-mode' });
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    const didSave = await saveDraft();
+    if (!didSave) return;
+    navigatedToAnchorsRef.current = true;
+    router.push({ pathname: '/trip-mode' });
   }
 
   return (
@@ -430,19 +253,10 @@ export default function TravelPlannerScreen() {
               title="No saved trips"
               message="Generate a trip plan and tap the bookmark to save it here."
             />
-          ) : (() => {
-            const today = new Date().toISOString().split('T')[0]!;
-            const upcoming = savedTrips
-              .filter((t) => t.departureDate >= today)
-              .sort((a, b) => a.departureDate.localeCompare(b.departureDate));
-            const past = savedTrips
-              .filter((t) => t.departureDate < today)
-              .sort((a, b) => b.departureDate.localeCompare(a.departureDate));
-
-            return (
+          ) : (
               <View style={{ gap: spacing.md }}>
                 {/* Past trips toggle */}
-                {past.length > 0 && (
+                {pastTrips.length > 0 && (
                   <Pressable
                     onPress={() => setPastExpanded((v) => !v)}
                     style={{
@@ -458,7 +272,7 @@ export default function TravelPlannerScreen() {
                       fontSize: 13,
                       flex: 1,
                     }}>
-                      {past.length} past {past.length === 1 ? 'trip' : 'trips'}
+                      {pastTrips.length} past {pastTrips.length === 1 ? 'trip' : 'trips'}
                     </AppText>
                     <AppIcon
                       name={pastExpanded ? 'chevron-up' : 'chevron-down'}
@@ -469,33 +283,32 @@ export default function TravelPlannerScreen() {
                 )}
 
                 {/* Past trips (expanded) */}
-                {pastExpanded && past.map((trip) => (
+                {pastExpanded && pastTrips.map((trip) => (
                   <SavedTripCard
                     key={trip.id}
                     trip={trip}
                     onPress={() => handleOpenSavedTrip(trip)}
-                    onDelete={() => handleDeleteSavedTrip(trip.id)}
+                    onDelete={() => deleteSavedTrip(trip.id)}
                   />
                 ))}
 
                 {/* Upcoming trips */}
-                {upcoming.length === 0 && past.length > 0 ? (
+                {upcomingTrips.length === 0 && pastTrips.length > 0 ? (
                   <AppText tone="muted" style={{ fontSize: 13, textAlign: 'center', paddingVertical: spacing.md }}>
                     No upcoming trips saved.
                   </AppText>
                 ) : (
-                  upcoming.map((trip) => (
+                  upcomingTrips.map((trip) => (
                     <SavedTripCard
                       key={trip.id}
                       trip={trip}
                       onPress={() => handleOpenSavedTrip(trip)}
-                      onDelete={() => handleDeleteSavedTrip(trip.id)}
+                      onDelete={() => deleteSavedTrip(trip.id)}
                     />
                   ))
                 )}
               </View>
-            );
-          })()
+          )
         )}
 
         {/* ── New Trip form ─────────────────────────────────────────────────── */}
