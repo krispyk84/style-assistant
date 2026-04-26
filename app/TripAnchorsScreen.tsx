@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -16,52 +16,15 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import { useAppSession } from '@/hooks/use-app-session';
-import { useUploadedImage } from '@/hooks/use-uploaded-image';
-import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
-import type { TripDraft } from '@/lib/trip-draft-storage';
-import { tripDraftStorage } from '@/lib/trip-draft-storage';
-import {
-  nextAnchorSlot,
-  rankCandidatesForSlot,
-  recommendTripAnchors,
-} from '@/lib/trip-anchor-recommender';
 import type {
   AnchorCategory,
   AnchorRecommendation,
   AnchorSlot,
-  ScoredAnchorCandidate,
 } from '@/lib/trip-anchor-recommender';
-import { closetService } from '@/services/closet';
-import { saveTripPlanDraft, saveTripPlanAnchors } from '@/services/trip-plans';
-import type { TripAnchorInput } from '@/services/trip-outfits';
-import type { ClosetItem } from '@/types/closet';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type AnchorMode = 'guided' | 'auto' | 'manual';
-
-type SelectedAnchor = {
-  id: string;
-  slotId?: string;
-  label: string;
-  category: string;
-  source: 'closet' | 'camera' | 'library' | 'ai_suggested';
-  closetItemId?: string;
-  closetItemTitle?: string;
-  closetItemImageUrl?: string;
-  localImageUri?: string;
-  uploadedImageId?: string;
-  imageUrl?: string;
-  rationale?: string;
-  /** What the slot is looking for (displayed above the item name in auto mode). */
-  slotLabel?: string;
-  slotRationale?: string;
-  /** Scored alternates for "Try something else" (auto mode). */
-  alternates?: ScoredAnchorCandidate[];
-  /** Index of the alternate currently shown (-1 = showing best candidate). */
-  alternateIndex?: number;
-};
+import type { AnchorMode, SelectedAnchor } from './trip-anchors-types';
+import { useTripAnchorData } from './useTripAnchorData';
+import { useTripAnchorSelection } from './useTripAnchorSelection';
+import { useTripAnchorSubmit } from './useTripAnchorSubmit';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -702,435 +665,63 @@ function ManualPanel({
 
 export function TripAnchorsScreen() {
   const { theme } = useTheme();
-  const { profile } = useAppSession();
 
   // Mode is selected on the preceding /trip-mode screen and passed as a URL param
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
   const mode = (modeParam ?? 'guided') as AnchorMode;
 
-  // ── Draft loading ───────────────────────────────────────────────────────────
-
-  const [draft, setDraft] = useState<TripDraft | null>(null);
-  const [draftError, setDraftError] = useState(false);
-
-  useEffect(() => {
-    tripDraftStorage.load().then((d) => {
-      if (d) setDraft(d);
-      else setDraftError(true);
-    }).catch(() => setDraftError(true));
-  }, []);
-
-  // ── Closet loading ──────────────────────────────────────────────────────────
-
-  const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
-  const [closetLoaded, setClosetLoaded] = useState(false);
-
-  useEffect(() => {
-    closetService.getItems().then((res) => {
-      if (res.success && res.data) setClosetItems(res.data.items ?? []);
-    }).catch(() => {}).finally(() => setClosetLoaded(true));
-  }, []);
-
-  const hasClosetItems = closetItems.length > 0;
-
-  // ── Recommendation ──────────────────────────────────────────────────────────
-
-  const tripCtx = draft ? {
-    numDays:        draft.numDays,
-    destination:    draft.destinationLabel,
-    purposes:       draft.purposes,
-    willSwim:       draft.willSwim,
-    fancyNights:    draft.fancyNights,
-    workoutClothes: draft.workoutClothes,
-    laundryAccess:  draft.laundryAccess,
-    shoesCount:     draft.shoesCount,
-    carryOnOnly:    draft.carryOnOnly,
-    climateLabel:   draft.climateLabel,
-    styleVibe:      draft.styleVibe,
-    gender:         profile.gender as 'man' | 'woman' | 'non-binary' | undefined,
-    avgHighC:       draft.avgHighC,
-    avgLowC:        draft.avgLowC,
-  } : null;
-
-  const recommendation = tripCtx ? recommendTripAnchors(tripCtx) : null;
-
-  // ── Anchor state by mode ────────────────────────────────────────────────────
-
-  // Guided mode: map from slotId → selected anchor
-  const [guidedAnchors, setGuidedAnchors] = useState<Record<string, SelectedAnchor>>({});
-  // Extra slots added by the user beyond the initial recommendation
-  const [extraGuidedSlots, setExtraGuidedSlots] = useState<AnchorSlot[]>([]);
-
-  // Auto mode: pre-filled list (may be swapped)
-  const [autoAnchors, setAutoAnchors] = useState<SelectedAnchor[]>([]);
-  const [autoLoadState, setAutoLoadState] = useState<'loading' | 'ready' | 'empty'>('loading');
-  // Manual mode: free list
-  const [manualAnchors, setManualAnchors] = useState<SelectedAnchor[]>([]);
-
-  // ── Image picker ────────────────────────────────────────────────────────────
-
   const {
-    image: pickedImage,
-    uploadedImage,
-    pickFromLibrary,
-    takePhoto,
-  } = useUploadedImage('anchor-item');
-  const pendingSlotRef = useRef<{ slotId: string; mode: AnchorMode; imageSource: 'camera' | 'library' } | null>(null);
-  const prevUploadedImageIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!uploadedImage?.id || uploadedImage.id === prevUploadedImageIdRef.current) return;
-    prevUploadedImageIdRef.current = uploadedImage.id;
-    const pending = pendingSlotRef.current;
-    if (!pending || !pickedImage) return;
-    pendingSlotRef.current = null;
-    addAnchorFromUploadedImage(pending.slotId, pending.mode, pending.imageSource, pickedImage, uploadedImage);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uploadedImage?.id, pickedImage?.uri]);
-
-  // ── Closet picker state ─────────────────────────────────────────────────────
-
-  const [closetPickerVisible, setClosetPickerVisible] = useState(false);
-  const closetPickerTargetRef = useRef<{ slotId: string; mode: AnchorMode } | null>(null);
-
-  // ── Source sheet state ──────────────────────────────────────────────────────
-
-  const [sourceSheetVisible, setSourceSheetVisible] = useState(false);
-  const sourceSheetTargetRef = useRef<{ slotId: string; mode: AnchorMode } | null>(null);
-
-  // ── Auto-suggest on closet load + mode change ───────────────────────────────
-
-  /**
-   * Build auto-mode anchor suggestions using proper scoring.
-   * For each slot: rank all eligible closet items by fit score (climate,
-   * formality, color, metadata quality), pick the best unused candidate,
-   * and stash the remaining ranked candidates as alternates for "Try something else".
-   */
-  const buildAutoSuggestions = useCallback((
-    slots: ReturnType<typeof recommendTripAnchors>['slots'],
-    items: ClosetItem[],
-    ctx: NonNullable<typeof tripCtx>,
-  ): SelectedAnchor[] => {
-    if (items.length === 0) return [];
-    const usedItemIds = new Set<string>();
-    const anchors: SelectedAnchor[] = [];
-
-    for (const slot of slots) {
-      // Get all candidates ranked best-first (already filtered by category + gender)
-      const allCandidates = rankCandidatesForSlot(items, slot, ctx);
-      // Find the best candidate that hasn't been used by a previous slot
-      const unusedCandidates = allCandidates.filter((c) => !usedItemIds.has(c.item.id));
-
-      if (unusedCandidates.length > 0) {
-        const best = unusedCandidates[0]!;
-        usedItemIds.add(best.item.id);
-        // All remaining ranked candidates become alternates (cycling them shows variety)
-        const alternates = unusedCandidates.slice(1);
-        anchors.push({
-          id:                 `auto-${slot.id}`,
-          slotId:             slot.id,
-          label:              best.item.title,
-          category:           slot.category,
-          source:             'closet',
-          closetItemId:       best.item.id,
-          closetItemTitle:    best.item.title,
-          closetItemImageUrl: best.item.sketchImageUrl ?? best.item.uploadedImageUrl ?? undefined,
-          rationale:          best.rationale,
-          slotLabel:          slot.label,
-          slotRationale:      slot.rationale,
-          alternates,
-          alternateIndex:     -1,
-        });
-      } else {
-        // No matching closet items — placeholder for this slot
-        anchors.push({
-          id:           `auto-${slot.id}`,
-          slotId:       slot.id,
-          label:        slot.label,
-          category:     slot.category,
-          source:       'ai_suggested',
-          slotLabel:    slot.label,
-          slotRationale: slot.rationale,
-          rationale:    `We couldn't find a strong match for "${slot.label}" in your closet. You can add one below.`,
-        });
-      }
-    }
-    return anchors;
-  }, []);
-
-  useEffect(() => {
-    if (mode !== 'auto' || !recommendation || !closetLoaded || !tripCtx) return;
-    setAutoLoadState('loading');
-    const suggestions = buildAutoSuggestions(recommendation.slots, closetItems, tripCtx);
-    setAutoAnchors(suggestions);
-    setAutoLoadState(suggestions.length === 0 ? 'empty' : 'ready');
-  // tripCtx is derived from draft + profile; stable reference not needed since effect depends on mode/recommendation/closetItems
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, recommendation, closetItems, closetLoaded, buildAutoSuggestions]);
-
-  // ── Anchor mutations ────────────────────────────────────────────────────────
-
-  function addAnchorFromClosetItem(slotId: string, anchorMode: AnchorMode, item: ClosetItem, slotLabel?: string) {
-    const anchor: SelectedAnchor = {
-      id:                 `anchor-${Date.now()}`,
-      slotId:             slotId !== '__manual__' ? slotId : undefined,
-      label:              item.title,
-      category:           item.category ?? 'top',
-      source:             'closet',
-      closetItemId:       item.id,
-      closetItemTitle:    item.title,
-      closetItemImageUrl: item.sketchImageUrl ?? item.uploadedImageUrl ?? undefined,
-    };
-    applyAnchorToMode(slotId, anchorMode, anchor, slotLabel);
-  }
-
-  function addAnchorFromUploadedImage(
-    slotId: string,
-    anchorMode: AnchorMode,
-    imageSource: 'camera' | 'library',
-    img: LocalImageAsset,
-    uploaded: UploadedImageAsset,
-  ) {
-    const catHint = getSlotCategory(slotId, anchorMode);
-    const anchor: SelectedAnchor = {
-      id:           `anchor-${Date.now()}`,
-      slotId:       slotId !== '__manual__' ? slotId : undefined,
-      label:        'Your picked piece',
-      category:     catHint ?? 'top',
-      source:       imageSource,
-      localImageUri: img.uri,
-      uploadedImageId: uploaded.id,
-      imageUrl:     uploaded.publicUrl,
-    };
-    applyAnchorToMode(slotId, anchorMode, anchor);
-  }
-
-  function getSlotCategory(slotId: string, anchorMode: AnchorMode): string | undefined {
-    if (anchorMode === 'guided' && recommendation) {
-      return recommendation.slots.find((s) => s.id === slotId)?.category;
-    }
-    return undefined;
-  }
-
-  function applyAnchorToMode(slotId: string, anchorMode: AnchorMode, anchor: SelectedAnchor, _slotLabel?: string) {
-    if (anchorMode === 'guided') {
-      setGuidedAnchors((prev) => ({ ...prev, [slotId]: anchor }));
-    } else if (anchorMode === 'auto') {
-      setAutoAnchors((prev) => prev.map((a) => a.slotId === slotId ? { ...anchor, slotId: a.slotId } : a));
-    } else {
-      setManualAnchors((prev) => [...prev, anchor]);
-    }
-  }
-
-  function openSourceSheet(slotId: string, targetMode: AnchorMode) {
-    sourceSheetTargetRef.current = { slotId, mode: targetMode };
-    setSourceSheetVisible(true);
-  }
-
-  function handlePickCamera() {
-    const target = sourceSheetTargetRef.current;
-    if (!target) return;
-    pendingSlotRef.current = { ...target, imageSource: 'camera' };
-    void takePhoto();
-  }
-
-  function handlePickLibrary() {
-    const target = sourceSheetTargetRef.current;
-    if (!target) return;
-    pendingSlotRef.current = { ...target, imageSource: 'library' };
-    void pickFromLibrary();
-  }
-
-  function handlePickCloset() {
-    const target = sourceSheetTargetRef.current;
-    if (!target) return;
-    closetPickerTargetRef.current = target;
-    setClosetPickerVisible(true);
-  }
-
-  function handleClosetItemSelected(item: ClosetItem) {
-    const target = closetPickerTargetRef.current;
-    if (!target) return;
-    closetPickerTargetRef.current = null;
-    setClosetPickerVisible(false);
-    addAnchorFromClosetItem(target.slotId, target.mode, item);
-  }
-
-  // Guided mode: "Add anchor piece" — append next logical slot
-  function handleAddGuidedSlot() {
-    if (!tripCtx || !recommendation) return;
-    const usedIds = [...recommendation.slots, ...extraGuidedSlots].map((s) => s.id);
-    const slot = nextAnchorSlot(tripCtx, usedIds);
-    setExtraGuidedSlots((prev) => [...prev, slot]);
-  }
-
-  // Auto mode: "Try something else" — cycle through scored alternates for this slot
-  function handleAutoRetry(anchor: SelectedAnchor) {
-    const alternates = anchor.alternates ?? [];
-    if (alternates.length === 0) return;
-
-    const currentIdx = anchor.alternateIndex ?? -1;
-    const nextIdx = (currentIdx + 1) % alternates.length;
-    const next = alternates[nextIdx]!;
-
-    setAutoAnchors((prev) =>
-      prev.map((a) =>
-        a.id === anchor.id
-          ? {
-              ...a,
-              label:              next.item.title,
-              source:             'closet',
-              closetItemId:       next.item.id,
-              closetItemTitle:    next.item.title,
-              closetItemImageUrl: next.item.sketchImageUrl ?? next.item.uploadedImageUrl ?? undefined,
-              rationale:          next.rationale,
-              alternateIndex:     nextIdx,
-            }
-          : a
-      )
-    );
-  }
-
-  // Auto mode: "Replace manually" → open source sheet for that slot
-  function handleAutoReplace(anchor: SelectedAnchor) {
-    const slotId = anchor.slotId ?? anchor.id;
-    openSourceSheet(slotId, 'auto');
-  }
-
-  // Auto mode: "Add anchor piece" → generate next logical slot and open source sheet
-  function handleAddAutoAnchor() {
-    if (!tripCtx || !recommendation) return;
-    const usedIds = autoAnchors.map((a) => a.slotId ?? a.id);
-    const slot = nextAnchorSlot(tripCtx, usedIds);
-    // Best closet match for this new slot (if any) — auto-pick it
-    const candidates = rankCandidatesForSlot(closetItems, slot, tripCtx);
-    const usedItemIds = new Set(autoAnchors.map((a) => a.closetItemId).filter(Boolean));
-    const best = candidates.find((c) => !usedItemIds.has(c.item.id));
-    if (best) {
-      setAutoAnchors((prev) => [
-        ...prev,
-        {
-          id:                 `auto-extra-${Date.now()}`,
-          slotId:             slot.id,
-          label:              best.item.title,
-          category:           slot.category,
-          source:             'closet',
-          closetItemId:       best.item.id,
-          closetItemTitle:    best.item.title,
-          closetItemImageUrl: best.item.sketchImageUrl ?? best.item.uploadedImageUrl ?? undefined,
-          rationale:          best.rationale,
-          slotLabel:          slot.label,
-          slotRationale:      slot.rationale,
-          alternates:         candidates.slice(candidates.indexOf(best) + 1),
-          alternateIndex:     -1,
-        },
-      ]);
-    } else {
-      // No closet match — open source sheet for manual selection
-      openSourceSheet(slot.id, 'auto');
-    }
-  }
-
-  // ── Active anchors for the current mode ─────────────────────────────────────
-
-  const activeAnchors: SelectedAnchor[] = (() => {
-    if (mode === 'guided') return Object.values(guidedAnchors);
-    if (mode === 'auto') return autoAnchors;
-    return manualAnchors;
-  })();
-
-  // ── Validation ──────────────────────────────────────────────────────────────
-
-  const manualCap = (draft?.numDays ?? 7) + 3;
-  const manualExceedsCap = mode === 'manual' && manualAnchors.length > manualCap;
-
-  const canContinue = (() => {
-    if (!draft) return false;
-    if (manualExceedsCap) return false;
-    // Auto mode: wait for suggestions to finish loading before allowing continue
-    if (mode === 'auto') return autoLoadState !== 'loading';
-    return true;
-  })();
-
-  // ── Generation ──────────────────────────────────────────────────────────────
-
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generateError, setGenerateError] = useState<string | null>(null);
-  // Backend plan ID (fire-and-forget save)
-  const planIdRef = useRef<string | null>(null);
-
-  // Save draft to backend on load (fire-and-forget)
-  useEffect(() => {
-    if (!draft) return;
-    saveTripPlanDraft({
-      destination:    draft.destinationLabel,
-      country:        draft.country,
-      departureDate:  draft.departureDate,
-      returnDate:     draft.returnDate,
-      numDays:        draft.numDays,
-      travelParty:    draft.travelParty,
-      purposes:       draft.purposes,
-      climateLabel:   draft.climateLabel,
-      styleVibe:      draft.styleVibe,
-      willSwim:       draft.willSwim,
-      fancyNights:    draft.fancyNights,
-      workoutClothes: draft.workoutClothes,
-      laundryAccess:  draft.laundryAccess,
-      shoesCount:     draft.shoesCount,
-      carryOnOnly:    draft.carryOnOnly,
-      activities:     draft.activities,
-      dressCode:      draft.dressCode,
-      specialNeeds:   draft.specialNeeds,
-      anchorMode:     mode,
-    }).then((id) => { planIdRef.current = id; });
-  // only run once when draft is first loaded
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft?.draftId]);
-
-  async function handleContinue() {
-    if (!draft || !canContinue) return;
-    setIsGenerating(true);
-    setGenerateError(null);
-
-    const anchorInputs: TripAnchorInput[] = activeAnchors.map((a) => ({
-      slotId:       a.slotId,
-      label:        a.label,
-      category:     a.category,
-      source:       a.source as TripAnchorInput['source'],
-      closetItemId: a.closetItemId,
-      uploadedImageId: a.uploadedImageId,
-      imageUrl:     a.imageUrl,
-      rationale:    a.rationale,
-    }));
-
-    const tripId = `trip-${Date.now()}`;
-
-    try {
-      // Persist anchors to backend (fire-and-forget)
-      if (planIdRef.current) {
-        void saveTripPlanAnchors(planIdRef.current, mode, anchorInputs);
-      }
-
-      // Save anchors to draft so results screen can run progressive generation
-      await tripDraftStorage.save({
-        ...draft,
-        pendingAnchors:     anchorInputs.length > 0 ? anchorInputs : undefined,
-        pendingAnchorMode:  mode,
-      });
-
-      // Navigate immediately — results screen handles day-by-day generation
-      router.push({
-        pathname: '/trip-results',
-        params: { tripId, destination: draft.destinationLabel, isProgressiveGeneration: '1' },
-      });
-    } catch (err) {
-      setGenerateError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
-    } finally {
-      setIsGenerating(false);
-    }
-  }
-
-  // ── Render ──────────────────────────────────────────────────────────────────
+    draft,
+    draftError,
+    closetItems,
+    hasClosetItems,
+    closetLoaded,
+    tripCtx,
+    recommendation,
+  } = useTripAnchorData();
+  const {
+    guidedAnchors,
+    setGuidedAnchors,
+    extraGuidedSlots,
+    autoAnchors,
+    autoLoadState,
+    manualAnchors,
+    setManualAnchors,
+    activeAnchors,
+    manualExceedsCap,
+    canContinue,
+    closetPickerVisible,
+    setClosetPickerVisible,
+    sourceSheetVisible,
+    setSourceSheetVisible,
+    openSourceSheet,
+    handlePickCamera,
+    handlePickLibrary,
+    handlePickCloset,
+    handleClosetItemSelected,
+    handleAddGuidedSlot,
+    handleAutoRetry,
+    handleAutoReplace,
+    handleAddAutoAnchor,
+  } = useTripAnchorSelection({
+    mode,
+    recommendation,
+    tripCtx,
+    closetItems,
+    closetLoaded,
+    numDays: draft?.numDays,
+  });
+  const canSubmitAnchors = Boolean(draft) && canContinue;
+  const {
+    isGenerating,
+    generateError,
+    handleContinue,
+  } = useTripAnchorSubmit({
+    draft,
+    mode,
+    canContinue: canSubmitAnchors,
+    activeAnchors,
+  });
 
   if (draftError) {
     return (
@@ -1278,10 +869,10 @@ export function TripAnchorsScreen() {
         })()}
 
         <Pressable
-          disabled={!canContinue || isGenerating}
+          disabled={!canSubmitAnchors || isGenerating}
           onPress={() => void handleContinue()}
           style={{
-            backgroundColor: canContinue && !isGenerating ? theme.colors.text : theme.colors.subtleSurface,
+            backgroundColor: canSubmitAnchors && !isGenerating ? theme.colors.text : theme.colors.subtleSurface,
             borderRadius: 999,
             flexDirection: 'row',
             alignItems: 'center',
@@ -1294,12 +885,12 @@ export function TripAnchorsScreen() {
           ) : (
             <AppIcon
               name="sparkles"
-              color={canContinue ? theme.colors.inverseText : theme.colors.subtleText}
+              color={canSubmitAnchors ? theme.colors.inverseText : theme.colors.subtleText}
               size={15}
             />
           )}
           <AppText style={{
-            color: canContinue && !isGenerating ? theme.colors.inverseText : theme.colors.subtleText,
+            color: canSubmitAnchors && !isGenerating ? theme.colors.inverseText : theme.colors.subtleText,
             fontFamily: theme.fonts.sansMedium,
             fontSize: 14,
             letterSpacing: 0.6,
