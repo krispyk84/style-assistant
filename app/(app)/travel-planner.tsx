@@ -14,6 +14,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { TextInput } from '@/components/ui/text-input';
 import { spacing, theme as staticTheme } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { buildTripModeHref, buildTripResultsHref } from '@/lib/trip-route';
 import type { SavedTripSummary } from '@/services/saved-trips';
 import { useSavedTripsData } from './useSavedTripsData';
 import { useTravelPlannerForm } from './useTravelPlannerForm';
@@ -177,10 +178,11 @@ export default function TravelPlannerScreen() {
   );
 
   function handleOpenSavedTrip(trip: SavedTripSummary) {
-    router.push({
-      pathname: '/trip-results',
-      params: { tripId: trip.tripId, destination: trip.destination, savedTripId: trip.id },
-    });
+    router.push(buildTripResultsHref({
+      tripId: trip.tripId,
+      destination: trip.destination,
+      savedTripId: trip.id,
+    }));
   }
 
 
@@ -188,7 +190,7 @@ export default function TravelPlannerScreen() {
     const didSave = await saveDraft();
     if (!didSave) return;
     navigatedToAnchorsRef.current = true;
-    router.push({ pathname: '/trip-mode' });
+    router.push(buildTripModeHref());
   }
 
   return (

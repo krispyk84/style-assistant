@@ -16,12 +16,13 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { parseTripAnchorMode } from '@/lib/trip-route';
 import type {
   AnchorCategory,
   AnchorRecommendation,
   AnchorSlot,
 } from '@/lib/trip-anchor-recommender';
-import type { AnchorMode, SelectedAnchor } from './trip-anchors-types';
+import type { SelectedAnchor } from './trip-anchors-types';
 import { useTripAnchorData } from './useTripAnchorData';
 import { useTripAnchorSelection } from './useTripAnchorSelection';
 import { useTripAnchorSubmit } from './useTripAnchorSubmit';
@@ -668,7 +669,7 @@ export function TripAnchorsScreen() {
 
   // Mode is selected on the preceding /trip-mode screen and passed as a URL param
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
-  const mode = (modeParam ?? 'guided') as AnchorMode;
+  const mode = parseTripAnchorMode(modeParam);
 
   const {
     draft,

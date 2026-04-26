@@ -7,6 +7,7 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { buildPackingListHref } from '@/lib/trip-route';
 import { useTripResultsActions } from './useTripResultsActions';
 import { useTripResultsData } from './useTripResultsData';
 import { useTripSketchPolling } from './useTripSketchPolling';
@@ -58,12 +59,7 @@ export function TripResultsScreen() {
   function handleOpenPackingList() {
     const activeTripId = plan?.tripId ?? tripId;
     if (!activeTripId) return;
-    router.push({
-      pathname: '/packing-list',
-      params: savedTripId
-        ? { tripId: activeTripId, savedTripId }
-        : { tripId: activeTripId },
-    });
+    router.push(buildPackingListHref({ tripId: activeTripId, savedTripId }));
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────

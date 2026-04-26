@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 
 import type { TripDraft } from '@/lib/trip-draft-storage';
 import { tripDraftStorage } from '@/lib/trip-draft-storage';
+import { buildTripResultsHref, createTripId } from '@/lib/trip-route';
 import { saveTripPlanAnchors, saveTripPlanDraft } from '@/services/trip-plans';
 import type { TripAnchorInput } from '@/services/trip-outfits';
 import type { AnchorMode, SelectedAnchor } from './trip-anchors-types';
@@ -65,7 +66,7 @@ export function useTripAnchorSubmit({
       rationale: anchor.rationale,
     }));
 
-    const tripId = `trip-${Date.now()}`;
+    const tripId = createTripId();
 
     try {
       if (planIdRef.current) {
@@ -78,10 +79,11 @@ export function useTripAnchorSubmit({
         pendingAnchorMode: mode,
       });
 
-      router.push({
-        pathname: '/trip-results',
-        params: { tripId, destination: draft.destinationLabel, isProgressiveGeneration: '1' },
-      });
+      router.push(buildTripResultsHref({
+        tripId,
+        destination: draft.destinationLabel,
+        isProgressiveGeneration: true,
+      }));
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {

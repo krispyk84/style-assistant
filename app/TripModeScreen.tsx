@@ -9,8 +9,8 @@ import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { tripDraftStorage } from '@/lib/trip-draft-storage';
 import type { TripDraft } from '@/lib/trip-draft-storage';
-
-type AnchorMode = 'guided' | 'auto' | 'manual';
+import { buildTripAnchorsHref, parseTripAnchorMode } from '@/lib/trip-route';
+import type { AnchorMode } from './trip-anchors-types';
 
 const MODE_CONFIG: { id: AnchorMode; title: string; label: string; copy: string }[] = [
   {
@@ -43,7 +43,7 @@ export function TripModeScreen() {
       if (d) {
         setDraft(d);
         // Restore previously selected mode so going back from trip-anchors preserves choice
-        if (d.pendingAnchorMode) setMode(d.pendingAnchorMode);
+        if (d.pendingAnchorMode) setMode(parseTripAnchorMode(d.pendingAnchorMode));
       }
     }).catch(() => {});
   }, []);
@@ -53,7 +53,7 @@ export function TripModeScreen() {
     if (draft) {
       await tripDraftStorage.save({ ...draft, pendingAnchorMode: mode }).catch(() => {});
     }
-    router.push({ pathname: '/trip-anchors', params: { mode } });
+    router.push(buildTripAnchorsHref(mode));
   }
 
   return (
