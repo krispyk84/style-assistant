@@ -9,6 +9,7 @@ import { logger } from '../../config/logger.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { closetRepository } from '../closet/closet.repository.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';
+import { styleGuideService } from '../style-guides/style-guide.service.js';
 import { tripOutfitsResponseSchema, tripDaySchema } from './trips.schemas.js';
 import type { GenerateTripOutfitsRequest, GenerateTripOutfitsResponse, RegenerateTripDayRequest, TripOutfitDayDto } from '../../contracts/trips.contracts.js';
 import type { InputContent } from '../../ai/openai-request-builder.js';
@@ -22,7 +23,15 @@ export const tripsService = {
       ? await profileRepository.findById(request.profileId)
       : await profileRepository.findByUserId(supabaseUserId);
 
-    const { instructions, userContent, jsonSchema } = buildTripOutfitsPrompt(request, profile);
+    const styleGuideContext = await styleGuideService.retrieveGuidance({
+      task: 'trip-generation',
+      query: buildTripGenerationStyleGuideQuery(request, profile),
+    });
+    const { instructions, userContent, jsonSchema } = buildTripOutfitsPrompt(
+      request,
+      profile,
+      styleGuideContext?.promptContext,
+    );
     const anchorImageContent = await buildTripAnchorImageContent(request);
 
     const result = await openAiClient.createStructuredResponse({
@@ -68,7 +77,15 @@ export const tripsService = {
       ? await profileRepository.findById(request.profileId)
       : await profileRepository.findByUserId(supabaseUserId);
 
-    const { instructions, userContent, jsonSchema } = buildRegenerateDayPrompt(request, profile);
+    const styleGuideContext = await styleGuideService.retrieveGuidance({
+      task: 'trip-generation',
+      query: buildTripRegenerationStyleGuideQuery(request, profile),
+    });
+    const { instructions, userContent, jsonSchema } = buildRegenerateDayPrompt(
+      request,
+      profile,
+      styleGuideContext?.promptContext,
+    );
 
     const regenerateDayResponseSchema = z.object({ day: tripDaySchema });
 
@@ -105,6 +122,56 @@ export const tripsService = {
     };
   },
 };
+
+type StyleGuideProfile = {
+  gender?: string | null;
+  stylePreference?: string | null;
+  fitPreference?: string | null;
+} | null;
+
+function formatStyleGuideProfileQuery(profile: StyleGuideProfile) {
+  return [
+    profile?.gender === 'woman' ? 'womenswear travel styling guidance' : 'menswear travel styling guidance',
+    profile?.stylePreference ? `user style preference: ${profile.stylePreference}` : null,
+    profile?.fitPreference ? `user fit preference: ${profile.fitPreference}` : null,
+  ];
+}
+
+function buildTripGenerationStyleGuideQuery(
+  request: GenerateTripOutfitsRequest,
+  profile: StyleGuideProfile,
+) {
+  return [
+    ...formatStyleGuideProfileQuery(profile),
+    `destination: ${request.destination}, ${request.country}`,
+    `purpose: ${request.purposes.join(', ') || 'Leisure'}`,
+    `style vibe: ${request.styleVibe}`,
+    `climate: ${request.climateLabel}`,
+    request.dressSeason ? `season: ${request.dressSeason}` : null,
+    request.packingTag ? `packing weather tag: ${request.packingTag}` : null,
+    request.activities ? `activities: ${request.activities}` : null,
+    request.dressCode ? `dress code: ${request.dressCode}` : null,
+    request.anchors?.length
+      ? `anchor pieces: ${request.anchors.map((anchor) => `${anchor.category} ${anchor.label}`).join('; ')}`
+      : null,
+  ].filter(Boolean).join(' | ');
+}
+
+function buildTripRegenerationStyleGuideQuery(
+  request: RegenerateTripDayRequest,
+  profile: StyleGuideProfile,
+) {
+  return [
+    ...formatStyleGuideProfileQuery(profile),
+    `destination: ${request.destination}, ${request.country}`,
+    `day type: ${request.dayType}`,
+    `style vibe: ${request.styleVibe}`,
+    `climate: ${request.climateLabel}`,
+    request.activities ? `activities: ${request.activities}` : null,
+    request.dressCode ? `dress code: ${request.dressCode}` : null,
+    request.purposes.length ? `purpose: ${request.purposes.join(', ')}` : null,
+  ].filter(Boolean).join(' | ');
+}
 
 async function buildTripAnchorImageContent(request: GenerateTripOutfitsRequest): Promise<InputContent[]> {
   const anchors = request.anchors ?? [];

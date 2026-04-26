@@ -5,6 +5,7 @@ import { styleGuideRepository } from './style-guide.repository.js';
 
 type RetrievalTask =
   | 'outfit-generation'
+  | 'trip-generation'
   | 'tier-regeneration'
   | 'compatibility-check'
   | 'selfie-review';
