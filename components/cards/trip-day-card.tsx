@@ -1,6 +1,7 @@
-import { ActivityIndicator, Animated, Image, LayoutAnimation, Platform, Pressable, UIManager, View } from 'react-native';
+import { LayoutAnimation, Platform, Pressable, UIManager, View } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
 
+import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPanel';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
@@ -90,8 +91,6 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
   });
 
   const hasSketch = day.sketchStatus === 'ready' && !!day.sketchUrl;
-  const isSketchLoading = day.sketchStatus === 'loading';
-  const sketchFailed = day.sketchStatus === 'failed';
 
   const isLoved = day.feedback === 'love';
   const isHated = day.feedback === 'hate';
@@ -124,20 +123,6 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
     prevHasSketch.current = hasSketch;
   }, [hasSketch]);
 
-  // Looping progress bar for regeneration state
-  const regenAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (!isRegenerating) { regenAnim.setValue(0); return; }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(regenAnim, { toValue: 1, duration: 1400, useNativeDriver: true }),
-        Animated.timing(regenAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [isRegenerating, regenAnim]);
-
   return (
     <View
       style={{
@@ -148,97 +133,17 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
         overflow: 'hidden',
       }}>
 
-      {/* ── Sketch area: three explicit height states ─────────────────────── */}
-      {hasSketch ? (
-        // ── Ready: full aspect-ratio image, same as standard outfit card ──
-        <Image
-          source={{ uri: day.sketchUrl! }}
-          style={{ width: '100%', aspectRatio: 1024 / 1536 }}
-          resizeMode="cover"
-        />
-      ) : isRegenerating ? (
-        // ── Regenerating: animated loading bar ───────────────────────────────
-        <View
-          style={{
-            width: '100%',
-            height: 80,
-            backgroundColor: theme.colors.subtleSurface,
-            justifyContent: 'center',
-            gap: spacing.sm,
-            paddingHorizontal: spacing.lg,
-          }}>
-          <AppText style={{ color: theme.colors.mutedText, fontSize: 12, textAlign: 'center' }}>
-            Finding a new outfit…
-          </AppText>
-          <View style={{ height: 3, backgroundColor: theme.colors.border, borderRadius: 999, overflow: 'hidden' }}>
-            <Animated.View
-              style={{
-                height: '100%',
-                width: '40%',
-                backgroundColor: theme.colors.accent,
-                borderRadius: 999,
-                transform: [{
-                  translateX: regenAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-80, 260],
-                  }),
-                }],
-              }}
-            />
-          </View>
-        </View>
-      ) : isSketchLoading ? (
-        // ── Sketch loading: compact spinner ──────────────────────────────────
-        <View
-          style={{
-            width: '100%',
-            height: 80,
-            backgroundColor: theme.colors.subtleSurface,
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: spacing.xs,
-          }}>
-          <ActivityIndicator color={theme.colors.subtleText} size="small" />
-          <AppText style={{ color: theme.colors.mutedText, fontSize: 12 }}>
-            Generating sketch…
-          </AppText>
-        </View>
-      ) : (
-        // ── Idle / failed: compact action strip (icon + label + CTA) ────────
-        <View
-          style={{
-            width: '100%',
-            paddingVertical: spacing.lg,
-            paddingHorizontal: spacing.lg,
-            backgroundColor: theme.colors.subtleSurface,
-            alignItems: 'center',
-            gap: spacing.sm,
-          }}>
-          <AppIcon name="sparkles" color={theme.colors.subtleText} size={22} />
-          <AppText style={{ color: theme.colors.mutedText, fontSize: 12, textAlign: 'center' }}>
-            {sketchFailed ? 'Sketch failed. Try again.' : 'No sketch yet'}
-          </AppText>
-          <Pressable
-            onPress={onGenerateSketch}
-            style={{
-              backgroundColor: theme.colors.text,
-              borderRadius: 999,
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.xs,
-            }}>
-            <AppText
-              style={{
-                color: theme.colors.inverseText,
-                fontFamily: theme.fonts.sansMedium,
-                fontSize: 11,
-                letterSpacing: 0.6,
-                textTransform: 'uppercase',
-              }}>
-              {sketchFailed ? 'Retry Sketch' : 'Generate Sketch'}
-            </AppText>
-          </Pressable>
-        </View>
-      )}
+      <GeneratedSketchPanel
+        mode="compact"
+        status={day.sketchStatus}
+        imageUrl={day.sketchUrl}
+        aspectRatio={1024 / 1536}
+        resizeMode="cover"
+        isRegenerating={isRegenerating}
+        onAction={onGenerateSketch}
+        loadingLabel="Generating sketch..."
+        regeneratingLabel="Finding a new outfit..."
+      />
 
       {/* ── Content ──────────────────────────────────────────────────────── */}
       <View style={{ gap: spacing.md, padding: spacing.lg }}>
