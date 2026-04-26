@@ -6,6 +6,7 @@ import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { buildTierHref } from '@/lib/look-route';
 import { formatTierLabel } from '@/lib/outfit-utils';
+import { buildSavedOutfitPreview, formatSavedPreviewDate } from '@/lib/saved-style-preview';
 import type { SavedOutfit } from '@/types/style';
 import { AppText } from '@/components/ui/app-text';
 import { RemoteImagePanel, SKETCH_ASPECT_RATIO } from '@/components/ui/remote-image-panel';
@@ -20,6 +21,7 @@ type OutfitResultCardProps = {
 
 export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: OutfitResultCardProps) {
   const { theme } = useTheme();
+  const preview = buildSavedOutfitPreview(result);
   const sketchUri = result.recommendation.sketchImageUrl;
   const detailHref = buildTierHref(
     result.recommendation.tier,
@@ -59,7 +61,7 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: O
               </View>
             ) : null}
           </View>
-          <AppText tone="subtle">{dateLabel ?? `Saved ${formatSavedAt(result.savedAt)}`}</AppText>
+          <AppText tone="subtle">{dateLabel ?? `Saved ${formatSavedPreviewDate(preview.savedAt)}`}</AppText>
         </View>
         {onDelete ? (
           <Pressable
@@ -95,10 +97,10 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: O
         ) : null}
         <View style={{ gap: spacing.xs }}>
           <AppText style={{ flexShrink: 1, width: '100%' }} variant="title">
-            {result.recommendation.title}
+            {preview.title}
           </AppText>
           <AppText numberOfLines={1} tone="muted">
-            {result.input.anchorItemDescription || result.recommendation.anchorItem}
+            {preview.subtitle}
           </AppText>
         </View>
         </Pressable>
@@ -124,16 +126,4 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: O
       ) : null}
     </View>
   );
-}
-
-
-function formatSavedAt(savedAt: string) {
-  try {
-    return new Date(savedAt).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return 'recently';
-  }
 }
