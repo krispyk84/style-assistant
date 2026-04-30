@@ -1,7 +1,21 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Render Blueprint — both production and dev backends are defined here.
+#
+# Production (style-assistant-api)      ← branch: main → vesture.onrender.com
+# Dev        (style-assistant-api-dev)  ← branch: dev  → vesture-dev.onrender.com
+#
+# Each service's secret env vars (DATABASE_URL, OPENAI_API_KEY, Supabase keys,
+# Fal/Imagen/Gemini keys, S3 creds, etc.) are marked `sync: false` so Render
+# prompts for them per-service in the dashboard. Set them independently — the
+# dev service points at its own Supabase project, prod points at production.
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
+  # ── Production ────────────────────────────────────────────────────────────
   - type: web
     name: style-assistant-api
     runtime: node
+    branch: main
     rootDir: backend
     buildCommand: npm install --include=dev && npm run prisma:generate && npm run build
     startCommand: npm run start:migrate
@@ -14,6 +28,36 @@ services:
         value: production
       - key: LOG_LEVEL
         value: info
+      - key: API_PREFIX
+        value: /api
+      - key: CORS_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+
+  # ── Dev ───────────────────────────────────────────────────────────────────
+  # Mirrors prod's build + start commands. After Render syncs this blueprint,
+  # fill in the secret env vars for the dev service in the dashboard — they
+  # should point at the dev Supabase project (separate from prod).
+  - type: web
+    name: style-assistant-api-dev
+    runtime: node
+    branch: dev
+    rootDir: backend
+    buildCommand: npm install --include=dev && npm run prisma:generate && npm run build
+    startCommand: npm run start:migrate
+    envVars:
+      - key: NODE_VERSION
+        value: 20.19.0
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
+      # NODE_ENV stays "production" — it controls Node optimizations, not the
+      # environment label. The fact that this is the dev environment is
+      # implicit in branch + service name + dev-specific Supabase credentials.
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: debug
       - key: API_PREFIX
         value: /api
       - key: CORS_ORIGIN
