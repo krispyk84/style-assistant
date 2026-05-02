@@ -1,4 +1,5 @@
 import { Href, router } from 'expo-router';
+import { useMemo } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/app-icon';
@@ -6,12 +7,11 @@ import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPane
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { formatTierLabel } from '@/lib/outfit-utils';
-import { ClosetItemSheet } from '@/components/closet/closet-item-sheet';
 import type { LookRecommendation } from '@/types/look-request';
 import type { ClosetItem } from '@/types/closet';
 import { AppText } from '@/components/ui/app-text';
-import { TierPieceListView } from './TierPieceListView';
-import { useLookResultCard } from './useLookResultCard';
+import { OutfitPieceListView } from './OutfitPieceListView';
+import { buildLabeledPieces } from './look-result-card-helpers';
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 
@@ -68,12 +68,10 @@ export function LookResultCardView({
   onOutfitFeedback,
 }: LookResultCardViewProps) {
   const { theme } = useTheme();
-  const { labeledPieces, hasAnyMatch, matchedPiece, setMatchedPiece } = useLookResultCard({
-    recommendation,
-    closetItems,
-    matchMap,
-    anchorDescription,
-  });
+  const labeledPieces = useMemo(
+    () => buildLabeledPieces(recommendation, closetItems, matchMap, anchorDescription),
+    [recommendation, closetItems, matchMap, anchorDescription],
+  );
 
   const actionButtonStyle = {
     alignItems: 'center',
@@ -102,7 +100,7 @@ export function LookResultCardView({
         <AppText tone="muted">{recommendation.title}</AppText>
       </View>
 
-      <TierSketch recommendation={recommendation} />
+      <GeneratedSketchPanel status={recommendation.sketchStatus} imageUrl={recommendation.sketchImageUrl} />
 
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         {(['love', 'hate'] as const).map((thumb) => {
@@ -133,13 +131,13 @@ export function LookResultCardView({
         })}
       </View>
 
-      <TierPieceListView
-        labeledPieces={labeledPieces}
-        hasAnyMatch={hasAnyMatch}
+      <OutfitPieceListView
+        pieces={labeledPieces}
+        display="labeled"
         regeneratingMatches={regeneratingMatches}
-        onPiecePress={(item, suggestion, confidencePercent) =>
-          setMatchedPiece({ item, suggestion, confidencePercent })
-        }
+        matchFeedbackMap={matchFeedbackMap}
+        onMatchThumbsUp={onMatchThumbsUp}
+        onMatchThumbsDown={onMatchThumbsDown}
       />
 
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -207,47 +205,11 @@ export function LookResultCardView({
           <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
         </Pressable>
       </View>
-
-      {/* Bottom sheet shown when user taps a checkmark — includes per-match feedback */}
-      {matchedPiece ? (() => {
-        // Derive the current item live from labeledPieces so the sheet auto-updates after rematch
-        const currentItem = labeledPieces.find(p => p.value === matchedPiece.suggestion)?.matchedClosetItem ?? null;
-        const isRematching = regeneratingMatches?.has(matchedPiece.suggestion) ?? false;
-        return (
-          <ClosetItemSheet
-            item={currentItem}
-            suggestion={matchedPiece.suggestion}
-            isRematching={isRematching}
-            thumbsFeedback={matchFeedbackMap?.[matchedPiece.suggestion] ?? null}
-            confidencePercent={matchedPiece.confidencePercent}
-            onThumbsUp={
-              onMatchThumbsUp && currentItem
-                ? () => onMatchThumbsUp(matchedPiece.suggestion, currentItem.id)
-                : undefined
-            }
-            onThumbsDown={
-              onMatchThumbsDown && currentItem
-                ? () => onMatchThumbsDown(matchedPiece.suggestion, currentItem.id)
-                : undefined
-            }
-            onClose={() => setMatchedPiece(null)}
-          />
-        );
-      })() : null}
     </View>
   );
 }
 
 // ── Private sub-components ─────────────────────────────────────────────────────
-
-function TierSketch({ recommendation }: { recommendation: LookRecommendation }) {
-  return (
-    <GeneratedSketchPanel
-      status={recommendation.sketchStatus}
-      imageUrl={recommendation.sketchImageUrl}
-    />
-  );
-}
 
 function CardSection({ title, items }: { title: string; items: string[] }) {
   return (

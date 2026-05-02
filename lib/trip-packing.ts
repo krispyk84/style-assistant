@@ -1,6 +1,6 @@
 import type { TripOutfitDay } from '@/services/trip-outfits';
-import { collectTripOutfitItems, TRIP_PACKING_CATEGORY_ORDER } from './trip-outfit-display';
-import type { TripItemCategory } from './trip-outfit-display';
+import { collectTripOutfitItems, TRIP_PACKING_CATEGORY_ORDER } from './outfit-piece-display';
+import type { TripItemCategory } from './outfit-piece-display';
 
 export type PackingItem = {
   name: string;

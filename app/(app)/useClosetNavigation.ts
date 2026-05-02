@@ -5,6 +5,8 @@ import type { ClosetItem } from '@/types/closet';
 import { spacing } from '@/constants/theme';
 import { chunkIntoRows, COLUMN_COUNT, type ClosetRow, type ClosetSection } from './closet-grid-utils';
 
+export type ClosetSortMode = 'category' | 'recent';
+
 type UseClosetNavigationParams = {
   items: ClosetItem[];
   sections: ClosetSection[];
@@ -16,16 +18,28 @@ export function useClosetNavigation({ items, sections }: UseClosetNavigationPara
   const [editingItem, setEditingItem] = useState<ClosetItem | null>(null);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [pendingScrollItemId, setPendingScrollItemId] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<ClosetSortMode>('category');
 
   // Refs created here — returned to the screen for forwarding to ClosetScreenView,
   // which wires them to the list components. The scroll effect calls them directly.
   const flatListRef = useRef<FlatList<ClosetRow>>(null);
   const sectionListRef = useRef<SectionList<ClosetRow>>(null);
 
-  // Memoised derived state — computed once per items/filter change, not on every render
+  // FlatList renders whenever sort is 'recent' OR a category filter is active.
+  // SectionList only renders for the default category-grouped, unfiltered view.
+  const useFlatList = sortMode === 'recent' || selectedCategory !== null;
+
+  // Memoised derived state — computed once per items/sort/filter change
+  const sortedItems = useMemo(
+    () =>
+      sortMode === 'recent'
+        ? [...items].sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+        : items,
+    [items, sortMode],
+  );
   const displayItems = useMemo(
-    () => (selectedCategory ? items.filter((item) => item.category === selectedCategory) : items),
-    [items, selectedCategory],
+    () => (selectedCategory ? sortedItems.filter((item) => item.category === selectedCategory) : sortedItems),
+    [sortedItems, selectedCategory],
   );
   const filteredRows = useMemo(() => chunkIntoRows(displayItems), [displayItems]);
 
@@ -33,8 +47,8 @@ export function useClosetNavigation({ items, sections }: UseClosetNavigationPara
   useEffect(() => {
     if (!pendingScrollItemId) return;
 
-    if (selectedCategory) {
-      // Filtered FlatList — scroll to the row containing the new item
+    if (useFlatList) {
+      // FlatList — scroll to the row containing the new item
       const itemIndex = displayItems.findIndex((i) => i.id === pendingScrollItemId);
       if (itemIndex < 0) return;
       const rowIndex = Math.floor(itemIndex / COLUMN_COUNT);
@@ -70,7 +84,7 @@ export function useClosetNavigation({ items, sections }: UseClosetNavigationPara
       }, 150);
       return () => clearTimeout(timeout);
     }
-  }, [displayItems, items, pendingScrollItemId, sections, selectedCategory]);
+  }, [displayItems, items, pendingScrollItemId, sections, useFlatList]);
 
   return {
     selectedCategory,
@@ -83,6 +97,9 @@ export function useClosetNavigation({ items, sections }: UseClosetNavigationPara
     setAddModalVisible,
     editingItem,
     setEditingItem,
+    sortMode,
+    setSortMode,
+    useFlatList,
     displayItems,
     filteredRows,
     flatListRef,

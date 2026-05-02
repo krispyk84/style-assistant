@@ -1,22 +1,21 @@
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, ScrollView, View, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
+import { Pressable, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
-import { OutfitResultCard } from '@/components/cards/outfit-result-card';
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
-import { EmptyState } from '@/components/ui/empty-state';
-import { ErrorState } from '@/components/ui/error-state';
-import { LoadingState } from '@/components/ui/loading-state';
 import { spacing, theme as staticTheme } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import { LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
 import { formatTierLabel } from '@/lib/outfit-utils';
+import { LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
 import type { WeatherSeason } from '@/types/weather';
+import { LooksFavouritesTab } from './LooksFavouritesTab';
+import { LooksFilterPills } from './LooksFilterPills';
+import { LooksHistoryTab } from './LooksHistoryTab';
 import { useFavouritesData } from './useFavouritesData';
-import { useHistoryData } from './useHistoryData';
 import { useHistoryActions } from './useHistoryActions';
+import { useHistoryData } from './useHistoryData';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -24,7 +23,7 @@ type ActiveTab = 'favourites' | 'history';
 type TierFilter = 'all' | LookTierSlug;
 type SeasonFilter = 'all' | WeatherSeason;
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Filter options ─────────────────────────────────────────────────────────────
 
 const TIER_FILTER_OPTIONS: { value: TierFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -38,16 +37,6 @@ const SEASON_FILTER_OPTIONS: { value: SeasonFilter; label: string }[] = [
   { value: 'fall',   label: 'Fall' },
   { value: 'winter', label: 'Winter' },
 ];
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  } catch {
-    return 'recently';
-  }
-}
 
 // ── Screen ─────────────────────────────────────────────────────────────────────
 
@@ -73,7 +62,7 @@ export function LooksScreen() {
       historyHook.resetFetch(); // re-fetch history next time that tab is opened
       favouritesHook.load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, []),
   );
 
   function handleTabChange(tab: ActiveTab) {
@@ -97,6 +86,11 @@ export function LooksScreen() {
     },
     [activeTab, historyHook],
   );
+
+  const tierFilter = activeTab === 'favourites' ? favouritesFilter : historyFilter;
+  const setTierFilter = activeTab === 'favourites' ? setFavouritesFilter : setHistoryFilter;
+  const seasonFilter = activeTab === 'favourites' ? favouritesSeasonFilter : historySeasonFilter;
+  const setSeasonFilter = activeTab === 'favourites' ? setFavouritesSeasonFilter : setHistorySeasonFilter;
 
   return (
     <AppScreen scrollable onScroll={handleScroll}>
@@ -148,178 +142,35 @@ export function LooksScreen() {
           })}
         </View>
 
-        {/* Tier filter pills */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: spacing.xs }}
-          style={{ flexShrink: 0 }}>
-          {TIER_FILTER_OPTIONS.map(({ value, label }) => {
-            const activeFilter = activeTab === 'favourites' ? favouritesFilter : historyFilter;
-            const setFilter = activeTab === 'favourites' ? setFavouritesFilter : setHistoryFilter;
-            const isActive = activeFilter === value;
-            return (
-              <Pressable
-                key={value}
-                onPress={() => setFilter(value)}
-                style={{
-                  backgroundColor: isActive ? theme.colors.text : 'transparent',
-                  borderColor: isActive ? theme.colors.text : theme.colors.border,
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  paddingHorizontal: spacing.md,
-                  paddingVertical: spacing.xs,
-                }}>
-                <AppText
-                  style={{
-                    color: isActive ? theme.colors.inverseText : theme.colors.mutedText,
-                    fontFamily: staticTheme.fonts.sansMedium,
-                    fontSize: 12,
-                    letterSpacing: 0.3,
-                  }}>
-                  {label}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <LooksFilterPills
+          options={TIER_FILTER_OPTIONS}
+          selected={tierFilter}
+          onSelect={setTierFilter}
+          activeColor="text"
+        />
 
-        {/* Season filter pills */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: spacing.xs }}
-          style={{ flexShrink: 0 }}>
-          {SEASON_FILTER_OPTIONS.map(({ value, label }) => {
-            const activeSeasonFilter = activeTab === 'favourites' ? favouritesSeasonFilter : historySeasonFilter;
-            const setSeasonFilter = activeTab === 'favourites' ? setFavouritesSeasonFilter : setHistorySeasonFilter;
-            const isActive = activeSeasonFilter === value;
-            return (
-              <Pressable
-                key={value}
-                onPress={() => setSeasonFilter(value)}
-                style={{
-                  backgroundColor: isActive ? theme.colors.accent : 'transparent',
-                  borderColor: isActive ? theme.colors.accent : theme.colors.border,
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  paddingHorizontal: spacing.md,
-                  paddingVertical: spacing.xs,
-                }}>
-                <AppText
-                  style={{
-                    color: isActive ? '#FFFFFF' : theme.colors.mutedText,
-                    fontFamily: staticTheme.fonts.sansMedium,
-                    fontSize: 12,
-                    letterSpacing: 0.3,
-                  }}>
-                  {label}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <LooksFilterPills
+          options={SEASON_FILTER_OPTIONS}
+          selected={seasonFilter}
+          onSelect={setSeasonFilter}
+          activeColor="accent"
+        />
 
-        {/* Favourites tab content */}
-        {activeTab === 'favourites' ? (() => {
-          const filtered = favouritesHook.favourites.filter((r) => {
-            const tierMatch = favouritesFilter === 'all' || r.recommendation.tier === favouritesFilter;
-            const seasonMatch = favouritesSeasonFilter === 'all' || r.input.weatherContext?.season === favouritesSeasonFilter;
-            return tierMatch && seasonMatch;
-          });
-          return favouritesHook.favouritesLoading ? (
-            <LoadingState label="Loading saved outfits..." />
-          ) : favouritesHook.favouritesError ? (
-            <ErrorState title="Favourites unavailable" message={favouritesHook.favouritesError} />
-          ) : filtered.length ? (
-            filtered.map((result) => (
-              <OutfitResultCard
-                key={result.id}
-                result={result}
-                onAddToWeek={() => actionsHook.setWeekPickerItem(result)}
-                onDelete={
-                  favouritesHook.deletingFavouriteId === result.id
-                    ? undefined
-                    : () => void favouritesHook.handleDelete(result.id)
-                }
-              />
-            ))
-          ) : favouritesHook.favourites.length ? (
-            <EmptyState
-              title="No matches"
-              message="No saved outfits match the selected filters."
-            />
-          ) : (
-            <EmptyState
-              title="No saved outfits"
-              message="Save a recommendation from the result page and it will appear here."
-              actionLabel="Create a look"
-              actionHref="/create-look"
-            />
-          );
-        })() : null}
-
-        {/* History tab content */}
-        {activeTab === 'history' ? (() => {
-          const filtered = historyHook.historyCards.filter((c) => {
-            const tierMatch = historyFilter === 'all' || c.recommendation.tier === historyFilter;
-            const seasonMatch = historySeasonFilter === 'all' || (c.input as any)?.weatherContext?.season === historySeasonFilter;
-            return tierMatch && seasonMatch;
-          });
-          return historyHook.historyLoading ? (
-            <LoadingState label="Loading history..." />
-          ) : historyHook.historyError ? (
-            <ErrorState title="History unavailable" message={historyHook.historyError} />
-          ) : filtered.length ? (
-            filtered.map((card) => {
-              const result = {
-                id: card.id,
-                requestId: card.requestId,
-                savedAt: card.createdAt,
-                input: card.input as any,
-                recommendation: card.recommendation,
-              };
-              return (
-                <OutfitResultCard
-                  key={card.id}
-                  result={result}
-                  dateLabel={`Created ${formatDate(card.createdAt)}`}
-                  onAddToWeek={() => actionsHook.setWeekPickerItem(result)}
-                  onDelete={
-                    historyHook.deletingHistoryRequestId === card.requestId
-                      ? undefined
-                      : () => void historyHook.handleDelete(card.requestId)
-                  }
-                />
-              );
-            })
-          ) : historyHook.historyCards.length ? (
-            <EmptyState
-              title="No matches"
-              message="No generated looks match the selected filters."
-            />
-          ) : (
-            <EmptyState
-              title="No generated looks"
-              message="Every look you generate will appear here. Create your first look to get started."
-              actionLabel="Create a look"
-              actionHref="/create-look"
-            />
-          );
-        })() : null}
-
-        {/* Pagination indicators — only rendered when history tab is active and has content */}
-        {activeTab === 'history' && !historyHook.historyLoading && historyHook.historyCards.length > 0 ? (
-          historyHook.historyLoadingMore ? (
-            <LoadingState label="Loading more..." />
-          ) : !historyHook.historyHasMore ? (
-            <AppText
-              tone="muted"
-              style={{ fontSize: 12, letterSpacing: 0.5, paddingVertical: spacing.sm, textAlign: 'center' }}>
-              All looks loaded
-            </AppText>
-          ) : null
-        ) : null}
+        {activeTab === 'favourites' ? (
+          <LooksFavouritesTab
+            data={favouritesHook}
+            tierFilter={favouritesFilter}
+            seasonFilter={favouritesSeasonFilter}
+            onAddToWeek={actionsHook.setWeekPickerItem}
+          />
+        ) : (
+          <LooksHistoryTab
+            data={historyHook}
+            tierFilter={historyFilter}
+            seasonFilter={historySeasonFilter}
+            onAddToWeek={actionsHook.setWeekPickerItem}
+          />
+        )}
 
       </View>
 

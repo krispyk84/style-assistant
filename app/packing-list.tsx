@@ -8,7 +8,7 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import { buildMatchedItemNameSet } from '@/lib/trip-closet-matches';
+import { buildMatchedItemNameSet } from '@/lib/outfit-piece-display';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
 import { buildPackingList } from '@/lib/trip-packing';
 import type { PackingGroup } from '@/lib/trip-packing';

@@ -6,10 +6,10 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import { buildMatchedItemNameSet } from '@/lib/trip-closet-matches';
-import { buildTripOutfitGroups, getTripDayItemNames } from '@/lib/trip-outfit-display';
+import { buildTripDayLabeledPieces } from '@/lib/outfit-piece-display';
 import type { TripOutfitDay } from '@/services/trip-outfits';
 import type { ClosetItem } from '@/types/closet';
+import { OutfitPieceListView } from './OutfitPieceListView';
 
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -55,12 +55,10 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
   const isLoved = day.feedback === 'love';
   const isHated = day.feedback === 'hate';
 
-  const outfitGroups = buildTripOutfitGroups(day);
-
-  // Pre-compute which items have a closet match (keyed by item string)
-  const closetMatches = useMemo(() => {
-    return buildMatchedItemNameSet(getTripDayItemNames(day), closetItems);
-  }, [day, closetItems]);
+  const labeledPieces = useMemo(
+    () => buildTripDayLabeledPieces(day, closetItems),
+    [day, closetItems],
+  );
 
   // Animate layout when sketch becomes ready so the card expands smoothly.
   const prevHasSketch = useRef(hasSketch);
@@ -121,24 +119,7 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
         </View>
 
         {/* Outfit groups */}
-        <View style={{ gap: spacing.sm }}>
-          {outfitGroups.map((group) => (
-            <View key={group.label}>
-              <AppText style={{ color: theme.colors.mutedText, fontFamily: theme.fonts.sansMedium, fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 4 }}>
-                {group.label}
-              </AppText>
-              {group.items.map((item, i) => (
-                <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs }}>
-                  <AppText style={{ color: theme.colors.accent, fontSize: 13, lineHeight: 20 }}>·</AppText>
-                  <AppText style={{ flex: 1, fontSize: 13, lineHeight: 20 }}>{item}</AppText>
-                  {closetMatches.has(item) && (
-                    <AppIcon name="check-circle" color={theme.colors.accent} size={13} style={{ marginTop: 3 }} />
-                  )}
-                </View>
-              ))}
-            </View>
-          ))}
-        </View>
+        <OutfitPieceListView pieces={labeledPieces} display="grouped" />
 
         {/* Context tags */}
         {(day.contextTags ?? []).length > 0 && (

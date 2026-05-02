@@ -29,8 +29,7 @@ export function useSettings() {
     }, [])
   );
 
-  async function handleSensitivityChange(value: number) {
-    setSensitivity(value);
+  async function persistSensitivity(value: number) {
     await saveAppSettings({ closetMatchSensitivity: value });
   }
 
@@ -41,5 +40,5 @@ export function useSettings() {
         ? 'Balanced — same broad color family required'
         : 'Forgiving — broad color range, focus on category and style';
 
-  return { sensitivity, handleSensitivityChange, monthlyAiCost, sensitivityLabel, appVersion };
+  return { sensitivity, setSensitivity, persistSensitivity, monthlyAiCost, sensitivityLabel, appVersion };
 }

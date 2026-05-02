@@ -1,8 +1,8 @@
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser-modal';
 import { LookTierDetailCard } from '@/components/cards/look-tier-detail-card';
-import { ClosetItemSheet } from '@/components/closet/closet-item-sheet';
+import { OutfitPieceListView } from '@/components/cards/OutfitPieceListView';
+import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser-modal';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
@@ -11,11 +11,11 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import { trackClosetMatchThumbUp, trackClosetMatchThumbDown } from '@/lib/analytics';
+import { trackClosetMatchThumbDown, trackClosetMatchThumbUp } from '@/lib/analytics';
 import { buildPiecesToCheck } from './tier-detail-helpers';
+import { useTierDetailActions } from './useTierDetailActions';
 import { useTierDetailData } from './useTierDetailData';
 import { useTierDetailMatching } from './useTierDetailMatching';
-import { useTierDetailActions } from './useTierDetailActions';
 
 // ── Screen ─────────────────────────────────────────────────────────────────────
 
@@ -24,8 +24,6 @@ export function TierDetailScreen() {
 
   const {
     matchMap,
-    sheetPiece,
-    setSheetPiece,
     matchFeedbackMap,
     regeneratingMatches,
     handleMatchThumbsUp,
@@ -45,16 +43,15 @@ export function TierDetailScreen() {
     handleCheckPiece,
     handleSelfieCheck,
   } = useTierDetailActions({
-      requestId: stableParams.requestId,
-      liveRecommendation,
-      requestInput,
-    });
+    requestId: stableParams.requestId,
+    liveRecommendation,
+    requestInput,
+  });
 
   const { theme } = useTheme();
 
   // Early return placed after all hook calls to satisfy Rules of Hooks
   if (!matchedTier || !liveRecommendation) {
-    // Diagnostic log — helps identify whether the failure is matchedTier or liveRecommendation
     console.warn(
       '[TierDetailScreen] early return:',
       JSON.stringify({ tier: stableParams.tier, hasMatchedTier: Boolean(matchedTier), hasLiveRecommendation: Boolean(liveRecommendation), hasTitle: Boolean(stableParams.recommendationTitle) }),
@@ -71,25 +68,14 @@ export function TierDetailScreen() {
     );
   }
 
-  const pieceRowStyle = {
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
-    borderRadius: 22,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-  } as const;
-
   const piecesToCheck = buildPiecesToCheck(
     liveRecommendation,
     closetItems,
     matchMap,
     requestInput?.anchorItemDescription,
   );
-  const hasAnyMatch = piecesToCheck.some((p) => !p.isAnchor && p.matchedClosetItem !== null);
+
+  const tierSlug = stableParams.tier ?? '';
 
   return (
     <AppScreen scrollable floatingBack>
@@ -162,44 +148,22 @@ export function TierDetailScreen() {
             Compare the pieces you own against this exact recommendation. You can check any items you want before moving to the selfie review.
           </AppText>
 
-          {/* Closet match legend — only shown when at least one piece is owned */}
-          {hasAnyMatch ? (
-            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-              <AppIcon color={theme.colors.accent} name="check-circle" size={13} />
-              <AppText tone="muted" style={{ fontSize: 12 }}>
-                You already own a similar piece
-              </AppText>
-            </View>
-          ) : null}
-
-          {piecesToCheck.map((piece) => {
-            const isRematching = regeneratingMatches.has(piece.value);
-            return (
-              <Pressable
-                key={`${piece.label}-${piece.value}`}
-                style={pieceRowStyle}
-                onPress={() => handleCheckPiece(piece.value)}>
-                <View style={{ flex: 1, gap: spacing.xs }}>
-                  <AppText variant="sectionTitle">{piece.label}</AppText>
-                  <AppText tone="muted">{piece.value}</AppText>
-                </View>
-                {/* Closet match checkmark — tapping opens ClosetItemSheet with feedback; never shown for anchor */}
-                {!piece.isAnchor && isRematching ? (
-                  <ActivityIndicator color={theme.colors.accent} size="small" />
-                ) : !piece.isAnchor && piece.matchedClosetItem ? (
-                  <Pressable
-                    accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view and rate.`}
-                    accessibilityRole="button"
-                    hitSlop={8}
-                    onPress={() => setSheetPiece({ item: piece.matchedClosetItem!, suggestion: piece.value, confidencePercent: piece.confidencePercent })}
-                    style={{ paddingTop: 2 }}>
-                    <AppIcon color={theme.colors.accent} name="check-circle" size={22} />
-                  </Pressable>
-                ) : null}
-                <AppIcon color={theme.colors.text} name="camera" size={22} />
-              </Pressable>
-            );
-          })}
+          <OutfitPieceListView
+            pieces={piecesToCheck}
+            display="card"
+            regeneratingMatches={regeneratingMatches}
+            matchFeedbackMap={matchFeedbackMap}
+            onMatchThumbsUp={(suggestion, matchedItemId) => {
+              trackClosetMatchThumbUp({ tier: tierSlug });
+              handleMatchThumbsUp(tierSlug, suggestion, matchedItemId, liveRecommendation.title);
+            }}
+            onMatchThumbsDown={(suggestion, matchedItemId) => {
+              trackClosetMatchThumbDown({ tier: tierSlug });
+              handleMatchThumbsDown(tierSlug, suggestion, matchedItemId, liveRecommendation.title);
+            }}
+            onPieceSelect={(piece) => handleCheckPiece(piece.value)}
+            trailingIcon="camera"
+          />
         </View>
 
         <View style={{ gap: spacing.sm, paddingTop: spacing.sm }}>
@@ -210,39 +174,6 @@ export function TierDetailScreen() {
           <PrimaryButton label="Continue to selfie check" onPress={handleSelfieCheck} />
         </View>
       </View>
-
-      {/* Bottom sheet shown when user taps a closet-match checkmark — includes per-match feedback */}
-      {sheetPiece ? (() => {
-        // Derive current item live from piecesToCheck so the sheet auto-updates after rematch
-        const currentItem = piecesToCheck.find(p => p.value === sheetPiece.suggestion)?.matchedClosetItem ?? null;
-        const isRematching = regeneratingMatches.has(sheetPiece.suggestion);
-        return (
-          <ClosetItemSheet
-            item={currentItem}
-            suggestion={sheetPiece.suggestion}
-            isRematching={isRematching}
-            thumbsFeedback={matchFeedbackMap[sheetPiece.suggestion] ?? null}
-            confidencePercent={sheetPiece.confidencePercent}
-            onThumbsUp={
-              currentItem
-                ? () => {
-                    trackClosetMatchThumbUp({ tier: stableParams.tier ?? '' });
-                    handleMatchThumbsUp(stableParams.tier, sheetPiece.suggestion, currentItem.id, liveRecommendation.title);
-                  }
-                : undefined
-            }
-            onThumbsDown={
-              currentItem
-                ? () => {
-                    trackClosetMatchThumbDown({ tier: stableParams.tier ?? '' });
-                    handleMatchThumbsDown(stableParams.tier, sheetPiece.suggestion, currentItem.id, liveRecommendation.title);
-                  }
-                : undefined
-            }
-            onClose={() => setSheetPiece(null)}
-          />
-        );
-      })() : null}
 
       <StylistChooserModal
         visible={secondOpinionVisible}

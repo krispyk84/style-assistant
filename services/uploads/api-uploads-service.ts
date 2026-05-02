@@ -1,4 +1,5 @@
 import { appConfig } from '@/constants/config';
+import { createApiClient } from '@/lib/api/api-client';
 import type { ApiResponse, DeleteUploadResponse, UploadImageResponse } from '@/types/api';
 import type { LocalImageAsset, UploadedImageCategory } from '@/types/media';
 import type { UploadsService } from '@/services/uploads/uploads-service';
@@ -123,11 +124,8 @@ export const apiUploadsService: UploadsService = {
   },
 
   async deleteUpload(uploadId) {
-    const response = await fetch(`${appConfig.apiBaseUrl}/uploads/${uploadId}`, {
+    return createApiClient().request<DeleteUploadResponse>(`/uploads/${uploadId}`, {
       method: 'DELETE',
     });
-
-    const parsed = (await response.json()) as ApiResponse<DeleteUploadResponse>;
-    return parsed;
   },
 };

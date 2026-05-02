@@ -54,43 +54,8 @@ export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE }: 
 
   return (
     <CreateLookRequestFormView
-      // Anchor items
-      anchorItems={anchorForm.anchorItems}
-      anchorError={anchorForm.anchorError}
-      showAddToClosetCheckbox={anchorForm.showAddToClosetCheckbox}
-      shouldAddAnchorToCloset={anchorForm.shouldAddAnchorToCloset}
-      closetItems={anchorForm.closetItems}
-      closetPickerVisible={anchorForm.closetPickerVisible}
-      isUploading={anchorForm.isUploading}
-      onUpdateAnchorItem={anchorForm.updateAnchorItem}
-      onAddAnchorItem={anchorForm.addAnchorItem}
-      onRemoveAnchorItem={anchorForm.removeAnchorItem}
-      onPickFromCloset={anchorForm.handlePickFromCloset}
-      onToggleSaveToCloset={anchorForm.toggleShouldAddAnchorToCloset}
-      onClosetItemSelected={anchorForm.handleClosetItemSelected}
-      onClosetPickerClose={anchorForm.handleClosetPickerClose}
-      // Season
-      selectedSeason={lookForm.selectedSeason}
-      isSeasonExpanded={lookForm.isSeasonExpanded}
-      onSelectSeason={lookForm.setSelectedSeason}
-      onToggleSeasonExpanded={() => lookForm.setIsSeasonExpanded((v) => !v)}
-      // Vibe keywords
-      vibeKeywords={lookForm.vibeKeywords}
-      isKeywordsExpanded={lookForm.isKeywordsExpanded}
-      onChangeVibeKeywords={lookForm.setVibeKeywords}
-      onToggleKeywordsExpanded={() => lookForm.setIsKeywordsExpanded((v) => !v)}
-      onToggleVibeKeyword={lookForm.toggleVibeKeyword}
-      // Tiers
-      selectedTiers={lookForm.selectedTiers}
-      tierError={lookForm.tierError}
-      onToggleTier={lookForm.toggleTier}
-      // Optional items
-      includeBag={lookForm.includeBag}
-      includeHat={lookForm.includeHat}
-      onToggleIncludeBag={lookForm.toggleIncludeBag}
-      onToggleIncludeHat={lookForm.toggleIncludeHat}
-      // Submit
-      hasAnyInput={anchorForm.populatedAnchorItems.length > 0}
+      anchorForm={anchorForm}
+      lookForm={lookForm}
       onContinue={() => void handleContinue()}
     />
   );

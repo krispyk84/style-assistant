@@ -1,21 +1,21 @@
-import { Image } from 'expo-image';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
-  Animated, FlatList, LayoutAnimation, Modal, Platform, Pressable, ScrollView,
-  SectionList, View, useWindowDimensions,
+  Animated, FlatList, LayoutAnimation, Platform, Pressable, SectionList, View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
+import { CategoryFilterModal } from '@/components/closet/CategoryFilterModal';
+import { ClosetGridRow, ClosetGridRowSeparator } from '@/components/closet/ClosetGrid';
 import { SaveToClosetModal } from '@/components/closet/save-to-closet-modal';
-import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import type { ClosetItem } from '@/types/closet';
 import {
-  COLUMN_COUNT, type CategoryEntry, type ClosetRow, type ClosetSection,
+  type CategoryEntry, type ClosetRow, type ClosetSection,
 } from './closet-grid-utils';
+import type { ClosetSortMode } from './useClosetNavigation';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -33,6 +33,10 @@ export type ClosetScreenViewProps = {
   onFilterPress: () => void;
   onCategorySelect: (cat: string | null) => void;
   onFilterModalClose: () => void;
+  // Sort
+  sortMode: ClosetSortMode;
+  onToggleSort: () => void;
+  useFlatList: boolean;
   // Add item modal
   addModalVisible: boolean;
   onAddPress: () => void;
@@ -65,6 +69,9 @@ export function ClosetScreenView({
   onFilterPress,
   onCategorySelect,
   onFilterModalClose,
+  sortMode,
+  onToggleSort,
+  useFlatList,
   addModalVisible,
   onAddPress,
   onAddModalClose,
@@ -110,6 +117,18 @@ export function ClosetScreenView({
     ),
     [cellWidth, onPressItem],
   );
+
+  const pillStyle = {
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  } as const;
 
   const listHeaderContent = (
     <View style={{ gap: spacing.xl, paddingBottom: spacing.xs }}>
@@ -171,25 +190,24 @@ export function ClosetScreenView({
         </View>
       ) : null}
 
-      {/* Category filter */}
+      {/* Filter + sort pills */}
       {!isLoading && itemCount > 0 ? (
-        <Pressable
-          onPress={onFilterPress}
-          style={{
-            alignItems: 'center',
-            alignSelf: 'flex-start',
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
-            borderRadius: 999,
-            borderWidth: 1,
-            flexDirection: 'row',
-            gap: spacing.sm,
-            paddingHorizontal: spacing.md,
-            paddingVertical: spacing.sm,
-          }}>
-          <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>{activeLabel}</AppText>
-          <AppIcon color={theme.colors.mutedText} name="chevron-down" size={14} />
-        </Pressable>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          <Pressable onPress={onFilterPress} style={pillStyle}>
+            <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>{activeLabel}</AppText>
+            <AppIcon color={theme.colors.mutedText} name="chevron-down" size={14} />
+          </Pressable>
+          <Pressable onPress={onToggleSort} style={pillStyle}>
+            <AppIcon
+              color={theme.colors.mutedText}
+              name={sortMode === 'recent' ? 'clock' : 'layers'}
+              size={14}
+            />
+            <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>
+              {sortMode === 'recent' ? 'Recent' : 'Category'}
+            </AppText>
+          </Pressable>
+        </View>
       ) : null}
 
       {/* Options accordion */}
@@ -292,14 +310,14 @@ export function ClosetScreenView({
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'left', 'right']}>
-      {selectedCategory ? (
+      {useFlatList ? (
         <FlatList<ClosetRow>
           ref={flatListRef}
           data={filteredRows}
           keyExtractor={(row, i) => row[0]?.id ?? String(i)}
           renderItem={renderRow}
           ListHeaderComponent={listHeaderContent}
-          ItemSeparatorComponent={RowSeparator}
+          ItemSeparatorComponent={ClosetGridRowSeparator}
           ListEmptyComponent={
             !isLoading ? (
               <AppText tone="muted" style={{ textAlign: 'center', paddingVertical: spacing.lg }}>
@@ -338,7 +356,7 @@ export function ClosetScreenView({
             </View>
           )}
           ListHeaderComponent={listHeaderContent}
-          ItemSeparatorComponent={RowSeparator}
+          ItemSeparatorComponent={ClosetGridRowSeparator}
           stickySectionHeadersEnabled={false}
           contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl }}
           windowSize={5}
@@ -398,208 +416,5 @@ export function ClosetScreenView({
         onClose={onFilterModalClose}
       />
     </SafeAreaView>
-  );
-}
-
-// ── RowSeparator ──────────────────────────────────────────────────────────────
-
-const RowSeparator = () => <View style={{ height: spacing.sm }} />;
-
-// ── Grid row ──────────────────────────────────────────────────────────────────
-
-type ClosetGridRowProps = {
-  row: ClosetRow;
-  cellWidth: number;
-  onPressItem: (item: ClosetItem) => void;
-};
-
-const ClosetGridRow = React.memo(function ClosetGridRow({ row, cellWidth, onPressItem }: ClosetGridRowProps) {
-  return (
-    <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-      {row.map((item) => (
-        <ClosetGridItem
-          key={item.id}
-          item={item}
-          cellWidth={cellWidth}
-          onPress={onPressItem}
-        />
-      ))}
-      {row.length < COLUMN_COUNT
-        ? Array.from({ length: COLUMN_COUNT - row.length }).map((_, i) => (
-            <View key={`empty-${i}`} style={{ flex: 1 }} />
-          ))
-        : null}
-    </View>
-  );
-});
-
-// ── Grid item ─────────────────────────────────────────────────────────────────
-
-type ClosetGridItemProps = {
-  item: ClosetItem;
-  cellWidth: number;
-  onPress: (item: ClosetItem) => void;
-};
-
-const ClosetGridItem = React.memo(function ClosetGridItem({ item, cellWidth, onPress }: ClosetGridItemProps) {
-  const { theme } = useTheme();
-  const hasBoth = Boolean(item.sketchImageUrl) && Boolean(item.uploadedImageUrl);
-  const primaryUri = item.sketchImageUrl ?? item.uploadedImageUrl ?? null;
-
-  return (
-    <View style={{ flex: 1 }}>
-      <Pressable style={{ flex: 1, gap: spacing.xs }} onPress={() => onPress(item)}>
-        <View
-          style={{
-            aspectRatio: 3 / 4,
-            backgroundColor: theme.colors.card,
-            borderColor: theme.colors.border,
-            borderRadius: 16,
-            borderWidth: 1,
-            overflow: 'hidden',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-          {hasBoth && cellWidth > 0 ? (
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              style={{ width: cellWidth, flex: 1 }}>
-              <Image contentFit="cover" source={{ uri: item.sketchImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-              <Image contentFit="cover" source={{ uri: item.uploadedImageUrl! }} style={{ width: cellWidth, flex: 1 }} />
-            </ScrollView>
-          ) : primaryUri ? (
-            <Image contentFit="cover" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
-          ) : item.sketchStatus === 'pending' ? (
-            <AppIcon color={theme.colors.subtleText} name="clock" size={22} />
-          ) : (
-            <AppIcon color={theme.colors.subtleText} name="shirt" size={22} />
-          )}
-
-          {hasBoth ? (
-            <View style={{ bottom: 6, flexDirection: 'row', gap: 4, position: 'absolute', alignSelf: 'center' }}>
-              <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 5, width: 5, opacity: 0.9 }} />
-              <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 5, width: 5, opacity: 0.45 }} />
-            </View>
-          ) : null}
-        </View>
-        <View style={{ gap: 2 }}>
-          <AppText style={{ fontSize: 11, fontFamily: theme.fonts.sansMedium, letterSpacing: 0.2 }} numberOfLines={2}>
-            {item.title}
-          </AppText>
-          {item.brand ? (
-            <AppText tone="muted" style={{ fontSize: 10 }} numberOfLines={1}>{item.brand}</AppText>
-          ) : null}
-        </View>
-      </Pressable>
-    </View>
-  );
-});
-
-// ── Category filter modal ─────────────────────────────────────────────────────
-
-type CategoryFilterModalProps = {
-  visible: boolean;
-  categories: CategoryEntry[];
-  selected: string | null;
-  onSelect: (category: string | null) => void;
-  onClose: () => void;
-};
-
-function CategoryFilterModal({ visible, categories, selected, onSelect, onClose }: CategoryFilterModalProps) {
-  const { theme } = useTheme();
-  const { height: screenHeight } = useWindowDimensions();
-  const scrollRef = useRef<ScrollView>(null);
-  const itemYOffsets = useRef<number[]>([]);
-  const filterRowStyle = {
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    justifyContent: 'space-between',
-    minHeight: 54,
-    paddingHorizontal: spacing.lg,
-  } as const;
-  const filterRowActiveStyle = { borderColor: theme.colors.accent } as const;
-
-  useEffect(() => {
-    if (!visible) return;
-    const timeout = setTimeout(() => {
-      const idx = selected === null ? 0 : (categories.findIndex((c) => c.label === selected) + 1);
-      const y = itemYOffsets.current[idx] ?? 0;
-      scrollRef.current?.scrollTo({ y: Math.max(0, y - spacing.sm), animated: false });
-    }, 50);
-    return () => clearTimeout(timeout);
-  }, [visible, selected, categories]);
-
-  return (
-    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
-        style={{
-          alignItems: 'center',
-          backgroundColor: theme.colors.overlay,
-          flex: 1,
-          justifyContent: 'center',
-          padding: spacing.lg,
-        }}>
-        {/* Stop taps on the card from closing the modal */}
-        <Pressable
-          onPress={() => undefined}
-          style={{
-            backgroundColor: theme.colors.background,
-            borderRadius: 28,
-            maxWidth: 420,
-            overflow: 'hidden',
-            width: '100%',
-          }}>
-          {/* Fixed header */}
-          <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm }}>
-            <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
-              Filter by Category
-            </AppText>
-          </View>
-
-          {/* Scrollable category list — capped so it never overflows the screen */}
-          <ScrollView
-            ref={scrollRef}
-            bounces={false}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            style={{ maxHeight: screenHeight * 0.52 }}
-            contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}>
-            <Pressable
-              onLayout={(e) => { itemYOffsets.current[0] = e.nativeEvent.layout.y; }}
-              onPress={() => onSelect(null)}
-              style={[filterRowStyle, !selected ? filterRowActiveStyle : null]}>
-              <AppText variant="sectionTitle" style={!selected ? { color: theme.colors.accent } : undefined}>All Items</AppText>
-              <AppText tone="muted">{categories.reduce((sum, c) => sum + c.count, 0)}</AppText>
-            </Pressable>
-
-            {categories.map((cat, idx) => (
-              <Pressable
-                key={cat.label}
-                onLayout={(e) => { itemYOffsets.current[idx + 1] = e.nativeEvent.layout.y; }}
-                onPress={() => onSelect(cat.label)}
-                style={[filterRowStyle, selected === cat.label ? filterRowActiveStyle : null]}>
-                <AppText variant="sectionTitle" style={selected === cat.label ? { color: theme.colors.accent } : undefined}>
-                  {cat.label}
-                </AppText>
-                <AppText tone="muted">{cat.count}</AppText>
-              </Pressable>
-            ))}
-          </ScrollView>
-
-          {/* Fixed footer */}
-          <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.lg }}>
-            <PrimaryButton label="Cancel" onPress={onClose} variant="secondary" />
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
   );
 }

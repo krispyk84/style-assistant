@@ -1,8 +1,6 @@
 import { promises as fsPromises } from 'node:fs';
 import path from 'node:path';
 
-import { z } from 'zod';
-
 import { openAiClient } from '../../ai/openai-client.js';
 import { storageConfig } from '../../config/storage.js';
 import { HttpError } from '../../lib/http-error.js';
@@ -16,31 +14,7 @@ import {
   buildMatchUserContent,
   buildMatchInstructions,
 } from './closet-prompt-builders.js';
-
-const analyzeResponseSchema = z.object({
-  title: z.string(),
-  category: z.string(),
-  brand: z.string(),
-  subcategory: z.string().nullable().optional(),
-  primaryColor: z.string().nullable().optional(),
-  colorFamily: z.string().nullable().optional(),
-  material: z.string().nullable().optional(),
-  formality: z.string().nullable().optional(),
-  silhouette: z.string().nullable().optional(),
-  weight: z.string().nullable().optional(),
-  pattern: z.string().nullable().optional(),
-  lensShape: z.string().nullable().optional(),
-  frameColor: z.string().nullable().optional(),
-});
-
-const matchResponseSchema = z.object({
-  matches: z.array(
-    z.object({
-      suggestionIndex: z.number(),
-      matchedItemId: z.string().nullable(),
-    })
-  ),
-});
+import { analyzeResponseSchema, matchResponseSchema } from './closet.schemas.js';
 
 async function imageUrlToDataUrl(imageUrl: string): Promise<string> {
   // Prefer reading directly from disk — faster and avoids self-HTTP requests on Render.

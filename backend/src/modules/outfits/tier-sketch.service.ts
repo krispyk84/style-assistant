@@ -2,8 +2,8 @@ import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
-import { buildTierSketchPrompt } from '../../ai/prompts/sketch.prompts.js';
-import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
+import { buildTierSketchPrompt } from '../../ai/prompts/tier-sketch.prompts.js';
+import { buildSubjectRenderingBrief, type SubjectRenderingInput } from '../../ai/body-type-severity.js';
 import type { OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
 import { storageProvider } from '../../storage/index.js';
 import { outfitsRepository } from './outfits.repository.js';
@@ -92,23 +92,14 @@ async function generateSingleTierSketch(
 export const tierSketchService = {
   async queueSketchesForOutfit(
     outfit: OutfitResponse,
+    subject: SubjectRenderingInput,
     supabaseUserId?: string,
-    gender?: string | null,
-    bodyType?: string | null,
-    fitTendency?: string | null,
-    fitPreference?: string | null,
-    heightCm?: number | null,
-    weightKg?: number | null,
-    weightDistribution?: string | null,
-    skinTone?: string | null,
   ) {
     const { description: anchorItemDescription, colorMetadata } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
 
     // Build once — identical across all tiers so the figure never changes between Business/Smart Casual/Casual.
-    const { block: subjectBrief } = buildSubjectRenderingBrief({
-      heightCm, weightKg, bodyType, gender, weightDistribution, fitTendency, skinTone,
-    });
+    const { block: subjectBrief } = buildSubjectRenderingBrief(subject);
 
     logger.info(
       { requestId: outfit.requestId, anchorItemDescription, colorMetadata, subjectBrief },
@@ -125,15 +116,8 @@ export const tierSketchService = {
   async queueSketchForTier(
     outfit: OutfitResponse,
     tier: OutfitTierSlug,
+    subject: SubjectRenderingInput,
     supabaseUserId?: string,
-    gender?: string | null,
-    bodyType?: string | null,
-    fitTendency?: string | null,
-    fitPreference?: string | null,
-    heightCm?: number | null,
-    weightKg?: number | null,
-    weightDistribution?: string | null,
-    skinTone?: string | null,
   ) {
     const recommendation = outfit.recommendations.find((item) => item.tier === tier);
     if (!recommendation) return;
@@ -141,9 +125,7 @@ export const tierSketchService = {
     const { description: anchorItemDescription, colorMetadata } =
       await resolveAnchorDescriptionForSketch(outfit, supabaseUserId);
 
-    const { block: subjectBrief } = buildSubjectRenderingBrief({
-      heightCm, weightKg, bodyType, gender, weightDistribution, fitTendency, skinTone,
-    });
+    const { block: subjectBrief } = buildSubjectRenderingBrief(subject);
 
     await generateSingleTierSketch(outfit.requestId, anchorItemDescription, colorMetadata, subjectBrief, recommendation, supabaseUserId);
   },

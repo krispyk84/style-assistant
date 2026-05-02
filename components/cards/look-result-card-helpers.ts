@@ -1,17 +1,10 @@
 import { findBestClosetMatch, getMatchConfidencePercent } from '@/lib/closet-match';
+import type { LabeledPiece } from '@/lib/outfit-piece-display';
 import type { ClosetItem } from '@/types/closet';
 import type { LookRecommendation, OutfitPiece } from '@/types/look-request';
 import { normalizePiece } from '@/types/look-request';
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-export type LabeledPiece = {
-  label: string;
-  value: string;
-  matchedClosetItem: ClosetItem | null;
-  confidencePercent: number;
-  isAnchor?: boolean;
-};
+export type { LabeledPiece };
 
 // ── Match resolution ───────────────────────────────────────────────────────────
 

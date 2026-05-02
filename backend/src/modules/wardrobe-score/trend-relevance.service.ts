@@ -17,11 +17,12 @@
  *   - Style guide retrieval returns empty results
  */
 
-import { z } from 'zod';
 import { openAiClient } from '../../ai/openai-client.js';
+import { TREND_RELEVANCE_JSON_SCHEMA } from '../../ai/prompts/trend-relevance.prompts.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
+import { trendResponseSchema, type TrendResponse } from './trend-relevance.schemas.js';
 import type { ScoringClosetItem, TrendItemAnnotation, TrendRelevanceScore } from './wardrobe-score.types.js';
 
 // ── In-memory cache (TTL: 4 hours) ────────────────────────────────────────────
@@ -45,23 +46,6 @@ function getCached(userId: string): TrendRelevanceScore | null {
 function setCached(userId: string, result: TrendRelevanceScore): void {
   cache.set(userId, { result, expiresAt: Date.now() + CACHE_TTL_MS });
 }
-
-// ── Zod schema for per-item annotation ────────────────────────────────────────
-
-const trendAnnotationSchema = z.object({
-  itemId: z.string(),
-  label: z.enum(['on-trend', 'neutral', 'dated']),
-  rationale: z.string().max(200),
-  confidence: z.enum(['high', 'medium', 'low']),
-});
-
-const trendResponseSchema = z.object({
-  styleGuideSummary: z.string(),
-  annotations: z.array(trendAnnotationSchema),
-  overallScore: z.number().int().min(0).max(100),
-  onTrendHighlights: z.array(z.string()).max(3),
-  datedCallouts: z.array(z.string()).max(3),
-});
 
 // ── Fallback response ─────────────────────────────────────────────────────────
 
@@ -184,40 +168,12 @@ export const trendRelevanceService = {
 
     // ── 5. Call AI ────────────────────────────────────────────────────────────
 
-    let aiResult: z.infer<typeof trendResponseSchema>;
+    let aiResult: TrendResponse;
 
     try {
       aiResult = await openAiClient.createStructuredResponse({
         schema: trendResponseSchema,
-        jsonSchema: {
-          name: 'trend_relevance_analysis',
-          description: 'Per-item trend relevance analysis against uploaded style guides',
-          schema: {
-            type: 'object',
-            properties: {
-              styleGuideSummary: { type: 'string', description: '2-sentence summary of the style guide aesthetic direction' },
-              annotations: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    itemId:     { type: 'string' },
-                    label:      { type: 'string', enum: ['on-trend', 'neutral', 'dated'] },
-                    rationale:  { type: 'string' },
-                    confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
-                  },
-                  required: ['itemId', 'label', 'rationale', 'confidence'],
-                  additionalProperties: false,
-                },
-              },
-              overallScore:       { type: 'integer', minimum: 0, maximum: 100 },
-              onTrendHighlights:  { type: 'array', items: { type: 'string' } },
-              datedCallouts:      { type: 'array', items: { type: 'string' } },
-            },
-            required: ['styleGuideSummary', 'annotations', 'overallScore', 'onTrendHighlights', 'datedCallouts'],
-            additionalProperties: false,
-          },
-        },
+        jsonSchema: TREND_RELEVANCE_JSON_SCHEMA,
         instructions,
         userContent: [{ type: 'input_text', text: userText }],
         supabaseUserId,

@@ -1,7 +1,7 @@
 import type { AnalysisRequest, AnalysisResponse } from '../../contracts/analysis.contracts.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildModelImageInput, resolveImageUrlForAI } from '../../ai/image-input.js';
-import { compatibilityJsonSchema, compatibilityModelSchema } from './analysis.schemas.js';
+import { compatibilityJsonSchema, compatibilityModelSchema } from './compatibility.schemas.js';
 import { buildCompatibilityInstructions, buildCompatibilityUserPrompt } from '../../ai/prompts/analysis.prompts.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';

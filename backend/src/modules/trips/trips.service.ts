@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildModelImageInput, resolveImageUrlForAI } from '../../ai/image-input.js';
 import { buildTripOutfitsPrompt, buildTripDaySketchPrompt, buildRegenerateDayPrompt } from '../../ai/prompts/trips.prompts.js';
@@ -10,7 +9,7 @@ import { profileRepository } from '../profile/profile.repository.js';
 import { closetRepository } from '../closet/closet.repository.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
-import { tripOutfitsResponseSchema, tripDaySchema } from './trips.schemas.js';
+import { regenerateDayResponseSchema, tripOutfitsResponseSchema } from './trips.schemas.js';
 import type { GenerateTripOutfitsRequest, GenerateTripOutfitsResponse, RegenerateTripDayRequest, TripOutfitDayDto } from '../../contracts/trips.contracts.js';
 import type { InputContent } from '../../ai/openai-request-builder.js';
 
@@ -86,8 +85,6 @@ export const tripsService = {
       profile,
       styleGuideContext?.promptContext,
     );
-
-    const regenerateDayResponseSchema = z.object({ day: tripDaySchema });
 
     const result = await openAiClient.createStructuredResponse({
       schema: regenerateDayResponseSchema,

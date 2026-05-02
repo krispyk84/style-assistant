@@ -1,14 +1,14 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
-import type { ClosetItemFitStatus } from '@/types/closet';
 import { View } from 'react-native';
-import { trackCreateLookStarted } from '@/lib/analytics';
 
 import { CreateLookRequestForm } from '@/components/forms/create-look-request-form';
+import { buildAnchorItemsFromClosetParams } from '@/components/forms/createLookRequest-mappers';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing } from '@/constants/theme';
+import { trackCreateLookStarted } from '@/lib/analytics';
 
 export default function CreateLookScreen() {
   useEffect(() => { trackCreateLookStarted(); }, []);
@@ -21,25 +21,12 @@ export default function CreateLookScreen() {
     fresh?: string;
   }>();
 
-  const anchorItems =
-    closetItemId && closetItemTitle && closetItemImageUrl
-      ? [
-          {
-            id: closetItemId,
-            description: closetItemTitle,
-            image: null,
-            fitStatus: closetItemFitStatus as ClosetItemFitStatus | undefined,
-            uploadedImage: {
-              id: closetItemId,
-              category: 'anchor-item' as const,
-              storageProvider: 'closet-ref',
-              storageKey: closetItemImageUrl,
-              publicUrl: closetItemImageUrl,
-              createdAt: new Date().toISOString(),
-            },
-          },
-        ]
-      : [];
+  const anchorItems = buildAnchorItemsFromClosetParams({
+    closetItemId,
+    closetItemTitle,
+    closetItemImageUrl,
+    closetItemFitStatus,
+  });
 
   return (
     <AppScreen scrollable floatingBack>

@@ -1,7 +1,7 @@
 import type { GenerateTripOutfitsRequest, RegenerateTripDayRequest } from '../../contracts/trips.contracts.js';
 import type { JsonSchemaConfig } from '../openai-request-builder.js';
 import { formatProfileContext } from '../prompt-context.js';
-import { HEADLESS_GUARD, STYLE_GUARD, STYLE_PREAMBLE, QUALITY_ADDENDUM, QUALITY_ADDENDUM_2 } from './sketch.prompts.js';
+import { HEADLESS_GUARD, STYLE_GUARD, STYLE_PREAMBLE, QUALITY_ADDENDUM, QUALITY_ADDENDUM_2 } from './sketch-style-preamble.js';
 import {
   buildTripTemperatureRuleLines,
   TRIP_DAY_BAG_RULE_LINES,

@@ -135,14 +135,10 @@ export type SubjectRenderingBrief = {
 };
 
 /**
- * Builds a SUBJECT RENDERING BRIEF from all available profile signals.
- * This is the single source of truth for how the illustrated figure should look.
- * It is computed once per outfit and reused identically across all tiers.
- *
- * Combines: physique (BMI + body type), height, skin tone, fit tendency.
- * The output is a locked prompt block — not a soft suggestion.
+ * All profile-derived inputs that influence how the illustrated figure renders.
+ * Computed once per outfit so every tier sketch sees the same body.
  */
-export function buildSubjectRenderingBrief(input: {
+export type SubjectRenderingInput = {
   heightCm?: number | null;
   weightKg?: number | null;
   bodyType?: string | null;
@@ -150,7 +146,17 @@ export function buildSubjectRenderingBrief(input: {
   weightDistribution?: string | null;
   fitTendency?: string | null;
   skinTone?: string | null;
-}): SubjectRenderingBrief {
+};
+
+/**
+ * Builds a SUBJECT RENDERING BRIEF from all available profile signals.
+ * This is the single source of truth for how the illustrated figure should look.
+ * It is computed once per outfit and reused identically across all tiers.
+ *
+ * Combines: physique (BMI + body type), height, skin tone, fit tendency.
+ * The output is a locked prompt block — not a soft suggestion.
+ */
+export function buildSubjectRenderingBrief(input: SubjectRenderingInput): SubjectRenderingBrief {
   const severity = buildBodyTypeSeverity(
     input.heightCm,
     input.weightKg,
