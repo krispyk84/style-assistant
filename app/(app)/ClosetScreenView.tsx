@@ -130,6 +130,11 @@ export function ClosetScreenView({
     paddingVertical: spacing.sm,
   } as const;
 
+  const sortSegments: { value: ClosetSortMode; label: string }[] = [
+    { value: 'recent', label: 'Recently Added' },
+    { value: 'category', label: 'Type' },
+  ];
+
   const listHeaderContent = (
     <View style={{ gap: spacing.xl, paddingBottom: spacing.xs }}>
       {/* Title + add button (original position) */}
@@ -190,23 +195,66 @@ export function ClosetScreenView({
         </View>
       ) : null}
 
-      {/* Filter + sort pills */}
+      {/* Sort segmented control + (when grouping by Type) the type filter pill */}
       {!isLoading && itemCount > 0 ? (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-          <Pressable onPress={onFilterPress} style={pillStyle}>
-            <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>{activeLabel}</AppText>
-            <AppIcon color={theme.colors.mutedText} name="chevron-down" size={14} />
-          </Pressable>
-          <Pressable onPress={onToggleSort} style={pillStyle}>
-            <AppIcon
-              color={theme.colors.mutedText}
-              name={sortMode === 'recent' ? 'clock' : 'layers'}
-              size={14}
-            />
-            <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>
-              {sortMode === 'recent' ? 'Recent' : 'Category'}
-            </AppText>
-          </Pressable>
+        <View style={{ gap: spacing.sm }}>
+          <View
+            style={{
+              alignSelf: 'flex-start',
+              backgroundColor: theme.colors.subtleSurface,
+              borderColor: theme.colors.border,
+              borderRadius: 999,
+              borderWidth: 1,
+              flexDirection: 'row',
+              padding: 3,
+            }}>
+            {sortSegments.map((seg) => {
+              const selected = sortMode === seg.value;
+              return (
+                <Pressable
+                  key={seg.value}
+                  onPress={() => {
+                    if (sortMode !== seg.value) onToggleSort();
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: selected ? theme.colors.surface : 'transparent',
+                    borderRadius: 999,
+                    flexDirection: 'row',
+                    gap: spacing.xs,
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.xs + 2,
+                    shadowColor: selected ? '#000' : 'transparent',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: selected ? 0.08 : 0,
+                    shadowRadius: selected ? 2 : 0,
+                  }}>
+                  <AppIcon
+                    color={selected ? theme.colors.text : theme.colors.mutedText}
+                    name={seg.value === 'recent' ? 'clock' : 'layers'}
+                    size={13}
+                  />
+                  <AppText
+                    variant="eyebrow"
+                    style={{
+                      color: selected ? theme.colors.text : theme.colors.mutedText,
+                      letterSpacing: 1.2,
+                    }}>
+                    {seg.label}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {sortMode === 'category' ? (
+            <Pressable onPress={onFilterPress} style={[pillStyle, { alignSelf: 'flex-start' }]}>
+              <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>{activeLabel}</AppText>
+              <AppIcon color={theme.colors.mutedText} name="chevron-down" size={14} />
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 

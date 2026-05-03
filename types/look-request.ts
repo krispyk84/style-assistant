@@ -117,6 +117,11 @@ export type CreateLookInput = {
   includeBag?: boolean;
   /** User opted to have an outfit-appropriate hat included in the generated look. */
   includeHat?: boolean;
+  /**
+   * Outfit trendiness 0–100 from app settings (lower = safer/classic, higher = trendier).
+   * Read at request time; not user-specified per look.
+   */
+  trendiness?: number;
 };
 
 export type LookTierDefinition = {

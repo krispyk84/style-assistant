@@ -171,6 +171,7 @@ export const outfitsService = {
         manualSeason: input.manualSeason ?? null,
         includeBag: input.includeBag ?? false,
         includeHat: input.includeHat ?? false,
+        trendiness: input.trendiness,
       },
       recommendations: tiersToGenerate.map((tier) => {
         const recommendation = recommendationMap.get(tier);

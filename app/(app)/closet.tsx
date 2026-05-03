@@ -93,7 +93,13 @@ export default function ClosetScreen() {
         onCategorySelect={(cat) => { setSelectedCategory(cat); setFilterModalVisible(false); }}
         onFilterModalClose={() => setFilterModalVisible(false)}
         sortMode={sortMode}
-        onToggleSort={() => setSortMode((m) => (m === 'category' ? 'recent' : 'category'))}
+        onToggleSort={() => {
+          setSortMode((m) => {
+            const next = m === 'category' ? 'recent' : 'category';
+            if (next === 'recent') setSelectedCategory(null);
+            return next;
+          });
+        }}
         useFlatList={useFlatList}
         addModalVisible={addModalVisible}
         onAddPress={() => setAddModalVisible(true)}

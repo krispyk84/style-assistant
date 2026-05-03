@@ -22,7 +22,11 @@ const APPEARANCE_OPTIONS: { value: AppearanceMode; label: string; description: s
 export function SettingsScreen() {
   const { user } = useAuth();
   const { theme, appearanceMode, setAppearanceMode } = useTheme();
-  const { sensitivity, setSensitivity, persistSensitivity, monthlyAiCost, sensitivityLabel, appVersion } = useSettings();
+  const {
+    sensitivity, setSensitivity, persistSensitivity, sensitivityLabel,
+    trendiness, setTrendiness, persistTrendiness, trendinessLabel,
+    monthlyAiCost, appVersion,
+  } = useSettings();
   const { handleLogout } = useLogout();
 
   const cardStyle = {
@@ -122,6 +126,41 @@ export function SettingsScreen() {
             }}>
             <AppText tone="muted" style={{ fontSize: 13, textAlign: 'center' }}>
               {sensitivityLabel}
+            </AppText>
+          </View>
+        </View>
+
+        {/* Trendiness */}
+        <View style={cardStyle}>
+          <View style={{ gap: spacing.xs }}>
+            <AppText variant="sectionTitle">Trendiness</AppText>
+            <AppText tone="muted">
+              Tunes how current vs. timeless your generated outfits feel. Lower leans into safe wardrobe classics; higher leans into current micro-trends and statement details.
+            </AppText>
+          </View>
+
+          <SensitivitySlider
+            value={trendiness}
+            onChange={setTrendiness}
+            onChangeEnd={(v) => void persistTrendiness(v)}
+            accessibilityLabel="Outfit trendiness"
+          />
+
+          <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+            <AppText tone="muted" style={{ fontSize: 12 }}>Safe</AppText>
+            <AppText tone="muted" style={{ fontSize: 12 }}>Trendy</AppText>
+          </View>
+
+          <View
+            style={{
+              backgroundColor: theme.colors.card,
+              borderColor: theme.colors.border,
+              borderRadius: 12,
+              borderWidth: 1,
+              padding: spacing.sm,
+            }}>
+            <AppText tone="muted" style={{ fontSize: 13, textAlign: 'center' }}>
+              {trendinessLabel}
             </AppText>
           </View>
         </View>

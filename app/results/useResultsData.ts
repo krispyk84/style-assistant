@@ -8,6 +8,7 @@ import type { GenerateOutfitsResponse } from '@/types/api';
 import { LOOK_TIER_OPTIONS, type CreateLookInput, type LookTierSlug } from '@/types/look-request';
 import { trackCreateLookCompleted, trackCreateLookFailed } from '@/lib/analytics';
 import { recordError, log } from '@/lib/crashlytics';
+import { useTrendiness } from '@/hooks/use-trendiness';
 
 export function useResultsData(stableParams: LookRouteParams & { requestId: string }) {
   const [response, setResponse] = useState<GenerateOutfitsResponse | null>(null);
@@ -22,6 +23,7 @@ export function useResultsData(stableParams: LookRouteParams & { requestId: stri
   const [tierGenerations, setTierGenerations] = useState<Partial<Record<LookTierSlug, number>>>({});
   const generateAbortRef = useRef<AbortController | null>(null);
 
+  const trendiness = useTrendiness();
   const parsedInput = useMemo(() => parseLookInput(stableParams), [stableParams]);
 
   // Keep ref in sync so the poll closure always reads the current set without re-creating the interval.
@@ -71,7 +73,7 @@ export function useResultsData(stableParams: LookRouteParams & { requestId: stri
       if (controller.signal.aborted) return;
 
       const serviceResponse = await outfitsService.generateOutfits(
-        { ...input, requestId, selectedTiers: tiersInOrder, generateOnlyTier: tier },
+        { ...input, requestId, selectedTiers: tiersInOrder, generateOnlyTier: tier, trendiness },
         { signal: controller.signal },
       );
 

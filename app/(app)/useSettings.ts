@@ -13,10 +13,14 @@ export const appVersion = Constants.expoConfig?.version ?? '0.0.1';
 
 export function useSettings() {
   const [sensitivity, setSensitivity] = useState(50);
+  const [trendiness, setTrendiness] = useState(50);
   const [monthlyAiCost, setMonthlyAiCost] = useState<number | null>(null);
 
   useEffect(() => {
-    void loadAppSettings().then((s) => setSensitivity(s.closetMatchSensitivity));
+    void loadAppSettings().then((s) => {
+      setSensitivity(s.closetMatchSensitivity);
+      setTrendiness(s.trendiness);
+    });
   }, []);
 
   useFocusEffect(
@@ -33,6 +37,10 @@ export function useSettings() {
     await saveAppSettings({ closetMatchSensitivity: value });
   }
 
+  async function persistTrendiness(value: number) {
+    await saveAppSettings({ trendiness: value });
+  }
+
   const sensitivityLabel =
     sensitivity >= 67
       ? 'Precise — same color family AND similar shade required'
@@ -40,5 +48,16 @@ export function useSettings() {
         ? 'Balanced — same broad color family required'
         : 'Forgiving — broad color range, focus on category and style';
 
-  return { sensitivity, setSensitivity, persistSensitivity, monthlyAiCost, sensitivityLabel, appVersion };
+  const trendinessLabel =
+    trendiness >= 67
+      ? 'Trendy — current micro-trends, statement details, fashion-forward pieces'
+      : trendiness >= 34
+        ? 'Balanced — mix of timeless staples and current pieces'
+        : 'Safe — established silhouettes, neutral palettes, timeless wardrobe staples';
+
+  return {
+    sensitivity, setSensitivity, persistSensitivity, sensitivityLabel,
+    trendiness, setTrendiness, persistTrendiness, trendinessLabel,
+    monthlyAiCost, appVersion,
+  };
 }

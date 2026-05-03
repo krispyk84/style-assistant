@@ -46,6 +46,11 @@ export type GenerateOutfitsRequest = {
   includeBag?: boolean;
   /** User opted to have an outfit-appropriate hat included in the generated look. */
   includeHat?: boolean;
+  /**
+   * Outfit trendiness 0–100 (lower = safer/classic, higher = trendier).
+   * Sourced from the user's app settings on the device.
+   */
+  trendiness?: number;
 };
 
 export type TierRecommendationDto = {
@@ -84,6 +89,7 @@ export type OutfitResponse = {
     manualSeason?: GenerateOutfitsRequest['manualSeason'];
     includeBag?: boolean;
     includeHat?: boolean;
+    trendiness?: number;
   };
   recommendations: TierRecommendationDto[];
 };
