@@ -184,6 +184,19 @@ export default function AppTabsLayout() {
         <Tabs.Screen name="useSettings"         options={{ href: null }} />
         <Tabs.Screen name="useWeekPlan"         options={{ href: null }} />
         <Tabs.Screen name="useWeekPlanActions"  options={{ href: null }} />
+        {/* ── Hidden: session refactor artifacts ──────────────────────── */}
+        <Tabs.Screen name="HomeScreen"                options={{ href: null }} />
+        <Tabs.Screen name="LooksFavouritesTab"        options={{ href: null }} />
+        <Tabs.Screen name="LooksFilterPills"          options={{ href: null }} />
+        <Tabs.Screen name="LooksHistoryTab"           options={{ href: null }} />
+        <Tabs.Screen name="TravelPlannerScreen"       options={{ href: null }} />
+        <Tabs.Screen name="TravelPlannerNewTripForm"  options={{ href: null }} />
+        <Tabs.Screen name="TravelPlannerSavedTab"     options={{ href: null }} />
+        <Tabs.Screen name="travel-planner-primitives" options={{ href: null }} />
+        <Tabs.Screen name="travel-planner-types"      options={{ href: null }} />
+        <Tabs.Screen name="travel-planner-mappers"    options={{ href: null }} />
+        <Tabs.Screen name="useTravelPlannerForm"      options={{ href: null }} />
+        <Tabs.Screen name="useSavedTripsData"         options={{ href: null }} />
       </Tabs>
     </View>
   );

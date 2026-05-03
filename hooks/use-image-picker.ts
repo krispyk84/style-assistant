@@ -13,6 +13,13 @@ import type { LocalImageAsset } from '@/types/media';
 const UPLOAD_MAX_DIMENSION = 1600;
 const UPLOAD_JPEG_QUALITY = 0.82;
 
+type ImageLibraryOptions = NonNullable<Parameters<typeof ImagePicker.launchImageLibraryAsync>[0]>;
+
+type MultiSelectImageLibraryOptions = ImageLibraryOptions & {
+  allowsMultipleSelection: boolean;
+  selectionLimit: number;
+};
+
 async function compressForUpload(asset: LocalImageAsset): Promise<LocalImageAsset> {
   const w = asset.width ?? 0;
   const h = asset.height ?? 0;
@@ -104,13 +111,15 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
       return [];
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const options: MultiSelectImageLibraryOptions = {
       allowsMultipleSelection: true,
       allowsEditing: false,   // mutually exclusive with allowsMultipleSelection on iOS
       mediaTypes: ['images'],
       quality: 1,
       selectionLimit: 10,
-    });
+    };
+
+    const result = await ImagePicker.launchImageLibraryAsync(options);
 
     setPickingSource(null);
 

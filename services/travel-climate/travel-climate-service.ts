@@ -201,7 +201,7 @@ export async function inferTravelClimate(params: InferClimateParams): Promise<Tr
 
   const avgHighC = daily.temperature_2m_max.reduce((s, v) => s + v, 0) / days;
   const avgLowC  = daily.temperature_2m_min.reduce((s, v) => s + v, 0) / days;
-  const precipMmPerDay = daily.precipitation_sum.reduce((s, v) => s + (v ?? 0), 0) / days;
+  const precipMmPerDay = daily.precipitation_sum.reduce<number>((sum, value) => sum + (value ?? 0), 0) / days;
   const diurnalRange = avgHighC - avgLowC;
 
   const tempBand    = classifyTemp(avgHighC);

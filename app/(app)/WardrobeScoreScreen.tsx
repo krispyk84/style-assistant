@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
-  ScrollView,
   View,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -270,7 +269,7 @@ function TrendRelevanceCard({ data }: { data: TrendRelevanceScore }) {
 
       {data.styleGuidesSummary && (
         <AppText style={{ fontSize: 13, lineHeight: 19, color: theme.colors.mutedText, fontStyle: 'italic' }}>
-          "{data.styleGuidesSummary}"
+          &quot;{data.styleGuidesSummary}&quot;
         </AppText>
       )}
 

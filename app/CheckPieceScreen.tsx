@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
@@ -14,8 +13,9 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing, theme } from '@/constants/theme';
 import type { ClosetItem } from '@/types/closet';
-import { useCheckPieceImage } from './useCheckPieceImage';
+import { CheckPieceClosetItemPreview } from './CheckPieceClosetItemPreview';
 import { useCheckPieceAnalysis } from './useCheckPieceAnalysis';
+import { useCheckPieceImage } from './useCheckPieceImage';
 import { useCheckPieceSave } from './useCheckPieceSave';
 
 // ── Screen ─────────────────────────────────────────────────────────────────────
@@ -45,7 +45,6 @@ export function CheckPieceScreen() {
   }
 
   function handlePhotoPickFromLibrary() {
-    // Clear any closet selection before picking a photo
     imageHook.clearClosetSelection();
     analysisHook.clearAnalysis();
     void imageHook.pickFromLibrary();
@@ -55,6 +54,15 @@ export function CheckPieceScreen() {
     imageHook.clearClosetSelection();
     analysisHook.clearAnalysis();
     void imageHook.takePhoto();
+  }
+
+  function triggerAnalysis() {
+    void analysisHook.runAnalysis({
+      image: imageHook.image,
+      uploadedImage: imageHook.uploadedImage,
+      selectedClosetItem: imageHook.selectedClosetItem,
+      params,
+    });
   }
 
   // ── Derived state ──────────────────────────────────────────────────────────
@@ -83,68 +91,11 @@ export function CheckPieceScreen() {
 
         {/* ── Source selection ─────────────────────────────────────────── */}
         {imageHook.selectedClosetItem ? (
-          /* Closet item selected — show compact item card */
-          <View
-            style={{
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.border,
-              borderRadius: 22,
-              borderWidth: 1,
-              gap: spacing.md,
-              padding: spacing.md,
-            }}>
-            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-              <AppIcon color={theme.colors.accent} name="check-circle" size={16} />
-              <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
-                From Your Closet
-              </AppText>
-            </View>
-
-            {closetItemImageUri ? (
-              <View
-                style={{
-                  aspectRatio: 3 / 4,
-                  backgroundColor: theme.colors.card,
-                  borderRadius: 16,
-                  overflow: 'hidden',
-                }}>
-                <Image
-                  contentFit="contain"
-                  source={{ uri: closetItemImageUri }}
-                  style={{ height: '100%', width: '100%' }}
-                />
-              </View>
-            ) : null}
-
-            <AppText style={{ fontFamily: theme.fonts.sansMedium }}>
-              {imageHook.selectedClosetItem.title}
-            </AppText>
-            {imageHook.selectedClosetItem.category ? (
-              <AppText tone="muted" style={{ fontSize: 13 }}>
-                {imageHook.selectedClosetItem.category}
-              </AppText>
-            ) : null}
-
-            <Pressable
-              onPress={() => imageHook.setClosetPickerVisible(true)}
-              style={{
-                alignItems: 'center',
-                alignSelf: 'flex-start',
-                backgroundColor: theme.colors.subtleSurface,
-                borderColor: theme.colors.border,
-                borderRadius: 999,
-                borderWidth: 1,
-                flexDirection: 'row',
-                gap: spacing.xs,
-                paddingHorizontal: spacing.md,
-                paddingVertical: spacing.sm,
-              }}>
-              <AppIcon color={theme.colors.text} name="swap" size={15} />
-              <AppText style={{ fontSize: 13 }}>Change item</AppText>
-            </Pressable>
-          </View>
+          <CheckPieceClosetItemPreview
+            closetItem={imageHook.selectedClosetItem}
+            onChangePress={() => imageHook.setClosetPickerVisible(true)}
+          />
         ) : (
-          /* No closet item — show photo picker */
           <ImagePickerField
             image={imageHook.image}
             isPicking={imageHook.isPicking || imageHook.isUploading}
@@ -199,14 +150,7 @@ export function CheckPieceScreen() {
           <View style={{ gap: spacing.sm }}>
             <PrimaryButton
               label={analysisHook.isAnalyzing ? 'Analyzing...' : 'Check this piece'}
-              onPress={() =>
-                void analysisHook.runAnalysis({
-                  image: imageHook.image,
-                  uploadedImage: imageHook.uploadedImage,
-                  selectedClosetItem: imageHook.selectedClosetItem,
-                  params,
-                })
-              }
+              onPress={triggerAnalysis}
               disabled={analysisHook.isAnalyzing}
             />
             {/* "Save to Closet" only makes sense for a freshly photographed piece */}
@@ -226,14 +170,7 @@ export function CheckPieceScreen() {
             <ErrorState title="Analysis unavailable" message={analysisHook.analysisError} />
             <PrimaryButton
               label={analysisHook.isAnalyzing ? 'Analyzing...' : 'Retry analysis'}
-              onPress={() =>
-                void analysisHook.runAnalysis({
-                  image: imageHook.image,
-                  uploadedImage: imageHook.uploadedImage,
-                  selectedClosetItem: imageHook.selectedClosetItem,
-                  params,
-                })
-              }
+              onPress={triggerAnalysis}
               disabled={analysisHook.isAnalyzing || !canAnalyze}
               variant="secondary"
             />

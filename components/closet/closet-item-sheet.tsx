@@ -56,14 +56,12 @@ export function ClosetItemSheet({
         useNativeDriver: true,
       }),
     ]).start();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [backdropOpacity, sheetTranslateY]);
 
   // Reset thumbs state when the matched item changes (e.g. after a rematch)
   useEffect(() => {
     setLocalThumb(thumbsFeedback ?? null);
   // item?.id changing means a new item was slotted in
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id, thumbsFeedback]);
 
   function dismissAndClose() {

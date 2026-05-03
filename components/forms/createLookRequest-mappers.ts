@@ -1,7 +1,40 @@
 import { buildLookRouteParams } from '@/lib/look-route';
 import { createMockRequestId } from '@/lib/look-mock-data';
+import type { ClosetItemFitStatus } from '@/types/closet';
 import type { CreateLookInput, LookAnchorItem, LookTierSlug } from '@/types/look-request';
 import type { WeatherContext, WeatherSeason } from '@/types/weather';
+
+/**
+ * Build the initial anchor items list when entering the create-look form
+ * from a closet item (e.g. the closet's "Build a look around this" action).
+ * Returns an empty array when no closet item params are present so the form
+ * can fall through to its empty-state initial item.
+ */
+export function buildAnchorItemsFromClosetParams(params: {
+  closetItemId?: string;
+  closetItemTitle?: string;
+  closetItemImageUrl?: string;
+  closetItemFitStatus?: string;
+}): LookAnchorItem[] {
+  const { closetItemId, closetItemTitle, closetItemImageUrl, closetItemFitStatus } = params;
+  if (!closetItemId || !closetItemTitle || !closetItemImageUrl) return [];
+  return [
+    {
+      id: closetItemId,
+      description: closetItemTitle,
+      image: null,
+      fitStatus: closetItemFitStatus as ClosetItemFitStatus | undefined,
+      uploadedImage: {
+        id: closetItemId,
+        category: 'anchor-item' as const,
+        storageProvider: 'closet-ref',
+        storageKey: closetItemImageUrl,
+        publicUrl: closetItemImageUrl,
+        createdAt: new Date().toISOString(),
+      },
+    },
+  ];
+}
 
 export function createEmptyAnchorItem(): LookAnchorItem {
   return {

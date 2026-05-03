@@ -1,7 +1,12 @@
 import type { GenerateTripOutfitsRequest, RegenerateTripDayRequest } from '../../contracts/trips.contracts.js';
 import type { JsonSchemaConfig } from '../openai-request-builder.js';
 import { formatProfileContext } from '../prompt-context.js';
-import { HEADLESS_GUARD, STYLE_GUARD, STYLE_PREAMBLE, QUALITY_ADDENDUM, QUALITY_ADDENDUM_2 } from './sketch.prompts.js';
+import { HEADLESS_GUARD, STYLE_GUARD, STYLE_PREAMBLE, QUALITY_ADDENDUM, QUALITY_ADDENDUM_2 } from './sketch-style-preamble.js';
+import {
+  buildTripTemperatureRuleLines,
+  TRIP_DAY_BAG_RULE_LINES,
+  TRIP_REGENERATION_BAG_RULE,
+} from './trip-shared-rules.js';
 
 type PromptProfile = Parameters<typeof formatProfileContext>[0];
 
@@ -79,7 +84,12 @@ function buildTripContext(req: GenerateTripOutfitsRequest): string {
     lines.push('  The user has chosen these key pieces to anchor their trip wardrobe.');
     lines.push('  Re-use and style these pieces across multiple days where appropriate.');
     for (const anchor of req.anchors) {
-      const source = anchor.source === 'closet' ? ' (from closet)' : anchor.source === 'ai_suggested' ? ' (suggested)' : ' (user upload)';
+      const hasImageReference = Boolean(anchor.uploadedImageId || anchor.imageUrl);
+      const source = anchor.source === 'closet'
+        ? ' (from closet)'
+        : anchor.source === 'ai_suggested'
+          ? ' (suggested)'
+          : hasImageReference ? ' (user upload; see attached image)' : ' (user upload)';
       lines.push(`  - [${anchor.category}] ${anchor.label}${source}${anchor.rationale ? ` — ${anchor.rationale}` : ''}`);
     }
     if (req.anchorMode === 'guided') {
@@ -130,21 +140,9 @@ export type TripOutfitsPrompt = {
 export function buildTripOutfitsPrompt(
   req: GenerateTripOutfitsRequest,
   profile: PromptProfile,
+  styleGuideContext?: string | null,
 ): TripOutfitsPrompt {
   const totalDays = Math.min(14, daysBetween(req.departureDate, req.returnDate));
-
-  const tempRuleLines: string[] = [];
-  if (req.avgHighC != null) {
-    if (req.avgHighC >= 24) {
-      tempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): HOT. Use ONLY lightweight, breathable fabrics (linen, cotton, jersey, silk). Absolutely NO coats, wool sweaters, heavy knitwear, parkas, or thick layers.`);
-    } else if (req.avgHighC >= 18) {
-      tempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): WARM. Light fabrics preferred. A light denim jacket or unlined blazer is the maximum outerwear — no heavy coats or wool.`);
-    } else if (req.avgHighC >= 10) {
-      tempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): MILD-COOL. Medium-weight layers acceptable; a jacket or light coat is fine. No heavy parkas or extreme cold-weather gear.`);
-    } else {
-      tempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): COLD. Warm layers, coats, knitwear appropriate.`);
-    }
-  }
 
   const instructions = [
     'You are an expert travel stylist. Generate a practical, stylish, day-by-day outfit plan for a trip.',
@@ -159,22 +157,13 @@ export function buildTripOutfitsPrompt(
     '- rationale explains why this outfit works for this specific day (climate, activity, formality).',
     '- pieces: list each main garment with color + fabric hint (e.g. "Slim navy linen trousers"). Min 2, max 5.',
     '- shoes: one specific footwear choice.',
-    '- bag: ONE specific bag choice for this day, or null only if no bag is needed (e.g. a beach swim morning where pieces stay at the hotel). Do NOT default to "canvas tote" — choose the bag TYPE that fits this day\'s context.',
-    '  • Bag types to pick from: briefcase, structured work bag, laptop bag, backpack, daypack, messenger, crossbody, shoulder bag, top-handle, satchel, tote, weekender, duffel, holdall, clutch, evening bag, belt bag, sling bag.',
-    '  • business / meeting / conference days → briefcase, structured work bag, slim laptop bag, or refined leather messenger (NEVER a casual canvas tote).',
-    '  • adventure / sightseeing on the move → backpack, daypack, sling bag, or compact crossbody.',
-    '  • beach_pool → roomy summer tote, straw tote, or water-friendly crossbody (only when going to/from the beach, not while swimming).',
-    '  • dinner_out / wedding_event → small structured handbag, top-handle, or clutch (women) / slim leather pouch or no bag (men).',
-    '  • travel_day → weekender, duffel, or carry-all that doubles as a personal item.',
-    '  • relaxed / sightseeing on foot → shoulder bag, crossbody, or compact tote — type chosen for the outfit\'s formality, not as a fallback.',
-    '  • For menswear profiles, avoid clutches, top-handle handbags, hobo bags, or other feminine-coded bag silhouettes — choose briefcase, messenger, backpack, weekender, crossbody, or shoulder bag instead.',
-    '  • The bag must match the day\'s formality and the outfit\'s palette/material story — describe color and material (e.g. "Tan grained-leather briefcase", "Black ripstop daypack", "Stone canvas weekender", "Cognac suede shoulder bag", "Black nappa-leather clutch").',
-    '  • If the user provided an anchor-piece bag, build the day around that bag rather than introducing a different one.',
+    ...TRIP_DAY_BAG_RULE_LINES,
     '- accessories: 0–3 items.',
     '- contextTags: 1–4 short tags (e.g. "beach-ready", "breathable", "semi-formal", "layerable").',
-    ...tempRuleLines,
+    ...buildTripTemperatureRuleLines(req.avgHighC),
     '',
     formatProfileContext(profile),
+    styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
   ].join('\n');
 
   const generateInstruction = req.generateOnlyDayIndex !== undefined
@@ -242,23 +231,11 @@ export type RegenerateDayPrompt = {
 export function buildRegenerateDayPrompt(
   req: RegenerateTripDayRequest,
   profile: PromptProfile,
+  styleGuideContext?: string | null,
 ): RegenerateDayPrompt {
   const dayLabel = formatDate(req.date);
   const previousList = req.previousPieces.map((p) => `  • ${p}`).join('\n');
   const previousShoes = req.previousShoes ? `  • ${req.previousShoes} (shoes)` : '';
-
-  const regenTempRuleLines: string[] = [];
-  if (req.avgHighC != null) {
-    if (req.avgHighC >= 24) {
-      regenTempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): HOT. Use ONLY lightweight, breathable fabrics (linen, cotton, jersey, silk). Absolutely NO coats, wool sweaters, heavy knitwear, parkas, or thick layers.`);
-    } else if (req.avgHighC >= 18) {
-      regenTempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): WARM. Light fabrics preferred. A light denim jacket or unlined blazer is the maximum outerwear — no heavy coats or wool.`);
-    } else if (req.avgHighC >= 10) {
-      regenTempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): MILD-COOL. Medium-weight layers acceptable; a jacket or light coat is fine. No heavy parkas or extreme cold-weather gear.`);
-    } else {
-      regenTempRuleLines.push(`- TEMPERATURE (avg high ${req.avgHighC}°C): COLD. Warm layers, coats, knitwear appropriate.`);
-    }
-  }
 
   const instructions = [
     'You are an expert travel stylist. Generate ONE fresh outfit alternative for a single trip day.',
@@ -270,10 +247,11 @@ export function buildRegenerateDayPrompt(
     '- Do NOT repeat the previous outfit pieces. Generate a genuinely different look.',
     '- title should be a different evocative label from before.',
     '- Be specific about garment descriptions (color + fabric hint).',
-    '- bag: pick the bag TYPE that fits the dayType — briefcase / structured work bag for business or meeting; backpack or sling for adventure; clutch or top-handle (or slim pouch / no bag for men) for dinner_out and wedding_event; tote or beach-friendly crossbody for beach_pool; weekender or duffel for travel_day; shoulder bag, messenger, or crossbody for sightseeing and relaxed days. Never default to "canvas tote" unless the day context (e.g. casual beach errand) genuinely calls for one. For menswear profiles, avoid clutches and top-handle handbags. Set bag to null only if the day truly needs no bag.',
-    ...regenTempRuleLines,
+    TRIP_REGENERATION_BAG_RULE,
+    ...buildTripTemperatureRuleLines(req.avgHighC),
     '',
     formatProfileContext(profile),
+    styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
   ].join('\n');
 
   const userText = [

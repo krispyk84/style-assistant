@@ -35,10 +35,12 @@ export const saveClosetItemSchema = z.object({
 });
 
 export const updateClosetItemSchema = z.object({
-  title: z.string().min(1),
-  brand: z.string().default(''),
-  size: z.string().default(''),
-  category: z.string().default('Clothing'),
+  title: z.string().min(1).optional(),
+  brand: z.string().optional(),
+  size: z.string().optional(),
+  category: z.string().optional(),
+  uploadedImageUrl: z.string().optional(),
+  sketchImageUrl: z.string().optional(),
   ...closetMetadataFields,
 });
 

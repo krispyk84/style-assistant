@@ -4,11 +4,11 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 import { outfitsService } from '@/services/outfits';
 import { parseLookInput, type LookRouteParams } from '@/lib/look-route';
-import type { CreateLookInput } from '@/types/look-request';
 import type { GenerateOutfitsResponse } from '@/types/api';
-import { LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
+import { LOOK_TIER_OPTIONS, type CreateLookInput, type LookTierSlug } from '@/types/look-request';
 import { trackCreateLookCompleted, trackCreateLookFailed } from '@/lib/analytics';
 import { recordError, log } from '@/lib/crashlytics';
+import { useTrendiness } from '@/hooks/use-trendiness';
 
 export function useResultsData(stableParams: LookRouteParams & { requestId: string }) {
   const [response, setResponse] = useState<GenerateOutfitsResponse | null>(null);
@@ -23,6 +23,7 @@ export function useResultsData(stableParams: LookRouteParams & { requestId: stri
   const [tierGenerations, setTierGenerations] = useState<Partial<Record<LookTierSlug, number>>>({});
   const generateAbortRef = useRef<AbortController | null>(null);
 
+  const trendiness = useTrendiness();
   const parsedInput = useMemo(() => parseLookInput(stableParams), [stableParams]);
 
   // Keep ref in sync so the poll closure always reads the current set without re-creating the interval.
@@ -72,7 +73,7 @@ export function useResultsData(stableParams: LookRouteParams & { requestId: stri
       if (controller.signal.aborted) return;
 
       const serviceResponse = await outfitsService.generateOutfits(
-        { ...input, requestId, selectedTiers: tiersInOrder, generateOnlyTier: tier },
+        { ...input, requestId, selectedTiers: tiersInOrder, generateOnlyTier: tier, trendiness },
         { signal: controller.signal },
       );
 
@@ -116,11 +117,13 @@ export function useResultsData(stableParams: LookRouteParams & { requestId: stri
         log(`Look generated: ${requestId} (first tier: ${tier})`);
       } else if (newRec) {
         // Merge subsequent tier into the existing response.
-        mergedResponse = {
-          ...mergedResponse,
-          recommendations: [...mergedResponse.recommendations, newRec],
+        const previousResponse = mergedResponse as GenerateOutfitsResponse;
+        const nextResponse: GenerateOutfitsResponse = {
+          ...previousResponse,
+          recommendations: [...previousResponse.recommendations, newRec],
         };
-        setResponse({ ...mergedResponse });
+        mergedResponse = nextResponse;
+        setResponse(nextResponse);
       }
 
       setLoadingTiers((prev) => prev.filter((t) => t !== tier));
@@ -149,7 +152,6 @@ export function useResultsData(stableParams: LookRouteParams & { requestId: stri
 
     void fetchOutfits(stableParams.requestId, parsedInput);
     // fetchOutfits is stable within the effect — deps are the actual inputs
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stableParams.requestId, parsedInput]);
 
   return {

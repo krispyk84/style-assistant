@@ -1,7 +1,9 @@
 import { OutfitTier, Prisma } from '@prisma/client';
 
 import { prisma } from '../../db/prisma.js';
-import type { OutfitPieceDto, OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
+import type { GenerateOutfitsRequest, OutfitPieceDto, OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
+
+type WeatherContextValue = NonNullable<GenerateOutfitsRequest['weatherContext']>;
 
 /** Serializes a structured piece to a JSON string for DB storage. */
 function serializePiece(piece: OutfitPieceDto): string {
@@ -33,14 +35,40 @@ function toSlug(tier: OutfitTier): OutfitTierSlug {
   return 'casual';
 }
 
+// ── Prisma payload shapes ─────────────────────────────────────────────────────
+// Pin the include shape once so mapToOutfitResponse stays in sync with the queries.
+
+const outfitResultInclude = {
+  request: true,
+  tierResults: { orderBy: { createdAt: 'asc' } },
+} as const satisfies Prisma.OutfitResultInclude;
+
+type OutfitResultWithRelations = Prisma.OutfitResultGetPayload<{ include: typeof outfitResultInclude }>;
+type OutfitResultWithRequest = Omit<OutfitResultWithRelations, 'request'> & {
+  request: NonNullable<OutfitResultWithRelations['request']>;
+};
+
+/**
+ * Shape of the JSON we serialize into `outfitResult.rawResponse` — a slimmed
+ * mirror of OutfitResponse so we can read back fields the relational columns
+ * don't capture (anchorItems[], vibeKeywords).
+ */
+type RawResponseSnapshot = {
+  input?: {
+    anchorItems?: OutfitResponse['input']['anchorItems'];
+    anchorItemDescription?: string;
+    vibeKeywords?: string;
+  };
+};
+
 /**
  * Maps a DB result row (with request + tierResults) to the OutfitResponse contract.
  * Extracted so both findGeneratedOutfit and findOutfitHistory can share the same mapping.
  */
-function mapToOutfitResponse(result: any): OutfitResponse {
-  const requestRecord = result.request as any;
-  const tierResults = result.tierResults as any[];
-  const rawResponse = result.rawResponse as any;
+function mapToOutfitResponse(result: OutfitResultWithRequest): OutfitResponse {
+  const requestRecord = result.request;
+  const tierResults = result.tierResults;
+  const rawResponse = (result.rawResponse ?? null) as RawResponseSnapshot | null;
   const rawAnchorItems = Array.isArray(rawResponse?.input?.anchorItems) ? rawResponse.input.anchorItems : null;
 
   return {
@@ -57,14 +85,14 @@ function mapToOutfitResponse(result: any): OutfitResponse {
             imageId: requestRecord.anchorImageId ?? undefined,
             imageUrl: requestRecord.anchorImageUrl ?? undefined,
           },
-        ].filter((item: any) => item.description?.trim() || item.imageId || item.imageUrl),
+        ].filter((item) => item.description?.trim() || item.imageId || item.imageUrl),
       anchorItemDescription: rawResponse?.input?.anchorItemDescription ?? requestRecord.anchorItemDescription,
       vibeKeywords: rawResponse?.input?.vibeKeywords ?? undefined,
       anchorImageId: requestRecord.anchorImageId ?? null,
       anchorImageUrl: requestRecord.anchorImageUrl,
       photoPending: requestRecord.photoPending,
       selectedTiers: requestRecord.selectedTiers.map(toSlug),
-      weatherContext: requestRecord.weatherContext ?? null,
+      weatherContext: (requestRecord.weatherContext ?? null) as WeatherContextValue | null,
     },
     recommendations: tierResults.map((tier) => ({
       tier: toSlug(tier.tier),
@@ -88,12 +116,14 @@ function mapToOutfitResponse(result: any): OutfitResponse {
   };
 }
 
+function hasRequest(result: OutfitResultWithRelations): result is OutfitResultWithRequest {
+  return result.request !== null;
+}
+
 export const outfitsRepository = {
   async upsertGeneratedOutfit(profileId: string | undefined, output: OutfitResponse, supabaseUserId?: string) {
     const result = await prisma.$transaction(async (tx) => {
-      const db = tx as any;
-
-      await db.outfitRequest.upsert({
+      await tx.outfitRequest.upsert({
         where: { id: output.requestId },
         update: {
           profileId,
@@ -120,7 +150,7 @@ export const outfitsRepository = {
         },
       });
 
-      const outfitResult = await db.outfitResult.upsert({
+      const outfitResult = await tx.outfitResult.upsert({
         where: { requestId: output.requestId },
         update: {
           status: output.status,
@@ -138,7 +168,7 @@ export const outfitsRepository = {
       });
 
       for (const recommendation of output.recommendations) {
-        await db.tierResult.upsert({
+        await tx.tierResult.upsert({
           where: {
             outfitResultId_tier: {
               outfitResultId: outfitResult.id,
@@ -159,9 +189,7 @@ export const outfitsRepository = {
             sketchImageUrl: recommendation.sketchImageUrl,
             sketchStorageKey: recommendation.sketchStorageKey,
             sketchMimeType: recommendation.sketchMimeType,
-            ...(recommendation.sketchImageData
-              ? ({ sketchImageData: recommendation.sketchImageData } as any)
-              : {}),
+            ...(recommendation.sketchImageData ? { sketchImageData: recommendation.sketchImageData } : {}),
             variantIndex: recommendation.variantIndex,
           },
           create: {
@@ -180,9 +208,7 @@ export const outfitsRepository = {
             sketchImageUrl: recommendation.sketchImageUrl,
             sketchStorageKey: recommendation.sketchStorageKey,
             sketchMimeType: recommendation.sketchMimeType,
-            ...(recommendation.sketchImageData
-              ? ({ sketchImageData: recommendation.sketchImageData } as any)
-              : {}),
+            ...(recommendation.sketchImageData ? { sketchImageData: recommendation.sketchImageData } : {}),
             variantIndex: recommendation.variantIndex,
           },
         });
@@ -197,13 +223,10 @@ export const outfitsRepository = {
   async findGeneratedOutfit(requestId: string) {
     const result = await prisma.outfitResult.findUnique({
       where: { requestId },
-      include: {
-        request: true,
-        tierResults: { orderBy: { createdAt: 'asc' } },
-      },
+      include: outfitResultInclude,
     });
 
-    if (!result || !result.request) {
+    if (!result || !hasRequest(result)) {
       return null;
     }
 
@@ -219,10 +242,7 @@ export const outfitsRepository = {
     const [results, total] = await Promise.all([
       prisma.outfitResult.findMany({
         where,
-        include: {
-          request: true,
-          tierResults: { orderBy: { createdAt: 'asc' } },
-        },
+        include: outfitResultInclude,
         orderBy: { generatedAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -231,7 +251,7 @@ export const outfitsRepository = {
     ]);
 
     return {
-      items: results.filter((r) => r.request).map(mapToOutfitResponse),
+      items: results.filter(hasRequest).map(mapToOutfitResponse),
       total,
     };
   },
@@ -281,17 +301,15 @@ export const outfitsRepository = {
         sketchImageUrl: input.sketchImageUrl,
         sketchStorageKey: input.sketchStorageKey,
         sketchMimeType: input.sketchMimeType,
-        ...(input.sketchImageData !== undefined ? ({ sketchImageData: input.sketchImageData } as any) : {}),
-      } as any,
+        ...(input.sketchImageData !== undefined ? { sketchImageData: input.sketchImageData } : {}),
+      },
     });
   },
 
   async findTierSketch(requestId: string, tier: OutfitTierSlug) {
     const result = await prisma.outfitResult.findUnique({
       where: { requestId },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     if (!result) {
@@ -311,13 +329,7 @@ export const outfitsRepository = {
         sketchStorageKey: true,
         sketchMimeType: true,
         sketchImageData: true,
-      } as any,
-    }) as Promise<{
-      sketchStatus: string;
-      sketchImageUrl: string | null;
-      sketchStorageKey: string | null;
-      sketchMimeType: string | null;
-      sketchImageData?: Buffer | null;
-    } | null>;
+      },
+    });
   },
 };

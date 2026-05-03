@@ -31,7 +31,8 @@ export default function ClosetScreen() {
     filterModalVisible, setFilterModalVisible,
     addModalVisible, setAddModalVisible,
     editingItem, setEditingItem,
-    displayItems: _displayItems,
+    sortMode, setSortMode,
+    useFlatList,
     filteredRows,
     flatListRef, sectionListRef,
   } = useClosetNavigation({ items, sections });
@@ -91,6 +92,15 @@ export default function ClosetScreen() {
         onFilterPress={() => setFilterModalVisible(true)}
         onCategorySelect={(cat) => { setSelectedCategory(cat); setFilterModalVisible(false); }}
         onFilterModalClose={() => setFilterModalVisible(false)}
+        sortMode={sortMode}
+        onToggleSort={() => {
+          setSortMode((m) => {
+            const next = m === 'category' ? 'recent' : 'category';
+            if (next === 'recent') setSelectedCategory(null);
+            return next;
+          });
+        }}
+        useFlatList={useFlatList}
         addModalVisible={addModalVisible}
         onAddPress={() => setAddModalVisible(true)}
         onAddModalClose={() => setAddModalVisible(false)}

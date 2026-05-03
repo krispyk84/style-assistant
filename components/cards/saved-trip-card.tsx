@@ -4,53 +4,14 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { countryFlag, formatTripDateRange } from '@/lib/saved-style-preview';
 import type { SavedTripSummary } from '@/services/saved-trips';
-
-// ── Country → flag emoji ──────────────────────────────────────────────────────
-
-const COUNTRY_CODES: Record<string, string> = {
-  'Afghanistan': 'AF', 'Albania': 'AL', 'Algeria': 'DZ', 'Argentina': 'AR',
-  'Australia': 'AU', 'Austria': 'AT', 'Belgium': 'BE', 'Brazil': 'BR',
-  'Canada': 'CA', 'Chile': 'CL', 'China': 'CN', 'Colombia': 'CO',
-  'Croatia': 'HR', 'Czech Republic': 'CZ', 'Denmark': 'DK', 'Egypt': 'EG',
-  'Finland': 'FI', 'France': 'FR', 'Germany': 'DE', 'Greece': 'GR',
-  'Hong Kong': 'HK', 'Hungary': 'HU', 'Iceland': 'IS', 'India': 'IN',
-  'Indonesia': 'ID', 'Iran': 'IR', 'Ireland': 'IE', 'Israel': 'IL',
-  'Italy': 'IT', 'Japan': 'JP', 'Jordan': 'JO', 'Kenya': 'KE',
-  'Malaysia': 'MY', 'Maldives': 'MV', 'Mexico': 'MX', 'Morocco': 'MA',
-  'Netherlands': 'NL', 'New Zealand': 'NZ', 'Nigeria': 'NG', 'Norway': 'NO',
-  'Peru': 'PE', 'Philippines': 'PH', 'Poland': 'PL', 'Portugal': 'PT',
-  'Romania': 'RO', 'Russia': 'RU', 'Saudi Arabia': 'SA', 'Singapore': 'SG',
-  'South Africa': 'ZA', 'South Korea': 'KR', 'Spain': 'ES', 'Sweden': 'SE',
-  'Switzerland': 'CH', 'Taiwan': 'TW', 'Thailand': 'TH', 'Turkey': 'TR',
-  'Ukraine': 'UA', 'United Arab Emirates': 'AE', 'United Kingdom': 'GB',
-  'United States': 'US', 'Vietnam': 'VN',
-};
-
-function countryFlag(countryName: string): string {
-  const code = COUNTRY_CODES[countryName];
-  if (!code) return '';
-  const A = 0x1F1E6 - 65;
-  return String.fromCodePoint(A + code.charCodeAt(0), A + code.charCodeAt(1));
-}
 
 type Props = {
   trip: SavedTripSummary;
   onPress: () => void;
   onDelete: () => void;
 };
-
-function formatDateRange(departure: string, returnDate: string): string {
-  try {
-    const dep = new Date(departure + 'T00:00:00');
-    const ret = new Date(returnDate + 'T00:00:00');
-    const fmt = (d: Date) =>
-      d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-    return `${fmt(dep)} – ${fmt(ret)}`;
-  } catch {
-    return `${departure} – ${returnDate}`;
-  }
-}
 
 export function SavedTripCard({ trip, onPress, onDelete }: Props) {
   const { theme } = useTheme();
@@ -77,7 +38,7 @@ export function SavedTripCard({ trip, onPress, onDelete }: Props) {
               {flag ? `${flag} ` : ''}{trip.destination}
             </AppText>
             <AppText tone="muted" style={{ fontSize: 13 }}>
-              {formatDateRange(trip.departureDate, trip.returnDate)}
+              {formatTripDateRange(trip.departureDate, trip.returnDate)}
             </AppText>
           </View>
           <Pressable

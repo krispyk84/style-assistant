@@ -308,7 +308,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
                   }}>
                   <AppText variant="sectionTitle" style={{ color: theme.colors.danger }}>Remove from closet?</AppText>
                   <AppText tone="muted" style={{ fontSize: 13 }}>
-                    This will permanently delete "{item?.title}" from your wardrobe.
+                    This will permanently delete &quot;{item?.title}&quot; from your wardrobe.
                   </AppText>
                 </View>
                 <View style={{ flexDirection: 'row', gap: spacing.sm }}>

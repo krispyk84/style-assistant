@@ -8,74 +8,13 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import { findBestClosetMatch } from '@/lib/closet-match';
+import { buildMatchedItemNameSet } from '@/lib/outfit-piece-display';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
+import { buildPackingList } from '@/lib/trip-packing';
+import type { PackingGroup } from '@/lib/trip-packing';
 import { closetService } from '@/services/closet';
 import { savedTripsService } from '@/services/saved-trips';
-import type { TripOutfitDay } from '@/services/trip-outfits';
 import type { ClosetItem } from '@/types/closet';
-
-// ── Category detection ────────────────────────────────────────────────────────
-
-const CATEGORY_KEYWORDS: [string, string[]][] = [
-  ['Swimwear',    ['swimsuit', 'bikini', 'boardshort', 'swim trunk', 'one-piece', 'swimwear', 'wetsuit', 'swim short']],
-  ['Outerwear',   ['jacket', 'coat', 'blazer', 'cardigan', 'hoodie', 'windbreaker', 'parka', 'vest', 'puffer', 'trench', 'overcoat', 'jumper', 'overshirt']],
-  ['Tops',        ['shirt', 'tee', 't-shirt', 'blouse', 'top', 'sweater', 'polo', 'tank', 'turtleneck', 'henley', 'pullover', 'knit']],
-  ['Bottoms',     ['trouser', 'trousers', 'jeans', 'shorts', 'skirt', 'chino', 'chinos', 'legging', 'leggings', 'jogger', 'joggers', 'pant', 'pants', 'culottes', 'midi', 'maxi']],
-  ['Dresses',     ['dress', 'jumpsuit', 'romper', 'overalls']],
-];
-
-const CATEGORY_ORDER = ['Swimwear', 'Outerwear', 'Tops', 'Bottoms', 'Dresses', 'Shoes', 'Bags', 'Accessories'];
-
-function categorizeItem(item: string, isShoes?: boolean, isBag?: boolean, isAccessory?: boolean): string {
-  if (isShoes)     return 'Shoes';
-  if (isBag)       return 'Bags';
-  if (isAccessory) return 'Accessories';
-  const lower = item.toLowerCase();
-  for (const [cat, keywords] of CATEGORY_KEYWORDS) {
-    if (keywords.some((k) => lower.includes(k))) return cat;
-  }
-  return 'Tops'; // fallback
-}
-
-type PackingItem  = { name: string; count: number };
-type PackingGroup = { category: string; items: PackingItem[] };
-
-function buildPackingList(days: TripOutfitDay[]): PackingGroup[] {
-  const countMap = new Map<string, { category: string; count: number; displayName: string }>();
-
-  function add(raw: string, category: string) {
-    const key = raw.trim().toLowerCase();
-    if (!key) return;
-    const existing = countMap.get(key);
-    if (existing) {
-      existing.count += 1;
-    } else {
-      countMap.set(key, { category, count: 1, displayName: raw.trim() });
-    }
-  }
-
-  for (const day of days) {
-    for (const piece of (day.pieces ?? []))         { if (piece) add(piece, categorizeItem(piece)); }
-    if (day.shoes)                                   add(day.shoes, 'Shoes');
-    if (day.bag)                                     add(day.bag, 'Bags');
-    for (const acc of (day.accessories ?? []))       { if (acc) add(acc, 'Accessories'); }
-  }
-
-  const groupMap = new Map<string, PackingItem[]>();
-  for (const { category, count, displayName } of countMap.values()) {
-    const list = groupMap.get(category) ?? [];
-    list.push({ name: displayName, count });
-    groupMap.set(category, list);
-  }
-
-  const groups: PackingGroup[] = [];
-  for (const cat of CATEGORY_ORDER) {
-    const items = groupMap.get(cat);
-    if (items?.length) groups.push({ category: cat, items: items.sort((a, b) => b.count - a.count) });
-  }
-  return groups;
-}
 
 // ── Reminders export ──────────────────────────────────────────────────────────
 
@@ -160,14 +99,10 @@ export default function PackingList() {
   const totalItems = groups.reduce((sum, g) => sum + g.items.length, 0);
 
   const matchedItemNames = useMemo(() => {
-    if (!closetItems.length) return new Set<string>();
-    const matched = new Set<string>();
-    for (const group of groups) {
-      for (const item of group.items) {
-        if (findBestClosetMatch(item.name, closetItems)) matched.add(item.name);
-      }
-    }
-    return matched;
+    return buildMatchedItemNameSet(
+      groups.flatMap((group) => group.items.map((item) => item.name)),
+      closetItems,
+    );
   }, [closetItems, groups]);
 
   async function handleExportToReminders() {
@@ -218,7 +153,7 @@ export default function PackingList() {
         </View>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.md }}>
           <AppText tone="muted" style={{ textAlign: 'center' }}>
-            Couldn't load your trip data. Please go back and try again.
+            Could not load your trip data. Please go back and try again.
           </AppText>
           <Pressable
             onPress={() => router.back()}

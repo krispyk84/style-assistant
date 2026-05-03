@@ -17,11 +17,16 @@ export const tripOutfitsResponseSchema = z.object({
   days: z.array(tripDaySchema).min(1).max(14),
 });
 
+export const regenerateDayResponseSchema = z.object({ day: tripDaySchema });
+
 const tripAnchorInputSchema = z.object({
+  slotId:      z.string().optional(),
   label:       z.string().min(1),
   category:    z.string().min(1),
   source:      z.enum(['closet', 'camera', 'library', 'ai_suggested']),
   closetItemId: z.string().optional(),
+  uploadedImageId: z.string().optional(),
+  imageUrl:    z.string().optional(),
   rationale:   z.string().optional(),
 });
 

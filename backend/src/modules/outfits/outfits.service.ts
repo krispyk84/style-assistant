@@ -2,7 +2,8 @@ import { env } from '../../config/env.js';
 import { HttpError } from '../../lib/http-error.js';
 import type { GenerateOutfitsRequest, OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
 import { openAiClient } from '../../ai/openai-client.js';
-import { buildModelImageInput } from '../../ai/image-input.js';
+import { buildAnchorImageContent } from '../../ai/image-input.js';
+import type { SubjectRenderingInput } from '../../ai/body-type-severity.js';
 import {
   singleTierRegenerationJsonSchema,
   singleTierRegenerationSchema,
@@ -10,7 +11,12 @@ import {
   tieredOutfitGenerationSchema,
 } from './outfits.schemas.js';
 import { buildGenerateOutfitsInstructions, buildGenerateOutfitsUserPrompt, buildRegenerateTierInstructions, buildRegenerateTierUserPrompt } from '../../ai/prompts/outfits.prompts.js';
-import { getNormalizedAnchorItems, getCanonicalAnchorDescription } from './outfits-prompt-builders.js';
+import {
+  buildOutfitGenerationStyleGuideQuery,
+  buildOutfitRegenerationStyleGuideQuery,
+  getCanonicalAnchorDescription,
+  getNormalizedAnchorItems,
+} from './outfits-prompt-builders.js';
 import { buildStableSketchUrl, mapOutfitRecommendation } from './outfits-response-mapper.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';
 import { outfitsRepository } from './outfits.repository.js';
@@ -26,6 +32,20 @@ async function findProfile(supabaseUserId: string, profileId?: string) {
     return profileRepository.findById(profileId);
   }
   return profileRepository.findByUserId(supabaseUserId);
+}
+
+type ProfileLike = Awaited<ReturnType<typeof findProfile>>;
+
+function profileToSubject(profile: ProfileLike): SubjectRenderingInput {
+  return {
+    gender: profile?.gender ?? null,
+    bodyType: profile?.bodyType ?? null,
+    fitTendency: profile?.fitTendency ?? null,
+    heightCm: profile?.heightCm ?? null,
+    weightKg: profile?.weightKg ?? null,
+    weightDistribution: profile?.weightDistribution ?? null,
+    skinTone: profile?.skinTone ?? null,
+  };
 }
 
 export const outfitsService = {
@@ -92,19 +112,14 @@ export const outfitsService = {
 
     const styleGuideContext = await styleGuideService.retrieveGuidance({
       task: 'outfit-generation',
-      query: [
-        profile?.gender === 'woman' ? 'womenswear styling guidance' : 'menswear styling guidance',
-        ...anchorItems.map((item, index) => `anchor item ${index + 1}: ${item.description.trim() || 'image-led reference'}`),
-        `requested tiers: ${tiersToGenerate.join(', ')}`,
-        (input.manualSeason || input.weatherContext?.season) ? `season: ${input.manualSeason ?? input.weatherContext!.season}` : null,
-        // Vibe keywords override saved style/fit for retrieval — only one set is used
-        vibeKeywords ? `style direction: ${vibeKeywords}` : null,
-        !vibeKeywords && profile?.stylePreference ? `user style preference: ${profile.stylePreference}` : null,
-        !vibeKeywords && profile?.fitPreference ? `user fit preference: ${profile.fitPreference}` : null,
-        profile?.summerBottomPreference ? `summer bottoms preference: ${profile.summerBottomPreference}` : null,
-      ]
-        .filter(Boolean)
-        .join(' | '),
+      query: buildOutfitGenerationStyleGuideQuery({
+        profile,
+        anchorItems,
+        tiersToGenerate,
+        manualSeason: input.manualSeason,
+        weatherSeason: input.weatherContext?.season,
+        vibeKeywords,
+      }),
     });
     const userContent: Array<{ type: 'input_text'; text: string } | { type: 'input_image'; image_url: string; detail?: 'low' | 'high' | 'auto' }> = [
       {
@@ -122,21 +137,7 @@ export const outfitsService = {
       },
     ];
 
-    for (const uploadedAnchorImage of uploadedAnchorImages) {
-      if (uploadedAnchorImage) {
-        userContent.push(await buildModelImageInput(uploadedAnchorImage));
-      }
-    }
-
-    anchorItems
-      .filter((item) => item.imageUrl && !item.imageId)
-      .forEach((item) => {
-        userContent.push({
-          type: 'input_image',
-          image_url: item.imageUrl!,
-          detail: 'high',
-        });
-      });
+    userContent.push(...await buildAnchorImageContent(uploadedAnchorImages, anchorItems));
 
     const aiOutput = await openAiClient.createStructuredResponse({
       schema: tieredOutfitGenerationSchema,
@@ -170,6 +171,7 @@ export const outfitsService = {
         manualSeason: input.manualSeason ?? null,
         includeBag: input.includeBag ?? false,
         includeHat: input.includeHat ?? false,
+        trendiness: input.trendiness,
       },
       recommendations: tiersToGenerate.map((tier) => {
         const recommendation = recommendationMap.get(tier);
@@ -189,7 +191,7 @@ export const outfitsService = {
     };
 
     await outfitsRepository.upsertGeneratedOutfit(input.profileId, response, supabaseUserId);
-    void tierSketchService.queueSketchesForOutfit(response, supabaseUserId, profile?.gender, (profile as any)?.bodyType ?? null, (profile as any)?.fitTendency ?? null, profile?.fitPreference ?? null, profile?.heightCm ?? null, profile?.weightKg ?? null, (profile as any)?.weightDistribution ?? null, profile?.skinTone ?? null);
+    void tierSketchService.queueSketchesForOutfit(response, profileToSubject(profile), supabaseUserId);
     return response;
   },
 
@@ -210,15 +212,14 @@ export const outfitsService = {
     );
     const styleGuideContext = await styleGuideService.retrieveGuidance({
       task: 'tier-regeneration',
-      query: [
-        profile?.gender === 'woman' ? 'womenswear styling guidance for regenerating one outfit tier' : 'menswear styling guidance for regenerating one outfit tier',
-        `tier: ${tier}`,
-        ...anchorItems.map((item, index) => `anchor item ${index + 1}: ${item.description.trim() || 'image-led reference'}`),
-        (existing.input.manualSeason || existing.input.weatherContext?.season) ? `season: ${existing.input.manualSeason ?? existing.input.weatherContext!.season}` : null,
-        currentRecommendation ? `current styling direction: ${currentRecommendation.stylingDirection}` : null,
-      ]
-        .filter(Boolean)
-        .join(' | '),
+      query: buildOutfitRegenerationStyleGuideQuery({
+        profile,
+        tier,
+        anchorItems,
+        manualSeason: existing.input.manualSeason,
+        weatherSeason: existing.input.weatherContext?.season,
+        currentStylingDirection: currentRecommendation?.stylingDirection,
+      }),
     });
     const userContent: Array<{ type: 'input_text'; text: string } | { type: 'input_image'; image_url: string; detail?: 'low' | 'high' | 'auto' }> = [
       {
@@ -232,21 +233,7 @@ export const outfitsService = {
       },
     ];
 
-    for (const uploadedAnchorImage of uploadedAnchorImages) {
-      if (uploadedAnchorImage) {
-        userContent.push(await buildModelImageInput(uploadedAnchorImage));
-      }
-    }
-
-    anchorItems
-      .filter((item) => item.imageUrl && !item.imageId)
-      .forEach((item) => {
-        userContent.push({
-          type: 'input_image',
-          image_url: item.imageUrl!,
-          detail: 'high',
-        });
-      });
+    userContent.push(...await buildAnchorImageContent(uploadedAnchorImages, anchorItems));
 
     const aiOutput = await openAiClient.createStructuredResponse({
       schema: singleTierRegenerationSchema,
@@ -279,7 +266,7 @@ export const outfitsService = {
     };
 
     await outfitsRepository.upsertGeneratedOutfit(undefined, mergedResponse);
-    void tierSketchService.queueSketchForTier(mergedResponse, tier, supabaseUserId, profile?.gender, (profile as any)?.bodyType ?? null, (profile as any)?.fitTendency ?? null, profile?.fitPreference ?? null, profile?.heightCm ?? null, profile?.weightKg ?? null, (profile as any)?.weightDistribution ?? null, profile?.skinTone ?? null);
+    void tierSketchService.queueSketchForTier(mergedResponse, tier, profileToSubject(profile), supabaseUserId);
     return mergedResponse;
   },
 

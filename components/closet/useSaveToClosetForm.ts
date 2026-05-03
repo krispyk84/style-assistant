@@ -10,7 +10,7 @@ import type {
   ClosetItemSilhouette,
 } from '@/types/closet';
 import type { UploadedImageAsset } from '@/types/media';
-import { EMPTY_FORM_FIELDS, type ClosetFormFields } from './closet-form-mappers';
+import type { ClosetFormFields } from './closet-form-mappers';
 
 type UseSaveToClosetFormParams = {
   visible: boolean;
@@ -49,7 +49,6 @@ export function useSaveToClosetForm({
     void loadAppSettings().then((settings) => {
       if (settings.lastUsedSize) setSize(settings.lastUsedSize);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   // Reset metadata fields when visible or the active uploaded image changes (queue advance)
@@ -72,7 +71,6 @@ export function useSaveToClosetForm({
     setFrameColor(undefined);
     setNotes('');
     setIsAnalyzing(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, effectiveUploadedImage?.id]);
 
   function resetFields() {

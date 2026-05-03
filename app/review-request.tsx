@@ -52,8 +52,6 @@ export default function ReviewRequestScreen() {
     return <Redirect href="/create-look" />;
   }
 
-  const requestId = params.requestId;
-
   return (
     <AppScreen scrollable>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
@@ -62,7 +60,7 @@ export default function ReviewRequestScreen() {
         <View style={{ gap: spacing.xs }}>
           <AppText variant="heroSmall">Ready to generate?</AppText>
           <AppText tone="muted">
-            We've gathered your wardrobe anchors and aesthetic preferences. Review your brief below.
+            We&apos;ve gathered your wardrobe anchors and aesthetic preferences. Review your brief below.
           </AppText>
         </View>
 

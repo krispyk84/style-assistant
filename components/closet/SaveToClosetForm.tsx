@@ -39,6 +39,11 @@ export type SaveToClosetFormProps = {
   hasBothImages: boolean;
   sketchImageUrl: string | null;
   isUploadingImage: boolean;
+  uploadProgress: number;
+  uploadError: string | null;
+  /** True when a local image has been picked but no successful upload exists yet. */
+  isOriginalPhotoPending: boolean;
+  onRetryUpload: () => void;
   isPicking: boolean;
   isPickingLibrary: boolean;
   isPickingCamera: boolean;
@@ -98,6 +103,10 @@ export function SaveToClosetForm({
   hasBothImages,
   sketchImageUrl,
   isUploadingImage,
+  uploadProgress,
+  uploadError,
+  isOriginalPhotoPending,
+  onRetryUpload,
   isPicking,
   isPickingLibrary,
   isPickingCamera,
@@ -283,6 +292,47 @@ export function SaveToClosetForm({
                   width: 32,
                 }}>
                 <AppIcon color="#FFF" name="trash" size={15} />
+              </Pressable>
+            ) : null}
+
+            {/* Upload-status overlay: in flight or failed. Without this, users
+                may hit Save before the upload finishes — saving a record with
+                no original photo URL. */}
+            {isUploadingImage ? (
+              <View
+                pointerEvents="none"
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(0,0,0,0.45)',
+                  bottom: 0, left: 0, right: 0, top: 0,
+                  borderRadius: 18,
+                  gap: spacing.xs,
+                  justifyContent: 'center',
+                  position: 'absolute',
+                }}>
+                <AppText style={{ color: '#FFF', fontFamily: theme.fonts.sansMedium, fontSize: 13 }}>
+                  Uploading… {Math.round(uploadProgress * 100)}%
+                </AppText>
+              </View>
+            ) : uploadError && isOriginalPhotoPending ? (
+              <Pressable
+                onPress={onRetryUpload}
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  bottom: 0, left: 0, right: 0, top: 0,
+                  borderRadius: 18,
+                  gap: spacing.xs,
+                  justifyContent: 'center',
+                  position: 'absolute',
+                }}>
+                <AppIcon color="#FFF" name="refresh" size={20} />
+                <AppText style={{ color: '#FFF', fontFamily: theme.fonts.sansMedium, fontSize: 13 }}>
+                  Upload failed — tap to retry
+                </AppText>
+                <AppText style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, paddingHorizontal: spacing.md, textAlign: 'center' }}>
+                  {uploadError}
+                </AppText>
               </Pressable>
             ) : null}
           </View>
@@ -506,9 +556,28 @@ export function SaveToClosetForm({
         {saveError ? <AppText style={{ color: theme.colors.danger, fontSize: 13 }}>{saveError}</AppText> : null}
 
         <PrimaryButton
-          label={isSaving ? 'Saving...' : isAnalyzing ? 'AI filling in...' : isGeneratingSketch ? 'Generating sketch...' : 'Save to Closet'}
+          label={
+            isSaving
+              ? 'Saving...'
+              : isAnalyzing
+                ? 'AI filling in...'
+                : isGeneratingSketch
+                  ? 'Generating sketch...'
+                  : isUploadingImage
+                    ? `Uploading photo… ${Math.round(uploadProgress * 100)}%`
+                    : isOriginalPhotoPending && uploadError
+                      ? 'Retry photo upload to save'
+                      : 'Save to Closet'
+          }
           onPress={onSave}
-          disabled={isSaving || isAnalyzing || isGeneratingSketch || !fields.title.trim()}
+          disabled={
+            isSaving
+            || isAnalyzing
+            || isGeneratingSketch
+            || isUploadingImage
+            || isOriginalPhotoPending
+            || !fields.title.trim()
+          }
         />
         <PrimaryButton
           label={isInQueue ? 'Cancel Remaining' : 'Cancel'}

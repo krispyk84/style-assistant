@@ -14,10 +14,13 @@ export type TripOutfitDayDto = {
 };
 
 export type TripAnchorInputDto = {
+  slotId?: string;
   label: string;
   category: string;
   source: 'closet' | 'camera' | 'library' | 'ai_suggested';
   closetItemId?: string;
+  uploadedImageId?: string;
+  imageUrl?: string;
   rationale?: string;
 };
 

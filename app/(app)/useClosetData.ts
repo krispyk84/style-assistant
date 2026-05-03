@@ -5,7 +5,7 @@ import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
 import {
   buildCategories, chunkIntoRows, groupByCategory,
-  type CategoryEntry, type ClosetRow, type ClosetSection,
+  type ClosetSection,
 } from './closet-grid-utils';
 
 const POLL_INTERVAL_MS = 5000;

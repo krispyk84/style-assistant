@@ -7,6 +7,12 @@ import { analyzeClosetItem, matchClosetItems } from './closet-analysis.service.j
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildHelpMePickSystemPrompt, buildHelpMePickUserPrompt } from '../../ai/prompts/help-me-pick.prompts.js';
 import { buildClosetAnalyseSystemPrompt, buildClosetAnalyseUserPrompt } from '../../ai/prompts/closet-analyse.prompts.js';
+import {
+  CLOSET_ANALYSIS_JSON_SCHEMA,
+  HELP_ME_PICK_JSON_SCHEMA,
+  closetAnalysisSchema,
+  helpMePickResponseSchema,
+} from './closet.schemas.js';
 import type {
   AnalyzeClosetItemPayload,
   ClosetMatchPayload,
@@ -25,126 +31,6 @@ const ANALYSE_EXCLUDED_CATEGORIES = new Set([
   'Shoes', 'Sneakers', 'Loafers', 'Boots',
   'Belt', 'Bag', 'Watch', 'Scarf', 'Hat', 'Tie', 'Socks', 'Sunglasses',
 ]);
-
-const recommendationItemSchema = z.object({
-  piece_name: z.string(),
-  reason: z.string(),
-  versatility_tags: z.array(z.string()),
-  impact_score: z.number(),
-});
-
-const stylistResultSchema = z.object({
-  has_recommendations: z.boolean(),
-  no_gap_message: z.string(),
-  recommendations: z.array(recommendationItemSchema).max(2),
-});
-
-const closetAnalysisSchema = z.object({
-  total_score: z.number(),
-  summary: z.string(),
-  sub_scores: z.object({
-    formality_range: z.number(),
-    color_versatility: z.number(),
-    seasonal_coverage: z.number(),
-    layering_options: z.number(),
-    occasion_coverage: z.number(),
-  }),
-  vittorio: stylistResultSchema,
-  alessandra: stylistResultSchema,
-});
-
-const CLOSET_ANALYSIS_JSON_SCHEMA = {
-  name: 'closet_analysis_response',
-  schema: {
-    type: 'object' as const,
-    properties: {
-      total_score: { type: 'number', description: 'Overall closet versatility score 0-100' },
-      summary: { type: 'string', description: '2-3 sentence plain-English summary specific to this closet' },
-      sub_scores: {
-        type: 'object',
-        properties: {
-          formality_range: { type: 'number', description: 'Score 0-10' },
-          color_versatility: { type: 'number', description: 'Score 0-10' },
-          seasonal_coverage: { type: 'number', description: 'Score 0-10' },
-          layering_options: { type: 'number', description: 'Score 0-10' },
-          occasion_coverage: { type: 'number', description: 'Score 0-10' },
-        },
-        required: ['formality_range', 'color_versatility', 'seasonal_coverage', 'layering_options', 'occasion_coverage'],
-        additionalProperties: false,
-      },
-      vittorio: {
-        type: 'object',
-        properties: {
-          has_recommendations: { type: 'boolean' },
-          no_gap_message: { type: 'string', description: 'One sentence in Vittorio\'s voice when has_recommendations is false. Empty string otherwise.' },
-          recommendations: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                piece_name: { type: 'string' },
-                reason: { type: 'string', description: 'Sharp, precise, European — Vittorio\'s voice' },
-                versatility_tags: { type: 'array', items: { type: 'string' } },
-                impact_score: { type: 'number', description: '1-10: how much this piece improves the wardrobe' },
-              },
-              required: ['piece_name', 'reason', 'versatility_tags', 'impact_score'],
-              additionalProperties: false,
-            },
-          },
-        },
-        required: ['has_recommendations', 'no_gap_message', 'recommendations'],
-        additionalProperties: false,
-      },
-      alessandra: {
-        type: 'object',
-        properties: {
-          has_recommendations: { type: 'boolean' },
-          no_gap_message: { type: 'string', description: 'One sentence in Alessandra\'s voice when has_recommendations is false. Empty string otherwise.' },
-          recommendations: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                piece_name: { type: 'string' },
-                reason: { type: 'string', description: 'Culturally fluent, warm, expressive — Alessandra\'s voice' },
-                versatility_tags: { type: 'array', items: { type: 'string' } },
-                impact_score: { type: 'number', description: '1-10: how much this piece improves the wardrobe' },
-              },
-              required: ['piece_name', 'reason', 'versatility_tags', 'impact_score'],
-              additionalProperties: false,
-            },
-          },
-        },
-        required: ['has_recommendations', 'no_gap_message', 'recommendations'],
-        additionalProperties: false,
-      },
-    },
-    required: ['total_score', 'summary', 'sub_scores', 'vittorio', 'alessandra'],
-    additionalProperties: false,
-  },
-  strict: true,
-};
-
-// ── Help Me Pick ──────────────────────────────────────────────────────────────
-
-const helpMePickResponseSchema = z.object({
-  itemId: z.string(),
-  reason: z.string(),
-});
-
-const HELP_ME_PICK_JSON_SCHEMA = {
-  name: 'help_me_pick_response',
-  schema: {
-    type: 'object' as const,
-    properties: {
-      itemId: { type: 'string', description: 'The id of the selected closet item' },
-      reason: { type: 'string', description: 'One sentence explaining why this piece is the right anchor today' },
-    },
-    required: ['itemId', 'reason'],
-    additionalProperties: false,
-  },
-  strict: true,
-};
 
 export const closetService = {
   async analyzeItem(payload: AnalyzeClosetItemPayload, supabaseUserId?: string) {
@@ -197,6 +83,8 @@ export const closetService = {
       brand: payload.brand,
       size: payload.size,
       category: payload.category,
+      uploadedImageUrl: payload.uploadedImageUrl,
+      sketchImageUrl: payload.sketchImageUrl,
       subcategory: payload.subcategory,
       primaryColor: payload.primaryColor,
       colorFamily: payload.colorFamily,

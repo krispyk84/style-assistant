@@ -7,8 +7,7 @@ import {
   loadRecommendationFeedback,
   saveRecommendationFeedback,
 } from '@/lib/recommendation-feedback-storage';
-import type { CreateLookInput } from '@/types/look-request';
-import type { LookRecommendation } from '@/types/look-request';
+import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

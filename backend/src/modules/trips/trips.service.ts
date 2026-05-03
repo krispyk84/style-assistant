@@ -1,5 +1,5 @@
-import { z } from 'zod';
 import { openAiClient } from '../../ai/openai-client.js';
+import { buildModelImageInput, resolveImageUrlForAI } from '../../ai/image-input.js';
 import { buildTripOutfitsPrompt, buildTripDaySketchPrompt, buildRegenerateDayPrompt } from '../../ai/prompts/trips.prompts.js';
 import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
@@ -7,8 +7,11 @@ import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { closetRepository } from '../closet/closet.repository.js';
-import { tripOutfitsResponseSchema, tripDaySchema } from './trips.schemas.js';
+import { uploadsRepository } from '../uploads/uploads.repository.js';
+import { styleGuideService } from '../style-guides/style-guide.service.js';
+import { regenerateDayResponseSchema, tripOutfitsResponseSchema } from './trips.schemas.js';
 import type { GenerateTripOutfitsRequest, GenerateTripOutfitsResponse, RegenerateTripDayRequest, TripOutfitDayDto } from '../../contracts/trips.contracts.js';
+import type { InputContent } from '../../ai/openai-request-builder.js';
 
 export const tripsService = {
   async generateTripOutfits(
@@ -19,13 +22,22 @@ export const tripsService = {
       ? await profileRepository.findById(request.profileId)
       : await profileRepository.findByUserId(supabaseUserId);
 
-    const { instructions, userContent, jsonSchema } = buildTripOutfitsPrompt(request, profile);
+    const styleGuideContext = await styleGuideService.retrieveGuidance({
+      task: 'trip-generation',
+      query: buildTripGenerationStyleGuideQuery(request, profile),
+    });
+    const { instructions, userContent, jsonSchema } = buildTripOutfitsPrompt(
+      request,
+      profile,
+      styleGuideContext?.promptContext,
+    );
+    const anchorImageContent = await buildTripAnchorImageContent(request);
 
     const result = await openAiClient.createStructuredResponse({
       schema: tripOutfitsResponseSchema,
       jsonSchema,
       instructions,
-      userContent,
+      userContent: [...userContent, ...anchorImageContent],
       supabaseUserId,
       feature: 'trip-generation',
     });
@@ -64,9 +76,15 @@ export const tripsService = {
       ? await profileRepository.findById(request.profileId)
       : await profileRepository.findByUserId(supabaseUserId);
 
-    const { instructions, userContent, jsonSchema } = buildRegenerateDayPrompt(request, profile);
-
-    const regenerateDayResponseSchema = z.object({ day: tripDaySchema });
+    const styleGuideContext = await styleGuideService.retrieveGuidance({
+      task: 'trip-generation',
+      query: buildTripRegenerationStyleGuideQuery(request, profile),
+    });
+    const { instructions, userContent, jsonSchema } = buildRegenerateDayPrompt(
+      request,
+      profile,
+      styleGuideContext?.promptContext,
+    );
 
     const result = await openAiClient.createStructuredResponse({
       schema: regenerateDayResponseSchema,
@@ -101,6 +119,84 @@ export const tripsService = {
     };
   },
 };
+
+type StyleGuideProfile = {
+  gender?: string | null;
+  stylePreference?: string | null;
+  fitPreference?: string | null;
+} | null;
+
+function formatStyleGuideProfileQuery(profile: StyleGuideProfile) {
+  return [
+    profile?.gender === 'woman' ? 'womenswear travel styling guidance' : 'menswear travel styling guidance',
+    profile?.stylePreference ? `user style preference: ${profile.stylePreference}` : null,
+    profile?.fitPreference ? `user fit preference: ${profile.fitPreference}` : null,
+  ];
+}
+
+function buildTripGenerationStyleGuideQuery(
+  request: GenerateTripOutfitsRequest,
+  profile: StyleGuideProfile,
+) {
+  return [
+    ...formatStyleGuideProfileQuery(profile),
+    `destination: ${request.destination}, ${request.country}`,
+    `purpose: ${request.purposes.join(', ') || 'Leisure'}`,
+    `style vibe: ${request.styleVibe}`,
+    `climate: ${request.climateLabel}`,
+    request.dressSeason ? `season: ${request.dressSeason}` : null,
+    request.packingTag ? `packing weather tag: ${request.packingTag}` : null,
+    request.activities ? `activities: ${request.activities}` : null,
+    request.dressCode ? `dress code: ${request.dressCode}` : null,
+    request.anchors?.length
+      ? `anchor pieces: ${request.anchors.map((anchor) => `${anchor.category} ${anchor.label}`).join('; ')}`
+      : null,
+  ].filter(Boolean).join(' | ');
+}
+
+function buildTripRegenerationStyleGuideQuery(
+  request: RegenerateTripDayRequest,
+  profile: StyleGuideProfile,
+) {
+  return [
+    ...formatStyleGuideProfileQuery(profile),
+    `destination: ${request.destination}, ${request.country}`,
+    `day type: ${request.dayType}`,
+    `style vibe: ${request.styleVibe}`,
+    `climate: ${request.climateLabel}`,
+    request.activities ? `activities: ${request.activities}` : null,
+    request.dressCode ? `dress code: ${request.dressCode}` : null,
+    request.purposes.length ? `purpose: ${request.purposes.join(', ')}` : null,
+  ].filter(Boolean).join(' | ');
+}
+
+async function buildTripAnchorImageContent(request: GenerateTripOutfitsRequest): Promise<InputContent[]> {
+  const anchors = request.anchors ?? [];
+  if (anchors.length === 0) return [];
+
+  const content: InputContent[] = [];
+
+  for (const anchor of anchors) {
+    if (anchor.uploadedImageId) {
+      const uploadedImage = await uploadsRepository.findById(anchor.uploadedImageId);
+      if (uploadedImage) {
+        content.push({ type: 'input_text', text: `Anchor image reference: [${anchor.category}] ${anchor.label}` });
+        content.push(await buildModelImageInput(uploadedImage));
+        continue;
+      }
+    }
+
+    if (anchor.imageUrl) {
+      const imageInput = await resolveImageUrlForAI(anchor.imageUrl);
+      if (imageInput) {
+        content.push({ type: 'input_text', text: `Anchor image reference: [${anchor.category}] ${anchor.label}` });
+        content.push(imageInput);
+      }
+    }
+  }
+
+  return content;
+}
 
 // ── Background sketch generation ──────────────────────────────────────────────
 

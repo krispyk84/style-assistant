@@ -84,7 +84,6 @@ export function useClosetItemEditor({ item }: { item: ClosetItem | null }) {
     setIsEditing(false);
     setError(null);
     setConfirmDelete(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
 
   async function handleAIAutofill() {

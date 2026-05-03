@@ -7,14 +7,6 @@ import { findBestClosetMatch } from '@/lib/closet-match';
 import type { ClosetItem } from '@/types/closet';
 import type { LookRecommendation, OutfitPiece } from '@/types/look-request';
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-export type SheetPiece = {
-  item: ClosetItem;
-  suggestion: string;
-  confidencePercent: number;
-};
-
 type UseTierDetailMatchingParams = {
   /** Stable route params — used for requestId, tier (analytics + feedback hook). */
   requestId: string;
@@ -33,7 +25,6 @@ export function useTierDetailMatching({
   closetItems,
 }: UseTierDetailMatchingParams) {
   const [matchMap, setMatchMap] = useState<Record<string, ClosetItem | null | false>>({});
-  const [sheetPiece, setSheetPiece] = useState<SheetPiece | null>(null);
 
   const sensitivity = useMatchSensitivity();
 
@@ -84,8 +75,6 @@ export function useTierDetailMatching({
   return {
     matchMap,
     uniquePieces,
-    sheetPiece,
-    setSheetPiece,
     matchFeedbackMap,
     regeneratingMatches,
     handleMatchThumbsUp,

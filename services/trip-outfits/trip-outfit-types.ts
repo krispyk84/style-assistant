@@ -48,10 +48,13 @@ export type RegenerateTripDayParams = {
 };
 
 export type TripAnchorInput = {
+  slotId?: string;
   label: string;
   category: string;
   source: 'closet' | 'camera' | 'library' | 'ai_suggested';
   closetItemId?: string;
+  uploadedImageId?: string;
+  imageUrl?: string;
   rationale?: string;
 };
 

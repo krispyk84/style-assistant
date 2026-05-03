@@ -64,52 +64,123 @@ export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[]
     'IMPORTANT — anchor deduplication: the anchor item must NOT appear in keyPieces. keyPieces contains only supporting pieces that complement the anchor. If the anchor is a shirt, do not add the same shirt again as a keyPiece top.',
     'IMPORTANT — anchorPiece field: always populate anchorPiece with a structured representation of the anchor item. display_name must match the anchorItem string. metadata.category must be the exact enum value that best fits the anchor (e.g. "Knitwear" for a quarter-zip, "Outerwear" for a bomber, "Trousers" for cargo pants). metadata.color is the dominant color. metadata.formality must match the tier.',
     'IMPORTANT — category assignment reflects item TYPE, not material: a merino wool tie is "Tie", not "Knitwear"; a cashmere pocket square is "Scarf" or "Tie", not "Knitwear"; a leather belt is "Belt"; a silk scarf is "Scarf". Never assign "Knitwear" to accessories just because they contain wool, merino, or cashmere.',
-    buildBagSelectionRule(gender),
+    // Bag selection guidance is intentionally NOT injected here. Bags must only be
+    // included when the user explicitly opts in via includeBag — see buildOptionalItemsRule.
+    // Adding an unconditional bag rule biased the model into always choosing one.
   ].join(' ');
 }
 
 /**
- * Bag selection rule — discourages the canvas-tote default and picks the bag
- * TYPE based on tier formality, anchor piece, and gender mode.
+ * Trendiness rule — biases recommendations along a safe ↔ trend-forward axis.
+ * Value is a 0–100 dial set in app Settings; sent on every generation request.
+ * Banded (not interpolated) so the model gets concrete imperatives instead of
+ * vague numeric reasoning. Always emits an instruction (including the balanced
+ * mid-band) so the model's output is observably different across the range.
  */
-function buildBagSelectionRule(gender?: string | null): string {
-  const isMens = gender !== 'woman';
-  const mensBias = isMens
-    ? 'For menswear profiles, choose briefcase, structured work bag, messenger, backpack, weekender, holdall, slim crossbody, or shoulder bag — avoid clutches, top-handle handbags, hobo bags, and other feminine-coded silhouettes.'
-    : 'For womenswear profiles, the bag silhouette should reinforce the outfit — structured top-handle or shoulder bag for refined looks, clutch or small structured bag for evening, soft shoulder bag or hobo for relaxed daytime, backpack or sling for active days, briefcase or structured work bag for business.';
+function buildTrendinessRule(trendinessRaw: number | undefined | null): string | null {
+  if (trendinessRaw === undefined || trendinessRaw === null) return null;
+  const t = Math.max(0, Math.min(100, Math.round(trendinessRaw)));
+
+  if (t < 34) {
+    return [
+      `STYLE TRENDINESS DIAL — user setting: ${t}/100 (SAFE / CLASSIC). This is a HARD styling constraint set by the user; it must visibly shape every recommendation.`,
+      '- Lean firmly into timeless wardrobe staples. Favour established silhouettes (regular-rise straight or slim trousers, single-breasted blazers, classic shirt cuts, plain crewnecks, refined leather shoes) and longstanding pieces over current micro-trends.',
+      '- Palette: mostly neutrals (navy, charcoal, stone, camel, white, grey, black). Treat saturated colour as an accent at most. Avoid highly seasonal "of-the-moment" colour stories.',
+      '- Avoid: exaggerated proportions purely for fashion (extreme oversize, ultra-cropped, balloon volumes), of-the-moment trend pieces, statement logos, ironic/maximalist styling, and pieces that read clearly as "this season".',
+      '- Detailing should be quiet — no statement hardware, no bold prints, no novelty silhouettes. The wearer should look "well-dressed" rather than "current".',
+      '- Each piece should be wearable largely unchanged in five years.',
+      '- The user has explicitly opted out of fashion-forward dressing. If you are about to suggest a directional / trendy / "of-the-moment" piece, replace it with a classic equivalent.',
+    ].join('\n');
+  }
+
+  if (t <= 66) {
+    return [
+      `STYLE TRENDINESS DIAL — user setting: ${t}/100 (BALANCED). This is a HARD styling constraint; mix timeless staples with current pieces in a deliberate ratio.`,
+      '- Build the bones of each outfit from established, season-flexible pieces (well-cut trousers/jeans, quality knits, classic shirts, refined shoes).',
+      '- Layer in ONE clearly current element per outfit — a piece, silhouette detail, colour, or accessory that reads as "of this moment". Not zero. Not three.',
+      '- Palette: anchored in neutrals, with room for one current accent or one considered tonal pairing per outfit.',
+      '- Avoid both extremes: do NOT default to the safest possible navy/grey/white commuter combo, AND do NOT pile on multiple directional pieces. The wearer should look both put-together and aware.',
+    ].join('\n');
+  }
+
+  // t > 66
   return [
-    'IMPORTANT — bag selection (when accessories include a bag): the bag is a deliberate styling choice, not a fallback.',
-    'Do NOT default to "natural canvas tote", "canvas tote", or any generic tote unless the outfit\'s tier and anchor genuinely call for that exact piece (e.g. an explicitly stated weekend-uniform brief).',
-    'Choose the bag TYPE by tier and occasion: business → briefcase, structured work bag, slim leather messenger, or refined laptop bag; smart-casual → leather shoulder bag, top-handle, messenger, soft tote in an elevated material, or refined crossbody; casual → varies (suede shoulder bag, leather crossbody, structured backpack, technical sling, etc.) chosen for the outfit\'s palette and material story.',
-    mensBias,
-    'The bag must specify color and material (e.g. "Tan grained-leather briefcase", "Espresso suede shoulder bag", "Black nappa clutch") — never a vague description like "tote bag" or "canvas tote" without justification.',
-    'When the user provides anchor metadata indicating the outfit already includes a bag, build around that bag instead of introducing a different one.',
-  ].join(' ');
+    `STYLE TRENDINESS DIAL — user setting: ${t}/100 (TRENDY / FASHION-FORWARD). This is a HARD styling constraint set by the user; it must visibly shape every recommendation.`,
+    '- Lean into pieces that read as current. Reach for of-the-moment silhouettes, proportions, and detailing — not decade-defining basics.',
+    '- Silhouette: explore deliberate proportion play (wider legs with cropped or fitted tops, longline layering, structured shoulders, intentionally long or short hems) where it suits the tier.',
+    '- Palette: include current colour stories and unexpected combinations alongside neutrals. A standout accent colour or considered tonal pairing is welcome — outfits should feel composed, not muted.',
+    '- Detailing welcome: noticeable hardware, refined statement accessories, distinct textures (raffia, mesh, technical fabric, brushed wool, sheen), considered prints — used with intention, not piled on.',
+    '- Aim for outfits that feel current and editorially aware while still respecting the chosen tier (no streetwear in the business tier, no formalwear in casual). The wearer should look "in the moment", not "anytime".',
+    '- Avoid pure safe-bet defaults like a navy blazer + white shirt + grey trousers + brown loafer combo unless every other piece is doing something distinctive.',
+    '- The user has explicitly opted INTO fashion-forward dressing. If a piece would feel safe or generic, swap it for a more directional alternative.',
+  ].join('\n');
 }
 
 /**
- * Optional-items rule — applied when the user explicitly checked "Include a bag"
- * or "Include a hat" on the create-look form. When neither is set, do not inject
- * either piece beyond what existing logic would produce.
+ * Bag and hat are STRICTLY user-controlled. The model previously had a standing
+ * bag-selection rule in instructions, which biased every outfit to include a
+ * bag even when the user didn't ask for one. This rule is now the single source
+ * of truth for whether a bag/hat appears, and emits both positive and negative
+ * imperatives so the model can't silently add one.
+ *
+ * When includeBag is true: bag is mandatory, must be laptop-capable, must be
+ * tier-appropriate. Small purse/clutch/mini silhouettes are forbidden.
+ *
+ * When includeBag is false: NO bag may appear in accessories — explicit
+ * prohibition with category-name reference so the model can self-check.
+ *
+ * Same applies to hat.
  */
-function buildOptionalItemsRule(opts: { includeBag: boolean; includeHat: boolean; gender?: string | null }): string | null {
-  if (!opts.includeBag && !opts.includeHat) return null;
+function buildOptionalItemsRule(opts: { includeBag: boolean; includeHat: boolean; gender?: string | null }): string {
   const isMens = opts.gender !== 'woman';
-  const lines: string[] = ['USER-REQUESTED OPTIONAL ITEMS — these MUST appear in the accessories array:'];
+  const lines: string[] = ['USER-CONTROLLED ACCESSORY INCLUSIONS — these are HARD constraints set by the user; you must obey them exactly:'];
+
+  // ── BAG ────────────────────────────────────────────────────────────────────
   if (opts.includeBag) {
+    const mensBagBias = isMens
+      ? 'For menswear, prefer briefcase, structured work tote, leather messenger, large shoulder bag, weekender, holdall, or backpack with laptop sleeve. Do NOT use clutches, top-handle handbags, hobo bags, or other purse-scale silhouettes.'
+      : 'For womenswear, prefer structured work tote, briefcase, large shoulder bag, structured satchel, large top-handle, or backpack — all sized to fit a 13–16" laptop. Do NOT use clutches, mini bags, micro-bags, evening bags, or any tiny "it-bag" silhouette.';
     lines.push(
-      '- The user requested that this outfit include a BAG. Include exactly one bag in accessories that fits the outfit\'s context, formality, and styling direction. Choose the bag TYPE deliberately (briefcase, messenger, structured work bag, shoulder bag, top-handle, crossbody, satchel, weekender, backpack, daypack, sling, or — only when genuinely appropriate — a tote in a material/color that matches the look). Do NOT default to a generic canvas tote. Specify color and material.'
+      [
+        '- BAG: REQUIRED. Include exactly one bag in accessories with metadata.category = "Bag".',
+        'SIZE REQUIREMENT (non-negotiable): the bag must be large enough to comfortably carry a 13–16-inch laptop computer plus everyday work items. This is a HARD floor on size — DO NOT recommend small purse-sized bags, micro bags, mini bags, clutches, evening bags, belt bags, fanny packs, slings under laptop capacity, or any "it-bag" / accessory-purse silhouette. The bag must be functional and proportionate to a person carrying a laptop, not a fashion accessory of decorative size.',
+        'TYPE GUIDANCE by tier:',
+        '  • business → briefcase, slim leather attaché, structured leather work tote, refined leather laptop messenger, or hard-sided portfolio bag. Never a small handbag.',
+        '  • smart-casual → structured work tote, leather messenger, large leather shoulder bag, refined leather backpack with laptop sleeve, or large soft tote in an elevated material.',
+        '  • casual → backpack with laptop sleeve, daypack, large canvas or leather tote, oversized shoulder bag, or messenger. Casual still requires laptop-capacity sizing.',
+        mensBagBias,
+        'Do NOT default to a generic "canvas tote" — pick a deliberate bag type with specified color and material (e.g. "Tan grained-leather briefcase", "Black nylon laptop backpack", "Espresso leather work tote large enough for a 15-inch laptop").',
+        'When the anchor metadata indicates the outfit already includes a bag, build around that bag rather than introducing a different one — but only if that bag also meets the laptop-capacity requirement.',
+      ].join(' ')
+    );
+  } else {
+    lines.push(
+      [
+        '- BAG: FORBIDDEN. The user did NOT opt to include a bag. accessories MUST NOT contain any item with metadata.category = "Bag".',
+        'Do not add bags, totes, briefcases, backpacks, messengers, clutches, satchels, crossbodies, slings, weekenders, holdalls, belt bags, fanny packs, or any other carrying piece — regardless of how complete the look would feel with one.',
+        'If you find yourself reaching for a bag because the outfit "needs one", choose a different accessory category instead (Belt, Watch, Sunglasses, Scarf, Tie, Socks).',
+      ].join(' ')
     );
   }
+
+  // ── HAT ────────────────────────────────────────────────────────────────────
   if (opts.includeHat) {
     const mensHatExamples = 'baseball cap, beanie, wool flat cap, fedora-style hat, panama, bucket hat, structured wide-brim, or knit watch cap';
     const womensHatExamples = 'baseball cap, beanie, wide-brim straw or felt hat, bucket hat, fedora-style hat, panama, beret, or knit watch cap';
     lines.push(
-      `- The user requested that this outfit include a HAT. Include exactly one hat in accessories with metadata.category = "Hat", chosen so it reinforces the outfit's tier and styling direction. Choose the hat TYPE deliberately from options like ${isMens ? mensHatExamples : womensHatExamples}. The hat must not clash with the tier (no baseball cap on a formal-business look, no fedora on activewear). Specify color and material (e.g. "Charcoal wool flat cap", "Black ribbed-knit beanie", "Camel wide-brim wool felt hat", "Stone canvas baseball cap").`
+      `- HAT: REQUIRED. Include exactly one hat in accessories with metadata.category = "Hat", chosen so it reinforces the outfit's tier and styling direction. Choose the hat TYPE deliberately from options like ${isMens ? mensHatExamples : womensHatExamples}. The hat must not clash with the tier (no baseball cap on a formal-business look, no fedora on activewear). Specify color and material (e.g. "Charcoal wool flat cap", "Black ribbed-knit beanie", "Camel wide-brim wool felt hat", "Stone canvas baseball cap").`
+    );
+  } else {
+    lines.push(
+      [
+        '- HAT: FORBIDDEN. The user did NOT opt to include a hat. accessories MUST NOT contain any item with metadata.category = "Hat".',
+        'Do not add caps, beanies, fedoras, panamas, berets, bucket hats, sun hats, or any headwear of any kind — regardless of season or styling logic.',
+      ].join(' ')
     );
   }
+
   lines.push(
-    'These items are user-requested and must be present — do not omit them. If the look already has a bag (or hat) from the anchor or other logic, do not duplicate; the requested type is the primary one.'
+    'These bag and hat constraints are HARD constraints set explicitly by the user and OVERRIDE any styling instinct, tier guidance, "complete look" reasoning, or seasonal logic. Re-read this rule before finalizing accessories — if any item violates the constraints above, replace it with one in a different category.'
   );
   return lines.join('\n');
 }
@@ -165,6 +236,7 @@ export function buildGenerateOutfitsUserPrompt(
     styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
     isManualSeason && effectiveSeason ? buildSeasonInstruction(effectiveSeason, true) : null,
     buildOptionalItemsRule({ includeBag: !!input.includeBag, includeHat: !!input.includeHat, gender: profile?.gender }),
+    buildTrendinessRule(input.trendiness),
     'Styling request:',
     ...anchorItems.map(
       (item, index) =>
@@ -199,7 +271,7 @@ export function buildRegenerateTierInstructions(gender?: string | null) {
     'The new recommendation must stay faithful to the anchor item and overall wardrobe direction while being materially different from the previous version.',
     'If vibe keywords were provided, keep them prominent in the regenerated outfit.',
     'Do not repeat the previous title or the exact same key pieces.',
-    buildBagSelectionRule(gender),
+    // Bag rule is conditional — see buildOptionalItemsRule applied in the user prompt.
   ].join(' ');
 }
 
@@ -226,6 +298,7 @@ export function buildRegenerateTierUserPrompt(input: {
       includeHat: !!input.existing.input.includeHat,
       gender: input.profile?.gender,
     }),
+    buildTrendinessRule(input.existing.input.trendiness),
     'Original styling request:',
     ...(input.existing.input.anchorItems?.length
       ? input.existing.input.anchorItems.map(

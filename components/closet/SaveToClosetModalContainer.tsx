@@ -42,6 +42,8 @@ export function SaveToClosetModalContainer({
     isPickingLibrary,
     isPickingCamera,
     isUploading: isUploadingImage,
+    uploadProgress,
+    error: uploadError,
     pickMultipleFromLibrary,
     takePhoto: capturePhoto,
     removeImage,
@@ -52,6 +54,13 @@ export function SaveToClosetModalContainer({
 
   const effectiveUploadedImage = uploadedImageProp ?? hookUploadedImage;
   const displayImageUri = pickedImage?.uri ?? effectiveUploadedImage?.publicUrl ?? null;
+  // True when the user picked a local image but no successful upload exists yet.
+  // Saving in this state would persist a record without an originalImageUrl.
+  const isOriginalPhotoPending = Boolean(pickedImage) && !effectiveUploadedImage;
+
+  function handleRetryUpload() {
+    if (pickedImage) void uploadImage(pickedImage);
+  }
 
   // ── Queue state ────────────────────────────────────────────────────────────
   const [imageQueue, setImageQueue] = useState<LocalImageAsset[]>([]);
@@ -166,6 +175,10 @@ export function SaveToClosetModalContainer({
             hasBothImages={hasBothImages}
             sketchImageUrl={submitHook.sketchImageUrl}
             isUploadingImage={isUploadingImage}
+            uploadProgress={uploadProgress}
+            uploadError={uploadError}
+            isOriginalPhotoPending={isOriginalPhotoPending}
+            onRetryUpload={handleRetryUpload}
             isPicking={isPicking}
             isPickingLibrary={isPickingLibrary}
             isPickingCamera={isPickingCamera}

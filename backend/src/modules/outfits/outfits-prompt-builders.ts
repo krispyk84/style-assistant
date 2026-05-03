@@ -1,4 +1,4 @@
-import type { GenerateOutfitsRequest } from '../../contracts/outfits.contracts.js';
+import type { GenerateOutfitsRequest, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
 
 /**
  * Removes keyPieces that duplicate the anchor item.
@@ -72,4 +72,64 @@ export function getCanonicalAnchorDescription(input: {
   }
 
   return 'Anchor item not provided';
+}
+
+// ── Style-guide query builders ────────────────────────────────────────────────
+
+type OutfitStyleGuideProfile = {
+  gender?: string | null;
+  stylePreference?: string | null;
+  fitPreference?: string | null;
+  summerBottomPreference?: string | null;
+} | null;
+
+type AnchorItemForQuery = { description: string };
+
+function formatAnchorItemsForQuery(anchorItems: AnchorItemForQuery[]): string[] {
+  return anchorItems.map(
+    (item, index) => `anchor item ${index + 1}: ${item.description.trim() || 'image-led reference'}`,
+  );
+}
+
+export function buildOutfitGenerationStyleGuideQuery(args: {
+  profile: OutfitStyleGuideProfile;
+  anchorItems: AnchorItemForQuery[];
+  tiersToGenerate: OutfitTierSlug[];
+  manualSeason?: string | null;
+  weatherSeason?: string | null;
+  /** Already trimmed; pass null when no vibe was supplied. */
+  vibeKeywords: string | null;
+}) {
+  const { profile, anchorItems, tiersToGenerate, manualSeason, weatherSeason, vibeKeywords } = args;
+  return [
+    profile?.gender === 'woman' ? 'womenswear styling guidance' : 'menswear styling guidance',
+    ...formatAnchorItemsForQuery(anchorItems),
+    `requested tiers: ${tiersToGenerate.join(', ')}`,
+    (manualSeason || weatherSeason) ? `season: ${manualSeason ?? weatherSeason}` : null,
+    // Vibe keywords override saved style/fit for retrieval — only one set is used
+    vibeKeywords ? `style direction: ${vibeKeywords}` : null,
+    !vibeKeywords && profile?.stylePreference ? `user style preference: ${profile.stylePreference}` : null,
+    !vibeKeywords && profile?.fitPreference ? `user fit preference: ${profile.fitPreference}` : null,
+    profile?.summerBottomPreference ? `summer bottoms preference: ${profile.summerBottomPreference}` : null,
+  ].filter(Boolean).join(' | ');
+}
+
+export function buildOutfitRegenerationStyleGuideQuery(args: {
+  profile: { gender?: string | null } | null;
+  tier: OutfitTierSlug;
+  anchorItems: AnchorItemForQuery[];
+  manualSeason?: string | null;
+  weatherSeason?: string | null;
+  currentStylingDirection?: string | null;
+}) {
+  const { profile, tier, anchorItems, manualSeason, weatherSeason, currentStylingDirection } = args;
+  return [
+    profile?.gender === 'woman'
+      ? 'womenswear styling guidance for regenerating one outfit tier'
+      : 'menswear styling guidance for regenerating one outfit tier',
+    `tier: ${tier}`,
+    ...formatAnchorItemsForQuery(anchorItems),
+    (manualSeason || weatherSeason) ? `season: ${manualSeason ?? weatherSeason}` : null,
+    currentStylingDirection ? `current styling direction: ${currentStylingDirection}` : null,
+  ].filter(Boolean).join(' | ');
 }

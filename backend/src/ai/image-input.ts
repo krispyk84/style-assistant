@@ -64,6 +64,31 @@ export async function resolveImageUrlForAI(imageUrl: string): Promise<ImageInput
   }
 }
 
+/**
+ * Resolves an outfit's anchor items into image inputs ready to push onto the
+ * OpenAI `userContent` array. Used by outfit generation and tier regeneration —
+ * both flows share the same shape (uploaded-image records first, raw-URL anchors
+ * second). Trip generation pairs each image with a labeled text descriptor and
+ * uses its own helper.
+ */
+export async function buildAnchorImageContent(
+  uploadedAnchorImages: ReadonlyArray<UploadedImageRecord | null>,
+  anchorItems: ReadonlyArray<{ imageId?: string | null; imageUrl?: string | null }>,
+): Promise<ImageInput[]> {
+  const result: ImageInput[] = [];
+  for (const uploadedAnchorImage of uploadedAnchorImages) {
+    if (uploadedAnchorImage) {
+      result.push(await buildModelImageInput(uploadedAnchorImage));
+    }
+  }
+  for (const item of anchorItems) {
+    if (item.imageUrl && !item.imageId) {
+      result.push({ type: 'input_image', image_url: item.imageUrl, detail: 'high' });
+    }
+  }
+  return result;
+}
+
 export async function buildModelImageInput(uploadedImage: UploadedImageRecord) {
   if (uploadedImage.storageProvider === 'local') {
     const filePath = path.join(storageConfig.localDirectory, uploadedImage.storageKey);

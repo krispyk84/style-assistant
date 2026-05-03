@@ -54,7 +54,7 @@ export default function ForgotPasswordScreen() {
             <AppText variant="heroSmall">Check your{'\n'}inbox.</AppText>
           </View>
           <AppText tone="muted" style={{ lineHeight: 24 }}>
-            If an account exists for that address, we've sent a password reset link.
+            If an account exists for that address, we&apos;ve sent a password reset link.
             The link expires after one hour.
           </AppText>
           <Pressable
@@ -93,7 +93,7 @@ export default function ForgotPasswordScreen() {
           </AppText>
           <AppText variant="heroSmall">Forgot your{'\n'}password?</AppText>
           <AppText tone="muted" style={{ lineHeight: 22 }}>
-            Enter the email address associated with your account and we'll send you a reset link.
+            Enter the email address associated with your account and we&apos;ll send you a reset link.
           </AppText>
         </View>
 

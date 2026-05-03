@@ -1,8 +1,7 @@
 import type { ClosetItem, ClosetItemFitStatus } from '@/types/closet';
 import type { CreateLookInput, LookRequestResponse } from '@/types/look-request';
-import type { LocalImageAsset, UploadedImageAsset, UploadedImageCategory } from '@/types/media';
+import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 import type { PersistedSession, Profile } from '@/types/profile';
-import type { OutfitResult } from '@/types/style';
 
 export type ApiError = {
   code: string;
@@ -149,10 +148,12 @@ export type GetClosetItemsResponse = {
 
 export type UpdateClosetItemRequest = {
   id: string;
-  title: string;
-  brand: string;
-  size: string;
-  category: string;
+  title?: string;
+  brand?: string;
+  size?: string;
+  category?: string;
+  uploadedImageUrl?: string;
+  sketchImageUrl?: string;
   subcategory?: string;
   primaryColor?: string;
   colorFamily?: string;
