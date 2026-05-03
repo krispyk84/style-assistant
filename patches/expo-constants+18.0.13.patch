@@ -1,6 +1,7 @@
-diff --git a/ios/EXConstants.podspec b/ios/EXConstants.podspec
---- a/ios/EXConstants.podspec
-+++ b/ios/EXConstants.podspec
+diff --git a/node_modules/expo-constants/ios/EXConstants.podspec b/node_modules/expo-constants/ios/EXConstants.podspec
+index fc4608a..097e606 100644
+--- a/node_modules/expo-constants/ios/EXConstants.podspec
++++ b/node_modules/expo-constants/ios/EXConstants.podspec
 @@ -37,7 +37,7 @@ Pod::Spec.new do |s|
    env_vars = ENV['PROJECT_ROOT'] ? "PROJECT_ROOT=#{ENV['PROJECT_ROOT']} " : ""
    script_phase = {
