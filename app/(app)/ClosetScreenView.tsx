@@ -51,7 +51,6 @@ export type ClosetScreenViewProps = {
   searchOpen: boolean;
   searchQuery: string;
   searchResults: ClosetItem[];
-  isSearchActive: boolean;
   onSearchToggle: () => void;
   onSearchQueryChange: (query: string) => void;
   // Grid
@@ -89,7 +88,6 @@ export function ClosetScreenView({
   searchOpen,
   searchQuery,
   searchResults,
-  isSearchActive,
   onSearchToggle,
   onSearchQueryChange,
   cellWidth,
@@ -443,11 +441,18 @@ export function ClosetScreenView({
     [onPressItem],
   );
 
+  // While the search bar is open, render a single-column search-results FlatList
+  // regardless of whether the user has typed anything yet. Swapping the list type only
+  // on `searchOpen` (not on `query.length > 0`) means the first keystroke does NOT
+  // remount the list — which would unmount and re-`autoFocus` the TextInput, causing
+  // the keyboard to flicker and the user to accidentally tap rows underneath.
+  const trimmedQuery = searchQuery.trim();
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'left', 'right']}>
-      {isSearchActive ? (
+      {searchOpen ? (
         <FlatList<ClosetItem>
-          data={searchResults}
+          data={trimmedQuery ? searchResults : []}
           keyExtractor={(item) => item.id}
           renderItem={renderSearchResult}
           ListHeaderComponent={listHeaderContent}
@@ -455,7 +460,11 @@ export function ClosetScreenView({
           ListEmptyComponent={
             <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl }}>
               <AppIcon color={theme.colors.subtleText} name="search" size={20} />
-              <AppText tone="muted">No items match "{searchQuery.trim()}".</AppText>
+              <AppText tone="muted">
+                {trimmedQuery
+                  ? `No items match "${trimmedQuery}".`
+                  : 'Type to search by brand or description.'}
+              </AppText>
             </View>
           }
           contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl }}

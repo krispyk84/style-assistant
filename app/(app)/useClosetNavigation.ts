@@ -34,7 +34,6 @@ export function useClosetNavigation({ items, sections }: UseClosetNavigationPara
 
   // Live search results — recomputed on every items/query change.
   const searchResults = useMemo(() => searchClosetItems(items, searchQuery), [items, searchQuery]);
-  const isSearchActive = searchOpen && searchQuery.trim().length > 0;
 
   // Memoised derived state — computed once per items/sort/filter change
   const sortedItems = useMemo(
@@ -114,7 +113,6 @@ export function useClosetNavigation({ items, sections }: UseClosetNavigationPara
     searchQuery,
     setSearchQuery,
     searchResults,
-    isSearchActive,
     flatListRef,
     sectionListRef,
   };

@@ -37,7 +37,6 @@ export default function ClosetScreen() {
     searchOpen, setSearchOpen,
     searchQuery, setSearchQuery,
     searchResults,
-    isSearchActive,
     flatListRef, sectionListRef,
   } = useClosetNavigation({ items, sections });
 
@@ -114,7 +113,6 @@ export default function ClosetScreen() {
         searchOpen={searchOpen}
         searchQuery={searchQuery}
         searchResults={searchResults}
-        isSearchActive={isSearchActive}
         onSearchToggle={() => {
           setSearchOpen((open) => {
             if (open) setSearchQuery('');
