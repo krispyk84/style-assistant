@@ -13,6 +13,7 @@ import { errorHandler } from './middleware/error-handler.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { closetRouter } from './modules/closet/closet.routes.js';
+import { closetFitCheckRouter } from './modules/closet-fit-check/closet-fit-check.routes.js';
 import { compatibilityRouter } from './modules/compatibility/compatibility.routes.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { outfitsRouter } from './modules/outfits/outfits.routes.js';
@@ -141,6 +142,7 @@ export function createApp() {
   apiRouter.use(profileRouter);
   apiRouter.use(outfitsRouter);
   apiRouter.use(closetRouter);
+  apiRouter.use(closetFitCheckRouter);
   apiRouter.use(compatibilityRouter);
   apiRouter.use(selfieReviewRouter);
   apiRouter.use(secondOpinionRouter);

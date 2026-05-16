@@ -42,6 +42,7 @@ const config: ExpoConfig = {
   plugins: [
     './plugins/with-modular-headers',
     './plugins/with-development-team',
+    './plugins/with-closet-share-extension',
     'expo-router',
     '@react-native-firebase/app',
     '@react-native-firebase/crashlytics',

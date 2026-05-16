@@ -27,6 +27,7 @@ export type AiFeature =
   | 'closet-match'
   | 'closet-sketch'
   | 'closet-analyse'
+  | 'closet-fit-check'
   | 'compatibility-check'
   | 'selfie-review'
   | 'second-opinion'

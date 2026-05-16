@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { router } from 'expo-router';
 import { useWindowDimensions } from 'react-native';
 
 import { spacing } from '@/constants/theme';
@@ -110,6 +111,7 @@ export default function ClosetScreen() {
         onNewItemSaved={handleNewItemSaved}
         onHelpMePickPress={helpMePick.open}
         onAnalysePress={closetAnalyzer.open}
+        onFitCheckPress={() => router.push('/closet-fit-check' as never)}
         searchOpen={searchOpen}
         searchQuery={searchQuery}
         searchResults={searchResults}

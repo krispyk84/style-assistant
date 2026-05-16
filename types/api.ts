@@ -288,3 +288,59 @@ export type ClosetAnalyseResponse = {
   vittorio: ClosetAnalyseStylist;
   alessandra: ClosetAnalyseStylist;
 };
+
+// ── Closet Fit Check (Does this work in my closet?) ──────────────────────────
+
+export type ClosetFitCheckVerdict =
+  | 'strong-buy'
+  | 'worth-considering'
+  | 'only-if-you-love-it'
+  | 'skip';
+
+export type ClosetFitCheckScores = {
+  trendiness: number;
+  profileFit: number;
+  redundancyComplementarity: number;
+  stylistOpinion: number;
+  utility: number;
+};
+
+export type ClosetFitCheckWeights = ClosetFitCheckScores;
+
+export type ClosetFitCheckReasoning = {
+  trendiness: string;
+  profileFit: string;
+  redundancyComplementarity: string;
+  stylistOpinion: string;
+  utility: string;
+};
+
+export type ClosetFitCheckItem = {
+  title: string;
+  category: string;
+  primaryColor: string | null;
+  colorFamily: string | null;
+  material: string | null;
+  formality: string | null;
+};
+
+export type ClosetFitCheckRequest = {
+  uploadedImageId?: string;
+  uploadedImageUrl: string;
+  notes?: string;
+  trendiness?: number;
+};
+
+export type ClosetFitCheckResponse = {
+  item: ClosetFitCheckItem;
+  scores: ClosetFitCheckScores;
+  weights: ClosetFitCheckWeights;
+  overallScore: number;
+  verdict: ClosetFitCheckVerdict;
+  summary: string;
+  reasoning: ClosetFitCheckReasoning;
+  closetImpact: string;
+  stylistTake: string;
+  similarClosetItemIds: string[];
+  imageUrl: string;
+};

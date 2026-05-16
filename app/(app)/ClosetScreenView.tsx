@@ -47,6 +47,8 @@ export type ClosetScreenViewProps = {
   onHelpMePickPress: () => void;
   // Closet Analyser
   onAnalysePress: () => void;
+  // Closet Fit Check ("Does this work in my closet?")
+  onFitCheckPress: () => void;
   // Search
   searchOpen: boolean;
   searchQuery: string;
@@ -85,6 +87,7 @@ export function ClosetScreenView({
   onNewItemSaved,
   onHelpMePickPress,
   onAnalysePress,
+  onFitCheckPress,
   searchOpen,
   searchQuery,
   searchResults,
@@ -356,55 +359,80 @@ export function ClosetScreenView({
           </Pressable>
 
           {optionsOpen ? (
-            eligibleItemCount >= 10 ? (
-              <View style={{ gap: spacing.md }}>
-                <Pressable
-                  onPress={onHelpMePickPress}
-                  style={{
-                    alignItems: 'center',
-                    backgroundColor: theme.colors.surface,
-                    borderColor: theme.colors.border,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    flexDirection: 'row',
-                    gap: spacing.sm,
-                    paddingHorizontal: spacing.lg,
-                    paddingVertical: spacing.md,
-                  }}>
-                  <AppIcon color={theme.colors.accent} name="sparkles" size={18} />
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Help me pick an anchor</AppText>
-                    <AppText tone="muted" style={{ fontSize: 12 }}>Let a stylist choose your starting piece</AppText>
-                  </View>
-                  <AppIcon color={theme.colors.subtleText} name="chevron-right" size={16} />
-                </Pressable>
+            <View style={{ gap: spacing.md }}>
+              {eligibleItemCount >= 10 ? (
+                <>
+                  <Pressable
+                    onPress={onHelpMePickPress}
+                    style={{
+                      alignItems: 'center',
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      flexDirection: 'row',
+                      gap: spacing.sm,
+                      paddingHorizontal: spacing.lg,
+                      paddingVertical: spacing.md,
+                    }}>
+                    <AppIcon color={theme.colors.accent} name="sparkles" size={18} />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Help me pick an anchor</AppText>
+                      <AppText tone="muted" style={{ fontSize: 12 }}>Let a stylist choose your starting piece</AppText>
+                    </View>
+                    <AppIcon color={theme.colors.subtleText} name="chevron-right" size={16} />
+                  </Pressable>
 
-                <Pressable
-                  onPress={onAnalysePress}
-                  style={{
-                    alignItems: 'center',
-                    backgroundColor: theme.colors.surface,
-                    borderColor: theme.colors.border,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    flexDirection: 'row',
-                    gap: spacing.sm,
-                    paddingHorizontal: spacing.lg,
-                    paddingVertical: spacing.md,
-                  }}>
-                  <AppIcon color={theme.colors.accent} name="layers" size={18} />
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Analyse My Closet</AppText>
-                    <AppText tone="muted" style={{ fontSize: 12 }}>See how complete and versatile your wardrobe is</AppText>
-                  </View>
-                  <AppIcon color={theme.colors.subtleText} name="chevron-right" size={16} />
-                </Pressable>
-              </View>
-            ) : eligibleItemCount > 0 ? (
-              <AppText tone="muted" style={{ fontSize: 12 }}>
-                Add {10 - eligibleItemCount} more top{10 - eligibleItemCount === 1 ? '' : 's'}, bottom{10 - eligibleItemCount === 1 ? '' : 's'}, or outerwear to unlock these options.
-              </AppText>
-            ) : null
+                  <Pressable
+                    onPress={onAnalysePress}
+                    style={{
+                      alignItems: 'center',
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      flexDirection: 'row',
+                      gap: spacing.sm,
+                      paddingHorizontal: spacing.lg,
+                      paddingVertical: spacing.md,
+                    }}>
+                    <AppIcon color={theme.colors.accent} name="layers" size={18} />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Analyse My Closet</AppText>
+                      <AppText tone="muted" style={{ fontSize: 12 }}>See how complete and versatile your wardrobe is</AppText>
+                    </View>
+                    <AppIcon color={theme.colors.subtleText} name="chevron-right" size={16} />
+                  </Pressable>
+                </>
+              ) : eligibleItemCount > 0 ? (
+                <AppText tone="muted" style={{ fontSize: 12 }}>
+                  Add {10 - eligibleItemCount} more top{10 - eligibleItemCount === 1 ? '' : 's'}, bottom{10 - eligibleItemCount === 1 ? '' : 's'}, or outerwear to unlock Help Me Pick and Analyse My Closet.
+                </AppText>
+              ) : null}
+
+              {/* Closet Fit Check — available as soon as the closet has any items,
+                  so the user can sanity-check purchases before bulking up the wardrobe. */}
+              <Pressable
+                onPress={onFitCheckPress}
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  flexDirection: 'row',
+                  gap: spacing.sm,
+                  paddingHorizontal: spacing.lg,
+                  paddingVertical: spacing.md,
+                }}>
+                <AppIcon color={theme.colors.accent} name="search" size={18} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Does this work in my closet?</AppText>
+                  <AppText tone="muted" style={{ fontSize: 12 }}>Check a piece you&apos;re considering against your wardrobe</AppText>
+                </View>
+                <AppIcon color={theme.colors.subtleText} name="chevron-right" size={16} />
+              </Pressable>
+            </View>
           ) : null}
         </>
       ) : null}

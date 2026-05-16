@@ -12,6 +12,11 @@ import { buildNavTheme } from '@/constants/themes';
 import { AppSessionProvider } from '@/contexts/app-session-provider';
 import { useAppSession } from '@/hooks/use-app-session';
 import { ScreenTracker } from '@/lib/analytics';
+import { installShareHandoffListener } from '@/lib/share-handoff';
+
+// Subscribe to incoming share-handoff URLs once per JS instance. The listener
+// also handles the cold-start URL via Linking.getInitialURL.
+installShareHandoffListener();
 
 // [BOOT-DIAG] Module evaluated — if you see this, the JS bundle loaded and
 // this file was required successfully. Missing = bundle failed to parse.
@@ -66,6 +71,7 @@ function AppNavigation() {
         <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="review-request" options={{ headerShown: false }} />
         <Stack.Screen name="check-piece" options={{ headerShown: false }} />
+        <Stack.Screen name="closet-fit-check" options={{ headerShown: false }} />
         <Stack.Screen name="selfie-review" options={{ headerShown: false }} />
         <Stack.Screen name="results/[requestId]" options={{ headerShown: false }} />
         <Stack.Screen name="tier/[tier]" options={{ headerShown: false }} />
