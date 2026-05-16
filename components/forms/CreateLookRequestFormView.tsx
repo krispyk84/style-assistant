@@ -68,6 +68,12 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
     includeHat,
     toggleIncludeBag,
     toggleIncludeHat,
+    additionalDetails,
+    isAdditionalDetailsExpanded,
+    setAdditionalDetails,
+    setIsAdditionalDetailsExpanded,
+    lookCount,
+    setLookCount,
   } = lookForm;
   const hasAnyInput = populatedAnchorItems.length > 0;
 
@@ -300,6 +306,75 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
         </View>
       </View>
 
+      {/* Additional Details — collapsible */}
+      <View style={{ gap: spacing.md }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isAdditionalDetailsExpanded }}
+          accessibilityLabel={isAdditionalDetailsExpanded ? 'Collapse Additional Details' : 'Expand Additional Details'}
+          onPress={() => setIsAdditionalDetailsExpanded((v) => !v)}
+          style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+            <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Additional Details</AppText>
+            {additionalDetails.trim() && !isAdditionalDetailsExpanded ? (
+              <View
+                style={{
+                  backgroundColor: theme.colors.accent,
+                  borderRadius: 999,
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: 2,
+                }}>
+                <AppText variant="eyebrow" style={{ color: '#FFFFFF', letterSpacing: 1 }}>Added</AppText>
+              </View>
+            ) : null}
+          </View>
+          <View
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+              borderRadius: 999,
+              borderWidth: 1,
+              height: 28,
+              justifyContent: 'center',
+              width: 28,
+            }}>
+            <AppIcon
+              color={theme.colors.text}
+              name={isAdditionalDetailsExpanded ? 'chevron-up' : 'chevron-down'}
+              size={14}
+            />
+          </View>
+        </Pressable>
+        {isAdditionalDetailsExpanded ? (
+          <View style={{ gap: spacing.md }}>
+            <AppText tone="muted">Anything else we should know? Occasion, weather quirks, things to avoid.</AppText>
+            <TextInput
+              multiline
+              autoCapitalize="sentences"
+              onChangeText={setAdditionalDetails}
+              placeholder="e.g. dinner outside on a cool patio, prefer to skip black"
+              placeholderTextColor={theme.colors.subtleText}
+              maxLength={500}
+              style={{
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+                borderRadius: 18,
+                borderWidth: 1,
+                color: theme.colors.text,
+                fontFamily: theme.fonts.sans,
+                fontSize: 16,
+                minHeight: 100,
+                paddingHorizontal: spacing.md,
+                paddingTop: spacing.md,
+                textAlignVertical: 'top',
+              }}
+              value={additionalDetails}
+            />
+          </View>
+        ) : null}
+      </View>
+
       {/* Occasion Formality */}
       <View style={{ gap: spacing.md }}>
         <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Occasion Formality</AppText>
@@ -348,6 +423,61 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
           <AppText style={{ color: theme.colors.danger }}>{tierError}</AppText>
         ) : null}
       </View>
+
+      {/* Number of Looks — only meaningful when exactly one tier is selected */}
+      {selectedTiers.length === 1 ? (
+        <View style={{ gap: spacing.md }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Number of Looks</AppText>
+          <View
+            style={{
+              alignSelf: 'flex-start',
+              backgroundColor: theme.colors.subtleSurface,
+              borderColor: theme.colors.border,
+              borderRadius: 999,
+              borderWidth: 1,
+              flexDirection: 'row',
+              padding: 3,
+            }}>
+            {([1, 2, 3] as const).map((value) => {
+              const selected = lookCount === value;
+              return (
+                <Pressable
+                  key={value}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`${value} look${value === 1 ? '' : 's'}`}
+                  onPress={() => setLookCount(value)}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: selected ? theme.colors.surface : 'transparent',
+                    borderRadius: 999,
+                    minWidth: 48,
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.xs + 2,
+                    shadowColor: selected ? '#000' : 'transparent',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: selected ? 0.08 : 0,
+                    shadowRadius: selected ? 2 : 0,
+                  }}>
+                  <AppText
+                    style={{
+                      color: selected ? theme.colors.text : theme.colors.mutedText,
+                      fontFamily: theme.fonts.sansMedium,
+                      fontSize: 14,
+                    }}>
+                    {value}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+          <AppText tone="muted" style={{ fontSize: 12 }}>
+            {lookCount === 1
+              ? 'Generate one outfit for this tier.'
+              : `Generate ${lookCount} distinct outfits from the same anchors and tier.`}
+          </AppText>
+        </View>
+      ) : null}
 
       <PrimaryButton
         disabled={!hasAnyInput || isUploading}

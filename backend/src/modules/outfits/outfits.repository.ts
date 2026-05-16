@@ -58,6 +58,11 @@ type RawResponseSnapshot = {
     anchorItems?: OutfitResponse['input']['anchorItems'];
     anchorItemDescription?: string;
     vibeKeywords?: string;
+    additionalDetails?: string;
+    includeBag?: boolean;
+    includeHat?: boolean;
+    manualSeason?: OutfitResponse['input']['manualSeason'];
+    trendiness?: number;
   };
 };
 
@@ -93,6 +98,11 @@ function mapToOutfitResponse(result: OutfitResultWithRequest): OutfitResponse {
       photoPending: requestRecord.photoPending,
       selectedTiers: requestRecord.selectedTiers.map(toSlug),
       weatherContext: (requestRecord.weatherContext ?? null) as WeatherContextValue | null,
+      additionalDetails: rawResponse?.input?.additionalDetails ?? undefined,
+      includeBag: rawResponse?.input?.includeBag ?? undefined,
+      includeHat: rawResponse?.input?.includeHat ?? undefined,
+      manualSeason: rawResponse?.input?.manualSeason ?? undefined,
+      trendiness: rawResponse?.input?.trendiness ?? undefined,
     },
     recommendations: tierResults.map((tier) => ({
       tier: toSlug(tier.tier),

@@ -73,8 +73,11 @@ export function buildSubmitRouteParams(params: {
   manualSeason: WeatherSeason | null;
   includeBag: boolean;
   includeHat: boolean;
+  additionalDetails: string;
+  /** 1-3 — only honoured when selectedTiers.length === 1; otherwise treated as 1. */
+  lookCount: number;
 }) {
-  const { populatedAnchorItems, vibeKeywords, selectedTiers, shouldAddAnchorToCloset, weatherContext, manualSeason, includeBag, includeHat } = params;
+  const { populatedAnchorItems, vibeKeywords, selectedTiers, shouldAddAnchorToCloset, weatherContext, manualSeason, includeBag, includeHat, additionalDetails, lookCount } = params;
 
   const SEASON_HINT: Record<WeatherSeason, string> = {
     spring: 'Mild transitional weather — light layers appropriate.',
@@ -103,6 +106,14 @@ export function buildSubmitRouteParams(params: {
     : weatherContext;
   const requestId = createMockRequestId();
   const primaryAnchorItem = populatedAnchorItems[0];
+
+  // Same-tier multi-look: generate distinct child requestIds (variation 2..N) so each
+  // variation is persisted independently. Only honoured when exactly one tier is selected.
+  const effectiveLookCount = selectedTiers.length === 1 ? Math.max(1, Math.min(3, lookCount)) : 1;
+  const variantRequestIds: string[] = [];
+  for (let i = 1; i < effectiveLookCount; i += 1) {
+    variantRequestIds.push(`${requestId}-v${i + 1}`);
+  }
   const anchorItemDescription = populatedAnchorItems
     .map((item) => item.description.trim())
     .filter(Boolean)
@@ -121,7 +132,10 @@ export function buildSubmitRouteParams(params: {
       manualSeason,
       includeBag,
       includeHat,
+      additionalDetails,
     }),
     addAnchorToCloset: shouldAddAnchorToCloset ? 'true' : undefined,
+    lookCount: effectiveLookCount > 1 ? String(effectiveLookCount) : undefined,
+    variantRequestIds: variantRequestIds.length ? variantRequestIds.join(',') : undefined,
   };
 }

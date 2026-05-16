@@ -15,10 +15,11 @@ import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { spacing, theme } from '@/constants/theme';
 import { buildSavedOutfitId } from '@/lib/saved-outfits-storage';
-import { buildTierHref, type LookRouteParams } from '@/lib/look-route';
+import { buildTierHref, parseLookInput, parseVariantRequestIds, type LookRouteParams } from '@/lib/look-route';
 import { LOOK_TIER_OPTIONS } from '@/types/look-request';
 import { formatTierLabel } from '@/lib/outfit-utils';
 
+import { MultiLookResults } from './MultiLookResults';
 import { useResultsData } from './useResultsData';
 import { useResultsPolling } from './useResultsPolling';
 import { useResultsMatchFeedback } from './useResultsMatchFeedback';
@@ -28,6 +29,23 @@ export default function ResultDetailsScreen() {
   const params = useLocalSearchParams<LookRouteParams & { requestId: string }>();
   const routeKey = JSON.stringify(params);
   const stableParams = useMemo(() => JSON.parse(routeKey) as LookRouteParams & { requestId: string }, [routeKey]);
+
+  // Multi-look branch — when the brief was created with > 1 variations of a single tier,
+  // the dedicated MultiLookResults orchestrator owns generation, polling and per-slot state.
+  const variantRequestIds = parseVariantRequestIds(stableParams.variantRequestIds);
+  if (variantRequestIds.length > 0) {
+    const inputForMulti = parseLookInput(stableParams);
+    if (inputForMulti) {
+      return (
+        <MultiLookResults
+          primaryRequestId={stableParams.requestId}
+          variantRequestIds={variantRequestIds}
+          parsedInput={inputForMulti}
+          addAnchorToCloset={stableParams.addAnchorToCloset === 'true'}
+        />
+      );
+    }
+  }
 
   const {
     response,

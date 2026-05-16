@@ -48,6 +48,8 @@ export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE }: 
         manualSeason: lookForm.selectedSeason,
         includeBag: lookForm.includeBag,
         includeHat: lookForm.includeHat,
+        additionalDetails: lookForm.additionalDetails,
+        lookCount: lookForm.lookCount,
       }),
     });
   }

@@ -46,6 +46,23 @@ export type GenerateOutfitsRequest = {
   includeBag?: boolean;
   /** User opted to have an outfit-appropriate hat included in the generated look. */
   includeHat?: boolean;
+  /** Freeform additional guidance to steer the outfit. */
+  additionalDetails?: string;
+  /** Variation context — set when generating multiple looks of the same tier from the same anchors. */
+  variantContext?: {
+    /** 1-based index of this variation within the batch. */
+    index: number;
+    /** Total number of variations in the batch (2 or 3). */
+    total: number;
+    /** Summaries of variations already generated (to enforce meaningful distinctness). */
+    previousVariations?: Array<{
+      title: string;
+      stylingDirection: string;
+      keyPieces: string[];
+      shoes: string[];
+      accessories: string[];
+    }>;
+  };
   /**
    * Outfit trendiness 0–100 (lower = safer/classic, higher = trendier).
    * Sourced from the user's app settings on the device.
@@ -89,6 +106,7 @@ export type OutfitResponse = {
     manualSeason?: GenerateOutfitsRequest['manualSeason'];
     includeBag?: boolean;
     includeHat?: boolean;
+    additionalDetails?: string;
     trendiness?: number;
   };
   recommendations: TierRecommendationDto[];

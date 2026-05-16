@@ -42,17 +42,18 @@ export function WeekDayCard({
 }: WeekDayCardProps) {
   const { theme } = useTheme();
 
-  const cardStyle = {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
-    borderRadius: 28,
-    borderWidth: 1,
-    padding: spacing.lg,
-  } as const;
-
+  // ── Empty / unplanned state — simple bordered card with day label + weather ──
   if (!assignment) {
     return (
-      <View style={[cardStyle, { gap: spacing.xs }]}>
+      <View
+        style={{
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.border,
+          borderRadius: 24,
+          borderWidth: 1,
+          gap: spacing.xs,
+          padding: spacing.lg,
+        }}>
         <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
           <AppText variant="sectionTitle">{day.dayLabel}</AppText>
           {forecast ? <WeatherBadge forecast={forecast} temperatureUnit={temperatureUnit} /> : null}
@@ -62,6 +63,7 @@ export function WeekDayCard({
     );
   }
 
+  // ── Planned state — edge-to-edge sketch on top, header + title + action below ──
   return (
     <Link
       href={buildTierHref(
@@ -71,52 +73,100 @@ export function WeekDayCard({
         assignment.recommendation,
       )}
       asChild>
-      <Pressable style={[cardStyle, { gap: spacing.md }]}>
-        <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-            <AppText variant="sectionTitle">{day.dayLabel}</AppText>
-            {forecast ? <WeatherBadge forecast={forecast} temperatureUnit={temperatureUnit} /> : null}
-          </View>
-          <Pressable
-            hitSlop={8}
-            onPress={(event) => {
-              event.stopPropagation();
-              onRemove();
-            }}>
-            <AppIcon color={theme.colors.danger} name="close" size={20} />
-          </Pressable>
-        </View>
-
+      <Pressable
+        style={{
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.border,
+          borderRadius: 24,
+          borderWidth: 1,
+          overflow: 'hidden',
+        }}>
         <GeneratedSketchPanel
+          mode="compact"
           status={assignment.recommendation.sketchStatus}
           imageUrl={assignment.recommendation.sketchImageUrl}
+          aspectRatio={2 / 3}
+          resizeMode="cover"
         />
 
-        <Pressable
-          disabled={isSaved}
-          onPress={(event) => {
-            event.stopPropagation();
-            onSave();
-          }}
-          style={{
-            alignItems: 'center',
-            backgroundColor: isSaved ? theme.colors.border : theme.colors.card,
-            borderColor: theme.colors.border,
-            borderRadius: 999,
-            borderWidth: 1,
-            flexDirection: 'row',
-            gap: spacing.xs,
-            justifyContent: 'center',
-            minHeight: 48,
-            paddingHorizontal: spacing.md,
-          }}>
-          <AppIcon color={theme.colors.text} name="bookmark" size={18} />
-          <AppText>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}</AppText>
-        </Pressable>
+        <View style={{ gap: spacing.md, padding: spacing.lg }}>
+          {/* Day header + weather + remove */}
+          <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+            <View style={{ alignItems: 'center', flexDirection: 'row', flex: 1, gap: spacing.sm }}>
+              <AppText
+                style={{
+                  color: theme.colors.mutedText,
+                  fontFamily: theme.fonts.sansMedium,
+                  fontSize: 11,
+                  letterSpacing: 1.2,
+                  textTransform: 'uppercase',
+                }}>
+                {day.dayLabel}
+              </AppText>
+              {forecast ? <WeatherBadge forecast={forecast} temperatureUnit={temperatureUnit} /> : null}
+            </View>
+            <Pressable
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Remove from this day"
+              onPress={(event) => {
+                event.stopPropagation();
+                onRemove();
+              }}
+              style={{
+                alignItems: 'center',
+                backgroundColor: theme.colors.subtleSurface,
+                borderRadius: 999,
+                height: 28,
+                justifyContent: 'center',
+                width: 28,
+              }}>
+              <AppIcon color={theme.colors.mutedText} name="close" size={14} />
+            </Pressable>
+          </View>
 
-        <View style={{ gap: spacing.xs }}>
-          <AppText variant="title">{assignment.recommendation.title}</AppText>
-          <AppText tone="muted">{formatTierLabel(assignment.recommendation.tier)}</AppText>
+          {/* Title + tier */}
+          <View style={{ gap: spacing.xs }}>
+            <AppText variant="sectionTitle">{assignment.recommendation.title}</AppText>
+            <AppText tone="muted">{formatTierLabel(assignment.recommendation.tier)}</AppText>
+          </View>
+
+          {/* Save action — small inline pill rather than full-width bar */}
+          <View style={{ flexDirection: 'row' }}>
+            <Pressable
+              disabled={isSaved}
+              accessibilityRole="button"
+              accessibilityLabel={isSaved ? 'Already saved to looks' : 'Save outfit to looks'}
+              onPress={(event) => {
+                event.stopPropagation();
+                if (!isSaved) onSave();
+              }}
+              style={{
+                alignItems: 'center',
+                backgroundColor: isSaved ? theme.colors.subtleSurface : theme.colors.card,
+                borderColor: theme.colors.border,
+                borderRadius: 999,
+                borderWidth: 1,
+                flexDirection: 'row',
+                gap: spacing.xs,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.xs + 1,
+              }}>
+              <AppIcon
+                color={isSaved ? theme.colors.mutedText : theme.colors.text}
+                name={isSaved ? 'bookmark-filled' : 'bookmark'}
+                size={14}
+              />
+              <AppText
+                style={{
+                  color: isSaved ? theme.colors.mutedText : theme.colors.text,
+                  fontFamily: theme.fonts.sansMedium,
+                  fontSize: 12,
+                }}>
+                {isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}
+              </AppText>
+            </Pressable>
+          </View>
         </View>
       </Pressable>
     </Link>
@@ -135,8 +185,8 @@ function WeatherBadge({
   const { theme } = useTheme();
   return (
     <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-      <AppIcon color={theme.colors.subtleText} name={weatherIcon(forecast.weatherCode)} size={16} />
-      <AppText tone="muted">
+      <AppIcon color={theme.colors.subtleText} name={weatherIcon(forecast.weatherCode)} size={14} />
+      <AppText style={{ color: theme.colors.mutedText, fontSize: 12 }}>
         {formatTemperatureRange(forecast.highTempC, forecast.lowTempC, temperatureUnit)}
       </AppText>
     </View>

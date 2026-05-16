@@ -8,7 +8,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing } from '@/constants/theme';
-import { buildLookRouteParams, parseLookInput } from '@/lib/look-route';
+import { buildLookRouteParams, buildVariantRequestIds, parseLookCount, parseLookInput } from '@/lib/look-route';
 import { createMockRequestId } from '@/lib/look-mock-data';
 
 export default function ReviewRequestScreen() {
@@ -32,6 +32,7 @@ export default function ReviewRequestScreen() {
     weatherLocationLabel?: string;
     weatherFetchedAt?: string;
     addAnchorToCloset?: string;
+    lookCount?: string;
   }>();
   const input = parseLookInput(params);
 
@@ -71,9 +72,16 @@ export default function ReviewRequestScreen() {
             label="Generate Outfit Recommendations"
             onPress={() => {
               const freshRequestId = createMockRequestId();
+              const lookCount = input.selectedTiers.length === 1 ? parseLookCount(params.lookCount) : 1;
+              const variantRequestIds = buildVariantRequestIds(freshRequestId, lookCount);
               router.push({
                 pathname: '/results/[requestId]',
-                params: { ...buildLookRouteParams(freshRequestId, input), addAnchorToCloset: params.addAnchorToCloset },
+                params: {
+                  ...buildLookRouteParams(freshRequestId, input),
+                  addAnchorToCloset: params.addAnchorToCloset,
+                  lookCount: lookCount > 1 ? String(lookCount) : undefined,
+                  variantRequestIds: variantRequestIds.length ? variantRequestIds.join(',') : undefined,
+                },
               });
             }}
           />

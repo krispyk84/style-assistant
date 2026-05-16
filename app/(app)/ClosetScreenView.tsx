@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
+import { Image } from 'expo-image';
 import {
-  Animated, FlatList, LayoutAnimation, Platform, Pressable, SectionList, View,
+  Animated, FlatList, LayoutAnimation, Platform, Pressable, SectionList, TextInput, View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -46,6 +47,13 @@ export type ClosetScreenViewProps = {
   onHelpMePickPress: () => void;
   // Closet Analyser
   onAnalysePress: () => void;
+  // Search
+  searchOpen: boolean;
+  searchQuery: string;
+  searchResults: ClosetItem[];
+  isSearchActive: boolean;
+  onSearchToggle: () => void;
+  onSearchQueryChange: (query: string) => void;
   // Grid
   cellWidth: number;
   onPressItem: (item: ClosetItem) => void;
@@ -78,6 +86,12 @@ export function ClosetScreenView({
   onNewItemSaved,
   onHelpMePickPress,
   onAnalysePress,
+  searchOpen,
+  searchQuery,
+  searchResults,
+  isSearchActive,
+  onSearchToggle,
+  onSearchQueryChange,
   cellWidth,
   onPressItem,
   flatListRef,
@@ -137,7 +151,7 @@ export function ClosetScreenView({
 
   const listHeaderContent = (
     <View style={{ gap: spacing.xl, paddingBottom: spacing.xs }}>
-      {/* Title + add button (original position) */}
+      {/* Title + search/add buttons (original position) */}
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <View style={{ gap: spacing.sm, flex: 1 }}>
           <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
@@ -146,20 +160,85 @@ export function ClosetScreenView({
           <AppText variant="heroSmall">My Closet</AppText>
           <AppText tone="muted">Your catalogued wardrobe pieces.</AppText>
         </View>
-        <Pressable
-          hitSlop={8}
-          onPress={onAddPress}
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {itemCount > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={searchOpen ? 'Close search' : 'Search closet'}
+              hitSlop={8}
+              onPress={onSearchToggle}
+              style={{
+                alignItems: 'center',
+                backgroundColor: searchOpen ? theme.colors.accent : theme.colors.surface,
+                borderColor: searchOpen ? theme.colors.accent : theme.colors.border,
+                borderRadius: 999,
+                borderWidth: 1,
+                height: 40,
+                justifyContent: 'center',
+                width: 40,
+              }}>
+              <AppIcon
+                color={searchOpen ? '#FFF' : theme.colors.text}
+                name={searchOpen ? 'close' : 'search'}
+                size={18}
+              />
+            </Pressable>
+          ) : null}
+          <Pressable
+            hitSlop={8}
+            onPress={onAddPress}
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.colors.accent,
+              borderRadius: 999,
+              height: 40,
+              justifyContent: 'center',
+              width: 40,
+            }}>
+            <AppIcon color="#FFF" name="add" size={22} />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Search input — appears when search is toggled, autoFocuses to open the keyboard */}
+      {searchOpen ? (
+        <View
           style={{
             alignItems: 'center',
-            backgroundColor: theme.colors.accent,
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
             borderRadius: 999,
-            height: 40,
-            justifyContent: 'center',
-            width: 40,
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.sm,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.xs,
           }}>
-          <AppIcon color="#FFF" name="add" size={22} />
-        </Pressable>
-      </View>
+          <AppIcon color={theme.colors.mutedText} name="search" size={16} />
+          <TextInput
+            autoFocus
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            placeholder="Search brand or description"
+            placeholderTextColor={theme.colors.subtleText}
+            value={searchQuery}
+            onChangeText={onSearchQueryChange}
+            style={{
+              color: theme.colors.text,
+              flex: 1,
+              fontFamily: theme.fonts.sans,
+              fontSize: 15,
+              paddingVertical: spacing.xs,
+            }}
+          />
+          {searchQuery.length > 0 ? (
+            <Pressable hitSlop={8} onPress={() => onSearchQueryChange('')}>
+              <AppIcon color={theme.colors.mutedText} name="close" size={16} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       {/* Loading bar */}
       {isLoading ? (
@@ -356,9 +435,35 @@ export function ClosetScreenView({
     </View>
   );
 
+  // Search results renderer — single column list, thumbnail + brand + title.
+  const renderSearchResult = useCallback(
+    ({ item }: { item: ClosetItem }) => (
+      <ClosetSearchResultRow item={item} onPress={onPressItem} />
+    ),
+    [onPressItem],
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'left', 'right']}>
-      {useFlatList ? (
+      {isSearchActive ? (
+        <FlatList<ClosetItem>
+          data={searchResults}
+          keyExtractor={(item) => item.id}
+          renderItem={renderSearchResult}
+          ListHeaderComponent={listHeaderContent}
+          ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl }}>
+              <AppIcon color={theme.colors.subtleText} name="search" size={20} />
+              <AppText tone="muted">No items match "{searchQuery.trim()}".</AppText>
+            </View>
+          }
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        />
+      ) : useFlatList ? (
         <FlatList<ClosetRow>
           ref={flatListRef}
           data={filteredRows}
@@ -466,3 +571,61 @@ export function ClosetScreenView({
     </SafeAreaView>
   );
 }
+
+// ── Search result row ────────────────────────────────────────────────────────
+// Compact, single-column row used in the search results list — thumbnail + brand + title only.
+
+const ClosetSearchResultRow = React.memo(function ClosetSearchResultRow({
+  item,
+  onPress,
+}: {
+  item: ClosetItem;
+  onPress: (item: ClosetItem) => void;
+}) {
+  const { theme } = useTheme();
+  const imageUri = item.sketchImageUrl ?? item.uploadedImageUrl ?? null;
+  return (
+    <Pressable
+      onPress={() => onPress(item)}
+      style={{
+        alignItems: 'center',
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.border,
+        borderRadius: 20,
+        borderWidth: 1,
+        flexDirection: 'row',
+        gap: spacing.md,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+      }}>
+      <View
+        style={{
+          alignItems: 'center',
+          backgroundColor: theme.colors.card,
+          borderRadius: 14,
+          height: 56,
+          justifyContent: 'center',
+          overflow: 'hidden',
+          width: 56,
+        }}>
+        {imageUri ? (
+          <Image contentFit="cover" source={{ uri: imageUri }} style={{ height: '100%', width: '100%' }} />
+        ) : (
+          <AppIcon color={theme.colors.subtleText} name="shirt" size={20} />
+        )}
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <AppText
+          numberOfLines={2}
+          style={{ fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>
+          {item.title}
+        </AppText>
+        {item.brand ? (
+          <AppText tone="muted" numberOfLines={1} style={{ fontSize: 12 }}>
+            {item.brand}
+          </AppText>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+});

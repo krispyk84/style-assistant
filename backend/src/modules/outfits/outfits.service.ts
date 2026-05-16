@@ -171,6 +171,7 @@ export const outfitsService = {
         manualSeason: input.manualSeason ?? null,
         includeBag: input.includeBag ?? false,
         includeHat: input.includeHat ?? false,
+        additionalDetails: input.additionalDetails?.trim() || undefined,
         trendiness: input.trendiness,
       },
       recommendations: tiersToGenerate.map((tier) => {

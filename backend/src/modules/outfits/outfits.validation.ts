@@ -38,6 +38,24 @@ export const generateOutfitsSchema = z.object({
   manualSeason: z.enum(['winter', 'spring', 'summer', 'fall']).nullable().optional(),
   includeBag: z.boolean().optional(),
   includeHat: z.boolean().optional(),
+  additionalDetails: z.string().trim().max(500).optional(),
+  variantContext: z
+    .object({
+      index: z.number().int().min(1).max(3),
+      total: z.number().int().min(1).max(3),
+      previousVariations: z
+        .array(
+          z.object({
+            title: z.string().min(1),
+            stylingDirection: z.string().min(1),
+            keyPieces: z.array(z.string()).default([]),
+            shoes: z.array(z.string()).default([]),
+            accessories: z.array(z.string()).default([]),
+          }),
+        )
+        .optional(),
+    })
+    .optional(),
   trendiness: z.number().min(0).max(100).optional(),
 }).superRefine((value, ctx) => {
   const hasAnchorItems = Boolean(

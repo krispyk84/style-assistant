@@ -47,6 +47,7 @@ export function parseLookInput(params: LookRouteParams): CreateLookInput | null 
     anchorImage: primaryAnchorItem?.image ?? null,
     includeBag: params.includeBag === 'true',
     includeHat: params.includeHat === 'true',
+    additionalDetails: params.additionalDetails ?? '',
   };
 }
 
@@ -81,6 +82,7 @@ export function buildLookRouteParams(requestId: string, input: CreateLookInput) 
     manualSeason: input.manualSeason ?? undefined,
     includeBag: input.includeBag ? 'true' : undefined,
     includeHat: input.includeHat ? 'true' : undefined,
+    additionalDetails: input.additionalDetails?.trim() || undefined,
   };
 }
 
@@ -117,4 +119,32 @@ export function buildLookResultsHref(requestId: string, input: CreateLookInput):
     pathname: '/results/[requestId]',
     params: buildLookRouteParams(requestId, input),
   };
+}
+
+/**
+ * Builds the additional variant requestIds for a same-tier multi-look brief.
+ * lookCount===1 returns []. Single source of truth for the suffix scheme so the
+ * form, review screen, and results screen all agree on the same IDs.
+ */
+export function buildVariantRequestIds(primaryRequestId: string, lookCount: number): string[] {
+  const clamped = Math.max(1, Math.min(3, Math.floor(lookCount)));
+  const ids: string[] = [];
+  for (let i = 1; i < clamped; i += 1) {
+    ids.push(`${primaryRequestId}-v${i + 1}`);
+  }
+  return ids;
+}
+
+export function parseLookCount(value: string | undefined | null): number {
+  const n = Number(value ?? '1');
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(3, Math.floor(n));
+}
+
+export function parseVariantRequestIds(value: string | undefined | null): string[] {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
 }

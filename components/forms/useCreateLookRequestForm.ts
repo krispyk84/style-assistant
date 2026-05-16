@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { CreateLookInput, LookTierSlug } from '@/types/look-request';
 import type { WeatherSeason } from '@/types/weather';
+
+export type LookCount = 1 | 2 | 3;
 
 export function useCreateLookRequestForm(initialValue: CreateLookInput) {
   const [vibeKeywords, setVibeKeywords] = useState(initialValue.vibeKeywords ?? '');
@@ -13,6 +15,21 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
   const [isSeasonExpanded, setIsSeasonExpanded] = useState(false);
   const [includeBag, setIncludeBag] = useState<boolean>(initialValue.includeBag ?? false);
   const [includeHat, setIncludeHat] = useState<boolean>(initialValue.includeHat ?? false);
+  const [additionalDetails, setAdditionalDetails] = useState<string>(initialValue.additionalDetails ?? '');
+  // Auto-expand if the form was pre-filled with details (e.g. retry / edit flows)
+  const [isAdditionalDetailsExpanded, setIsAdditionalDetailsExpanded] = useState(() =>
+    !!(initialValue.additionalDetails?.trim()),
+  );
+  // Same-tier variation count — only meaningful when exactly one tier is selected.
+  const [lookCount, setLookCount] = useState<LookCount>(1);
+
+  // When the user selects more than one tier, force back to a single look — the
+  // multi-look option is only valid for a single-tier brief.
+  useEffect(() => {
+    if (selectedTiers.length !== 1 && lookCount !== 1) {
+      setLookCount(1);
+    }
+  }, [selectedTiers.length, lookCount]);
 
   function toggleTier(tier: LookTierSlug) {
     setSelectedTiers((current) => {
@@ -48,12 +65,18 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
     isSeasonExpanded,
     includeBag,
     includeHat,
+    additionalDetails,
+    isAdditionalDetailsExpanded,
+    lookCount,
     // Setters
     setVibeKeywords,
     setIsKeywordsExpanded,
     setIsSeasonExpanded,
     setTierError,
     setSelectedSeason,
+    setAdditionalDetails,
+    setIsAdditionalDetailsExpanded,
+    setLookCount,
     // Mutations
     toggleTier,
     toggleVibeKeyword,

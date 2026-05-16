@@ -30,6 +30,8 @@ export const apiOutfitsService: OutfitsService = {
         manualSeason: request.manualSeason ?? undefined,
         includeBag: request.includeBag ?? false,
         includeHat: request.includeHat ?? false,
+        additionalDetails: request.additionalDetails?.trim() || undefined,
+        variantContext: request.variantContext,
         trendiness: request.trendiness,
       },
     });

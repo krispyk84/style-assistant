@@ -46,4 +46,9 @@ export type LookRouteParams = {
   manualSeason?: string;
   includeBag?: string;
   includeHat?: string;
+  additionalDetails?: string;
+  /** Comma-separated additional requestIds for same-tier variations (variation 2..N, base is the URL). */
+  variantRequestIds?: string;
+  /** Total number of looks the user requested ("1" | "2" | "3"). Default "1". */
+  lookCount?: string;
 };

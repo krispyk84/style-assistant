@@ -34,6 +34,10 @@ export default function ClosetScreen() {
     sortMode, setSortMode,
     useFlatList,
     filteredRows,
+    searchOpen, setSearchOpen,
+    searchQuery, setSearchQuery,
+    searchResults,
+    isSearchActive,
     flatListRef, sectionListRef,
   } = useClosetNavigation({ items, sections });
 
@@ -107,6 +111,17 @@ export default function ClosetScreen() {
         onNewItemSaved={handleNewItemSaved}
         onHelpMePickPress={helpMePick.open}
         onAnalysePress={closetAnalyzer.open}
+        searchOpen={searchOpen}
+        searchQuery={searchQuery}
+        searchResults={searchResults}
+        isSearchActive={isSearchActive}
+        onSearchToggle={() => {
+          setSearchOpen((open) => {
+            if (open) setSearchQuery('');
+            return !open;
+          });
+        }}
+        onSearchQueryChange={setSearchQuery}
         cellWidth={cellWidth}
         onPressItem={setEditingItem}
         flatListRef={flatListRef}

@@ -185,6 +185,47 @@ function buildOptionalItemsRule(opts: { includeBag: boolean; includeHat: boolean
   return lines.join('\n');
 }
 
+/**
+ * Free-form additional guidance from the user — appended as a HARD styling
+ * constraint so the model treats it as a steering signal rather than a hint.
+ * Kept null when the user did not provide anything so the prompt stays terse.
+ */
+function buildAdditionalDetailsRule(additionalDetails: string | undefined | null): string | null {
+  const trimmed = additionalDetails?.trim();
+  if (!trimmed) return null;
+  return [
+    'ADDITIONAL USER DETAILS — these are user-supplied directives. Treat them as a HARD styling constraint that must visibly shape every recommendation; do not ignore, dilute, or summarise them away:',
+    `"${trimmed}"`,
+    'If the directive conflicts with a styling instinct, follow the directive. If it specifies a context (occasion, weather, activity, audience), let it inform fabric weight, formality nuance, palette, and accessory choices. If it forbids a piece, color, or feel, do not include anything that violates it.',
+  ].join('\n');
+}
+
+/**
+ * Same-tier variation rule — biases the model toward a meaningfully different
+ * combination of supporting pieces when the user is generating multiple looks
+ * of the same tier from the same anchors. Returns null when the request is
+ * a single look (no batch variation context).
+ */
+function buildVariantContextRule(variantContext: GenerateOutfitsRequest['variantContext']): string | null {
+  if (!variantContext || variantContext.total <= 1) return null;
+  const lines = [
+    `SAME-TIER VARIATION — this is look ${variantContext.index} of ${variantContext.total} the user requested for the same anchor and tier.`,
+    'Each variation must feel like a real alternative — not a near-duplicate of the others. Vary supporting pieces, silhouette, palette emphasis, and accessory treatment. The styling direction should read as a clearly different option within the same tier.',
+    'Stay faithful to the anchor item(s) and selected tier — do NOT drift to a different formality level to manufacture difference.',
+  ];
+  const prev = variantContext.previousVariations ?? [];
+  if (prev.length) {
+    lines.push('Previous variations already produced (avoid repeating their titles, key piece combinations, and styling direction):');
+    prev.forEach((variant, i) => {
+      lines.push(
+        `- Variation ${i + 1}: "${variant.title}" — direction: ${variant.stylingDirection}; key pieces: ${variant.keyPieces.join('; ') || '(none)'}; shoes: ${variant.shoes.join('; ') || '(none)'}; accessories: ${variant.accessories.join('; ') || '(none)'}.`,
+      );
+    });
+    lines.push('Pick a deliberately different combination of supporting pieces and a distinct styling direction.');
+  }
+  return lines.join('\n');
+}
+
 function buildSeasonInstruction(season: string, isManual: boolean): string {
   const seasonGuide: Record<string, string> = {
     summer: 'Hot-weather styling: lightweight fabrics (linen, cotton, breathable blends), minimal layering, no heavy jackets, coats, wool layers, sweaters, chunky knits, or cold-weather outerwear unless the user specifically requested them.',
@@ -237,6 +278,8 @@ export function buildGenerateOutfitsUserPrompt(
     isManualSeason && effectiveSeason ? buildSeasonInstruction(effectiveSeason, true) : null,
     buildOptionalItemsRule({ includeBag: !!input.includeBag, includeHat: !!input.includeHat, gender: profile?.gender }),
     buildTrendinessRule(input.trendiness),
+    buildAdditionalDetailsRule(input.additionalDetails),
+    buildVariantContextRule(input.variantContext),
     'Styling request:',
     ...anchorItems.map(
       (item, index) =>
@@ -299,6 +342,9 @@ export function buildRegenerateTierUserPrompt(input: {
       gender: input.profile?.gender,
     }),
     buildTrendinessRule(input.existing.input.trendiness),
+    buildAdditionalDetailsRule(
+      (input.existing.input as { additionalDetails?: string }).additionalDetails,
+    ),
     'Original styling request:',
     ...(input.existing.input.anchorItems?.length
       ? input.existing.input.anchorItems.map(

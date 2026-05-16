@@ -3,6 +3,7 @@ import type { FlatList, SectionList } from 'react-native';
 
 import type { ClosetItem } from '@/types/closet';
 import { spacing } from '@/constants/theme';
+import { searchClosetItems } from '@/lib/closet-search';
 import { chunkIntoRows, COLUMN_COUNT, type ClosetRow, type ClosetSection } from './closet-grid-utils';
 
 export type ClosetSortMode = 'category' | 'recent';
@@ -19,6 +20,8 @@ export function useClosetNavigation({ items, sections }: UseClosetNavigationPara
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [pendingScrollItemId, setPendingScrollItemId] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<ClosetSortMode>('category');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Refs created here — returned to the screen for forwarding to ClosetScreenView,
   // which wires them to the list components. The scroll effect calls them directly.
@@ -28,6 +31,10 @@ export function useClosetNavigation({ items, sections }: UseClosetNavigationPara
   // FlatList renders whenever sort is 'recent' OR a category filter is active.
   // SectionList only renders for the default category-grouped, unfiltered view.
   const useFlatList = sortMode === 'recent' || selectedCategory !== null;
+
+  // Live search results — recomputed on every items/query change.
+  const searchResults = useMemo(() => searchClosetItems(items, searchQuery), [items, searchQuery]);
+  const isSearchActive = searchOpen && searchQuery.trim().length > 0;
 
   // Memoised derived state — computed once per items/sort/filter change
   const sortedItems = useMemo(
@@ -102,6 +109,12 @@ export function useClosetNavigation({ items, sections }: UseClosetNavigationPara
     useFlatList,
     displayItems,
     filteredRows,
+    searchOpen,
+    setSearchOpen,
+    searchQuery,
+    setSearchQuery,
+    searchResults,
+    isSearchActive,
     flatListRef,
     sectionListRef,
   };
