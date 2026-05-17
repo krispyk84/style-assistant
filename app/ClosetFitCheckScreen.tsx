@@ -158,9 +158,8 @@ export function ClosetFitCheckScreen() {
 
 function ShareDiagnosticsPanel() {
   const diag = getShareDiagnostics();
-  const everScanned = diag.lastScan !== null || diag.lastUrlHandoff !== null;
+  const everScanned = diag.lastScan !== null || diag.lastUrlHandoff !== null || diag.lastIngest !== null;
   if (!everScanned) return null;
-  const lastScan = diag.lastScan;
   return (
     <View
       style={{
@@ -175,14 +174,18 @@ function ShareDiagnosticsPanel() {
         SHARE HANDOFF
       </AppText>
       <AppText style={{ color: theme.colors.mutedText, fontSize: 12, lineHeight: 17 }}>
-        App Group:{' '}
-        {diag.appGroupContainerResolved ? 'connected' : 'not reachable'}
+        App Group: {diag.appGroupContainerResolved ? 'connected' : 'not reachable'}
         {diag.appGroupId ? ` (${diag.appGroupId})` : ''}
       </AppText>
-      {lastScan ? (
+      {diag.lastScan ? (
         <AppText style={{ color: theme.colors.mutedText, fontSize: 12, lineHeight: 17 }}>
-          Last scan: {lastScan.candidatesFound} pending share
-          {lastScan.candidatesFound === 1 ? '' : 's'} found.
+          Last scan: {diag.lastScan.candidatesFound} pending share
+          {diag.lastScan.candidatesFound === 1 ? '' : 's'} found.
+        </AppText>
+      ) : null}
+      {diag.lastIngest ? (
+        <AppText style={{ color: theme.colors.mutedText, fontSize: 11, lineHeight: 16 }}>
+          Last ingest: {diag.lastIngest.shareId} → {diag.lastIngest.destExists ? 'file present' : 'FILE MISSING'}
         </AppText>
       ) : null}
       {diag.lastError ? (

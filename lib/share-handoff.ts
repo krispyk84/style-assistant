@@ -65,6 +65,13 @@ export type ShareDiagnostics = {
     url: string;
     matched: boolean;
   } | null;
+  /** Last share that was successfully ingested into the cache. */
+  lastIngest: {
+    at: string;
+    shareId: string;
+    destUri: string;
+    destExists: boolean;
+  } | null;
 };
 
 // ── In-memory singletons ─────────────────────────────────────────────────────
@@ -80,6 +87,7 @@ const diagnostics: ShareDiagnostics = {
   lastError: null,
   lastScan: null,
   lastUrlHandoff: null,
+  lastIngest: null,
 };
 
 export function getShareDiagnostics(): ShareDiagnostics {
@@ -177,8 +185,12 @@ function processShare(input: ShareInput) {
   }
 
   try {
-    const cacheDir = `${Paths.cache.uri.replace(/\/$/, '')}/shared-images/`;
-    const cacheDirHandle = new Directory(cacheDir);
+    // Use the Documents directory rather than Cache — Documents persists across
+    // app suspensions and isn't auto-evicted under memory pressure. iOS clears
+    // Caches at its discretion, which was causing the shared image to vanish
+    // moments after we wrote it.
+    const dirRoot = `${Paths.document.uri.replace(/\/$/, '')}/shared-images/`;
+    const cacheDirHandle = new Directory(dirRoot);
     if (!cacheDirHandle.exists) {
       cacheDirHandle.create({ intermediates: true, idempotent: true });
     }
@@ -186,7 +198,7 @@ function processShare(input: ShareInput) {
     const rawExt = sourceFile.uri.split('.').pop()?.toLowerCase() || 'jpg';
     const safeExt = /^[a-z0-9]+$/.test(rawExt) && rawExt.length <= 5 ? rawExt : 'jpg';
     const fileName = `${id}.${safeExt}`;
-    const destFile = new File(cacheDir, fileName);
+    const destFile = new File(dirRoot, fileName);
     if (destFile.exists) destFile.delete();
     sourceFile.copy(destFile);
 
@@ -198,6 +210,13 @@ function processShare(input: ShareInput) {
         if (sidecar.exists) sidecar.delete();
       } catch { /* best-effort */ }
     }
+
+    diagnostics.lastIngest = {
+      at: new Date().toISOString(),
+      shareId: id,
+      destUri: destFile.uri,
+      destExists: destFile.exists,
+    };
 
     processedShareIds.add(id);
     setPendingShare({
