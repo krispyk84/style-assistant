@@ -2,22 +2,23 @@
 //  ShareViewController.swift
 //  Vesture ShareExtension
 //
-//  Strategy: persist the shared image to the App Group container the moment
-//  the extension loads, then aggressively attempt to auto-launch the main app
-//  via three independent code paths (extensionContext.open, responder-chain
-//  openURL:, and the NSClassFromString sharedApplication fallback). The UI is
-//  intentionally minimal — a small "Opening Vesture…" card that flips to a
-//  visible "Open Vesture" button only if auto-launch hasn't fired after a
-//  short delay (some iOS versions silently block all auto-launch paths from
-//  share extensions; if that happens, the user gets a single-tap escape).
+//  iOS 18 has hard-blocked auto-switching from a share extension to the
+//  host app (every path — extensionContext.open, responder-chain openURL:,
+//  runtime sharedApplication dispatch — is silently no-op'd on modern
+//  share extensions). The reliable handoff pattern is therefore:
 //
-//  Either way, the image is in the App Group container by the time the host
-//  app foregrounds, so the main app's foreground scan ingests it whether the
-//  switch came from auto-launch or from manual reopen.
+//    1. Persist the shared image to the App Group container (durable).
+//    2. Schedule an immediate local notification.
+//    3. Show a brief "Saved" confirmation and dismiss the share sheet.
+//
+//  The user taps the notification banner → the main app launches → its
+//  foreground scan ingests the App Group file and routes to closet-fit-
+//  check with the image attached.
 //
 
 import UIKit
 import UniformTypeIdentifiers
+import UserNotifications
 
 final class ShareViewController: UIViewController {
 
@@ -29,13 +30,10 @@ final class ShareViewController: UIViewController {
   private let imageView = UIImageView()
   private let activityIndicator = UIActivityIndicatorView(style: .medium)
   private let statusLabel = UILabel()
-  private let manualOpenButton = UIButton(type: .system)
+  private let detailLabel = UILabel()
 
   // ── State ──────────────────────────────────────────────────────────────────
 
-  private var pendingShareId: String?
-  private var pendingImagePath: String?
-  private var didAttemptOpen = false
   private var didCompleteRequest = false
   private var safetyExitTimer: Timer?
 
@@ -48,35 +46,16 @@ final class ShareViewController: UIViewController {
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
-
-    // SAFETY: regardless of what happens, the extension MUST complete within a
-    // bounded time so the share sheet doesn't end up wedged on screen.
+    // Belt-and-suspenders: extension MUST exit within 8s no matter what.
     scheduleSafetyExit(after: 8.0)
 
     Task { [weak self] in
       guard let self else { return }
-      let ok = await self.persistFirstImage()
+      let result = await self.persistAndNotify()
       await MainActor.run {
-        if ok, let id = self.pendingShareId, let path = self.pendingImagePath {
-          self.openMainAppAllStrategies(shareId: id, imagePath: path)
-          self.didAttemptOpen = true
-          // If iOS DID switch apps, the extension is being torn down right now
-          // and the timer below never fires. If iOS didn't, we surface the
-          // manual button after a moment.
-          DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
-            self?.revealManualButtonIfStillVisible()
-          }
-          // And whether or not the switch happened, complete the request after
-          // a brief settle so we don't hang the share sheet indefinitely.
-          DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { [weak self] in
-            self?.completeAndExit()
-          }
-        } else {
-          self.statusLabel.text = "Couldn't load the image"
-          self.activityIndicator.stopAnimating()
-          DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            self?.completeAndExit()
-          }
+        self.applyResult(result)
+        DispatchQueue.main.asyncAfter(deadline: .now() + (result.succeeded ? 1.0 : 1.6)) { [weak self] in
+          self?.completeAndExit()
         }
       }
     }
@@ -115,23 +94,20 @@ final class ShareViewController: UIViewController {
     cardView.addSubview(activityIndicator)
 
     statusLabel.translatesAutoresizingMaskIntoConstraints = false
-    statusLabel.text = "Opening Vesture…"
-    statusLabel.font = UIFont.systemFont(ofSize: 15, weight: .medium)
+    statusLabel.text = "Saving to Vesture…"
+    statusLabel.font = UIFont.systemFont(ofSize: 17, weight: .semibold)
     statusLabel.textColor = UIColor.label
     statusLabel.textAlignment = .center
     statusLabel.numberOfLines = 0
     cardView.addSubview(statusLabel)
 
-    manualOpenButton.translatesAutoresizingMaskIntoConstraints = false
-    manualOpenButton.isHidden = true
-    manualOpenButton.setTitle("Open Vesture", for: .normal)
-    manualOpenButton.setTitleColor(.white, for: .normal)
-    manualOpenButton.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
-    manualOpenButton.backgroundColor = UIColor(red: 0.69, green: 0.39, blue: 0.15, alpha: 1.0)
-    manualOpenButton.layer.cornerRadius = 20
-    manualOpenButton.layer.cornerCurve = .continuous
-    manualOpenButton.addTarget(self, action: #selector(manualOpenTapped), for: .touchUpInside)
-    cardView.addSubview(manualOpenButton)
+    detailLabel.translatesAutoresizingMaskIntoConstraints = false
+    detailLabel.text = " "
+    detailLabel.font = UIFont.systemFont(ofSize: 13)
+    detailLabel.textColor = UIColor.secondaryLabel
+    detailLabel.textAlignment = .center
+    detailLabel.numberOfLines = 0
+    cardView.addSubview(detailLabel)
 
     NSLayoutConstraint.activate([
       cardView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -152,30 +128,25 @@ final class ShareViewController: UIViewController {
       statusLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 20),
       statusLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -20),
 
-      manualOpenButton.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 14),
-      manualOpenButton.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 20),
-      manualOpenButton.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -20),
-      manualOpenButton.heightAnchor.constraint(equalToConstant: 42),
-      manualOpenButton.bottomAnchor.constraint(equalTo: cardView.bottomAnchor, constant: -20),
+      detailLabel.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 6),
+      detailLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 20),
+      detailLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -20),
+      detailLabel.bottomAnchor.constraint(equalTo: cardView.bottomAnchor, constant: -20),
     ])
   }
 
-  private func revealManualButtonIfStillVisible() {
-    // If the view is still in the window hierarchy after we tried to auto-
-    // open, iOS didn't honor the URL — give the user a tap fallback.
-    guard view.window != nil, !didCompleteRequest else { return }
-    statusLabel.text = "Tap to switch to Vesture"
+  private func applyResult(_ result: PersistResult) {
     activityIndicator.stopAnimating()
-    manualOpenButton.isHidden = false
-  }
-
-  @objc private func manualOpenTapped() {
-    if let id = pendingShareId, let path = pendingImagePath {
-      openMainAppAllStrategies(shareId: id, imagePath: path)
+    if result.succeeded {
+      statusLabel.text = "Saved to Vesture"
+      detailLabel.text = result.notificationScheduled
+        ? "Tap the Vesture notification to view."
+        : "Open Vesture to see the analysis."
+    } else {
+      statusLabel.text = "Couldn't save the image"
+      detailLabel.text = "Try sharing again, or open Vesture directly."
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-      self?.completeAndExit()
-    }
+    if let thumb = result.thumbnail { imageView.image = thumb }
   }
 
   // ── Configuration ──────────────────────────────────────────────────────────
@@ -188,25 +159,42 @@ final class ShareViewController: UIViewController {
     (Bundle.main.object(forInfoDictionaryKey: "MainAppUrlScheme") as? String) ?? "styleassistant"
   }
 
-  // ── Image persistence ─────────────────────────────────────────────────────
+  // ── Persistence + notification ────────────────────────────────────────────
 
-  private func persistFirstImage() async -> Bool {
-    guard let extensionItems = extensionContext?.inputItems as? [NSExtensionItem] else { return false }
+  private struct PersistResult {
+    let succeeded: Bool
+    let notificationScheduled: Bool
+    let thumbnail: UIImage?
+  }
+
+  private func persistAndNotify() async -> PersistResult {
+    guard let extensionItems = extensionContext?.inputItems as? [NSExtensionItem] else {
+      return PersistResult(succeeded: false, notificationScheduled: false, thumbnail: nil)
+    }
     for item in extensionItems {
       guard let attachments = item.attachments else { continue }
       for provider in attachments {
         if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
-          if await persistImage(from: provider) { return true }
+          if let detail = await persistImage(from: provider) {
+            let notified = await scheduleHandoffNotification(shareId: detail.shareId, imagePath: detail.imagePath, thumbnail: detail.thumbnail)
+            return PersistResult(succeeded: true, notificationScheduled: notified, thumbnail: detail.thumbnail)
+          }
         }
       }
     }
-    return false
+    return PersistResult(succeeded: false, notificationScheduled: false, thumbnail: nil)
   }
 
-  private func persistImage(from provider: NSItemProvider) async -> Bool {
-    guard let appGroup = appGroupIdentifier() else { return false }
+  private struct PersistedShare {
+    let shareId: String
+    let imagePath: String
+    let thumbnail: UIImage?
+  }
+
+  private func persistImage(from provider: NSItemProvider) async -> PersistedShare? {
+    guard let appGroup = appGroupIdentifier() else { return nil }
     guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else {
-      return false
+      return nil
     }
 
     var imageData: Data?
@@ -229,10 +217,10 @@ final class ShareViewController: UIViewController {
         thumbnail = UIImage(data: raw)
       }
     } catch {
-      return false
+      return nil
     }
 
-    guard let data = imageData, !data.isEmpty else { return false }
+    guard let data = imageData, !data.isEmpty else { return nil }
 
     let directory = containerURL.appendingPathComponent("pendingShares", isDirectory: true)
     try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -256,15 +244,10 @@ final class ShareViewController: UIViewController {
       let metaData = try JSONSerialization.data(withJSONObject: metadata, options: [])
       try metaData.write(to: metaURL, options: .atomic)
     } catch {
-      return false
+      return nil
     }
 
-    await MainActor.run {
-      self.pendingShareId = shareId
-      self.pendingImagePath = imageURL.path
-      if let thumb = thumbnail { self.imageView.image = thumb }
-    }
-    return true
+    return PersistedShare(shareId: shareId, imagePath: imageURL.path, thumbnail: thumbnail)
   }
 
   private func pruneOldShares(directory: URL) {
@@ -281,48 +264,69 @@ final class ShareViewController: UIViewController {
     }
   }
 
-  // ── Auto-open: three independent strategies ───────────────────────────────
+  /// Schedules an immediate local notification so the user has a one-tap path
+  /// back into Vesture from the share sheet. Returns false if the host app
+  /// hasn't been granted notification permission (in which case the user will
+  /// need to open Vesture manually — the foreground scan still ingests the
+  /// shared image).
+  private func scheduleHandoffNotification(shareId: String, imagePath: String, thumbnail: UIImage?) async -> Bool {
+    let center = UNUserNotificationCenter.current()
 
-  @MainActor
-  private func openMainAppAllStrategies(shareId: String, imagePath: String) {
-    let scheme = mainAppUrlScheme()
-    var components = URLComponents()
-    components.scheme = scheme
-    components.host = "share-handoff"
-    components.queryItems = [
-      URLQueryItem(name: "id", value: shareId),
-      URLQueryItem(name: "path", value: imagePath),
-      URLQueryItem(name: "action", value: Self.actionClosetFitCheck),
+    // Check the host app's notification settings. The extension shares the
+    // host's bundle identifier so this reflects whether the user has granted
+    // notification permission to Vesture itself.
+    let settings = await center.notificationSettings()
+    let canDisplay = settings.authorizationStatus == .authorized
+      || settings.authorizationStatus == .provisional
+      || settings.authorizationStatus == .ephemeral
+    guard canDisplay else { return false }
+
+    let content = UNMutableNotificationContent()
+    content.title = "Check this in your closet?"
+    content.body = "Tap to analyse this piece against your wardrobe."
+    content.sound = .default
+    content.userInfo = [
+      "shareId": shareId,
+      "action": Self.actionClosetFitCheck,
+      "imagePath": imagePath,
     ]
-    guard let url = components.url else { return }
+    content.categoryIdentifier = "VESTURE_CLOSET_FIT_CHECK"
 
-    // Strategy 1: Apple-supported extensionContext.open(_:).
-    // Apple's docs note share extensions may opt out (returns false silently)
-    // but newer iOS sometimes honours it. Cheap to try.
-    extensionContext?.open(url, completionHandler: nil)
-
-    // Strategy 2: Responder-chain openURL:. The classic pattern; still the
-    // workhorse for share extensions in practice.
-    let selector = NSSelectorFromString("openURL:")
-    var responder: UIResponder? = self
-    while let current = responder {
-      if current.responds(to: selector) {
-        _ = current.perform(selector, with: url)
-        return
+    // Attach the thumbnail so the notification banner shows the image preview.
+    // The attachment file must live in a directory the system can read; we
+    // copy it into the extension's temp directory and reference that path.
+    if let attachmentURL = await copyForNotificationAttachment(imagePath: imagePath) {
+      do {
+        let attachment = try UNNotificationAttachment(identifier: shareId, url: attachmentURL, options: nil)
+        content.attachments = [attachment]
+      } catch {
+        // Non-fatal — notification still displays without the thumbnail.
       }
-      responder = current.next
     }
 
-    // Strategy 3: Last-resort fallback — find UIApplication via runtime even
-    // if it isn't in our responder chain. Apps in production have shipped this
-    // for years; App Review tolerates it for share extensions.
-    if let appClass = NSClassFromString("UIApplication") as? NSObject.Type {
-      let sharedSel = NSSelectorFromString("sharedApplication")
-      if appClass.responds(to: sharedSel),
-         let unmanaged = appClass.perform(sharedSel),
-         let app = unmanaged.takeUnretainedValue() as? NSObject {
-        _ = app.perform(selector, with: url)
+    // Trigger after ~0.4s — long enough for iOS to dismiss the share sheet
+    // smoothly before the notification banner slides in.
+    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.4, repeats: false)
+    let request = UNNotificationRequest(identifier: shareId, content: content, trigger: trigger)
+
+    return await withCheckedContinuation { continuation in
+      center.add(request) { error in
+        continuation.resume(returning: error == nil)
       }
+    }
+  }
+
+  /// UNNotificationAttachment requires a file the system can move into its
+  /// own cache. The original App Group file would work for reads but the
+  /// system needs ownership — copy into the extension's tmp directory.
+  private func copyForNotificationAttachment(imagePath: String) async -> URL? {
+    let sourceURL = URL(fileURLWithPath: imagePath)
+    let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString)-\(sourceURL.lastPathComponent)")
+    do {
+      try FileManager.default.copyItem(at: sourceURL, to: tmp)
+      return tmp
+    } catch {
+      return nil
     }
   }
 

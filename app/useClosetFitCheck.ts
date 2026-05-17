@@ -5,6 +5,7 @@ import { closetFitCheckService } from '@/services/closet-fit-check';
 import { closetService } from '@/services/closet';
 import { loadAppSettings } from '@/lib/app-settings-storage';
 import { recordError } from '@/lib/crashlytics';
+import { ensureNotificationPermission } from '@/lib/notification-permission';
 import { consumePendingShare, usePendingShare } from '@/lib/share-handoff';
 import type { ClosetFitCheckResponse } from '@/types/api';
 import type { ClosetItem } from '@/types/closet';
@@ -37,6 +38,13 @@ export function useClosetFitCheck() {
     void closetService.getItems().then((response) => {
       if (response.success && response.data) setClosetItems(response.data.items);
     });
+  }, []);
+
+  // First time the user opens this screen, request notification permission —
+  // local notifications are the share-extension's one-tap path back into the
+  // app. The helper is idempotent and never re-asks within a session.
+  useEffect(() => {
+    void ensureNotificationPermission();
   }, []);
 
   // ── Share-extension handoff ──────────────────────────────────────────────
