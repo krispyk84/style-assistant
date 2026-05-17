@@ -57,6 +57,13 @@ export type ClosetFitCheckItem = {
   formality: string | null;
 };
 
+export type ClosetFitCheckStylistTake = {
+  /** Sharp, precise, European voice — construction, silhouette, quiet authority. */
+  vittorio: string;
+  /** Culturally fluent, warm, socially confident — energy, occasion, expression. */
+  alessandra: string;
+};
+
 export type ClosetFitCheckResponse = {
   item: ClosetFitCheckItem;
   scores: ClosetFitCheckScores;
@@ -69,8 +76,8 @@ export type ClosetFitCheckResponse = {
   reasoning: ClosetFitCheckReasoning;
   /** Paragraph describing how this piece fits into / collides with their existing closet. */
   closetImpact: string;
-  /** Paragraph in a sharp tasteful stylist voice — direct, fashion-literate. */
-  stylistTake: string;
+  /** Two stylist perspectives — same piece, two voices. May agree or disagree. */
+  stylistTake: ClosetFitCheckStylistTake;
   /** IDs of closet items the candidate most overlaps with (may be empty). */
   similarClosetItemIds: string[];
   /** The uploaded image url that was evaluated, echoed back for the result screen. */
@@ -101,9 +108,13 @@ export function computeOverallScore(scores: ClosetFitCheckScores, weights = CLOS
   return Math.max(0, Math.min(100, Math.round(raw)));
 }
 
+// Verdict bands — calibrated so the score distribution we expect from the
+// prompt maps to actionable buckets. A well-chosen piece that fits the user
+// should clear 60+ ("Worth considering"); 75+ should feel like a clear yes.
+// Items below 45 are the ones that genuinely shouldn't be bought.
 export function verdictFromScore(overallScore: number): ClosetFitCheckVerdict {
-  if (overallScore >= 80) return 'strong-buy';
-  if (overallScore >= 65) return 'worth-considering';
-  if (overallScore >= 50) return 'only-if-you-love-it';
+  if (overallScore >= 75) return 'strong-buy';
+  if (overallScore >= 60) return 'worth-considering';
+  if (overallScore >= 45) return 'only-if-you-love-it';
   return 'skip';
 }

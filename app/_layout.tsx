@@ -12,7 +12,7 @@ import { buildNavTheme } from '@/constants/themes';
 import { AppSessionProvider } from '@/contexts/app-session-provider';
 import { useAppSession } from '@/hooks/use-app-session';
 import { ScreenTracker } from '@/lib/analytics';
-import { installShareHandoffListener } from '@/lib/share-handoff';
+import { installShareHandoffListener, useShareHandoffRouter } from '@/lib/share-handoff';
 
 // Subscribe to incoming share-handoff URLs once per JS instance. The listener
 // also handles the cold-start URL via Linking.getInitialURL.
@@ -27,6 +27,11 @@ function AppNavigation() {
   const { theme } = useTheme();
   const navTheme = buildNavTheme(theme);
   const navigationRef = useNavigationContainerRef();
+
+  // Waits for the navigator to be ready, then pushes /closet-fit-check whenever
+  // a new pending share lands. Mounting it here (inside the navigator's tree)
+  // avoids the cold-start race the previous module-level push had.
+  useShareHandoffRouter();
 
   // [BOOT-DIAG] Log when this component first renders and when nav becomes ready.
   useEffect(() => {

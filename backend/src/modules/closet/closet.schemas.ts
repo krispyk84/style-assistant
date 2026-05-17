@@ -79,9 +79,11 @@ const recommendationItemSchema = z.object({
 });
 
 const stylistResultSchema = z.object({
+  weak_note: z.string(),
+  excess_note: z.string(),
   has_recommendations: z.boolean(),
   no_gap_message: z.string(),
-  recommendations: z.array(recommendationItemSchema).max(2),
+  recommendations: z.array(recommendationItemSchema).max(5),
 });
 
 export const closetAnalysisSchema = z.object({
@@ -94,6 +96,8 @@ export const closetAnalysisSchema = z.object({
     layering_options: z.number(),
     occasion_coverage: z.number(),
   }),
+  deficient_category: z.string(),
+  excess_category: z.string(),
   vittorio: stylistResultSchema,
   alessandra: stylistResultSchema,
 });
@@ -117,18 +121,29 @@ export const CLOSET_ANALYSIS_JSON_SCHEMA = {
         required: ['formality_range', 'color_versatility', 'seasonal_coverage', 'layering_options', 'occasion_coverage'],
         additionalProperties: false,
       },
+      deficient_category: {
+        type: 'string',
+        description: 'Short 1-4 word label naming the single most underweight category in the wardrobe (e.g. "tailored bottoms", "lightweight outerwear").',
+      },
+      excess_category: {
+        type: 'string',
+        description: 'Short 1-4 word label naming the single most overrepresented category in the wardrobe (e.g. "casual sneakers", "navy crewnecks").',
+      },
       vittorio: {
         type: 'object',
         properties: {
+          weak_note: { type: 'string', description: 'One sentence in Vittorio\'s voice naming where the wardrobe is weak. References owned items by name only.' },
+          excess_note: { type: 'string', description: 'One sentence in Vittorio\'s voice naming where the wardrobe is overloaded.' },
           has_recommendations: { type: 'boolean' },
           no_gap_message: { type: 'string', description: 'One sentence in Vittorio\'s voice when has_recommendations is false. Empty string otherwise.' },
           recommendations: {
             type: 'array',
+            description: 'Exactly 5 pieces Vittorio would add (or 0 if has_recommendations=false).',
             items: {
               type: 'object',
               properties: {
-                piece_name: { type: 'string' },
-                reason: { type: 'string', description: 'Sharp, precise, European — Vittorio\'s voice' },
+                piece_name: { type: 'string', description: 'Category-level piece description, e.g. "dark tailored trouser", "unstructured blazer", "refined white sneaker". NOT a hyper-specific product description.' },
+                reason: { type: 'string', description: 'Sharp, precise, European — Vittorio\'s voice. References owned items by name only.' },
                 versatility_tags: { type: 'array', items: { type: 'string' } },
                 impact_score: { type: 'number', description: '1-10: how much this piece improves the wardrobe' },
               },
@@ -137,21 +152,24 @@ export const CLOSET_ANALYSIS_JSON_SCHEMA = {
             },
           },
         },
-        required: ['has_recommendations', 'no_gap_message', 'recommendations'],
+        required: ['weak_note', 'excess_note', 'has_recommendations', 'no_gap_message', 'recommendations'],
         additionalProperties: false,
       },
       alessandra: {
         type: 'object',
         properties: {
+          weak_note: { type: 'string', description: 'One sentence in Alessandra\'s voice naming where the wardrobe is weak.' },
+          excess_note: { type: 'string', description: 'One sentence in Alessandra\'s voice naming where the wardrobe is overloaded.' },
           has_recommendations: { type: 'boolean' },
           no_gap_message: { type: 'string', description: 'One sentence in Alessandra\'s voice when has_recommendations is false. Empty string otherwise.' },
           recommendations: {
             type: 'array',
+            description: 'Exactly 5 pieces Alessandra would add (or 0 if has_recommendations=false).',
             items: {
               type: 'object',
               properties: {
-                piece_name: { type: 'string' },
-                reason: { type: 'string', description: 'Culturally fluent, warm, expressive — Alessandra\'s voice' },
+                piece_name: { type: 'string', description: 'Category-level piece description, e.g. "lightweight knit polo", "textured crewneck", "cream cotton T-shirt". NOT a hyper-specific product description.' },
+                reason: { type: 'string', description: 'Culturally fluent, warm, expressive — Alessandra\'s voice. References owned items by name only.' },
                 versatility_tags: { type: 'array', items: { type: 'string' } },
                 impact_score: { type: 'number', description: '1-10: how much this piece improves the wardrobe' },
               },
@@ -160,11 +178,11 @@ export const CLOSET_ANALYSIS_JSON_SCHEMA = {
             },
           },
         },
-        required: ['has_recommendations', 'no_gap_message', 'recommendations'],
+        required: ['weak_note', 'excess_note', 'has_recommendations', 'no_gap_message', 'recommendations'],
         additionalProperties: false,
       },
     },
-    required: ['total_score', 'summary', 'sub_scores', 'vittorio', 'alessandra'],
+    required: ['total_score', 'summary', 'sub_scores', 'deficient_category', 'excess_category', 'vittorio', 'alessandra'],
     additionalProperties: false,
   },
   strict: true,

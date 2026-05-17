@@ -65,6 +65,8 @@ export const closetFitCheckService = {
       brand: item.brand?.trim() || null,
     }));
 
+    const knownIds = closet.map((item) => item.id);
+
     const aiOutput = await openAiClient.createStructuredResponse({
       schema: closetFitCheckAiSchema,
       jsonSchema: CLOSET_FIT_CHECK_JSON_SCHEMA,
@@ -87,11 +89,16 @@ export const closetFitCheckService = {
 
     // Filter the AI-returned similar IDs against the actual inventory so a hallucinated
     // ID never leaks to the client.
-    const validIds = new Set(closet.map((item) => item.id));
+    const validIds = new Set(knownIds);
     const similarClosetItemIds = aiOutput.similarClosetItemIds.filter((id) => validIds.has(id));
 
     const overallScore = computeOverallScore(aiOutput.scores);
     const verdict = verdictFromScore(overallScore);
+
+    // Defensive: strip any closet ids the model may have leaked into prose.
+    // The prompt explicitly forbids them, but we sanitise server-side so the
+    // user never sees a stray "[clw0aabbc...]" or "(id: xxx)" in a paragraph.
+    const sanitise = (text: string) => stripLeakedIdentifiers(text, knownIds);
 
     return {
       item: aiOutput.item,
@@ -99,12 +106,57 @@ export const closetFitCheckService = {
       weights: CLOSET_FIT_CHECK_WEIGHTS,
       overallScore,
       verdict,
-      summary: aiOutput.summary,
-      reasoning: aiOutput.reasoning,
-      closetImpact: aiOutput.closetImpact,
-      stylistTake: aiOutput.stylistTake,
+      summary: sanitise(aiOutput.summary),
+      reasoning: {
+        trendiness:                sanitise(aiOutput.reasoning.trendiness),
+        profileFit:                sanitise(aiOutput.reasoning.profileFit),
+        redundancyComplementarity: sanitise(aiOutput.reasoning.redundancyComplementarity),
+        stylistOpinion:            sanitise(aiOutput.reasoning.stylistOpinion),
+        utility:                   sanitise(aiOutput.reasoning.utility),
+      },
+      closetImpact: sanitise(aiOutput.closetImpact),
+      stylistTake: {
+        vittorio:   sanitise(aiOutput.stylistTake.vittorio),
+        alessandra: sanitise(aiOutput.stylistTake.alessandra),
+      },
       similarClosetItemIds,
       imageUrl: payload.uploadedImageUrl,
     };
   },
 };
+
+/**
+ * Removes internal closet identifiers the model may have leaked into prose.
+ * Targeted: known ids (exact match), bracketed/parenthesised id-like tokens,
+ * inline cuid-style strings (~20+ char alphanumeric), and explicit "id: xxx"
+ * patterns. Whitespace and orphan punctuation are tidied afterwards.
+ */
+function stripLeakedIdentifiers(input: string, knownIds: string[]): string {
+  if (!input) return input;
+  let out = input;
+
+  // 1) Strip every known id when it appears anywhere — with or without delimiters.
+  for (const id of knownIds) {
+    if (!id) continue;
+    const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp(`\\s*[\\[(](?:id\\s*[:=]\\s*)?["']?${escaped}["']?[\\])]`, 'gi'), '');
+    out = out.replace(new RegExp(`\\s*\\b${escaped}\\b`, 'g'), '');
+  }
+
+  // 2) Strip bracketed / parenthesised id-shaped tokens that escaped the loop.
+  out = out.replace(/\s*\[(?:id\s*[:=]\s*)?[a-z0-9_-]{8,}\]/gi, '');
+  out = out.replace(/\s*\((?:id\s*[:=]\s*)?[a-z0-9_-]{16,}\)/gi, '');
+
+  // 3) Inline cuid / uuid-shaped tokens with no delimiters.
+  out = out.replace(/\b(?:c[a-z0-9]{20,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi, '');
+
+  // 4) "id: …" leftovers (e.g. "the navy overshirt id: clw0…" with the id already stripped).
+  out = out.replace(/\s*\b(?:id|item id)\s*[:=]\s*/gi, '');
+
+  // 5) Tidy double-spaces and orphan punctuation introduced by the strips.
+  out = out.replace(/\s+([.,;:!?])/g, '$1');
+  out = out.replace(/\(\s*\)/g, '');
+  out = out.replace(/\[\s*\]/g, '');
+  out = out.replace(/\s{2,}/g, ' ').trim();
+  return out;
+}

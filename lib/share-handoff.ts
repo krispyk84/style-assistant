@@ -2,29 +2,30 @@
 // Share handoff — bridges the iOS Share Extension to the running app.
 //
 // The Share Extension writes an image + JSON sidecar into the App Group
-// container, then opportunistically calls `openURL:` via the responder chain
-// to bring the main app forward. iOS 17/18 has made that selector unreliable
-// from share extensions, so this module supports BOTH paths:
+// container. It opportunistically tries `openURL:` via the responder chain
+// to bring the main app forward, but Apple has tightened that path on
+// iOS 17/18 so we treat auto-launch as best-effort. The reliable channel
+// is the App Group container scan that fires on every cold-start and on
+// every AppState 'active' transition.
 //
-//   1. URL handoff — `Linking.getInitialURL` + `addEventListener('url')` parse
-//      `<scheme>://share-handoff?id=...&path=...` and ingest the file.
-//   2. Foreground scan — every time AppState turns active (and on listener
-//      install) we read the App Group container directly via
-//      `Paths.appleSharedContainers[groupId]/pendingShares/` and ingest the
-//      newest pending share. This is the resilient fallback for cases where
-//      the responder-chain trick silently fails or the user opens the app
-//      manually after sharing.
+// Diagnostics: any time a scan runs we write a snapshot of what we found
+// (container resolved? files seen? errors?) into the in-memory diagnostics
+// object exposed by `getShareDiagnostics()`. The fit-check screen reads this
+// so the user can see what's happening if the handoff misfires.
 //
-// Both paths share a single `processShare` core that copies the image to the
-// app's cache, deletes the App Group copy + sidecar, updates the in-memory
-// singleton, and routes to /closet-fit-check.
+// Routing: instead of calling router.push from the module (which races the
+// navigation container on cold start), we publish to the pending-share
+// singleton and let `useShareHandoffRouter()` — mounted inside the navigator
+// tree in _layout.tsx — perform the push when both the navigator and the
+// share are ready.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
+import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
-import { router } from 'expo-router';
+import { router, useNavigationContainerRef } from 'expo-router';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import { log, recordError } from '@/lib/crashlytics';
@@ -36,25 +37,54 @@ const FIT_CHECK_ROUTE = '/closet-fit-check';
 // ── Public shape ─────────────────────────────────────────────────────────────
 
 export type PendingShare = {
-  /** Stable id minted by the share extension (e.g. "share-1747654321000"). */
   id: string;
-  /** file:// URI in the app's cache directory. Safe to upload directly. */
   localUri: string;
-  /** Original filename so the upload pipeline can pick a reasonable mimeType. */
   fileName: string;
-  /** Originating action — currently always closet_fit_check. */
   action: typeof ACTION_CLOSET_FIT_CHECK;
-  /** ISO timestamp of when the URL was parsed. */
   consumedAt: string;
 };
 
-// ── In-memory singleton + subscriber list ────────────────────────────────────
+export type ShareDiagnostics = {
+  /** Last App Group ID we resolved (whichever fallback succeeded). */
+  appGroupId: string | null;
+  /** Whether `Paths.appleSharedContainers` exposed the resolved App Group. */
+  appGroupContainerResolved: boolean;
+  /** Absolute container path if resolved. */
+  appGroupContainerPath: string | null;
+  /** Last error encountered while resolving / scanning the App Group. */
+  lastError: string | null;
+  /** Most recent scan result. */
+  lastScan: {
+    at: string;
+    candidatesFound: number;
+    pickedShareId: string | null;
+  } | null;
+  /** Most recent URL handoff parse. */
+  lastUrlHandoff: {
+    at: string;
+    url: string;
+    matched: boolean;
+  } | null;
+};
+
+// ── In-memory singletons ─────────────────────────────────────────────────────
 
 let pendingShare: PendingShare | null = null;
 const subscribers = new Set<(share: PendingShare | null) => void>();
-// Shares we've already ingested (by id) so the foreground scan can't process
-// the same file twice if both the URL handoff and the scan fire for it.
 const processedShareIds = new Set<string>();
+
+const diagnostics: ShareDiagnostics = {
+  appGroupId: null,
+  appGroupContainerResolved: false,
+  appGroupContainerPath: null,
+  lastError: null,
+  lastScan: null,
+  lastUrlHandoff: null,
+};
+
+export function getShareDiagnostics(): ShareDiagnostics {
+  return { ...diagnostics };
+}
 
 function notify() {
   for (const listener of subscribers) listener(pendingShare);
@@ -84,25 +114,47 @@ export function subscribePendingShare(listener: (share: PendingShare | null) => 
 }
 
 // ── App Group identifier resolution ──────────────────────────────────────────
+// Try (1) expo-constants extra (set by the config plugin), then (2) derive from
+// the runtime bundle id via expo-application — by far the most reliable source.
+// (3) Hardcoded production fallback as a last resort.
 
-function getAppGroupIdentifier(): string | null {
-  const extras = (Constants.expoConfig?.extra ?? {}) as { shareExtension?: { appGroupIdentifier?: unknown } };
-  const id = extras.shareExtension?.appGroupIdentifier;
-  if (typeof id === 'string' && id.length > 0) return id;
-  return null;
+const APP_GROUP_PROD_DEFAULT = 'group.com.krispyk84.styleassistant';
+
+function getAppGroupIdentifier(): string {
+  const fromExtra = (Constants.expoConfig?.extra as { shareExtension?: { appGroupIdentifier?: unknown } } | undefined)
+    ?.shareExtension?.appGroupIdentifier;
+  if (typeof fromExtra === 'string' && fromExtra.startsWith('group.')) {
+    diagnostics.appGroupId = fromExtra;
+    return fromExtra;
+  }
+  const bundleId = Application.applicationId;
+  if (bundleId) {
+    const derived = `group.${bundleId}`;
+    diagnostics.appGroupId = derived;
+    return derived;
+  }
+  diagnostics.appGroupId = APP_GROUP_PROD_DEFAULT;
+  return APP_GROUP_PROD_DEFAULT;
 }
 
 function appGroupSharesDirectory(): Directory | null {
   const id = getAppGroupIdentifier();
-  if (!id) return null;
   let containers: Record<string, Directory> = {};
   try {
     containers = Paths.appleSharedContainers;
-  } catch {
+  } catch (err) {
+    diagnostics.lastError = `appleSharedContainers threw: ${(err as Error)?.message ?? String(err)}`;
     return null;
   }
   const container = containers[id];
-  if (!container) return null;
+  if (!container) {
+    diagnostics.appGroupContainerResolved = false;
+    diagnostics.appGroupContainerPath = null;
+    diagnostics.lastError = `App Group "${id}" not in appleSharedContainers (keys: ${Object.keys(containers).join(', ') || 'none'})`;
+    return null;
+  }
+  diagnostics.appGroupContainerResolved = true;
+  diagnostics.appGroupContainerPath = container.uri;
   return new Directory(container, 'pendingShares');
 }
 
@@ -110,8 +162,8 @@ function appGroupSharesDirectory(): Directory | null {
 
 type ShareInput = {
   id: string;
-  imageUri: string;          // file:// URI of the image inside the App Group
-  sidecarUri: string | null; // file:// URI of the .json sidecar to delete after consume
+  imageUri: string;
+  sidecarUri: string | null;
 };
 
 function processShare(input: ShareInput) {
@@ -155,9 +207,8 @@ function processShare(input: ShareInput) {
       action: ACTION_CLOSET_FIT_CHECK,
       consumedAt: new Date().toISOString(),
     });
-
-    routeToFitCheck();
   } catch (err) {
+    diagnostics.lastError = `processShare: ${(err as Error)?.message ?? String(err)}`;
     recordError(err instanceof Error ? err : new Error(String(err)), 'share_handoff_process');
   }
 }
@@ -182,27 +233,36 @@ function parseHandoffUrl(rawUrl: string | null | undefined): { id: string; path:
 }
 
 function importShareFromUrl(rawUrl: string | null | undefined) {
+  diagnostics.lastUrlHandoff = {
+    at: new Date().toISOString(),
+    url: rawUrl ?? '',
+    matched: false,
+  };
   const parsed = parseHandoffUrl(rawUrl);
   if (!parsed) return;
   if (parsed.action !== ACTION_CLOSET_FIT_CHECK) return;
+  diagnostics.lastUrlHandoff.matched = true;
   const imageUri = parsed.path.startsWith('file://') ? parsed.path : `file://${parsed.path}`;
   const sidecarUri = imageUri.replace(/\.[^./]+$/, '.json');
   processShare({ id: parsed.id, imageUri, sidecarUri });
 }
 
 // ── Foreground scan path ─────────────────────────────────────────────────────
-// Reads pendingShares/ in the App Group container directly. Picks the NEWEST
-// pending image whose JSON sidecar matches our action. Runs on every AppState
-// → active transition and on listener install (covers cold-start).
 
 function scanAppGroupForPendingShares() {
   const dir = appGroupSharesDirectory();
-  if (!dir || !dir.exists) return;
+  const at = new Date().toISOString();
+  if (!dir || !dir.exists) {
+    diagnostics.lastScan = { at, candidatesFound: 0, pickedShareId: null };
+    return;
+  }
 
   let entries: (Directory | File)[] = [];
   try {
     entries = dir.list();
   } catch (err) {
+    diagnostics.lastError = `dir.list threw: ${(err as Error)?.message ?? String(err)}`;
+    diagnostics.lastScan = { at, candidatesFound: 0, pickedShareId: null };
     log(`[share-handoff] could not list App Group directory: ${(err as Error)?.message ?? String(err)}`);
     return;
   }
@@ -229,36 +289,19 @@ function scanAppGroupForPendingShares() {
     candidates.push({ id, imageUri, sidecarUri: entry.uri });
   }
 
-  if (!candidates.length) return;
+  if (!candidates.length) {
+    diagnostics.lastScan = { at, candidatesFound: 0, pickedShareId: null };
+    return;
+  }
 
   // Process newest first (ids are timestamp-based: `share-<ms>`).
   candidates.sort((a, b) => b.id.localeCompare(a.id));
-  processShare(candidates[0]!);
+  const picked = candidates[0]!;
+  diagnostics.lastScan = { at, candidatesFound: candidates.length, pickedShareId: picked.id };
+  processShare(picked);
 }
 
-// ── Routing ──────────────────────────────────────────────────────────────────
-
-function routeToFitCheck() {
-  // expo-router is safe to call from a top-level listener: it queues until the
-  // navigation container is ready. We also retry briefly on cold-start in case
-  // the listener fires before the navigator mounts.
-  let attempts = 0;
-  const tryRoute = () => {
-    attempts += 1;
-    try {
-      // Typed routes may not know /closet-fit-check on first generation; the
-      // path is valid at runtime via expo-router.
-      router.push(FIT_CHECK_ROUTE as never);
-    } catch {
-      if (attempts < 20) {
-        setTimeout(tryRoute, 100);
-      }
-    }
-  };
-  tryRoute();
-}
-
-// ── Listener install — call once from the app root ───────────────────────────
+// ── Listener install — call once at module load ───────────────────────────────
 
 let listenerInstalled = false;
 let urlSubscription: { remove: () => void } | null = null;
@@ -280,9 +323,8 @@ export function installShareHandoffListener() {
     importShareFromUrl(event.url);
   });
 
-  // 3) Foreground scan — runs whenever the app becomes active. Covers the
-  //    case where the share extension's openURL trick silently fails AND the
-  //    case where the user manually re-opens the app after sharing.
+  // 3) Foreground scan — runs on listener install (cold start) and on every
+  //    AppState 'active' transition (warm reopen after a share).
   scanAppGroupForPendingShares();
   appStateSubscription = AppState.addEventListener('change', (state) => {
     if (state === 'active') {
@@ -299,10 +341,51 @@ export function uninstallShareHandoffListener() {
   listenerInstalled = false;
 }
 
-// ── React hook ───────────────────────────────────────────────────────────────
+// ── React hooks ──────────────────────────────────────────────────────────────
 
 export function usePendingShare(): PendingShare | null {
   const [share, setShare] = useState<PendingShare | null>(pendingShare);
   useEffect(() => subscribePendingShare(setShare), []);
   return share;
+}
+
+/**
+ * Mount inside the navigator tree (in _layout.tsx). Waits for the navigation
+ * container to be ready before pushing /closet-fit-check, which avoids the
+ * cold-start race where the share is queued before any route exists.
+ *
+ * Only navigates on a NEW share (id change) so it doesn't keep re-pushing if
+ * the user navigates away while a pending share is in memory.
+ */
+export function useShareHandoffRouter() {
+  const navRef = useNavigationContainerRef();
+  const share = usePendingShare();
+  const [lastRoutedId, setLastRoutedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!share) return;
+    if (lastRoutedId === share.id) return;
+
+    let cancelled = false;
+    let attempts = 0;
+    const tryRoute = () => {
+      if (cancelled) return;
+      attempts += 1;
+      if (!navRef.isReady()) {
+        if (attempts < 50) setTimeout(tryRoute, 100);
+        return;
+      }
+      try {
+        router.push(FIT_CHECK_ROUTE as never);
+        setLastRoutedId(share.id);
+      } catch (err) {
+        diagnostics.lastError = `router.push: ${(err as Error)?.message ?? String(err)}`;
+        if (attempts < 50) setTimeout(tryRoute, 100);
+      }
+    };
+    tryRoute();
+    return () => {
+      cancelled = true;
+    };
+  }, [share, lastRoutedId, navRef]);
 }

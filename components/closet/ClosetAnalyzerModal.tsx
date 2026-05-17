@@ -177,11 +177,106 @@ function ResultsView({ result, onRefresh, onClose }: ResultsViewProps) {
   return (
     <View style={{ gap: spacing.xl }}>
       <ScoreSection result={result} />
+      <DeltaSection delta={result.delta} />
+      <CategoryCallouts
+        deficient={result.deficient_category}
+        excess={result.excess_category}
+      />
       <Divider />
       <StylistSection stylistId="vittorio" data={result.vittorio} />
       <Divider />
       <StylistSection stylistId="alessandra" data={result.alessandra} />
       <Footer onRefresh={onRefresh} onClose={onClose} />
+    </View>
+  );
+}
+
+// ── Delta + category callouts ─────────────────────────────────────────────────
+
+function DeltaSection({ delta }: { delta: ResultsViewProps['result']['delta'] }) {
+  if (!delta) return null;
+  const showArrow = delta.direction === 'up' || delta.direction === 'down';
+  const arrow = delta.direction === 'up' ? '▲' : delta.direction === 'down' ? '▼' : null;
+  const arrowColor = delta.direction === 'up' ? theme.colors.accent : theme.colors.danger;
+  return (
+    <View
+      style={{
+        alignItems: 'flex-start',
+        backgroundColor: theme.colors.subtleSurface,
+        borderRadius: 16,
+        flexDirection: 'row',
+        gap: spacing.sm,
+        padding: spacing.md,
+      }}>
+      {showArrow ? (
+        <AppText style={{ color: arrowColor, fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>
+          {arrow}
+        </AppText>
+      ) : null}
+      <AppText
+        style={{
+          color: theme.colors.text,
+          flex: 1,
+          fontSize: 13,
+          lineHeight: 19,
+        }}>
+        {delta.summary}
+      </AppText>
+    </View>
+  );
+}
+
+function CategoryCallouts({
+  deficient,
+  excess,
+}: {
+  deficient: string;
+  excess: string;
+}) {
+  if (!deficient && !excess) return null;
+  return (
+    <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+      {deficient ? (
+        <CalloutChip
+          eyebrow="UNDERWEIGHT IN"
+          body={deficient}
+          accent={theme.colors.danger}
+        />
+      ) : null}
+      {excess ? (
+        <CalloutChip
+          eyebrow="HEAVY ON"
+          body={excess}
+          accent={theme.colors.accent}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function CalloutChip({ eyebrow, body, accent }: { eyebrow: string; body: string; accent: string }) {
+  return (
+    <View
+      style={{
+        backgroundColor: theme.colors.card,
+        borderColor: theme.colors.border,
+        borderRadius: 16,
+        borderWidth: 1,
+        flex: 1,
+        gap: 4,
+        padding: spacing.md,
+      }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <View style={{ backgroundColor: accent, borderRadius: 999, height: 6, width: 6 }} />
+        <AppText
+          variant="eyebrow"
+          style={{ color: theme.colors.mutedText, fontSize: 10, letterSpacing: 1.2 }}>
+          {eyebrow}
+        </AppText>
+      </View>
+      <AppText style={{ color: theme.colors.text, fontFamily: theme.fonts.sansMedium, fontSize: 14, textTransform: 'capitalize' }}>
+        {body}
+      </AppText>
     </View>
   );
 }
@@ -281,27 +376,57 @@ function StylistSection({ stylistId, data }: StylistSectionProps) {
         </View>
         <View style={{ gap: 1 }}>
           <AppText style={{ fontSize: 13, fontFamily: theme.fonts.sansMedium }}>{stylist.name}</AppText>
-          <AppText tone="muted" style={{ fontSize: 11 }}>recommends</AppText>
+          <AppText tone="muted" style={{ fontSize: 11 }}>weighs in</AppText>
         </View>
       </View>
 
-      {/* Content */}
+      {/* Weak / excess notes — always shown when present, irrespective of whether there are recommendations */}
+      {data.weak_note ? (
+        <StylistNote eyebrow="WHERE IT'S WEAK" body={data.weak_note} />
+      ) : null}
+      {data.excess_note ? (
+        <StylistNote eyebrow="WHERE IT'S HEAVY" body={data.excess_note} />
+      ) : null}
+
+      {/* Recommendations */}
       {!data.has_recommendations ? (
         <AppText style={{ fontSize: 13, fontStyle: 'italic', color: theme.colors.mutedText }}>
           &ldquo;{data.no_gap_message}&rdquo;
         </AppText>
       ) : (
-        data.recommendations.map((rec, i) => (
-          <RecommendationCard key={i} rec={rec} />
-        ))
+        <>
+          <AppText
+            variant="eyebrow"
+            style={{ color: theme.colors.mutedText, fontSize: 10, letterSpacing: 1.2 }}>
+            {stylist.name.toUpperCase()} WOULD ADD
+          </AppText>
+          {data.recommendations.map((rec, i) => (
+            <RecommendationCard key={i} index={i + 1} rec={rec} />
+          ))}
+        </>
       )}
+    </View>
+  );
+}
+
+function StylistNote({ eyebrow, body }: { eyebrow: string; body: string }) {
+  return (
+    <View style={{ gap: 4 }}>
+      <AppText
+        variant="eyebrow"
+        style={{ color: theme.colors.mutedText, fontSize: 10, letterSpacing: 1.2 }}>
+        {eyebrow}
+      </AppText>
+      <AppText style={{ color: theme.colors.text, fontSize: 13, fontStyle: 'italic', lineHeight: 19 }}>
+        &ldquo;{body}&rdquo;
+      </AppText>
     </View>
   );
 }
 
 // ── Recommendation card ───────────────────────────────────────────────────────
 
-function RecommendationCard({ rec }: { rec: ClosetAnalyseRecommendation }) {
+function RecommendationCard({ index, rec }: { index: number; rec: ClosetAnalyseRecommendation }) {
   return (
     <View
       style={{
@@ -312,7 +437,12 @@ function RecommendationCard({ rec }: { rec: ClosetAnalyseRecommendation }) {
         gap: spacing.sm,
         padding: spacing.md,
       }}>
-      <AppText variant="sectionTitle">{rec.piece_name}</AppText>
+      <View style={{ alignItems: 'baseline', flexDirection: 'row', gap: spacing.sm }}>
+        <AppText style={{ color: theme.colors.mutedText, fontFamily: theme.fonts.sansMedium, fontSize: 12 }}>
+          {index}.
+        </AppText>
+        <AppText variant="sectionTitle" style={{ flex: 1, textTransform: 'capitalize' }}>{rec.piece_name}</AppText>
+      </View>
       <AppText style={{ fontSize: 13, fontStyle: 'italic', color: theme.colors.mutedText }}>
         &ldquo;{rec.reason}&rdquo;
       </AppText>

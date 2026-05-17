@@ -342,3 +342,32 @@ model StyleGuideDocument {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
+
+/// Snapshot of a closet-analysis result. Used to keep the score stable across
+/// runs against the same closet composition: when `closetHash` matches the
+/// latest snapshot for the user, the cached scores are returned and only the
+/// stylist advisory is regenerated. When the hash differs, a fresh analysis
+/// is run, persisted, and the delta vs the previous snapshot is reported.
+///
+/// `itemSignatures` is a sorted projection of the closet at analysis time
+/// (one entry per item, "category|name") so the delta summary can name which
+/// pieces were added or removed without re-querying old item rows.
+model ClosetAnalysisSnapshot {
+  id                 String   @id @default(cuid())
+  supabaseUserId     String
+  closetHash         String
+  itemCount          Int
+  totalScore         Int
+  formalityRange     Int
+  colorVersatility   Int
+  seasonalCoverage   Int
+  layeringOptions    Int
+  occasionCoverage   Int
+  summary            String
+  deficientCategory  String
+  excessCategory     String
+  itemSignatures     String[]
+  createdAt          DateTime @default(now())
+
+  @@index([supabaseUserId, createdAt(sort: Desc)])
+}

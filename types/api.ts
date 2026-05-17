@@ -270,9 +270,24 @@ export type ClosetAnalyseRecommendation = {
 };
 
 export type ClosetAnalyseStylist = {
+  /** One sentence in the stylist's voice naming where the wardrobe is weak. */
+  weak_note: string;
+  /** One sentence in the stylist's voice naming where the wardrobe is overloaded. */
+  excess_note: string;
   has_recommendations: boolean;
   no_gap_message: string;
+  /** Exactly 5 category-level recommendations (or 0 if has_recommendations=false). */
   recommendations: ClosetAnalyseRecommendation[];
+};
+
+export type ClosetAnalyseDelta = {
+  direction: 'first' | 'same' | 'up' | 'down';
+  /** Absolute point difference (always >= 0). */
+  points: number;
+  /** null on the first-ever analysis for this user. */
+  previous_score: number | null;
+  /** Plain-English explanation of why the score moved (or didn't). */
+  summary: string;
 };
 
 export type ClosetAnalyseResponse = {
@@ -285,8 +300,16 @@ export type ClosetAnalyseResponse = {
     layering_options: number;
     occasion_coverage: number;
   };
+  /** Short label naming the single most underweight category, e.g. "tailored bottoms". */
+  deficient_category: string;
+  /** Short label naming the single most overrepresented category, e.g. "casual sneakers". */
+  excess_category: string;
   vittorio: ClosetAnalyseStylist;
   alessandra: ClosetAnalyseStylist;
+  /** Delta vs the previous persisted closet snapshot. */
+  delta: ClosetAnalyseDelta;
+  /** Stable signature of the closet composition this analysis was scored against. */
+  closet_hash: string;
 };
 
 // ── Closet Fit Check (Does this work in my closet?) ──────────────────────────
@@ -331,6 +354,11 @@ export type ClosetFitCheckRequest = {
   trendiness?: number;
 };
 
+export type ClosetFitCheckStylistTake = {
+  vittorio: string;
+  alessandra: string;
+};
+
 export type ClosetFitCheckResponse = {
   item: ClosetFitCheckItem;
   scores: ClosetFitCheckScores;
@@ -340,7 +368,7 @@ export type ClosetFitCheckResponse = {
   summary: string;
   reasoning: ClosetFitCheckReasoning;
   closetImpact: string;
-  stylistTake: string;
+  stylistTake: ClosetFitCheckStylistTake;
   similarClosetItemIds: string[];
   imageUrl: string;
 };

@@ -135,8 +135,11 @@ function withShareExtensionTarget(config, params) {
     }
 
     // Source file — added with target → also registered in the Sources build phase.
+    // The path is RELATIVE to the parent group; that group already has path =
+    // `ShareExtension`, so we pass just the filename to avoid double-prefixing
+    // (which would produce ios/ShareExtension/ShareExtension/... at build time).
     project.addSourceFile(
-      `${TARGET_NAME}/ShareViewController.swift`,
+      'ShareViewController.swift',
       { target: newTarget.uuid },
       pbxGroup.uuid
     );
@@ -144,11 +147,11 @@ function withShareExtensionTarget(config, params) {
     // Info.plist and the entitlements file are referenced via build settings,
     // not compiled, so they need a PBXFileReference + group membership but no
     // build phase. xcode npm's addFile handles exactly that case.
-    project.addFile(`${TARGET_NAME}/Info.plist`, pbxGroup.uuid, {
+    project.addFile('Info.plist', pbxGroup.uuid, {
       lastKnownFileType: 'text.plist.xml',
       defaultEncoding: 4,
     });
-    project.addFile(`${TARGET_NAME}/${TARGET_NAME}.entitlements`, pbxGroup.uuid, {
+    project.addFile(`${TARGET_NAME}.entitlements`, pbxGroup.uuid, {
       lastKnownFileType: 'text.plist.entitlements',
       defaultEncoding: 4,
     });

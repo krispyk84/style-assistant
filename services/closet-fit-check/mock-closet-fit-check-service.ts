@@ -49,7 +49,10 @@ export const mockClosetFitCheckService: ClosetFitCheckService = {
           utility: 'Pairs cleanly with most of your trousers and several knits — strong rotation potential.',
         },
         closetImpact: 'Slots between your existing tailoring and casual outerwear. Some overlap with similar items in your closet, but a meaningfully different texture and tone.',
-        stylistTake: 'It is a good piece, not a great one. If you find yourself reaching for similar items often, it earns its place; if not, it sits at the back of the closet.',
+        stylistTake: {
+          vittorio: 'The proportion is honest and the cloth has substance. But you already own pieces in this register; adding another is doubling back rather than moving forward.',
+          alessandra: 'It is a piece with quiet confidence — easy to wear, easy to forget. Lovely on its own; only worth the spend if you can name three occasions where it does the work nothing else in your closet does.',
+        },
         similarClosetItemIds: [],
         imageUrl: request.uploadedImageUrl,
       },

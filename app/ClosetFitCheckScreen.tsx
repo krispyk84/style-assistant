@@ -10,6 +10,8 @@ import { LoadingState, extendedFashionLoadingMessages } from '@/components/ui/lo
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing, theme } from '@/constants/theme';
+import { getShareDiagnostics } from '@/lib/share-handoff';
+import { STYLISTS, type StylistId } from '@/lib/stylists';
 import type {
   ClosetFitCheckReasoning,
   ClosetFitCheckResponse,
@@ -142,8 +144,53 @@ export function ClosetFitCheckScreen() {
           onPress={() => void hook.runAnalysis()}
           disabled={!canAnalyze}
         />
+
+        <ShareDiagnosticsPanel />
       </View>
     </AppScreen>
+  );
+}
+
+// Visible only when the user opens this screen WITHOUT a pending share, and
+// only if the share-handoff system has any state worth showing (it'll be empty
+// on fresh installs that never used share-to-app). Lets the user see at a
+// glance whether the App Group bridge is reachable from the main app.
+
+function ShareDiagnosticsPanel() {
+  const diag = getShareDiagnostics();
+  const everScanned = diag.lastScan !== null || diag.lastUrlHandoff !== null;
+  if (!everScanned) return null;
+  const lastScan = diag.lastScan;
+  return (
+    <View
+      style={{
+        backgroundColor: theme.colors.subtleSurface,
+        borderColor: theme.colors.border,
+        borderRadius: 16,
+        borderWidth: 1,
+        gap: spacing.xs,
+        padding: spacing.md,
+      }}>
+      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.6, fontSize: 10 }}>
+        SHARE HANDOFF
+      </AppText>
+      <AppText style={{ color: theme.colors.mutedText, fontSize: 12, lineHeight: 17 }}>
+        App Group:{' '}
+        {diag.appGroupContainerResolved ? 'connected' : 'not reachable'}
+        {diag.appGroupId ? ` (${diag.appGroupId})` : ''}
+      </AppText>
+      {lastScan ? (
+        <AppText style={{ color: theme.colors.mutedText, fontSize: 12, lineHeight: 17 }}>
+          Last scan: {lastScan.candidatesFound} pending share
+          {lastScan.candidatesFound === 1 ? '' : 's'} found.
+        </AppText>
+      ) : null}
+      {diag.lastError ? (
+        <AppText style={{ color: theme.colors.danger, fontSize: 11, lineHeight: 16 }}>
+          {diag.lastError}
+        </AppText>
+      ) : null}
+    </View>
   );
 }
 
@@ -275,8 +322,14 @@ function ReportView({
           ) : null}
         </Section>
 
-        {/* Stylist take */}
-        <Section title="Stylist take" body={report.stylistTake} />
+        {/* Stylist take — two perspectives */}
+        <View style={{ gap: spacing.md }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+            Stylist take
+          </AppText>
+          <StylistTakeCard stylistId="vittorio" body={report.stylistTake.vittorio} />
+          <StylistTakeCard stylistId="alessandra" body={report.stylistTake.alessandra} />
+        </View>
 
         {/* Actions */}
         <View style={{ gap: spacing.sm }}>
@@ -360,6 +413,48 @@ function Section({ title, body, children }: { title: string; body: string; child
         <AppText style={{ color: theme.colors.text, fontSize: 14, lineHeight: 21 }}>{body}</AppText>
         {children}
       </View>
+    </View>
+  );
+}
+
+function StylistTakeCard({ stylistId, body }: { stylistId: StylistId; body: string }) {
+  const stylist = STYLISTS.find((s) => s.id === stylistId);
+  if (!stylist) return null;
+  return (
+    <View
+      style={{
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.border,
+        borderRadius: 20,
+        borderWidth: 1,
+        gap: spacing.sm,
+        padding: spacing.md,
+      }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        <View
+          style={{
+            borderColor: theme.colors.border,
+            borderRadius: 24,
+            borderWidth: 1,
+            height: 44,
+            overflow: 'hidden',
+            width: 44,
+          }}>
+          <Image
+            contentFit="cover"
+            contentPosition="top"
+            source={stylist.image}
+            style={{ height: '100%', width: '100%' }}
+          />
+        </View>
+        <View style={{ gap: 1 }}>
+          <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>{stylist.name}</AppText>
+          <AppText tone="muted" style={{ fontSize: 11 }}>{stylist.title}</AppText>
+        </View>
+      </View>
+      <AppText style={{ color: theme.colors.text, fontSize: 14, fontStyle: 'italic', lineHeight: 21 }}>
+        &ldquo;{body}&rdquo;
+      </AppText>
     </View>
   );
 }
