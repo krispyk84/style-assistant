@@ -368,22 +368,26 @@ export function usePendingShare(): PendingShare | null {
   return share;
 }
 
+// Module-level dedup so a re-render of useShareHandoffRouter (or a transient
+// remount) can NEVER cause a second router.push for the same share. Using a
+// React useState for this is unsafe because hook state is per-instance — if
+// the navigator-tree React tree replays the hook with fresh state, we'd push
+// again. A module-scoped Set survives any such replay.
+const routedShareIds = new Set<string>();
+
 /**
  * Mount inside the navigator tree (in _layout.tsx). Waits for the navigation
  * container to be ready before pushing /closet-fit-check, which avoids the
  * cold-start race where the share is queued before any route exists.
- *
- * Only navigates on a NEW share (id change) so it doesn't keep re-pushing if
- * the user navigates away while a pending share is in memory.
  */
 export function useShareHandoffRouter() {
   const navRef = useNavigationContainerRef();
   const share = usePendingShare();
-  const [lastRoutedId, setLastRoutedId] = useState<string | null>(null);
+  const shareId = share?.id ?? null;
 
   useEffect(() => {
-    if (!share) return;
-    if (lastRoutedId === share.id) return;
+    if (!shareId) return;
+    if (routedShareIds.has(shareId)) return;
 
     let cancelled = false;
     let attempts = 0;
@@ -395,9 +399,12 @@ export function useShareHandoffRouter() {
         return;
       }
       try {
+        // Mark as routed BEFORE calling push so a fast re-render can't trigger
+        // a second push between the call and the state update.
+        routedShareIds.add(shareId);
         router.push(FIT_CHECK_ROUTE as never);
-        setLastRoutedId(share.id);
       } catch (err) {
+        routedShareIds.delete(shareId);
         diagnostics.lastError = `router.push: ${(err as Error)?.message ?? String(err)}`;
         if (attempts < 50) setTimeout(tryRoute, 100);
       }
@@ -406,5 +413,9 @@ export function useShareHandoffRouter() {
     return () => {
       cancelled = true;
     };
-  }, [share, lastRoutedId, navRef]);
+    // shareId is the only meaningful identity; navRef intentionally not in
+    // deps — it can be unstable across renders and would re-fire this effect
+    // spuriously.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareId]);
 }
