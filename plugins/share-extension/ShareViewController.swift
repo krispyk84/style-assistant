@@ -2,17 +2,18 @@
 //  ShareViewController.swift
 //  Vesture ShareExtension
 //
-//  Share extension with a small interactive UI: thumbnail of the shared
-//  image, headline, and an "Open in Vesture" button. The button calls
-//  openURL: via the responder chain from a USER-INITIATED tap, which is
-//  the most permissive path Apple still tolerates from a share extension
-//  (the silent-auto-open trick from viewDidAppear has been increasingly
-//  blocked on iOS 17/18).
+//  Strategy: persist the shared image to the App Group container the moment
+//  the extension loads, then aggressively attempt to auto-launch the main app
+//  via three independent code paths (extensionContext.open, responder-chain
+//  openURL:, and the NSClassFromString sharedApplication fallback). The UI is
+//  intentionally minimal — a small "Opening Vesture…" card that flips to a
+//  visible "Open Vesture" button only if auto-launch hasn't fired after a
+//  short delay (some iOS versions silently block all auto-launch paths from
+//  share extensions; if that happens, the user gets a single-tap escape).
 //
-//  Even if the URL open silently fails, the image has already been
-//  persisted to the App Group container by the time the UI appears, so
-//  the main app's foreground scan will pick it up the moment the user
-//  switches back to Vesture.
+//  Either way, the image is in the App Group container by the time the host
+//  app foregrounds, so the main app's foreground scan ingests it whether the
+//  switch came from auto-launch or from manual reopen.
 //
 
 import UIKit
@@ -25,31 +26,66 @@ final class ShareViewController: UIViewController {
   // ── Views ──────────────────────────────────────────────────────────────────
 
   private let cardView = UIView()
-  private let imageContainer = UIView()
   private let imageView = UIImageView()
   private let activityIndicator = UIActivityIndicatorView(style: .medium)
-  private let titleLabel = UILabel()
-  private let subtitleLabel = UILabel()
-  private let openButton = UIButton(type: .system)
-  private let cancelButton = UIButton(type: .system)
+  private let statusLabel = UILabel()
+  private let manualOpenButton = UIButton(type: .system)
 
   // ── State ──────────────────────────────────────────────────────────────────
 
   private var pendingShareId: String?
   private var pendingImagePath: String?
-  private var didPersistFail = false
+  private var didAttemptOpen = false
+  private var didCompleteRequest = false
+  private var safetyExitTimer: Timer?
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   override func viewDidLoad() {
     super.viewDidLoad()
     setupUI()
-    updateReadyState()
+  }
+
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+
+    // SAFETY: regardless of what happens, the extension MUST complete within a
+    // bounded time so the share sheet doesn't end up wedged on screen.
+    scheduleSafetyExit(after: 8.0)
+
     Task { [weak self] in
-      await self?.persistFirstImage()
-      await MainActor.run { [weak self] in
-        self?.updateReadyState()
+      guard let self else { return }
+      let ok = await self.persistFirstImage()
+      await MainActor.run {
+        if ok, let id = self.pendingShareId, let path = self.pendingImagePath {
+          self.openMainAppAllStrategies(shareId: id, imagePath: path)
+          self.didAttemptOpen = true
+          // If iOS DID switch apps, the extension is being torn down right now
+          // and the timer below never fires. If iOS didn't, we surface the
+          // manual button after a moment.
+          DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
+            self?.revealManualButtonIfStillVisible()
+          }
+          // And whether or not the switch happened, complete the request after
+          // a brief settle so we don't hang the share sheet indefinitely.
+          DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { [weak self] in
+            self?.completeAndExit()
+          }
+        } else {
+          self.statusLabel.text = "Couldn't load the image"
+          self.activityIndicator.stopAnimating()
+          DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.completeAndExit()
+          }
+        }
       }
+    }
+  }
+
+  private func scheduleSafetyExit(after seconds: TimeInterval) {
+    safetyExitTimer?.invalidate()
+    safetyExitTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
+      self?.completeAndExit()
     }
   }
 
@@ -65,126 +101,81 @@ final class ShareViewController: UIViewController {
     cardView.clipsToBounds = true
     view.addSubview(cardView)
 
-    imageContainer.translatesAutoresizingMaskIntoConstraints = false
-    imageContainer.backgroundColor = UIColor(red: 0.94, green: 0.91, blue: 0.86, alpha: 1.0) // warm beige
-    imageContainer.layer.cornerRadius = 14
-    imageContainer.layer.cornerCurve = .continuous
-    imageContainer.clipsToBounds = true
-    cardView.addSubview(imageContainer)
-
     imageView.translatesAutoresizingMaskIntoConstraints = false
     imageView.contentMode = .scaleAspectFit
-    imageView.backgroundColor = .clear
-    imageContainer.addSubview(imageView)
+    imageView.backgroundColor = UIColor(red: 0.94, green: 0.91, blue: 0.86, alpha: 1.0)
+    imageView.layer.cornerRadius = 14
+    imageView.layer.cornerCurve = .continuous
+    imageView.clipsToBounds = true
+    cardView.addSubview(imageView)
 
     activityIndicator.translatesAutoresizingMaskIntoConstraints = false
     activityIndicator.hidesWhenStopped = true
     activityIndicator.startAnimating()
-    imageContainer.addSubview(activityIndicator)
+    cardView.addSubview(activityIndicator)
 
-    titleLabel.translatesAutoresizingMaskIntoConstraints = false
-    titleLabel.text = "Check this in your closet?"
-    titleLabel.font = UIFont.systemFont(ofSize: 19, weight: .semibold)
-    titleLabel.textColor = UIColor.label
-    titleLabel.textAlignment = .center
-    titleLabel.numberOfLines = 0
-    cardView.addSubview(titleLabel)
+    statusLabel.translatesAutoresizingMaskIntoConstraints = false
+    statusLabel.text = "Opening Vesture…"
+    statusLabel.font = UIFont.systemFont(ofSize: 15, weight: .medium)
+    statusLabel.textColor = UIColor.label
+    statusLabel.textAlignment = .center
+    statusLabel.numberOfLines = 0
+    cardView.addSubview(statusLabel)
 
-    subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-    subtitleLabel.text = "Vesture will analyse this against your closet."
-    subtitleLabel.font = UIFont.systemFont(ofSize: 13)
-    subtitleLabel.textColor = UIColor.secondaryLabel
-    subtitleLabel.textAlignment = .center
-    subtitleLabel.numberOfLines = 0
-    cardView.addSubview(subtitleLabel)
-
-    openButton.translatesAutoresizingMaskIntoConstraints = false
-    openButton.setTitle("Open in Vesture", for: .normal)
-    openButton.setTitleColor(.white, for: .normal)
-    openButton.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
-    openButton.backgroundColor = UIColor(red: 0.69, green: 0.39, blue: 0.15, alpha: 1.0) // Vesture accent
-    openButton.layer.cornerRadius = 24
-    openButton.layer.cornerCurve = .continuous
-    openButton.addTarget(self, action: #selector(openTapped), for: .touchUpInside)
-    cardView.addSubview(openButton)
-
-    cancelButton.translatesAutoresizingMaskIntoConstraints = false
-    cancelButton.setTitle("Cancel", for: .normal)
-    cancelButton.setTitleColor(UIColor.secondaryLabel, for: .normal)
-    cancelButton.titleLabel?.font = UIFont.systemFont(ofSize: 15)
-    cancelButton.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
-    cardView.addSubview(cancelButton)
+    manualOpenButton.translatesAutoresizingMaskIntoConstraints = false
+    manualOpenButton.isHidden = true
+    manualOpenButton.setTitle("Open Vesture", for: .normal)
+    manualOpenButton.setTitleColor(.white, for: .normal)
+    manualOpenButton.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+    manualOpenButton.backgroundColor = UIColor(red: 0.69, green: 0.39, blue: 0.15, alpha: 1.0)
+    manualOpenButton.layer.cornerRadius = 20
+    manualOpenButton.layer.cornerCurve = .continuous
+    manualOpenButton.addTarget(self, action: #selector(manualOpenTapped), for: .touchUpInside)
+    cardView.addSubview(manualOpenButton)
 
     NSLayoutConstraint.activate([
       cardView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
       cardView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
       cardView.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
       cardView.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20),
-      cardView.widthAnchor.constraint(lessThanOrEqualToConstant: 360),
+      cardView.widthAnchor.constraint(lessThanOrEqualToConstant: 320),
 
-      imageContainer.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 24),
-      imageContainer.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 24),
-      imageContainer.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -24),
-      imageContainer.heightAnchor.constraint(equalToConstant: 220),
+      imageView.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 20),
+      imageView.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 20),
+      imageView.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -20),
+      imageView.heightAnchor.constraint(equalToConstant: 140),
 
-      imageView.leadingAnchor.constraint(equalTo: imageContainer.leadingAnchor),
-      imageView.trailingAnchor.constraint(equalTo: imageContainer.trailingAnchor),
-      imageView.topAnchor.constraint(equalTo: imageContainer.topAnchor),
-      imageView.bottomAnchor.constraint(equalTo: imageContainer.bottomAnchor),
+      activityIndicator.centerXAnchor.constraint(equalTo: imageView.centerXAnchor),
+      activityIndicator.centerYAnchor.constraint(equalTo: imageView.centerYAnchor),
 
-      activityIndicator.centerXAnchor.constraint(equalTo: imageContainer.centerXAnchor),
-      activityIndicator.centerYAnchor.constraint(equalTo: imageContainer.centerYAnchor),
+      statusLabel.topAnchor.constraint(equalTo: imageView.bottomAnchor, constant: 16),
+      statusLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 20),
+      statusLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -20),
 
-      titleLabel.topAnchor.constraint(equalTo: imageContainer.bottomAnchor, constant: 18),
-      titleLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 24),
-      titleLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -24),
-
-      subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
-      subtitleLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 24),
-      subtitleLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -24),
-
-      openButton.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 20),
-      openButton.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 24),
-      openButton.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -24),
-      openButton.heightAnchor.constraint(equalToConstant: 50),
-
-      cancelButton.topAnchor.constraint(equalTo: openButton.bottomAnchor, constant: 4),
-      cancelButton.centerXAnchor.constraint(equalTo: cardView.centerXAnchor),
-      cancelButton.heightAnchor.constraint(equalToConstant: 36),
-      cancelButton.bottomAnchor.constraint(equalTo: cardView.bottomAnchor, constant: -16),
+      manualOpenButton.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 14),
+      manualOpenButton.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 20),
+      manualOpenButton.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -20),
+      manualOpenButton.heightAnchor.constraint(equalToConstant: 42),
+      manualOpenButton.bottomAnchor.constraint(equalTo: cardView.bottomAnchor, constant: -20),
     ])
   }
 
-  private func updateReadyState() {
-    let ready = (pendingShareId != nil)
-    openButton.isEnabled = ready
-    openButton.alpha = ready ? 1.0 : 0.45
-    if ready {
-      activityIndicator.stopAnimating()
-    } else if didPersistFail {
-      activityIndicator.stopAnimating()
-      titleLabel.text = "Couldn't load the image"
-      subtitleLabel.text = "Try sharing again or open Vesture directly."
-    }
+  private func revealManualButtonIfStillVisible() {
+    // If the view is still in the window hierarchy after we tried to auto-
+    // open, iOS didn't honor the URL — give the user a tap fallback.
+    guard view.window != nil, !didCompleteRequest else { return }
+    statusLabel.text = "Tap to switch to Vesture"
+    activityIndicator.stopAnimating()
+    manualOpenButton.isHidden = false
   }
 
-  // ── Button handlers ────────────────────────────────────────────────────────
-
-  @objc private func openTapped() {
-    guard let shareId = pendingShareId, let imagePath = pendingImagePath else {
-      completeAndExit()
-      return
+  @objc private func manualOpenTapped() {
+    if let id = pendingShareId, let path = pendingImagePath {
+      openMainAppAllStrategies(shareId: id, imagePath: path)
     }
-    openMainApp(shareId: shareId, imagePath: imagePath)
-    // Give the system a moment to action the URL before we tear the
-    // extension context down — completing too eagerly can race the open.
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
       self?.completeAndExit()
     }
-  }
-
-  @objc private func cancelTapped() {
-    completeAndExit()
   }
 
   // ── Configuration ──────────────────────────────────────────────────────────
@@ -199,21 +190,17 @@ final class ShareViewController: UIViewController {
 
   // ── Image persistence ─────────────────────────────────────────────────────
 
-  private func persistFirstImage() async {
-    guard let extensionItems = extensionContext?.inputItems as? [NSExtensionItem] else {
-      await MainActor.run { self.didPersistFail = true }
-      return
-    }
+  private func persistFirstImage() async -> Bool {
+    guard let extensionItems = extensionContext?.inputItems as? [NSExtensionItem] else { return false }
     for item in extensionItems {
       guard let attachments = item.attachments else { continue }
       for provider in attachments {
         if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
-          let ok = await persistImage(from: provider)
-          if ok { return }
+          if await persistImage(from: provider) { return true }
         }
       }
     }
-    await MainActor.run { self.didPersistFail = true }
+    return false
   }
 
   private func persistImage(from provider: NSItemProvider) async -> Bool {
@@ -280,7 +267,6 @@ final class ShareViewController: UIViewController {
     return true
   }
 
-  /// Keeps the App Group container from growing unbounded.
   private func pruneOldShares(directory: URL) {
     guard let entries = try? FileManager.default.contentsOfDirectory(
       at: directory,
@@ -295,10 +281,10 @@ final class ShareViewController: UIViewController {
     }
   }
 
-  // ── Open main app ──────────────────────────────────────────────────────────
+  // ── Auto-open: three independent strategies ───────────────────────────────
 
   @MainActor
-  private func openMainApp(shareId: String, imagePath: String) {
+  private func openMainAppAllStrategies(shareId: String, imagePath: String) {
     let scheme = mainAppUrlScheme()
     var components = URLComponents()
     components.scheme = scheme
@@ -310,23 +296,13 @@ final class ShareViewController: UIViewController {
     ]
     guard let url = components.url else { return }
 
-    // Two attempts at handing off to the host app, in order of preference:
-    //
-    //   1. extensionContext.open(_:) — the only Apple-supported path. For
-    //      share extensions Apple's docs say "the extension point determines
-    //      whether to support this method", so it may quietly do nothing,
-    //      but where it works it is the cleanest.
-    //
-    //   2. Responder-chain openURL: — the legacy hack. Tolerated since iOS 9.
-    //      Most permissive when called from a user-initiated tap (this method
-    //      is only ever called from `openTapped`).
-    //
-    // Either way, the image has already been written to the App Group
-    // container, so the main app's foreground scan picks it up as soon as
-    // the user is in Vesture — whether iOS auto-launches us or not.
-
+    // Strategy 1: Apple-supported extensionContext.open(_:).
+    // Apple's docs note share extensions may opt out (returns false silently)
+    // but newer iOS sometimes honours it. Cheap to try.
     extensionContext?.open(url, completionHandler: nil)
 
+    // Strategy 2: Responder-chain openURL:. The classic pattern; still the
+    // workhorse for share extensions in practice.
     let selector = NSSelectorFromString("openURL:")
     var responder: UIResponder? = self
     while let current = responder {
@@ -336,12 +312,27 @@ final class ShareViewController: UIViewController {
       }
       responder = current.next
     }
+
+    // Strategy 3: Last-resort fallback — find UIApplication via runtime even
+    // if it isn't in our responder chain. Apps in production have shipped this
+    // for years; App Review tolerates it for share extensions.
+    if let appClass = NSClassFromString("UIApplication") as? NSObject.Type {
+      let sharedSel = NSSelectorFromString("sharedApplication")
+      if appClass.responds(to: sharedSel),
+         let unmanaged = appClass.perform(sharedSel),
+         let app = unmanaged.takeUnretainedValue() as? NSObject {
+        _ = app.perform(selector, with: url)
+      }
+    }
   }
 
   // ── Completion ─────────────────────────────────────────────────────────────
 
   @MainActor
   private func completeAndExit() {
+    guard !didCompleteRequest else { return }
+    didCompleteRequest = true
+    safetyExitTimer?.invalidate()
     extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
   }
 }
