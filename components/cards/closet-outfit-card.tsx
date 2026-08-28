@@ -11,9 +11,24 @@ type ClosetOutfitCardProps = {
   outfit: ClosetGeneratedOutfit;
   onPress?: () => void;
   selected?: boolean;
+  onSave?: () => void;
+  isSaved?: boolean;
+  isSaving?: boolean;
+  onAddToWeek?: () => void;
+  onDelete?: () => void;
 };
 
-export function ClosetOutfitCard({ outfit, onPress, selected }: ClosetOutfitCardProps) {
+export function ClosetOutfitCard({
+  outfit,
+  onPress,
+  selected,
+  onSave,
+  isSaved = false,
+  isSaving = false,
+  onAddToWeek,
+  onDelete,
+}: ClosetOutfitCardProps) {
+  const showActions = onSave || onAddToWeek || onDelete;
   return (
     <Pressable
       disabled={!onPress}
@@ -78,6 +93,67 @@ export function ClosetOutfitCard({ outfit, onPress, selected }: ClosetOutfitCard
           {selected ? 'Selected' : 'Tap to generate 5 variations'}
         </AppText>
       ) : null}
+
+      {showActions ? (
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {onDelete ? (
+            <Pressable
+              onPress={(event) => {
+                event.stopPropagation();
+                onDelete();
+              }}
+              style={actionButtonStyle}>
+              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                <AppIcon color={theme.colors.danger} name="trash" size={16} />
+                <AppText style={{ color: theme.colors.danger }}>Remove</AppText>
+              </View>
+            </Pressable>
+          ) : (
+            <>
+              {onSave ? (
+                <Pressable
+                  disabled={isSaved || isSaving}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    onSave();
+                  }}
+                  style={[actionButtonStyle, { backgroundColor: isSaved ? theme.colors.card : theme.colors.surface }]}>
+                  <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                    <AppIcon color={theme.colors.text} name={isSaved ? 'bookmark-filled' : 'bookmark'} size={16} />
+                    <AppText>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save'}</AppText>
+                  </View>
+                </Pressable>
+              ) : null}
+              {onAddToWeek ? (
+                <Pressable
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    onAddToWeek();
+                  }}
+                  style={actionButtonStyle}>
+                  <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                    <AppIcon color={theme.colors.text} name="calendar" size={16} />
+                    <AppText>Add to week</AppText>
+                  </View>
+                </Pressable>
+              ) : null}
+            </>
+          )}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
+
+const actionButtonStyle = {
+  alignItems: 'center' as const,
+  backgroundColor: theme.colors.surface,
+  borderColor: theme.colors.border,
+  borderRadius: 999,
+  borderWidth: 1,
+  flex: 1,
+  justifyContent: 'center' as const,
+  minHeight: 44,
+  paddingHorizontal: spacing.sm,
+  paddingVertical: spacing.xs,
+};

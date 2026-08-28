@@ -19,7 +19,8 @@ import { CLOSET_OUTFITS_JSON_SCHEMA, closetOutfitsLlmResponseSchema } from './cl
 import type { GenerateClosetOutfitsPayload, GenerateClosetOutfitVariationsPayload } from './closet.validation.js';
 
 const MIN_WARDROBE_SIZE = 5;
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 4;
+const TARGET_OUTFIT_COUNT = 5;
 const SKETCH_STAGGER_MS = 400;
 
 // A generated outfit must cover both of these slots to count as "complete" —
@@ -108,6 +109,7 @@ async function requestOutfits(params: {
   supabaseUserId: string;
 }): Promise<{ title: string; itemIds: string[]; whyItWorks: string }[]> {
   const categoryById = new Map(params.index.map((item) => [item.id, item.category]));
+  let best: { outfits: { title: string; itemIds: string[]; whyItWorks: string }[]; usableCount: number } | null = null;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const result = await openAiClient.createStructuredResponse({
@@ -119,18 +121,27 @@ async function requestOutfits(params: {
       feature: 'outfit-generation',
     });
 
-    // Accept as soon as at least 3 of the 5 outfits reference only real ids AND
-    // cover a bottom + footwear — resolveOutfits() re-validates and filters the
-    // rest, but retrying here gives the model a real chance to fix incomplete outfits
-    // instead of the caller silently surfacing fewer than 5.
+    // resolveOutfits() re-validates and filters the rest, but retrying here
+    // gives the model a real chance to fix incomplete/invalid outfits instead
+    // of the caller silently surfacing fewer than TARGET_OUTFIT_COUNT. Keep
+    // the best attempt seen so far so a later, worse retry can't discard a
+    // good earlier one.
     const usableCount = result.outfits.filter((outfit) => {
       if (!outfit.itemIds.every((id) => categoryById.has(id))) return false;
       const categories = outfit.itemIds.map((id) => categoryById.get(id)!);
       return isCompleteOutfit(categories);
     }).length;
-    if (usableCount >= 3) {
+
+    if (!best || usableCount > best.usableCount) {
+      best = { outfits: result.outfits, usableCount };
+    }
+    if (usableCount >= TARGET_OUTFIT_COUNT) {
       return result.outfits;
     }
+  }
+
+  if (best && best.usableCount >= 3) {
+    return best.outfits;
   }
 
   throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not assemble outfits from your closet. Please try again.');

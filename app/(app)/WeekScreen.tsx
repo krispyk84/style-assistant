@@ -1,5 +1,6 @@
 import { View } from 'react-native';
 
+import { ClosetWeekDayCard } from '@/components/cards/ClosetWeekDayCard';
 import { WeekDayCard } from '@/components/cards/WeekDayCard';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
@@ -18,8 +19,14 @@ import { useWeekPlanActions } from './useWeekPlanActions';
 export function WeekScreen() {
   const { theme } = useTheme();
   const { profile } = useAppSession();
-  const { items, setItems, savedOutfitIds, setSavedOutfitIds, forecastByDay, isLoadingWeek } = useWeekPlan();
-  const { savingId, handleSave, handleRemove } = useWeekPlanActions({ savedOutfitIds, setItems, setSavedOutfitIds });
+  const {
+    items, setItems, savedOutfitIds, setSavedOutfitIds, forecastByDay, isLoadingWeek,
+    closetItems, setClosetItems, closetSavedOutfitIds, setClosetSavedOutfitIds,
+  } = useWeekPlan();
+  const { savingId, handleSave, handleRemove, handleSaveClosetOutfit, handleRemoveClosetDay } = useWeekPlanActions({
+    savedOutfitIds, setItems, setSavedOutfitIds,
+    closetSavedOutfitIds, setClosetItems, setClosetSavedOutfitIds,
+  });
 
   const days = getNextSevenDays();
 
@@ -39,6 +46,24 @@ export function WeekScreen() {
         {!isLoadingWeek
           ? days.map((day) => {
               const assignment = items.find((item) => item.dayKey === day.dayKey);
+              const closetAssignment = !assignment ? closetItems.find((item) => item.dayKey === day.dayKey) : undefined;
+
+              if (closetAssignment) {
+                return (
+                  <ClosetWeekDayCard
+                    key={day.dayKey}
+                    day={day}
+                    assignment={closetAssignment}
+                    forecast={forecastByDay[day.dayKey]}
+                    temperatureUnit={profile.temperatureUnit}
+                    isSaved={closetSavedOutfitIds.includes(closetAssignment.outfit.id)}
+                    isSaving={savingId === closetAssignment.outfit.id}
+                    onSave={() => void handleSaveClosetOutfit(closetAssignment)}
+                    onRemove={() => void handleRemoveClosetDay(day.dayKey)}
+                  />
+                );
+              }
+
               const savedId = assignment
                 ? buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier)
                 : null;
@@ -58,7 +83,7 @@ export function WeekScreen() {
             })
           : null}
 
-        {!isLoadingWeek && !items.length ? (
+        {!isLoadingWeek && !items.length && !closetItems.length ? (
           <EmptyState
             title="No week planned yet"
             message="Add outfits from the result page to assign them to today and the next 7 days."

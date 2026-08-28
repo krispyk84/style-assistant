@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { useToast } from '@/components/ui/toast-provider';
+import { deleteSavedClosetOutfit, loadSavedClosetOutfits, type SavedClosetOutfit } from '@/lib/closet-outfit-storage';
 import {
   deleteSavedOutfit,
   loadSavedOutfits,
@@ -16,12 +17,18 @@ export function useFavouritesData() {
   const [favouritesLoading, setFavouritesLoading] = useState(true);
   const [favouritesError, setFavouritesError] = useState<string | null>(null);
   const [deletingFavouriteId, setDeletingFavouriteId] = useState<string | null>(null);
+  const [closetFavourites, setClosetFavourites] = useState<SavedClosetOutfit[]>([]);
+  const [deletingClosetFavouriteId, setDeletingClosetFavouriteId] = useState<string | null>(null);
 
   const { showToast } = useToast();
 
   function load() {
     let isMounted = true;
     setFavouritesLoading(true);
+
+    void loadSavedClosetOutfits().then((saved) => {
+      if (isMounted) setClosetFavourites(saved);
+    });
 
     void (async () => {
       try {
@@ -76,12 +83,27 @@ export function useFavouritesData() {
     setDeletingFavouriteId(null);
   }
 
+  async function handleDeleteClosetFavourite(id: string) {
+    setDeletingClosetFavouriteId(id);
+    try {
+      const next = await deleteSavedClosetOutfit(id);
+      setClosetFavourites(next);
+      showToast('Saved outfit removed.');
+    } catch {
+      showToast('Could not remove this saved outfit.', 'error');
+    }
+    setDeletingClosetFavouriteId(null);
+  }
+
   return {
     favourites,
     favouritesLoading,
     favouritesError,
     deletingFavouriteId,
+    closetFavourites,
+    deletingClosetFavouriteId,
     load,
     handleDelete,
+    handleDeleteClosetFavourite,
   };
 }

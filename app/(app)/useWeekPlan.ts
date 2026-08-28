@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 
+import { loadClosetWeekPlan, loadSavedClosetOutfits, type ClosetWeekPlanItem } from '@/lib/closet-outfit-storage';
 import { loadWeekPlan, replaceWeekPlan } from '@/lib/week-plan-storage';
 import { loadSavedOutfits } from '@/lib/saved-outfits-storage';
 import { outfitsService } from '@/services/outfits';
@@ -14,6 +15,8 @@ export function useWeekPlan() {
   const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
   const [forecastByDay, setForecastByDay] = useState<Record<string, WeekForecastDay>>({});
   const [isLoadingWeek, setIsLoadingWeek] = useState(true);
+  const [closetItems, setClosetItems] = useState<ClosetWeekPlanItem[]>([]);
+  const [closetSavedOutfitIds, setClosetSavedOutfitIds] = useState<string[]>([]);
 
   // useFocusEffect runs ONLY when this screen gains focus, never when losing it.
   // Previously, useEffect([isFocused]) ran on BOTH focus gain and focus loss, creating
@@ -26,10 +29,12 @@ export function useWeekPlan() {
       void (async function hydrate() {
         setIsLoadingWeek(true);
         try {
-          const [nextItems, savedOutfits, forecast] = await Promise.all([
+          const [nextItems, savedOutfits, forecast, nextClosetItems, savedClosetOutfits] = await Promise.all([
             loadWeekPlan(),
             loadSavedOutfits(),
             loadNextSevenDayForecast().catch(() => [] as WeekForecastDay[]),
+            loadClosetWeekPlan(),
+            loadSavedClosetOutfits(),
           ]);
 
           const refreshedItems = await Promise.all(
@@ -60,6 +65,8 @@ export function useWeekPlan() {
             setItems(refreshedItems);
             setSavedOutfitIds(savedOutfits.map((item) => item.id));
             setForecastByDay(Object.fromEntries(forecast.map((day) => [day.dayKey, day])));
+            setClosetItems(nextClosetItems);
+            setClosetSavedOutfitIds(savedClosetOutfits.map((item) => item.id));
           }
 
           // Persist refresh even if the user has navigated away
@@ -77,5 +84,8 @@ export function useWeekPlan() {
     }, [])
   );
 
-  return { items, setItems, savedOutfitIds, setSavedOutfitIds, forecastByDay, isLoadingWeek };
+  return {
+    items, setItems, savedOutfitIds, setSavedOutfitIds, forecastByDay, isLoadingWeek,
+    closetItems, setClosetItems, closetSavedOutfitIds, setClosetSavedOutfitIds,
+  };
 }

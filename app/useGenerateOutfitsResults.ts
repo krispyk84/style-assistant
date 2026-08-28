@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 
+import { useToast } from '@/components/ui/toast-provider';
 import { loadAppSettings } from '@/lib/app-settings-storage';
+import { assignClosetOutfitToWeekDay, loadSavedClosetOutfits, saveClosetOutfitToFavourites } from '@/lib/closet-outfit-storage';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { closetService } from '@/services/closet';
 import type { ClosetGeneratedOutfit } from '@/types/api';
@@ -18,6 +20,14 @@ export function useGenerateOutfitsResults() {
   const [selectedOutfit, setSelectedOutfit] = useState<ClosetGeneratedOutfit | null>(null);
   const [variations, setVariations] = useState<ClosetGeneratedOutfit[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
+  const [savingOutfitId, setSavingOutfitId] = useState<string | null>(null);
+  const [weekPickerOutfit, setWeekPickerOutfit] = useState<ClosetGeneratedOutfit | null>(null);
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    void loadSavedClosetOutfits().then((saved) => setSavedOutfitIds(saved.map((item) => item.id)));
+  }, []);
 
   async function loadOutfits() {
     setStage('loading');
@@ -104,6 +114,30 @@ export function useGenerateOutfitsResults() {
     return () => clearInterval(interval);
   }, [outfits, variations]);
 
+  async function handleSaveOutfit(outfit: ClosetGeneratedOutfit) {
+    if (savedOutfitIds.includes(outfit.id) || savingOutfitId) return;
+    setSavingOutfitId(outfit.id);
+    try {
+      await saveClosetOutfitToFavourites(formality, outfit);
+      setSavedOutfitIds((current) => [...current, outfit.id]);
+      showToast('Outfit saved to favourites.');
+    } catch {
+      showToast('Could not save this outfit.', 'error');
+    }
+    setSavingOutfitId(null);
+  }
+
+  async function handleAssignToWeek(dayKey: string, dayLabel: string) {
+    if (!weekPickerOutfit) return;
+    try {
+      await assignClosetOutfitToWeekDay(dayKey, dayLabel, formality, weekPickerOutfit);
+      showToast(`Added to ${dayLabel}.`);
+    } catch {
+      showToast('Could not add this outfit to your week.', 'error');
+    }
+    setWeekPickerOutfit(null);
+  }
+
   return {
     formality,
     stage,
@@ -111,8 +145,14 @@ export function useGenerateOutfitsResults() {
     selectedOutfit,
     variations,
     error,
+    savedOutfitIds,
+    savingOutfitId,
+    weekPickerOutfit,
+    setWeekPickerOutfit,
     loadOutfits,
     selectOutfit,
     backToOutfits,
+    handleSaveOutfit,
+    handleAssignToWeek,
   };
 }
