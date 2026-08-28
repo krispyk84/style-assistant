@@ -152,7 +152,7 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
                 paddingHorizontal: spacing.sm,
                 paddingVertical: 2,
               }}>
-                <AppText variant="eyebrow" style={{ color: '#FFFFFF', letterSpacing: 1 }}>
+                <AppText variant="eyebrow" style={{ color: theme.colors.inverseText, letterSpacing: 1 }}>
                   {selectedSeason.charAt(0).toUpperCase() + selectedSeason.slice(1)}
                 </AppText>
               </View>
@@ -193,8 +193,8 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
                     gap: spacing.xs,
                     paddingVertical: spacing.md,
                   }}>
-                  <AppIcon color={isSelected ? '#FFFFFF' : theme.colors.text} name={icon} size={18} />
-                  <AppText variant="eyebrow" style={{ color: isSelected ? '#FFFFFF' : theme.colors.text, letterSpacing: 1 }}>
+                  <AppIcon color={isSelected ? theme.colors.inverseText : theme.colors.text} name={icon} size={18} />
+                  <AppText variant="eyebrow" style={{ color: isSelected ? theme.colors.inverseText : theme.colors.text, letterSpacing: 1 }}>
                     {label}
                   </AppText>
                 </Pressable>
@@ -270,7 +270,7 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
                       paddingHorizontal: spacing.md,
                       paddingVertical: spacing.xs,
                     }}>
-                    <AppText style={{ color: isSelected ? '#FFFFFF' : theme.colors.text }}>{keyword}</AppText>
+                    <AppText style={{ color: isSelected ? theme.colors.inverseText : theme.colors.text }}>{keyword}</AppText>
                   </Pressable>
                 );
               })}
@@ -324,7 +324,7 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
                   paddingHorizontal: spacing.sm,
                   paddingVertical: 2,
                 }}>
-                <AppText variant="eyebrow" style={{ color: '#FFFFFF', letterSpacing: 1 }}>Added</AppText>
+                <AppText variant="eyebrow" style={{ color: theme.colors.inverseText, letterSpacing: 1 }}>Added</AppText>
               </View>
             ) : null}
           </View>
@@ -398,18 +398,18 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
                 }}>
                 {isSelected ? (
                   <View style={{ position: 'absolute', right: spacing.sm, top: spacing.sm }}>
-                    <AppIcon color="#FFFFFF" name="check-circle" size={16} />
+                    <AppIcon color={theme.colors.inverseText} name="check-circle" size={16} />
                   </View>
                 ) : null}
                 <AppIcon
-                  color={isSelected ? '#FFFFFF' : theme.colors.text}
+                  color={isSelected ? theme.colors.inverseText : theme.colors.text}
                   name={config.icon}
                   size={24}
                 />
                 <AppText
                   variant="eyebrow"
                   style={{
-                    color: isSelected ? '#FFFFFF' : theme.colors.text,
+                    color: isSelected ? theme.colors.inverseText : theme.colors.text,
                     letterSpacing: 1.2,
                     textAlign: 'center',
                   }}>

@@ -3,73 +3,59 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/app-icon';
+import { GenerateOutfitsModal } from '@/components/closet/GenerateOutfitsModal';
+import { useGenerateOutfits } from '@/components/closet/useGenerateOutfits';
 import { WeatherCard } from '@/components/cards/weather-card';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import type { ClosetReadiness } from '@/lib/closet-readiness';
 import { useHomeData } from './useHomeData';
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
-}
 
 // ── Screen ─────────────────────────────────────────────────────────────────────
 
 export function HomeScreen() {
-  const { weather, weatherLoading, weatherError, profile, currentImageUrl, isResolved } = useHomeData();
+  const { weather, weatherLoading, weatherError, profile, currentImageUrl, isResolved, closetReadiness } = useHomeData();
   const { theme } = useTheme();
-  const firstName = profile.name.trim() || 'there';
+  const generateOutfits = useGenerateOutfits();
 
   return (
     <AppScreen scrollable>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
 
-        {/* Greeting */}
-        <View style={{ gap: spacing.sm }}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-            <View
-              style={{
-                alignSelf: 'flex-start',
-                borderColor: theme.colors.accent,
-                borderRadius: 999,
-                borderWidth: 1,
-                paddingHorizontal: spacing.sm,
-                paddingVertical: 3,
-              }}>
-              <AppText
-                variant="eyebrow"
-                style={{ color: theme.colors.accent, letterSpacing: 0.6 }}>
-                The Atelier
-              </AppText>
-            </View>
-            <Pressable
-              accessibilityLabel="View and edit your profile"
-              onPress={() => router.push('/profile')}
-              style={{
-                alignItems: 'center',
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.border,
-                borderRadius: 999,
-                borderWidth: 1,
-                height: 36,
-                justifyContent: 'center',
-                width: 36,
-              }}>
-              <AppIcon color={theme.colors.text} name="person" size={16} />
-            </Pressable>
+        {/* Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <View
+            style={{
+              alignSelf: 'flex-start',
+              borderColor: theme.colors.accent,
+              borderRadius: 999,
+              borderWidth: 1,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: 3,
+            }}>
+            <AppText
+              variant="eyebrow"
+              style={{ color: theme.colors.accent, letterSpacing: 0.6 }}>
+              Vesture
+            </AppText>
           </View>
-          <AppText variant="hero" style={{ color: theme.colors.text }}>
-            {getGreeting()},{'\n'}{firstName}.
-          </AppText>
-          <AppText tone="muted" style={{ lineHeight: 22 }}>
-            Your wardrobe is ready for a new perspective.{'\n'}What shall we build today?
-          </AppText>
+          <Pressable
+            accessibilityLabel="View and edit your profile"
+            onPress={() => router.push('/profile')}
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+              borderRadius: 999,
+              borderWidth: 1,
+              height: 36,
+              justifyContent: 'center',
+              width: 36,
+            }}>
+            <AppIcon color={theme.colors.text} name="person" size={16} />
+          </Pressable>
         </View>
 
         {/* Hero card */}
@@ -108,9 +94,15 @@ export function HomeScreen() {
             <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(18, 12, 6, 0.40)' }]} />
 
             {/* Content */}
-            <HeroCardContent accentColor={theme.colors.accent} />
+            <HeroCardContent accentColor={theme.colors.accent} inverseColor={theme.colors.inverseText} />
           </View>
         </Pressable>
+
+        {/* Generate from closet */}
+        {closetReadiness ? (
+          <GenerateFromClosetButton readiness={closetReadiness} onPress={generateOutfits.open} />
+        ) : null}
+        <GenerateOutfitsModal hook={generateOutfits} />
 
         {/* Weather section */}
         <View style={{ gap: spacing.md }}>
@@ -139,7 +131,72 @@ export function HomeScreen() {
 
 // ── Private components ─────────────────────────────────────────────────────────
 
-function HeroCardContent({ accentColor }: { accentColor: string }) {
+function GenerateFromClosetButton({ readiness, onPress }: { readiness: ClosetReadiness; onPress: () => void }) {
+  const { theme } = useTheme();
+
+  if (!readiness.ready) {
+    return (
+      <View
+        style={{
+          backgroundColor: theme.colors.subtleSurface,
+          borderColor: theme.colors.border,
+          borderRadius: 20,
+          borderWidth: 1,
+          gap: spacing.xs,
+          padding: spacing.lg,
+        }}>
+        <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+          <AppIcon color={theme.colors.subtleText} name="closet" size={18} />
+          <AppText tone="subtle" style={{ fontFamily: theme.fonts.sansMedium, fontSize: 15 }}>
+            Please add more items to your closet so that we can generate good outfits for you.
+          </AppText>
+        </View>
+        <AppText tone="subtle" style={{ fontSize: 12, lineHeight: 17 }}>
+          You need a good collection of a variety of pieces — this app is missing {joinWithAnd(readiness.missing)} before it can start generating outfits.
+        </AppText>
+      </View>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        alignItems: 'center',
+        backgroundColor: theme.colors.card,
+        borderColor: theme.colors.border,
+        borderRadius: 20,
+        borderWidth: 1,
+        flexDirection: 'row',
+        gap: spacing.md,
+        justifyContent: 'space-between',
+        padding: spacing.lg,
+      }}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <AppText variant="sectionTitle">Create Outfits From My Closet</AppText>
+        <AppText tone="muted" style={{ fontSize: 13 }}>Five complete looks, built entirely from what you own.</AppText>
+      </View>
+      <View
+        style={{
+          alignItems: 'center',
+          backgroundColor: theme.colors.accent,
+          borderRadius: 999,
+          height: 40,
+          justifyContent: 'center',
+          width: 40,
+        }}>
+        <AppIcon color={theme.colors.inverseText} name="arrow-right" size={18} />
+      </View>
+    </Pressable>
+  );
+}
+
+function joinWithAnd(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+function HeroCardContent({ accentColor, inverseColor }: { accentColor: string; inverseColor: string }) {
   return (
     <View
       style={{
@@ -181,7 +238,7 @@ function HeroCardContent({ accentColor }: { accentColor: string }) {
             justifyContent: 'center',
             width: 48,
           }}>
-          <AppIcon color="#FFFFFF" name="arrow-right" size={20} />
+          <AppIcon color={inverseColor} name="arrow-right" size={20} />
         </View>
       </View>
     </View>

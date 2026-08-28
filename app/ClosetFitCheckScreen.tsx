@@ -31,7 +31,7 @@ const VERDICT_LABEL: Record<ClosetFitCheckVerdict, string> = {
 };
 
 const VERDICT_TONE: Record<ClosetFitCheckVerdict, { bg: string; text: string }> = {
-  'strong-buy': { bg: theme.colors.accent, text: '#FFFFFF' },
+  'strong-buy': { bg: theme.colors.accent, text: theme.colors.inverseText },
   'worth-considering': { bg: theme.colors.card, text: theme.colors.text },
   'only-if-you-love-it': { bg: theme.colors.subtleSurface, text: theme.colors.text },
   skip: { bg: theme.colors.danger, text: '#FFFFFF' },

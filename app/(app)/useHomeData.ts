@@ -4,6 +4,7 @@ import { useFocusEffect } from 'expo-router';
 
 import { useAppSession } from '@/hooks/use-app-session';
 import { useCurrentWeather } from '@/hooks/use-current-weather';
+import { evaluateClosetReadiness, type ClosetReadiness } from '@/lib/closet-readiness';
 import { loadSavedOutfits } from '@/lib/saved-outfits-storage';
 import {
   buildSavedOutfitPreview,
@@ -11,6 +12,7 @@ import {
   sortSavedStylePreviews,
   type SavedStylePreview,
 } from '@/lib/saved-style-preview';
+import { closetService } from '@/services/closet';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -26,6 +28,7 @@ export function useHomeData() {
   const [savedPreviews, setSavedPreviews] = useState<SavedStylePreview[]>([]);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [isResolved, setIsResolved] = useState(false);
+  const [closetReadiness, setClosetReadiness] = useState<ClosetReadiness | null>(null);
   // Track focus so the carousel is skipped when on another tab
   const isFocusedRef = useRef(true);
 
@@ -34,6 +37,21 @@ export function useHomeData() {
       isFocusedRef.current = true;
       return () => {
         isFocusedRef.current = false;
+      };
+    }, []),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      void closetService.getItems().then((response) => {
+        if (!isMounted) return;
+        if (response.success && response.data) {
+          setClosetReadiness(evaluateClosetReadiness(response.data.items));
+        }
+      });
+      return () => {
+        isMounted = false;
       };
     }, []),
   );
@@ -87,5 +105,6 @@ export function useHomeData() {
     currentImageUrl,
     savedPreviews,
     isResolved,
+    closetReadiness,
   };
 }

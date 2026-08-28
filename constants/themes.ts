@@ -27,21 +27,28 @@ export type AppTheme = {
 const FONTS = {
   sans: 'AvenirNext-Regular',
   sansMedium: 'AvenirNext-DemiBold',
-  serif: 'Georgia-Bold',
+  serif: 'Didot',
 } as const;
+
+// "NewFit" redesign (see redesign/newfit-style branch) — moody editorial
+// fashion-tech look, same champagne-gold/serif branding in both modes. The
+// accent is deeper in light mode and paler in dark mode — same hue family,
+// lightness tuned per background so it stays readable as both a fill (button
+// backgrounds) and, via inverseText, correctly contrasts whichever text sits
+// on top of it.
 
 export const lightTheme: AppTheme = {
   dark: false,
   colors: {
-    background: '#FCFAF7',
+    background: '#FAF6EF',
     surface: '#FFFFFF',
-    subtleSurface: '#F7F2EE',
-    card: '#F5EDE8',
-    border: '#E8DED6',
-    text: '#221C18',
-    mutedText: '#6F625A',
-    subtleText: '#9E8F85',
-    accent: '#A56A1F',
+    subtleSurface: '#F5EEE1',
+    card: '#F0E6D5',
+    border: '#E3D6C2',
+    text: '#241C15',
+    mutedText: '#7A6C5D',
+    subtleText: '#A0937F',
+    accent: '#A9793A',
     inverseText: '#FFFFFF',
     danger: '#C95F4A',
     dangerSurface: '#FEF0EE',
@@ -53,19 +60,19 @@ export const lightTheme: AppTheme = {
 export const darkTheme: AppTheme = {
   dark: true,
   colors: {
-    background: '#0E0C0A',
-    surface: '#181411',
-    subtleSurface: '#1C1814',
-    card: '#221C17',
-    border: '#2E2620',
-    text: '#F0EAE3',
-    mutedText: '#9E8F85',
-    subtleText: '#6B5E56',
-    accent: '#C4822E',
-    inverseText: '#0E0C0A',
-    danger: '#E07060',
-    dangerSurface: '#2A1210',
-    overlay: 'rgba(0, 0, 0, 0.72)',
+    background: '#151210',
+    surface: '#1F1A15',
+    subtleSurface: '#251F19',
+    card: '#2A241D',
+    border: '#38312A',
+    text: '#F3ECE1',
+    mutedText: '#B3A395',
+    subtleText: '#7C6E61',
+    accent: '#C9A876',
+    inverseText: '#1A140F',
+    danger: '#E2735F',
+    dangerSurface: '#2D1512',
+    overlay: 'rgba(10, 8, 6, 0.75)',
   },
   fonts: FONTS,
 };

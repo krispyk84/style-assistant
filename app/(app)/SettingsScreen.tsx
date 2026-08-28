@@ -77,7 +77,7 @@ export function SettingsScreen() {
                     style={{
                       fontFamily: theme.fonts.sansMedium,
                       fontSize: 13,
-                      color: isSelected ? '#FFFFFF' : theme.colors.text,
+                      color: isSelected ? theme.colors.inverseText : theme.colors.text,
                     }}>
                     {option.label}
                   </AppText>
@@ -85,7 +85,7 @@ export function SettingsScreen() {
                     style={{
                       fontSize: 10,
                       textAlign: 'center',
-                      color: isSelected ? 'rgba(255,255,255,0.75)' : theme.colors.subtleText,
+                      color: isSelected ? theme.colors.inverseText : theme.colors.subtleText,
                     }}>
                     {option.description}
                   </AppText>
