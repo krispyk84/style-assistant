@@ -197,6 +197,13 @@ export default function AppTabsLayout() {
         <Tabs.Screen name="travel-planner-mappers"    options={{ href: null }} />
         <Tabs.Screen name="useTravelPlannerForm"      options={{ href: null }} />
         <Tabs.Screen name="useSavedTripsData"         options={{ href: null }} />
+        {/* ── Hidden: Generate 5 Outfits + Haircut Planner ────────────────── */}
+        <Tabs.Screen name="generate-outfits"          options={{ href: null }} />
+        <Tabs.Screen name="GenerateOutfitsScreen"     options={{ href: null }} />
+        <Tabs.Screen name="useGenerateOutfitsResults" options={{ href: null }} />
+        <Tabs.Screen name="haircut-planner"           options={{ href: null }} />
+        <Tabs.Screen name="HaircutPlannerScreen"      options={{ href: null }} />
+        <Tabs.Screen name="useHaircutPlanner"         options={{ href: null }} />
       </Tabs>
     </View>
   );
