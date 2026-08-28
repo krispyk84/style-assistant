@@ -5,6 +5,7 @@ import { HttpError } from '../../lib/http-error.js';
 import { closetRepository } from './closet.repository.js';
 import { closetAnalysisRepository } from './closet-analysis.repository.js';
 import { closetSketchService } from './closet-sketch.service.js';
+import { closetOutfitsService } from './closet-outfits.service.js';
 import { mapClosetItem } from './closet-response-mapper.js';
 import { analyzeClosetItem, matchClosetItems } from './closet-analysis.service.js';
 import { openAiClient } from '../../ai/openai-client.js';
@@ -25,6 +26,8 @@ import {
 import type {
   AnalyzeClosetItemPayload,
   ClosetMatchPayload,
+  GenerateClosetOutfitsPayload,
+  GenerateClosetOutfitVariationsPayload,
   GenerateClosetSketchOptions,
   GenerateClosetSketchPayload,
   HelpMePickPayload,
@@ -233,6 +236,14 @@ export const closetService = {
       reason: lastResult.reason,
       stylistId: payload.stylistId,
     };
+  },
+
+  async generateOutfits(payload: GenerateClosetOutfitsPayload, supabaseUserId: string) {
+    return closetOutfitsService.generateOutfits(payload, supabaseUserId);
+  },
+
+  async generateOutfitVariations(payload: GenerateClosetOutfitVariationsPayload, supabaseUserId: string) {
+    return closetOutfitsService.generateOutfitVariations(payload, supabaseUserId);
   },
 
   async recordAnchorUsed(id: string, supabaseUserId: string) {

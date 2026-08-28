@@ -46,6 +46,10 @@ export function MoreBottomSheet({ onClose, onSignOut }: MoreBottomSheetProps) {
     dismiss(() => router.push('/travel-planner'));
   }
 
+  function handleHaircutPlanner() {
+    dismiss(() => router.push('/haircut-planner'));
+  }
+
   function handleSettings() {
     dismiss(() => router.push('/settings'));
   }
@@ -136,6 +140,19 @@ export function MoreBottomSheet({ onClose, onSignOut }: MoreBottomSheetProps) {
               <AppIcon color={theme.colors.accent} name="suitcase" size={18} />
             </View>
             <AppText variant="sectionTitle" style={{ flex: 1 }}>Travel Planner</AppText>
+            <AppIcon color={theme.colors.subtleText} name="chevron-right" size={14} />
+          </Pressable>
+
+          <Pressable
+            onPress={handleHaircutPlanner}
+            style={({ pressed }) => [
+              rowStyle,
+              { backgroundColor: pressed ? theme.colors.subtleSurface : 'transparent' },
+            ]}>
+            <View style={[iconCircle, { backgroundColor: rowIconBg }]}>
+              <AppIcon color={theme.colors.accent} name="person" size={18} />
+            </View>
+            <AppText variant="sectionTitle" style={{ flex: 1 }}>Haircut Planner</AppText>
             <AppIcon color={theme.colors.subtleText} name="chevron-right" size={14} />
           </Pressable>
 

@@ -9,6 +9,8 @@ import { closetService } from './closet.service.js';
 import {
   analyzeClosetItemSchema,
   closetMatchSchema,
+  generateClosetOutfitsSchema,
+  generateClosetOutfitVariationsSchema,
   generateClosetSketchSchema,
   helpMePickSchema,
   saveClosetItemSchema,
@@ -32,6 +34,26 @@ closetRouter.post(
   asyncHandler(async (request, response) => {
     const payload = parseWithSchema(helpMePickSchema, request.body);
     const result = await closetService.helpMePick(payload, request.userId!);
+    return sendSuccess(response, result);
+  })
+);
+
+closetRouter.post(
+  '/closet/generate-outfits',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(generateClosetOutfitsSchema, request.body);
+    const result = await closetService.generateOutfits(payload, request.userId!);
+    return sendSuccess(response, result);
+  })
+);
+
+closetRouter.post(
+  '/closet/generate-outfit-variations',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(generateClosetOutfitVariationsSchema, request.body);
+    const result = await closetService.generateOutfitVariations(payload, request.userId!);
     return sendSuccess(response, result);
   })
 );

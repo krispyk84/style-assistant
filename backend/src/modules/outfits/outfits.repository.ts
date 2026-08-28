@@ -288,6 +288,8 @@ export const outfitsRepository = {
       sketchStorageKey: string | null;
       sketchMimeType: string | null;
       sketchImageData?: Buffer | null;
+      sketchErrorCode?: string | null;
+      sketchErrorMessage?: string | null;
     }
   ) {
     const result = await prisma.outfitResult.findUnique({
@@ -311,6 +313,8 @@ export const outfitsRepository = {
         sketchImageUrl: input.sketchImageUrl,
         sketchStorageKey: input.sketchStorageKey,
         sketchMimeType: input.sketchMimeType,
+        sketchErrorCode: input.sketchErrorCode ?? null,
+        sketchErrorMessage: input.sketchErrorMessage ?? null,
         ...(input.sketchImageData !== undefined ? { sketchImageData: input.sketchImageData } : {}),
       },
     });

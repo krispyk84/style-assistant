@@ -134,6 +134,8 @@ export const closetRepository = {
     sketchStorageKey?: string | null;
     sketchMimeType?: string | null;
     sketchImageData?: Buffer | null;
+    sketchErrorCode?: string | null;
+    sketchErrorMessage?: string | null;
   }) {
     return prisma.closetSketchJob.update({ where: { id }, data });
   },

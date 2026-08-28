@@ -5,7 +5,7 @@
 # Dev        (style-assistant-api-dev)  ← branch: dev  → vesture-dev.onrender.com
 #
 # Each service's secret env vars (DATABASE_URL, OPENAI_API_KEY, Supabase keys,
-# Fal/Imagen/Gemini keys, S3 creds, etc.) are marked `sync: false` so Render
+# GEMINI_API_KEY, S3 creds, etc.) are marked `sync: false` so Render
 # prompts for them per-service in the dashboard. Set them independently — the
 # dev service points at its own Supabase project, prod points at production.
 # ─────────────────────────────────────────────────────────────────────────────

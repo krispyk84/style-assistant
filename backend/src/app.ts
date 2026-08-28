@@ -7,7 +7,6 @@ import { promises as fs } from 'node:fs';
 import { env } from './config/env.js';
 import { prisma } from './db/prisma.js';
 import { storageConfig } from './config/storage.js';
-import { OUTFIT_STYLE_REFS } from './ai/style-refs-data.js';
 import { TIER_STYLE_REFS } from './ai/style-refs-tier-data.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { notFoundHandler } from './middleware/not-found.js';
@@ -15,6 +14,7 @@ import { requestLogger } from './middleware/request-logger.js';
 import { closetRouter } from './modules/closet/closet.routes.js';
 import { closetFitCheckRouter } from './modules/closet-fit-check/closet-fit-check.routes.js';
 import { compatibilityRouter } from './modules/compatibility/compatibility.routes.js';
+import { haircutRouter } from './modules/haircut/haircut.routes.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { outfitsRouter } from './modules/outfits/outfits.routes.js';
 import { profileRouter } from './modules/profile/profile.routes.js';
@@ -98,6 +98,32 @@ export function createApp() {
     }
   });
 
+  // Haircut option images are stored in the DB (not on the ephemeral filesystem)
+  // so they survive server restarts. Serve them directly from imageData.
+  app.get('/media/haircut-option/:filename', async (req, res, next) => {
+    const filename = req.params.filename as string;
+    const filePath = path.join(storageConfig.localDirectory, 'haircut-option', filename);
+    try {
+      await fs.access(filePath);
+      next(); // file exists on disk, let express.static handle it below
+      return;
+    } catch {
+      try {
+        const storageKey = `haircut-option/${filename}`;
+        const option = await prisma.haircutOption.findFirst({ where: { imageStorageKey: storageKey } });
+        if (!option?.imageData) { res.status(404).end(); return; }
+        res.setHeader('Content-Type', option.imageMimeType ?? 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.send(option.imageData);
+      } catch (err) {
+        console.error(`[haircut-option] DB query failed for filename=${filename}`, err);
+        res.status(500).end();
+      }
+    }
+  });
+
   app.use(
     '/media',
     express.static(storageConfig.localDirectory, {
@@ -109,20 +135,6 @@ export function createApp() {
   );
 
   app.use(healthRouter);
-
-  // Serves style-reference sketch images for FAL img2img style conditioning.
-  // Images are bundled as base64 in style-refs-data.ts — no filesystem dependency.
-  // FAL fetches these at generation time via their public https:// URL.
-  app.get('/style-refs/:index.jpg', (req, res) => {
-    const index = parseInt(req.params.index as string, 10);
-    const ref = OUTFIT_STYLE_REFS[index];
-    if (!ref) { res.status(404).end(); return; }
-    res.setHeader('Content-Type', 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.send(Buffer.from(ref.base64, 'base64'));
-  });
 
   // Tier-specific style references for OpenAI outfit sketch conditioning.
   // Images are bundled as base64 in style-refs-tier-data.ts — no filesystem dependency.
@@ -144,6 +156,7 @@ export function createApp() {
   apiRouter.use(closetRouter);
   apiRouter.use(closetFitCheckRouter);
   apiRouter.use(compatibilityRouter);
+  apiRouter.use(haircutRouter);
   apiRouter.use(selfieReviewRouter);
   apiRouter.use(secondOpinionRouter);
   apiRouter.use(uploadsRouter);

@@ -5,6 +5,7 @@ import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
+import { describeError } from '../../lib/http-error.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { closetRepository } from '../closet/closet.repository.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';
@@ -248,6 +249,7 @@ async function generateDaySketch(
       supabaseUserId: params.supabaseUserId,
       feature: 'trip-sketch',
       costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
+      logContext: { jobId },
     });
 
     const storageKey = `closet-sketch/trip-${jobId}.jpg`;
@@ -262,7 +264,10 @@ async function generateDaySketch(
 
     logger.info({ jobId }, '[trip-sketch] Sketch generated successfully');
   } catch (err) {
-    logger.error({ jobId, err }, '[trip-sketch] Sketch generation failed');
-    await closetRepository.updateSketchJob(jobId, { status: 'failed' }).catch(() => {});
+    const { code, message } = describeError(err);
+    logger.error({ jobId, errorCode: code, err }, '[trip-sketch] Sketch generation failed');
+    await closetRepository
+      .updateSketchJob(jobId, { status: 'failed', sketchErrorCode: code, sketchErrorMessage: message })
+      .catch(() => {});
   }
 }

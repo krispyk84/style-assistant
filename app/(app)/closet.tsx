@@ -5,8 +5,10 @@ import { useWindowDimensions } from 'react-native';
 import { spacing } from '@/constants/theme';
 import { ClosetItemSheetView } from '@/components/closet/ClosetItemSheetView';
 import { ClosetAnalyzerModal } from '@/components/closet/ClosetAnalyzerModal';
+import { GenerateOutfitsModal } from '@/components/closet/GenerateOutfitsModal';
 import { HelpMePickModal } from '@/components/closet/HelpMePickModal';
 import { useClosetAnalyzer } from '@/components/closet/useClosetAnalyzer';
+import { useGenerateOutfits } from '@/components/closet/useGenerateOutfits';
 import { useHelpMePick } from '@/components/closet/useHelpMePick';
 import type { ClosetItem } from '@/types/closet';
 import { COLUMN_COUNT } from './closet-grid-utils';
@@ -44,9 +46,10 @@ export default function ClosetScreen() {
   // ── Step 3: Animation — consumes only isLoading from step 1 ──────────────
   const { translateX } = useClosetAnimations(isLoading);
 
-  // ── Step 4: Help Me Pick + Closet Analyser ───────────────────────────────
+  // ── Step 4: Help Me Pick + Closet Analyser + Generate 5 Outfits ──────────
   const helpMePick = useHelpMePick();
   const closetAnalyzer = useClosetAnalyzer();
+  const generateOutfits = useGenerateOutfits();
 
   // ── Cell width — purely a render calculation ──────────────────────────────
   const { width: screenWidth } = useWindowDimensions();
@@ -111,6 +114,7 @@ export default function ClosetScreen() {
         onNewItemSaved={handleNewItemSaved}
         onHelpMePickPress={helpMePick.open}
         onAnalysePress={closetAnalyzer.open}
+        onGenerateOutfitsPress={generateOutfits.open}
         onFitCheckPress={() => router.push('/closet-fit-check' as never)}
         searchOpen={searchOpen}
         searchQuery={searchQuery}
@@ -141,6 +145,7 @@ export default function ClosetScreen() {
         onUseItem={() => undefined}
       />
       <ClosetAnalyzerModal hook={closetAnalyzer} />
+      <GenerateOutfitsModal hook={generateOutfits} />
     </>
   );
 }

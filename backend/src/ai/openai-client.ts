@@ -45,6 +45,8 @@ type GenerateImageInput = {
   costUsd?: number;
   /** When provided, uses the Responses API with multimodal input for style-reference conditioning. Must be an https:// URL. */
   styleRefImageUrl?: string;
+  /** Merged into failure log lines so a sketch's root-cause log can be correlated with its job-status log (e.g. { requestId, tier } or { jobId }). */
+  logContext?: Record<string, unknown>;
 };
 
 // ── Transport ─────────────────────────────────────────────────────────────────
@@ -117,7 +119,10 @@ export const openAiClient = {
 
     const result = await withRetry(
       {
-        maxRetries: 0, // single attempt — no retry for image generation
+        // Retries only kick in for transient failures (429/500/502/503) — see
+        // parseImageResponse's retryable classification. Content-policy rejections
+        // and other permanent failures still fail on the first attempt.
+        maxRetries: MAX_RETRIES,
         timeoutMs: env.OPENAI_TIMEOUT_MS,
         feature: input.feature,
         timeoutCode: 'OPENAI_IMAGE_TIMEOUT',
@@ -148,7 +153,7 @@ export const openAiClient = {
               outputFormat,
             }),
             signal,
-          ).then((raw) => parseImageResponse(raw)),
+          ).then((raw) => parseImageResponse(raw, input.logContext)),
     );
 
     if (input.supabaseUserId && input.feature) {

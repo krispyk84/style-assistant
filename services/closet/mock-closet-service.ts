@@ -6,6 +6,9 @@ import type {
   ClosetAnalyseResponse,
   ClosetMatchRequest,
   ClosetMatchResponse,
+  GenerateClosetOutfitsRequest,
+  GenerateClosetOutfitsResponse,
+  GenerateClosetOutfitVariationsRequest,
   GenerateClosetSketchRequest,
   GenerateClosetSketchResponse,
   GetClosetItemsResponse,
@@ -188,6 +191,22 @@ export const mockClosetService: ClosetService = {
       success: false,
       data: null,
       error: { code: 'UNAVAILABLE', message: 'Help Me Pick is not available right now.' },
+    };
+  },
+
+  async generateOutfits(_request: GenerateClosetOutfitsRequest): Promise<ApiResponse<GenerateClosetOutfitsResponse>> {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'UNAVAILABLE', message: 'Generate Outfits is not available right now.' },
+    };
+  },
+
+  async generateOutfitVariations(_request: GenerateClosetOutfitVariationsRequest): Promise<ApiResponse<GenerateClosetOutfitsResponse>> {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'UNAVAILABLE', message: 'Generate Outfits is not available right now.' },
     };
   },
 

@@ -2,6 +2,7 @@ import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
+import { describeError } from '../../lib/http-error.js';
 import { buildTierSketchPrompt } from '../../ai/prompts/tier-sketch.prompts.js';
 import { buildSubjectRenderingBrief, type SubjectRenderingInput } from '../../ai/body-type-severity.js';
 import type { OutfitResponse, OutfitTierSlug, TierRecommendationDto } from '../../contracts/outfits.contracts.js';
@@ -53,6 +54,7 @@ async function generateSingleTierSketch(
       supabaseUserId,
       feature: 'outfit-sketch',
       costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
+      logContext: { requestId, tier: recommendation.tier },
     });
 
     const storedFile = await storageProvider.storeGeneratedFile({
@@ -70,10 +72,13 @@ async function generateSingleTierSketch(
       sketchImageData: generatedImage.data,
     });
   } catch (error) {
+    const { code, message } = describeError(error);
+
     logger.error(
       {
         requestId,
         tier: recommendation.tier,
+        errorCode: code,
         error,
       },
       'Tier sketch generation failed'
@@ -85,6 +90,8 @@ async function generateSingleTierSketch(
       sketchStorageKey: null,
       sketchMimeType: null,
       sketchImageData: null,
+      sketchErrorCode: code,
+      sketchErrorMessage: message,
     });
   }
 }
@@ -106,10 +113,16 @@ export const tierSketchService = {
       '[sketch] Anchor + subject brief resolved for tier sketches'
     );
 
+    // Stagger the start of each tier's request — firing all 3 gpt-image-1-mini calls
+    // in the same instant is a self-inflicted source of 429 rate-limit failures.
+    const STAGGER_MS = 400;
     await Promise.all(
-      outfit.recommendations.map((recommendation) =>
-        generateSingleTierSketch(outfit.requestId, anchorItemDescription, colorMetadata, subjectBrief, recommendation, supabaseUserId)
-      )
+      outfit.recommendations.map(async (recommendation, index) => {
+        if (index > 0) {
+          await new Promise((resolve) => setTimeout(resolve, index * STAGGER_MS));
+        }
+        return generateSingleTierSketch(outfit.requestId, anchorItemDescription, colorMetadata, subjectBrief, recommendation, supabaseUserId);
+      })
     );
   },
 

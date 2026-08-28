@@ -4,7 +4,7 @@
 
 ## Project
 
-Vesture is an AI-powered personal style assistant. Users build a digital closet, generate outfit recommendations for occasions and weather, plan trip wardrobes day-by-day, receive second opinions from AI stylists, and plan a 7-day outfit calendar. The backend generates recommendations via OpenAI and produces fashion sketches via Fal / Gemini / Imagen.
+Vesture is an AI-powered personal style assistant. Users build a digital closet, generate outfit recommendations for occasions and weather, plan trip wardrobes day-by-day, receive second opinions from AI stylists, and plan a 7-day outfit calendar. The backend generates recommendations and fashion sketches via OpenAI.
 
 ## Tech Stack
 
@@ -12,7 +12,7 @@ Vesture is an AI-powered personal style assistant. Users build a digital closet,
 |---|---|
 | Frontend | Expo SDK, React Native, TypeScript, expo-router (file-based routing) |
 | Backend | Node.js, Express, Prisma, PostgreSQL |
-| AI | OpenAI (outfit generation, closet analysis, second opinions, trip outfits), Fal / Gemini / Imagen (sketch generation) |
+| AI | OpenAI (outfit generation, closet analysis, second opinions, trip outfits, sketch generation via gpt-image-1-mini) |
 | Auth | Supabase Auth |
 | DB | Supabase (PostgreSQL via Prisma) |
 | Storage | Supabase Storage (images), AsyncStorage (local device state) |

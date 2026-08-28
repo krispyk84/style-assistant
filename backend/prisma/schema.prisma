@@ -105,6 +105,8 @@ model TierResult {
   sketchStorageKey  String?
   sketchMimeType    String?
   sketchImageData   Bytes?
+  sketchErrorCode   String?
+  sketchErrorMessage String?
   variantIndex      Int         @default(0)
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
@@ -219,14 +221,46 @@ model ClosetItem {
 }
 
 model ClosetSketchJob {
-  id               String   @id @default(cuid())
-  status           String   @default("pending")
-  sketchImageUrl   String?
-  sketchStorageKey String?
-  sketchMimeType   String?
-  sketchImageData  Bytes?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  status             String   @default("pending")
+  sketchImageUrl     String?
+  sketchStorageKey   String?
+  sketchMimeType     String?
+  sketchImageData    Bytes?
+  sketchErrorCode    String?
+  sketchErrorMessage String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model HaircutSession {
+  id               String          @id @default(cuid())
+  supabaseUserId   String
+  headshotImageUrl String
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  options          HaircutOption[]
+
+  @@index([supabaseUserId])
+}
+
+model HaircutOption {
+  id              String         @id @default(cuid())
+  sessionId       String
+  styleKey        String
+  styleLabel      String
+  styleSummary    String
+  status          String         @default("pending")
+  imageStorageKey String?
+  imageMimeType   String?
+  imageData       Bytes?
+  errorCode       String?
+  errorMessage    String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  session         HaircutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }
 
 model AiUsageEntry {

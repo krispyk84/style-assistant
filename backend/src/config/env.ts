@@ -13,11 +13,6 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(1),
   OPENAI_RESPONSES_MODEL: z.string().min(1).default('gpt-4o-mini'),
   OPENAI_IMAGE_MODEL: z.string().min(1).default('gpt-image-1'),
-  FAL_API_KEY: z.string().min(1),
-  FAL_KEY: z.string().min(1),
-  CLOSET_LORA_URL: z.string().url(),
-  OUTFIT_LORA_URL: z.string().url(),
-  FAL_OUTFIT_SKETCH_MODEL: z.string().min(1).default('fal-ai/flux-2-pro'),
   OPENAI_OUTFIT_SKETCH_MODEL: z.string().min(1).default('gpt-image-1-mini'),
   OPENAI_OUTFIT_SKETCH_QUALITY: z.enum(['low', 'medium', 'high', 'auto']).default('medium'),
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com'),
@@ -38,22 +33,11 @@ const envSchema = z.object({
   AWS_S3_BUCKET: z.string().optional(),
   AWS_S3_ENDPOINT: z.string().url().optional(),
   AWS_S3_PUBLIC_BASE_URL: z.string().url().optional(),
-  // Image generation provider selection
-  // 'fal'          → fal.ai Flux-LoRA (current production default)
-  // 'imagen'       → Google Imagen 4 on Vertex AI / AI Studio (text-only prompts)
-  // 'gemini-image' → Gemini 2.5 Flash Image with visual style-reference conditioning
-  IMAGE_PROVIDER: z.enum(['fal', 'imagen', 'gemini-image']).default('fal'),
-  // Gemini image generation model (used when IMAGE_PROVIDER=gemini-image)
+  // Gemini image client — not used by any sketch path (those are all OpenAI
+  // gpt-image-1-mini). Kept for the Haircut Planner feature, which conditions
+  // on a user's uploaded photo via Gemini's multi-image-input generateContent API.
   GEMINI_IMAGE_MODEL: z.string().default('gemini-2.5-flash-image'),
-  // Google Imagen config (required when IMAGE_PROVIDER=imagen)
-  // IMAGEN_AUTH_TYPE=apikey  → Google AI Studio API key via generativelanguage.googleapis.com
-  // IMAGEN_AUTH_TYPE=serviceaccount → Vertex AI OAuth2 Bearer token via aiplatform.googleapis.com
-  IMAGEN_AUTH_TYPE: z.enum(['apikey', 'serviceaccount']).default('apikey'),
-  IMAGEN_API_KEY: z.string().optional(),         // required when IMAGEN_AUTH_TYPE=apikey
-  IMAGEN_ACCESS_TOKEN: z.string().optional(),    // required when IMAGEN_AUTH_TYPE=serviceaccount
-  IMAGEN_PROJECT_ID: z.string().optional(),      // required when IMAGEN_AUTH_TYPE=serviceaccount
-  IMAGEN_LOCATION: z.string().default('us-central1'),
-  IMAGEN_MODEL: z.string().default('imagen-4.0-generate-001'),
+  GEMINI_API_KEY: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

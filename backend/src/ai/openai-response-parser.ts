@@ -69,24 +69,35 @@ export function parseStructuredResponse<TSchema extends z.ZodTypeAny>(
 
 // ── Image response parser ─────────────────────────────────────────────────────
 
-export function parseImageResponse(raw: RawHttpResponse): { imageBase64: string } {
+// Status codes worth retrying — transient upstream/rate-limit failures. Everything else
+// (400 content-policy rejection, 401/403 auth, etc.) is a permanent failure for that prompt.
+const RETRYABLE_IMAGE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+const CONTENT_POLICY_ERROR_CODES = new Set(['content_policy_violation', 'moderation_blocked', 'image_generation_user_error']);
+
+export function parseImageResponse(raw: RawHttpResponse, logContext?: Record<string, unknown>): { imageBase64: string } {
   const payload = raw.payload as any;
 
   if (!raw.ok) {
+    const errorCode = payload?.error?.code as string | undefined;
+    const errorMessage = payload?.error?.message ?? payload?.error ?? 'Unknown OpenAI image generation error';
+    const isContentPolicy = errorCode ? CONTENT_POLICY_ERROR_CODES.has(errorCode) : false;
+    const retryable = !isContentPolicy && RETRYABLE_IMAGE_STATUS_CODES.has(raw.status);
+
     logger.error(
-      {
-        statusCode: raw.status,
-        error: payload?.error?.message ?? payload?.error ?? 'Unknown OpenAI image generation error',
-      },
-      'OpenAI image generation failed',
+      { ...logContext, statusCode: raw.status, errorCode, error: errorMessage, retryable, contentPolicy: isContentPolicy },
+      isContentPolicy ? 'OpenAI image generation rejected by content policy' : 'OpenAI image generation failed',
     );
-    throw new HttpError(502, 'OPENAI_IMAGE_FAILED', 'The AI provider could not generate the sketch.');
+
+    if (isContentPolicy) {
+      throw new HttpError(422, 'OPENAI_IMAGE_CONTENT_POLICY', 'The AI provider flagged this request and could not generate a sketch for it.', undefined, false);
+    }
+    throw new HttpError(502, 'OPENAI_IMAGE_FAILED', 'The AI provider could not generate the sketch.', undefined, retryable);
   }
 
   const imageBase64 = payload?.data?.[0]?.b64_json;
   if (typeof imageBase64 !== 'string' || !imageBase64) {
-    logger.error({ payload }, 'OpenAI image generation response did not include image data');
-    throw new HttpError(502, 'OPENAI_IMAGE_INVALID', 'The AI provider returned an invalid sketch response.');
+    logger.error({ ...logContext, payload }, 'OpenAI image generation response did not include image data');
+    throw new HttpError(502, 'OPENAI_IMAGE_INVALID', 'The AI provider returned an invalid sketch response.', undefined, true);
   }
 
   return { imageBase64 };

@@ -91,6 +91,33 @@ export const helpMePickSchema = z.object({
   rejectedIds: z.array(z.string()).optional(),
 });
 
+// ── Generate 5 Outfits (closet-only) ──────────────────────────────────────────
+
+const closetOutfitFormalitySchema = z.enum(['business', 'smart-casual', 'casual']);
+
+const closetOutfitWeatherContextSchema = z
+  .object({
+    temperatureC: z.number(),
+    season: z.enum(['winter', 'spring', 'summer', 'fall']).optional(),
+    summary: z.string().optional(),
+    stylingHint: z.string().optional(),
+  })
+  .nullable()
+  .optional();
+
+export const generateClosetOutfitsSchema = z.object({
+  formality: closetOutfitFormalitySchema,
+  weatherContext: closetOutfitWeatherContextSchema,
+  trendiness: z.number().min(0).max(100).optional(),
+});
+
+export const generateClosetOutfitVariationsSchema = z.object({
+  formality: closetOutfitFormalitySchema,
+  weatherContext: closetOutfitWeatherContextSchema,
+  trendiness: z.number().min(0).max(100).optional(),
+  baseItemIds: z.array(z.string()).min(2),
+});
+
 export type StylistId = 'vittorio' | 'alessandra';
 export type AnalyzeClosetItemPayload = z.infer<typeof analyzeClosetItemSchema>;
 export type SaveClosetItemPayload = z.infer<typeof saveClosetItemSchema>;
@@ -99,3 +126,5 @@ export type GenerateClosetSketchPayload = z.infer<typeof generateClosetSketchSch
 export type GenerateClosetSketchOptions = Pick<GenerateClosetSketchPayload, 'title' | 'category' | 'lensShape' | 'frameColor'>;
 export type ClosetMatchPayload = z.infer<typeof closetMatchSchema>;
 export type HelpMePickPayload = z.infer<typeof helpMePickSchema>;
+export type GenerateClosetOutfitsPayload = z.infer<typeof generateClosetOutfitsSchema>;
+export type GenerateClosetOutfitVariationsPayload = z.infer<typeof generateClosetOutfitVariationsSchema>;

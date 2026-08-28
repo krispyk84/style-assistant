@@ -47,6 +47,8 @@ export type ClosetScreenViewProps = {
   onHelpMePickPress: () => void;
   // Closet Analyser
   onAnalysePress: () => void;
+  // Generate 5 Outfits
+  onGenerateOutfitsPress: () => void;
   // Closet Fit Check ("Does this work in my closet?")
   onFitCheckPress: () => void;
   // Search
@@ -87,6 +89,7 @@ export function ClosetScreenView({
   onNewItemSaved,
   onHelpMePickPress,
   onAnalysePress,
+  onGenerateOutfitsPress,
   onFitCheckPress,
   searchOpen,
   searchQuery,
@@ -400,6 +403,27 @@ export function ClosetScreenView({
                     <View style={{ flex: 1, gap: 2 }}>
                       <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Analyse My Closet</AppText>
                       <AppText tone="muted" style={{ fontSize: 12 }}>See how complete and versatile your wardrobe is</AppText>
+                    </View>
+                    <AppIcon color={theme.colors.subtleText} name="chevron-right" size={16} />
+                  </Pressable>
+
+                  <Pressable
+                    onPress={onGenerateOutfitsPress}
+                    style={{
+                      alignItems: 'center',
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      flexDirection: 'row',
+                      gap: spacing.sm,
+                      paddingHorizontal: spacing.lg,
+                      paddingVertical: spacing.md,
+                    }}>
+                    <AppIcon color={theme.colors.accent} name="magic-wand" size={18} />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>Generate 5 Outfits</AppText>
+                      <AppText tone="muted" style={{ fontSize: 12 }}>Built entirely from what you already own</AppText>
                     </View>
                     <AppIcon color={theme.colors.subtleText} name="chevron-right" size={16} />
                   </Pressable>

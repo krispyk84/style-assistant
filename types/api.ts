@@ -1,7 +1,8 @@
 import type { ClosetItem, ClosetItemFitStatus } from '@/types/closet';
-import type { CreateLookInput, LookRequestResponse } from '@/types/look-request';
+import type { CreateLookInput, LookRequestResponse, LookTierSlug } from '@/types/look-request';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 import type { PersistedSession, Profile } from '@/types/profile';
+import type { WeatherContext } from '@/types/weather';
 
 export type ApiError = {
   code: string;
@@ -260,6 +261,70 @@ export type HelpMePickResponse = {
   itemFitStatus: string | null;
   reason: string;
   stylistId: 'vittorio' | 'alessandra';
+};
+
+// ── Haircut Planner ────────────────────────────────────────────────────────────
+
+export type HaircutOptionStatus = 'pending' | 'ready' | 'failed';
+
+export type HaircutOption = {
+  id: string;
+  styleKey: string;
+  styleLabel: string;
+  styleSummary: string;
+  status: HaircutOptionStatus;
+  imageUrl: string | null;
+};
+
+export type CreateHaircutSessionRequest = {
+  headshotImageUrl: string;
+};
+
+export type HaircutSessionResponse = {
+  sessionId: string;
+  status: 'generating' | 'ready';
+  options: HaircutOption[];
+};
+
+export type GenerateHaircutGuideRequest = {
+  styleLabel: string;
+  styleSummary: string;
+};
+
+export type HaircutGuideResponse = {
+  theLook: string;
+  whatToAskFor: string[];
+  cutDetails: string[];
+  stylingTips: string[];
+  whatToAvoid: string[];
+  maintenance: string;
+  products: string[];
+};
+
+// ── Generate 5 Outfits (closet-only) ──────────────────────────────────────────
+
+export type ClosetGeneratedOutfit = {
+  id: string;
+  title: string;
+  whyItWorks: string;
+  items: ClosetItem[];
+};
+
+export type GenerateClosetOutfitsRequest = {
+  formality: LookTierSlug;
+  weatherContext?: WeatherContext | null;
+  trendiness?: number;
+};
+
+export type GenerateClosetOutfitVariationsRequest = {
+  formality: LookTierSlug;
+  weatherContext?: WeatherContext | null;
+  trendiness?: number;
+  baseItemIds: string[];
+};
+
+export type GenerateClosetOutfitsResponse = {
+  outfits: ClosetGeneratedOutfit[];
 };
 
 export type ClosetAnalyseRecommendation = {

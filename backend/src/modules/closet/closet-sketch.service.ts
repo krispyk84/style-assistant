@@ -8,6 +8,7 @@ import { storageConfig } from '../../config/storage.js';
 import { env } from '../../config/env.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
+import { describeError } from '../../lib/http-error.js';
 import { buildClosetItemSketchPrompt } from '../../ai/prompts/closet-item-sketch.prompts.js';
 import type { ClosetItemSketchInput } from '../../ai/prompts/closet-item-sketch.prompts.js';
 import {
@@ -24,10 +25,8 @@ import { enhancedGarmentDescriptionSchema, footwearDescriptionSchema } from './c
 // ─────────────────────────────────────────────────────────────────────────────
 // ROUTING
 //
-//   generateClosetItemSketch  →  OpenAI gpt-image-1  (this file)
-//   generateOutfitSketch      →  fal.ai Flux-LoRA    (tier-sketch.service.ts)
-//
-// Do NOT add fal.ai calls here. Do NOT add OpenAI image calls to tier-sketch.
+//   generateClosetItemSketch  →  OpenAI gpt-image-1-mini  (this file)
+//   generateOutfitSketch      →  OpenAI gpt-image-1-mini  (tier-sketch.service.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Category routing keywords ─────────────────────────────────────────────────
@@ -259,6 +258,7 @@ async function generateClosetItemSketch(
     supabaseUserId,
     feature: 'closet-sketch',
     costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
+    logContext: { jobId },
   });
 
   // Store image data in DB only (not on the ephemeral filesystem) so sketches
@@ -280,13 +280,16 @@ async function runSketchJob(jobId: string, imageUrl: string, supabaseUserId?: st
   try {
     await generateClosetItemSketch(jobId, imageUrl, supabaseUserId, options);
   } catch (error) {
-    logger.error({ jobId, error }, 'Closet item sketch generation failed');
+    const { code, message } = describeError(error);
+    logger.error({ jobId, errorCode: code, error }, 'Closet item sketch generation failed');
     await closetRepository.updateSketchJob(jobId, {
       status: 'failed',
       sketchImageUrl: null,
       sketchStorageKey: null,
       sketchMimeType: null,
       sketchImageData: null,
+      sketchErrorCode: code,
+      sketchErrorMessage: message,
     });
   }
 }

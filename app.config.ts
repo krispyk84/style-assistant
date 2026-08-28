@@ -73,6 +73,16 @@ const config: ExpoConfig = {
       },
     ],
     [
+      'expo-media-library',
+      {
+        photosPermission:
+          'Vesture saves your generated haircut guide to your photo library.',
+        savePhotosPermission:
+          'Vesture saves your generated haircut guide to your photo library.',
+        isAccessMediaLocationEnabled: false,
+      },
+    ],
+    [
       'expo-splash-screen',
       {
         image: './logo.png',

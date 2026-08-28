@@ -16,10 +16,11 @@ export type WithRetryOptions = {
 
 /**
  * Wraps an async operation with per-attempt AbortController timeout and
- * optional exponential-backoff retry on timeout (AbortError only).
+ * exponential-backoff retry.
  *
  * Retry policy:
- *   - HttpError thrown by fn → re-throw immediately, no retry
+ *   - HttpError thrown by fn, with retryable=true → retry if attempts remain
+ *   - HttpError thrown by fn, with retryable=false (default) → re-throw immediately
  *   - AbortError (timeout fired) → retry if attempts remain, else throw 504
  *   - Any other error → throw HttpError 502 immediately, no retry
  *
@@ -29,10 +30,15 @@ export async function withRetry<T>(
   options: WithRetryOptions,
   fn: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
+  let lastRetryableError: HttpError | undefined;
+
   for (let attempt = 0; attempt <= options.maxRetries; attempt++) {
     if (attempt > 0) {
       const delayMs = 1000 * 2 ** (attempt - 1); // 1s, 2s, …
-      logger.warn({ feature: options.feature, attempt, delayMs }, 'OpenAI request timed out, retrying');
+      logger.warn(
+        { feature: options.feature, attempt, delayMs, retryReason: lastRetryableError?.code },
+        'OpenAI request failed, retrying',
+      );
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
 
@@ -43,6 +49,10 @@ export async function withRetry<T>(
       return await fn(controller.signal);
     } catch (error) {
       if (error instanceof HttpError) {
+        if (error.retryable && attempt < options.maxRetries) {
+          lastRetryableError = error;
+          continue;
+        }
         throw error;
       }
 
