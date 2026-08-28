@@ -24,7 +24,7 @@ export function HaircutPlannerScreen() {
     currentBatch, batchIndex, likedOptions,
     selectedOption, guide, angleShots, angleShotsError, isLoadingAngleShots,
     startSession, handleSwipedRight, handleSwipedLeft, handleSwipedAll,
-    reviewFavorites, requestMoreHaircuts, selectFinal, reset,
+    reviewFavorites, requestMoreHaircuts, selectFinal, reset, goBack,
   } = useHaircutPlanner();
 
   const viewShotRef = useRef<ViewShot>(null);
@@ -48,7 +48,7 @@ export function HaircutPlannerScreen() {
   return (
     <AppScreen scrollable={stage !== 'swipe'} scrollRef={scrollRef} bounces={false} avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
-        <ScreenHeader title="Haircut Planner" showBack />
+        <ScreenHeader title="Haircut Planner" showBack onBack={goBack} />
 
         {stage === 'upload' ? (
           <View style={{ gap: spacing.lg }}>

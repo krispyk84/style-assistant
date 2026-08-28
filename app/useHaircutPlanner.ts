@@ -246,6 +246,27 @@ export function useHaircutPlanner() {
     return () => clearInterval(interval);
   }, [stage, activeSessionId, angleShots]);
 
+  // Only 'narrowed' (the liked-options list) and 'guide' have a meaningful
+  // prior stage to step back to. Every other stage is either the entry point
+  // or mid-flight work with nothing useful to resume — back from there exits
+  // the whole flow via the navigator instead.
+  function goBack() {
+    if (stage === 'guide') {
+      setGuide(null);
+      setSelectedOption(null);
+      setAngleShots(null);
+      setAngleShotsError(null);
+      setIsLoadingAngleShots(false);
+      setStage('narrowed');
+      return;
+    }
+    if (stage === 'narrowed') {
+      setStage('swipe-choice');
+      return;
+    }
+    router.back();
+  }
+
   function reset() {
     removeImage();
     setActiveSessionId(null);
@@ -270,6 +291,6 @@ export function useHaircutPlanner() {
     currentBatch, batchIndex, likedOptions,
     selectedOption, guide, angleShots, angleShotsError, isLoadingAngleShots,
     startSession, handleSwipedRight, handleSwipedLeft, handleSwipedAll,
-    reviewFavorites, requestMoreHaircuts, selectFinal, reset,
+    reviewFavorites, requestMoreHaircuts, selectFinal, reset, goBack,
   };
 }

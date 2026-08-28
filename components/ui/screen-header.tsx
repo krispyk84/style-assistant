@@ -8,13 +8,15 @@ import { AppText } from '@/components/ui/app-text';
 type ScreenHeaderProps = {
   title: string;
   showBack?: boolean;
+  /** Override the default router.back() — e.g. to step back one stage within a multi-stage flow. */
+  onBack?: () => void;
 };
 
-export function ScreenHeader({ title, showBack = false }: ScreenHeaderProps) {
+export function ScreenHeader({ title, showBack = false, onBack }: ScreenHeaderProps) {
   return (
     <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
       {showBack ? (
-        <Pressable hitSlop={8} onPress={() => router.back()}>
+        <Pressable hitSlop={8} onPress={onBack ?? (() => router.back())}>
           <AppIcon color={theme.colors.text} name="chevron-left" size={24} />
         </Pressable>
       ) : (

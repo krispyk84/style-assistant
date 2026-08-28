@@ -86,6 +86,8 @@ function AppNavigation() {
         <Stack.Screen name="trip-anchors" options={{ headerShown: false }} />
         <Stack.Screen name="packing-list" options={{ headerShown: false }} />
         <Stack.Screen name="camera-capture" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="generate-outfits" options={{ headerShown: false }} />
+        <Stack.Screen name="haircut-planner" options={{ headerShown: false }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style={theme.dark ? 'light' : 'dark'} />

@@ -43,8 +43,14 @@ export async function resolveImageUrlForAI(imageUrl: string): Promise<ImageInput
       const mimeType = mimeTypeFromStorageKey(storageKey);
       return { type: 'input_image', image_url: `data:${mimeType};base64,${file.toString('base64')}`, detail: 'high' };
     } catch {
-      logger.warn({ storageKey }, 'Local media file not found — proceeding without image');
-      return null;
+      // Render's local disk is ephemeral and gets wiped on every redeploy, but
+      // some generated-file categories (closet sketches, haircut options) also
+      // persist their bytes in the DB and serve them via a /media/<category>/:filename
+      // route with a DB fallback (see app.ts). If a redeploy happened between
+      // generating this file and reading it back here, the local copy is gone
+      // but that route can still serve it — fall through to the HTTP path below
+      // instead of giving up immediately.
+      logger.warn({ storageKey }, 'Local media file not found — falling back to HTTP fetch');
     }
   }
 
