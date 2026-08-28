@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    background: #000000;
+  }
+
+  body {
+    margin: 0;
+    color: #e2e8f0;
+    /* A wall panel is a control surface, not a document — kill the browser
+       gestures that make it feel like a web page. */
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
+
+  button {
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  /* Horizontal control slider.
+     The input itself is a full 48px tall so the whole strip is a touch target,
+     while the visible track stays slim — dragging a 14px line with a fingertip
+     is the classic wall-panel failure. The filled portion is painted straight
+     onto the track with a gradient handed in as --ht-track: one paint, no extra
+     layers, which is what keeps dragging smooth on an older iPad GPU. */
+  .ht-range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 48px;
+    background: transparent;
+    outline: none;
+  }
+
+  .ht-range::-webkit-slider-runnable-track {
+    height: 14px;
+    border-radius: 999px;
+    background: var(--ht-track, #1e293b);
+  }
+
+  .ht-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    margin-top: -8px;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: #f8fafc;
+    border: 3px solid #0a0d12;
+    box-shadow: 0 0 0 1px #334155;
+    cursor: pointer;
+  }
+
+  .ht-range::-moz-range-track {
+    height: 14px;
+    border-radius: 999px;
+    background: var(--ht-track, #1e293b);
+  }
+
+  .ht-range::-moz-range-thumb {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: #f8fafc;
+    border: 3px solid #0a0d12;
+    cursor: pointer;
+  }
+
+  .ht-range:disabled::-webkit-slider-thumb {
+    background: #475569;
+  }
+
+  /* Every tappable thing clears the 48px minimum. */
+  .ht-tap {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  .ht-scroll {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .ht-scroll::-webkit-scrollbar {
+    display: none;
+  }
+}
