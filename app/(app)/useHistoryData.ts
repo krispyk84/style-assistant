@@ -109,10 +109,13 @@ export function useHistoryData() {
     setDeletingHistoryRequestId(requestId);
     try {
       const res = await outfitsService.deleteOutfitFromHistory(requestId);
-      if (!res.success) throw new Error();
-      // Remove all tier cards that belong to this request
-      setHistoryCards((prev) => prev.filter((c) => c.requestId !== requestId));
-      showToast('Look removed from history.');
+      if (!res.success) {
+        showToast(res.error?.message ?? 'Could not remove this look.', 'error');
+      } else {
+        // Remove all tier cards that belong to this request
+        setHistoryCards((prev) => prev.filter((c) => c.requestId !== requestId));
+        showToast('Look removed from history.');
+      }
     } catch {
       showToast('Could not remove this look.', 'error');
     }

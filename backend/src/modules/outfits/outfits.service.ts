@@ -26,6 +26,14 @@ import { tierSketchService } from './tier-sketch.service.js';
 
 const CANONICAL_TIERS: OutfitTierSlug[] = ['business', 'smart-casual', 'casual'];
 
+// Outfit sketches are stored as DB blobs (TierResult.sketchImageData), so
+// unbounded history growth is unbounded Postgres storage growth. Keep the
+// most recent N generations per user; anything older gets pruned, except a
+// request that's currently favourited or assigned to a week day — those stay
+// forever regardless of age, since Favourites/Week always resolve their
+// sketch image live from this same TierResult row by requestId+tier.
+export const HISTORY_RETENTION_LIMIT = 50;
+
 
 async function findProfile(supabaseUserId: string, profileId?: string) {
   if (profileId) {
@@ -193,6 +201,7 @@ export const outfitsService = {
 
     await outfitsRepository.upsertGeneratedOutfit(input.profileId, response, supabaseUserId);
     void tierSketchService.queueSketchesForOutfit(response, profileToSubject(profile), supabaseUserId);
+    void outfitsService.pruneOutfitHistory(supabaseUserId);
     return response;
   },
 
@@ -271,7 +280,30 @@ export const outfitsService = {
     return mergedResponse;
   },
 
+  /**
+   * Deletes this user's outfit history beyond the most recent HISTORY_RETENTION_LIMIT,
+   * skipping anything currently favourited or assigned to a week day. Safe to call
+   * repeatedly/concurrently — a delete of an already-deleted id is a no-op.
+   */
+  async pruneOutfitHistory(supabaseUserId: string, keep: number = HISTORY_RETENTION_LIMIT) {
+    const beyondLimit = await outfitsRepository.findHistoryRequestIdsBeyondLimit(supabaseUserId, keep);
+    if (beyondLimit.length === 0) return 0;
+
+    const protectedIds = await outfitsRepository.findProtectedRequestIds(beyondLimit);
+    const toDelete = beyondLimit.filter((id) => !protectedIds.has(id));
+    if (toDelete.length === 0) return 0;
+
+    return outfitsRepository.deleteOutfitsByRequestIds(toDelete);
+  },
+
   async getOutfitHistory(supabaseUserId: string, { page, limit }: { page: number; limit: number }) {
+    // Page 1 doubles as the cleanup trigger — items beyond HISTORY_RETENTION_LIMIT
+    // are never on page 1 (limit is always far below the retention count), so this
+    // can't race with or affect what's actually returned below.
+    if (page === 1) {
+      void outfitsService.pruneOutfitHistory(supabaseUserId);
+    }
+
     const { items, total } = await outfitsRepository.findOutfitHistory(supabaseUserId, { page, limit });
     return {
       items: items.map((outfit) => ({
@@ -291,6 +323,11 @@ export const outfitsService = {
   },
 
   async deleteOutfit(requestId: string, supabaseUserId: string) {
+    const protectedIds = await outfitsRepository.findProtectedRequestIds([requestId]);
+    if (protectedIds.has(requestId)) {
+      throw new HttpError(409, 'OUTFIT_SAVED', 'This look is saved to Favourites or your Week planner — remove it there first.');
+    }
+
     const deleted = await outfitsRepository.deleteOutfit(requestId, supabaseUserId);
     if (!deleted) {
       throw new HttpError(404, 'OUTFIT_NOT_FOUND', 'No outfit exists for the provided id or you do not have permission to delete it.');

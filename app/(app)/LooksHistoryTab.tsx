@@ -9,6 +9,17 @@ import type { SavedOutfit } from '@/types/style';
 import type { WeatherSeason } from '@/types/weather';
 import type { useHistoryData } from './useHistoryData';
 
+const HISTORY_RETENTION_LIMIT = 50;
+
+function RetentionNotice() {
+  return (
+    <AppText tone="muted" style={{ fontSize: 12, paddingBottom: spacing.sm }}>
+      Only your {HISTORY_RETENTION_LIMIT} most recent generated looks are kept — older ones are
+      automatically removed. Anything saved to Favourites or your Week planner is kept regardless.
+    </AppText>
+  );
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 type TierFilter = 'all' | LookTierSlug;
@@ -54,20 +65,26 @@ export function LooksHistoryTab({ data, tierFilter, seasonFilter, onAddToWeek }:
   });
 
   if (!filtered.length) {
-    return historyCards.length ? (
-      <EmptyState title="No matches" message="No generated looks match the selected filters." />
-    ) : (
-      <EmptyState
-        title="No generated looks"
-        message="Every look you generate will appear here. Create your first look to get started."
-        actionLabel="Create a look"
-        actionHref="/create-look"
-      />
+    return (
+      <>
+        <RetentionNotice />
+        {historyCards.length ? (
+          <EmptyState title="No matches" message="No generated looks match the selected filters." />
+        ) : (
+          <EmptyState
+            title="No generated looks"
+            message="Every look you generate will appear here. Create your first look to get started."
+            actionLabel="Create a look"
+            actionHref="/create-look"
+          />
+        )}
+      </>
     );
   }
 
   return (
     <>
+      <RetentionNotice />
       {filtered.map((card) => {
         const result: SavedOutfit = {
           id: card.id,

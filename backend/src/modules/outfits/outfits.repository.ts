@@ -279,6 +279,39 @@ export const outfitsRepository = {
     return true;
   },
 
+  /** requestIds for this user's history beyond the most recent `keep`, oldest first. */
+  async findHistoryRequestIdsBeyondLimit(supabaseUserId: string, keep: number): Promise<string[]> {
+    const rows = await prisma.outfitResult.findMany({
+      where: { request: { supabaseUserId } },
+      select: { requestId: true },
+      orderBy: { generatedAt: 'desc' },
+      skip: keep,
+    });
+    return rows.map((row) => row.requestId);
+  },
+
+  /**
+   * Of the given requestIds, which are referenced by a currently-saved favourite
+   * or week-plan entry — raw SQL because saved_outfits/week_plan are Supabase
+   * client-managed tables with no Prisma model, but live in the same Postgres
+   * database this connection already talks to.
+   */
+  async findProtectedRequestIds(requestIds: string[]): Promise<Set<string>> {
+    if (requestIds.length === 0) return new Set();
+    const rows = await prisma.$queryRaw<{ request_id: string }[]>`
+      SELECT DISTINCT request_id FROM saved_outfits WHERE request_id IN (${Prisma.join(requestIds)})
+      UNION
+      SELECT DISTINCT request_id FROM week_plan WHERE request_id IN (${Prisma.join(requestIds)})
+    `;
+    return new Set(rows.map((row) => row.request_id));
+  },
+
+  async deleteOutfitsByRequestIds(requestIds: string[]): Promise<number> {
+    if (requestIds.length === 0) return 0;
+    const result = await prisma.outfitRequest.deleteMany({ where: { id: { in: requestIds } } });
+    return result.count;
+  },
+
   async updateTierSketch(
     requestId: string,
     tier: OutfitTierSlug,
