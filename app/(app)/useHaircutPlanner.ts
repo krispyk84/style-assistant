@@ -29,8 +29,15 @@ export function useHaircutPlanner() {
   const [stage, setStage] = useState<HaircutPlannerStage>('upload');
   const [session, setSession] = useState<HaircutSessionResponse | null>(null);
   const [likedOptions, setLikedOptions] = useState<HaircutOption[]>([]);
-  // Every option id the user has already swiped (either direction), across all
-  // batches — used to compute which ready options belong in the CURRENT batch.
+  // The cards actively being swiped through right now. This is real state, set
+  // ONCE per batch (not derived by filtering on every render) — the swipe deck
+  // relies on card index staying stable for the life of a batch; a derived array
+  // that shrinks as each card is swiped desyncs the deck's internal index from
+  // this array, causing wrong cards to disappear and eventually an out-of-bounds
+  // (undefined) card crash.
+  const [currentBatch, setCurrentBatch] = useState<HaircutOption[]>([]);
+  // Every option id already dealt into a batch so far (any batch, this session) —
+  // used only to compute which ready options belong in the NEXT fresh batch.
   const [swipedIds, setSwipedIds] = useState<Set<string>>(new Set());
   // Bumped every time a fresh batch of cards is ready to show — used as the
   // swipe deck's `key` so it remounts cleanly instead of reusing stale internal state.
@@ -56,6 +63,7 @@ export function useHaircutPlanner() {
     setError(null);
     setLikedOptions([]);
     setSwipedIds(new Set());
+    setCurrentBatch([]);
     setBatchIndex(0);
     setStage('generating');
     const response = await haircutService.createSession({ headshotImageUrl: uploadedImage.publicUrl });
@@ -99,10 +107,13 @@ export function useHaircutPlanner() {
               setStage('swipe-choice');
             }
           } else {
+            setCurrentBatch(freshBatch);
             setBatchIndex((i) => i + 1);
             setStage('swipe');
           }
 
+          // Unchanged here — swipedIds only grows as the user actually swipes
+          // (see markSwiped), not when a batch is merely dealt.
           return currentSwipedIds;
         });
       }
@@ -112,9 +123,6 @@ export function useHaircutPlanner() {
     // setSession/setStage/setError/setBatchIndex/setSwipedIds are stable dispatchers — omitted intentionally.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, activeSessionId]);
-
-  const readyOptions = session?.options.filter((option) => option.status === 'ready') ?? [];
-  const currentBatch = readyOptions.filter((option) => !swipedIds.has(option.id));
 
   function markSwiped(cardIndex: number) {
     const swiped = currentBatch[cardIndex];
@@ -180,6 +188,7 @@ export function useHaircutPlanner() {
     setSession(null);
     setLikedOptions([]);
     setSwipedIds(new Set());
+    setCurrentBatch([]);
     setBatchIndex(0);
     setSelectedOption(null);
     setGuide(null);

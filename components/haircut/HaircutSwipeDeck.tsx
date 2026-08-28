@@ -15,11 +15,20 @@ type HaircutSwipeDeckProps = {
 
 // react-native-deck-swiper positions cards by measuring its own container, but
 // doesn't reliably propagate a bounded height down through nested flex parents —
-// giving the card and its image explicit pixel dimensions (rather than flex: 1)
-// avoids the image rendering at its natural (much larger) intrinsic size.
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+// giving the card an explicit pixel height (rather than flex: 1) avoids the
+// image rendering at its natural (much larger) intrinsic size.
+//
+// Its getCardStyle() always computes card width from Dimensions.get('window')
+// (the true device width), regardless of how the Swiper is actually nested —
+// there's no prop to override this. Since this component sits inside AppScreen's
+// paddingHorizontal, the library thinks it starts at the true screen edge (x=0)
+// when it's really inset by that padding, pushing the card's right edge exactly
+// to the true screen edge with zero margin. Canceling the padding with a negative
+// margin here puts the Swiper's origin back where the library assumes it is, and
+// the card fills 100% of the library's own (now-correct) computed width instead
+// of fighting it with a second, separately-computed width.
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CARD_HEIGHT = Math.min(560, SCREEN_HEIGHT * 0.64);
-const CARD_WIDTH = SCREEN_WIDTH - spacing.lg * 2;
 // Footer must fit a title line + up to 2 description lines + vertical padding —
 // too little room here clips the description text (title ~22px + 2×18px lines + 2×16px padding).
 const CARD_FOOTER_HEIGHT = 110;
@@ -27,7 +36,7 @@ const CARD_IMAGE_HEIGHT = CARD_HEIGHT - CARD_FOOTER_HEIGHT;
 
 export function HaircutSwipeDeck({ options, onSwipedRight, onSwipedLeft, onSwipedAll }: HaircutSwipeDeckProps) {
   return (
-    <View style={{ height: CARD_HEIGHT + 40 }}>
+    <View style={{ height: CARD_HEIGHT + 40, marginHorizontal: -spacing.lg }}>
       <Swiper
         cards={options}
         keyExtractor={(option) => option.id}
@@ -40,7 +49,7 @@ export function HaircutSwipeDeck({ options, onSwipedRight, onSwipedLeft, onSwipe
               borderWidth: 1,
               height: CARD_HEIGHT,
               overflow: 'hidden',
-              width: CARD_WIDTH,
+              width: '100%',
             }}>
             {option.imageUrl ? (
               <Image
