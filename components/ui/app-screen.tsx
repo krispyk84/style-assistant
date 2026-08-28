@@ -37,6 +37,17 @@ type AppScreenProps = PropsWithChildren<{
    * self-correct, the scroll view can be left stuck past the end of its content.
    */
   bounces?: boolean;
+  /**
+   * When false, disables automaticallyAdjustKeyboardInsets on the ScrollView
+   * (default true). That prop pads content to dodge the keyboard on show/hide,
+   * tracked via native geometry-change notifications — on screens with no text
+   * inputs (so no real keyboard interaction is possible), a dismissing system
+   * sheet (e.g. the photo picker) can fire a similar geometry-change notification
+   * that gets misread as a keyboard appearing, adding a large bottom inset that
+   * never gets cleared since no real keyboard-hide event follows. Turn off on
+   * screens with no text inputs to rule this out entirely.
+   */
+  avoidsKeyboard?: boolean;
 }>;
 
 const FLOATING_BACK_THRESHOLD = 80;
@@ -51,6 +62,7 @@ export function AppScreen({
   onScroll,
   refreshControl,
   bounces = true,
+  avoidsKeyboard = true,
 }: AppScreenProps) {
   const [showFloatingBack, setShowFloatingBack] = useState(false);
   const insets = useSafeAreaInsets();
@@ -104,7 +116,7 @@ export function AppScreen({
       {scrollable ? (
         <ScrollView
           ref={scrollRef}
-          automaticallyAdjustKeyboardInsets
+          automaticallyAdjustKeyboardInsets={avoidsKeyboard}
           bounces={bounces}
           contentContainerStyle={{ flexGrow: 1 }}
           keyboardDismissMode="interactive"

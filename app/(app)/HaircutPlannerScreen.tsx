@@ -46,7 +46,7 @@ export function HaircutPlannerScreen() {
   }, [stage, image]);
 
   return (
-    <AppScreen scrollable={stage !== 'swipe'} scrollRef={scrollRef} bounces={false}>
+    <AppScreen scrollable={stage !== 'swipe'} scrollRef={scrollRef} bounces={false} avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Haircut Planner" showBack />
 
