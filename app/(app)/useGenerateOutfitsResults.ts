@@ -70,6 +70,40 @@ export function useGenerateOutfitsResults() {
     setStage('outfits');
   }
 
+  // Poll pending outfit sketch jobs (both base outfits and variations can have
+  // in-flight sketches at once) — mirrors the sketch-status polling used for
+  // tier/trip/closet-item sketches elsewhere in the app.
+  useEffect(() => {
+    const pendingIds = [...outfits, ...variations]
+      .filter((outfit) => outfit.sketchStatus === 'pending')
+      .map((outfit) => outfit.sketchJobId);
+
+    if (pendingIds.length === 0) return;
+
+    const interval = setInterval(async () => {
+      const results = await Promise.all(
+        pendingIds.map(async (jobId) => {
+          const response = await closetService.getItemSketch(jobId);
+          return response.success && response.data ? { jobId, ...response.data } : null;
+        }),
+      );
+      const resultsByJobId = new Map(results.filter(Boolean).map((r) => [r!.jobId, r!]));
+      if (resultsByJobId.size === 0) return;
+
+      const applyUpdates = (list: ClosetGeneratedOutfit[]) =>
+        list.map((outfit) => {
+          const update = resultsByJobId.get(outfit.sketchJobId);
+          if (!update || update.sketchStatus === 'pending') return outfit;
+          return { ...outfit, sketchStatus: update.sketchStatus, sketchImageUrl: update.sketchImageUrl };
+        });
+
+      setOutfits(applyUpdates);
+      setVariations(applyUpdates);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [outfits, variations]);
+
   return {
     formality,
     stage,

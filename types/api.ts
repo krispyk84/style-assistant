@@ -308,6 +308,9 @@ export type ClosetGeneratedOutfit = {
   title: string;
   whyItWorks: string;
   items: ClosetItem[];
+  sketchJobId: string;
+  sketchStatus: 'pending' | 'ready' | 'failed';
+  sketchImageUrl: string | null;
 };
 
 export type GenerateClosetOutfitsRequest = {

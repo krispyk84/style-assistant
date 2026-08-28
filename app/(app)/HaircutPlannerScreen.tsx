@@ -34,7 +34,7 @@ export function HaircutPlannerScreen() {
 
   return (
     <AppScreen scrollable={stage !== 'swipe'} floatingBack>
-      <View style={{ flex: 1, gap: spacing.xl, paddingBottom: spacing.xl }}>
+      <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Haircut Planner" showBack />
 
         {stage === 'upload' ? (

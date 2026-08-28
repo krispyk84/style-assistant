@@ -1,11 +1,18 @@
-import { HttpError } from '../../lib/http-error.js';
+import { env } from '../../config/env.js';
+import { logger } from '../../config/logger.js';
+import { HttpError, describeError } from '../../lib/http-error.js';
 import { openAiClient } from '../../ai/openai-client.js';
+import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
+import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import {
   buildClosetOutfitsSystemPrompt,
   buildClosetOutfitsUserPrompt,
   buildClosetOutfitVariationsUserPrompt,
   type ClosetOutfitIndexItem,
 } from '../../ai/prompts/closet-outfits.prompts.js';
+import { buildClosetOutfitSketchPrompt } from '../../ai/prompts/closet-outfit-sketch.prompts.js';
+import { storageProvider } from '../../storage/index.js';
+import { profileRepository } from '../profile/profile.repository.js';
 import { closetRepository } from './closet.repository.js';
 import { mapClosetItem } from './closet-response-mapper.js';
 import { CLOSET_OUTFITS_JSON_SCHEMA, closetOutfitsLlmResponseSchema } from './closet.schemas.js';
@@ -13,12 +20,18 @@ import type { GenerateClosetOutfitsPayload, GenerateClosetOutfitVariationsPayloa
 
 const MIN_WARDROBE_SIZE = 5;
 const MAX_ATTEMPTS = 3;
+const SKETCH_STAGGER_MS = 400;
+
+type MappedClosetItem = ReturnType<typeof mapClosetItem>;
 
 type ResolvedOutfit = {
   id: string;
   title: string;
   whyItWorks: string;
-  items: ReturnType<typeof mapClosetItem>[];
+  items: MappedClosetItem[];
+  sketchJobId: string;
+  sketchStatus: 'pending' | 'ready' | 'failed';
+  sketchImageUrl: string | null;
 };
 
 async function loadIndex(supabaseUserId: string) {
@@ -51,8 +64,8 @@ async function loadIndex(supabaseUserId: string) {
 function resolveOutfits(
   outfits: { title: string; itemIds: string[]; whyItWorks: string }[],
   itemsById: Map<string, Awaited<ReturnType<typeof closetRepository.getItems>>[number]>,
-): ResolvedOutfit[] {
-  const resolved: ResolvedOutfit[] = [];
+): Omit<ResolvedOutfit, 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[] {
+  const resolved: Omit<ResolvedOutfit, 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[] = [];
 
   for (let i = 0; i < outfits.length; i++) {
     const outfit = outfits[i]!;
@@ -102,6 +115,98 @@ async function requestOutfits(params: {
   throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not assemble outfits from your closet. Please try again.');
 }
 
+async function generateOutfitSketch(
+  jobId: string,
+  outfit: { title: string; items: MappedClosetItem[] },
+  subjectBrief: string,
+  supabaseUserId: string,
+) {
+  try {
+    const prompt = buildClosetOutfitSketchPrompt({
+      outfitTitle: outfit.title,
+      items: outfit.items,
+      subjectBrief,
+    });
+
+    const generatedImage = await openAiClient.generateImage({
+      prompt,
+      model: env.OPENAI_OUTFIT_SKETCH_MODEL,
+      size: '1024x1536',
+      quality: env.OPENAI_OUTFIT_SKETCH_QUALITY,
+      outputFormat: 'jpeg',
+      supabaseUserId,
+      feature: 'outfit-sketch',
+      costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
+      logContext: { jobId, outfitTitle: outfit.title },
+    });
+
+    const storedFile = await storageProvider.storeGeneratedFile({
+      category: 'closet-sketch',
+      fileExtension: '.jpg',
+      mimeType: generatedImage.mimeType,
+      data: generatedImage.data,
+    });
+
+    await closetRepository.updateSketchJob(jobId, {
+      status: 'ready',
+      sketchImageUrl: `${env.STORAGE_PUBLIC_BASE_URL}/media/${storedFile.storageKey}`,
+      sketchStorageKey: storedFile.storageKey,
+      sketchMimeType: generatedImage.mimeType,
+      sketchImageData: generatedImage.data,
+    });
+  } catch (error) {
+    const { code, message } = describeError(error);
+    logger.error({ jobId, outfitTitle: outfit.title, errorCode: code, error }, 'Closet outfit sketch generation failed');
+    await closetRepository.updateSketchJob(jobId, {
+      status: 'failed',
+      sketchImageUrl: null,
+      sketchStorageKey: null,
+      sketchMimeType: null,
+      sketchImageData: null,
+      sketchErrorCode: code,
+      sketchErrorMessage: message,
+    });
+  }
+}
+
+async function attachSketchJobs(
+  outfits: Omit<ResolvedOutfit, 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[],
+  supabaseUserId: string,
+): Promise<ResolvedOutfit[]> {
+  const profile = await profileRepository.findByUserId(supabaseUserId);
+  const subjectBrief = profile
+    ? buildSubjectRenderingBrief({
+        gender: profile.gender,
+        heightCm: profile.heightCm,
+        weightKg: profile.weightKg,
+        bodyType: (profile as any).bodyType ?? null,
+        weightDistribution: (profile as any).weightDistribution ?? null,
+        fitTendency: (profile as any).fitTendency ?? null,
+      }).block
+    : 'slim neutral fashion figure';
+
+  const jobs = await Promise.all(outfits.map(() => closetRepository.createSketchJob()));
+
+  const withJobs: ResolvedOutfit[] = outfits.map((outfit, index) => ({
+    ...outfit,
+    sketchJobId: jobs[index]!.id,
+    sketchStatus: 'pending',
+    sketchImageUrl: null,
+  }));
+
+  // Fire-and-forget, staggered — the response returns immediately with 'pending'
+  // sketch jobs; the client polls each via the existing closet sketch-job endpoint.
+  void Promise.all(
+    withJobs.map((outfit, index) =>
+      new Promise<void>((resolve) => setTimeout(resolve, index * SKETCH_STAGGER_MS)).then(() =>
+        generateOutfitSketch(outfit.sketchJobId, outfit, subjectBrief, supabaseUserId),
+      ),
+    ),
+  );
+
+  return withJobs;
+}
+
 export const closetOutfitsService = {
   async generateOutfits(payload: GenerateClosetOutfitsPayload, supabaseUserId: string) {
     const { index, itemsById } = await loadIndex(supabaseUserId);
@@ -122,7 +227,7 @@ export const closetOutfitsService = {
       throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not assemble outfits from your closet. Please try again.');
     }
 
-    return { outfits: resolved };
+    return { outfits: await attachSketchJobs(resolved, supabaseUserId) };
   },
 
   async generateOutfitVariations(payload: GenerateClosetOutfitVariationsPayload, supabaseUserId: string) {
@@ -150,6 +255,6 @@ export const closetOutfitsService = {
       throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not generate variations for that outfit. Please try again.');
     }
 
-    return { outfits: resolved };
+    return { outfits: await attachSketchJobs(resolved, supabaseUserId) };
   },
 };

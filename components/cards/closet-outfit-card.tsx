@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { Pressable, View } from 'react-native';
 
+import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPanel';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
@@ -31,6 +32,17 @@ export function ClosetOutfitCard({ outfit, onPress, selected }: ClosetOutfitCard
       </View>
 
       <AppText tone="muted" style={{ fontSize: 13, fontStyle: 'italic' }}>{outfit.whyItWorks}</AppText>
+
+      <View style={{ backgroundColor: theme.colors.card, borderRadius: 16, overflow: 'hidden' }}>
+        <GeneratedSketchPanel
+          mode="compact"
+          status={outfit.sketchStatus}
+          imageUrl={outfit.sketchImageUrl}
+          pendingTitle="Sketching this outfit..."
+          pendingMessage="The illustration will appear automatically when it's ready."
+          failedLabel="Sketch unavailable"
+        />
+      </View>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
         {outfit.items.map((item) => {
