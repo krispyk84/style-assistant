@@ -16,7 +16,6 @@
   ],
   "exclude": [
     "backend",
-    "home-theater",
     "node_modules",
     "node_modules.nosync"
   ]
