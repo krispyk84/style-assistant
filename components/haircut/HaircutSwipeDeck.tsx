@@ -51,15 +51,15 @@ export function HaircutSwipeDeck({ options, onSwipedRight, onSwipedLeft, onSwipe
               overflow: 'hidden',
               width: '100%',
             }}>
-            {option.imageUrl ? (
-              <Image
-                contentFit="cover"
-                source={{ uri: option.imageUrl }}
-                style={{ height: CARD_IMAGE_HEIGHT, width: '100%' }}
-              />
-            ) : (
-              <View style={{ backgroundColor: theme.colors.card, height: CARD_IMAGE_HEIGHT, width: '100%' }} />
-            )}
+            <View style={{ backgroundColor: theme.colors.card, height: CARD_IMAGE_HEIGHT, width: '100%' }}>
+              {option.imageUrl ? (
+                <Image
+                  contentFit="contain"
+                  source={{ uri: option.imageUrl }}
+                  style={{ height: '100%', width: '100%' }}
+                />
+              ) : null}
+            </View>
             <View style={{ backgroundColor: theme.colors.surface, height: CARD_FOOTER_HEIGHT, gap: 4, padding: spacing.md }}>
               <AppText variant="sectionTitle" numberOfLines={1}>{option.styleLabel}</AppText>
               <AppText tone="muted" style={{ fontSize: 13, lineHeight: 18 }} numberOfLines={2}>{option.styleSummary}</AppText>

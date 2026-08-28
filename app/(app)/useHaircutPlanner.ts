@@ -45,6 +45,12 @@ export function useHaircutPlanner() {
   const [selectedOption, setSelectedOption] = useState<HaircutOption | null>(null);
   const [guide, setGuide] = useState<HaircutGuideResponse | null>(null);
   const [angleShots, setAngleShots] = useState<HaircutAngleShots | null>(null);
+  // Distinct from angleShots === null so the guide screen can show a visible
+  // "generating..." state instead of silently showing nothing while in flight,
+  // and can tell "still loading" apart from "failed with no data" if the
+  // request rejects outright instead of resolving to {success:false}.
+  const [angleShotsError, setAngleShotsError] = useState<string | null>(null);
+  const [isLoadingAngleShots, setIsLoadingAngleShots] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Set once when a session is created and held constant across poll ticks — unlike
   // `session` (replaced on every poll response), this only changes on a NEW session,
@@ -171,20 +177,34 @@ export function useHaircutPlanner() {
     setStage('guide-loading');
     setError(null);
     setAngleShots(null);
+    setAngleShotsError(null);
 
     // Kick off the angle shots (front-angled/side/back) alongside the text guide —
     // they take longer (3 more image generations), so don't block entering the
     // guide stage on them; they fill in progressively via the poll effect below.
+    // isLoadingAngleShots is tracked separately from angleShots so the guide
+    // screen can show a visible "generating..." state instead of silently
+    // showing nothing while this is in flight (or if it fails outright).
     if (activeSessionId) {
-      void haircutService.generateAngleShots(activeSessionId, { optionId: option.id }).then((angleResponse) => {
-        if (angleResponse.success && angleResponse.data) {
-          setAngleShots({
-            frontAngled: angleResponse.data.frontAngled,
-            side: angleResponse.data.side,
-            back: angleResponse.data.back,
-          });
-        }
-      });
+      setIsLoadingAngleShots(true);
+      void haircutService.generateAngleShots(activeSessionId, { optionId: option.id })
+        .then((angleResponse) => {
+          if (angleResponse.success && angleResponse.data) {
+            setAngleShots({
+              frontAngled: angleResponse.data.frontAngled,
+              side: angleResponse.data.side,
+              back: angleResponse.data.back,
+            });
+          } else {
+            setAngleShotsError(angleResponse.error?.message ?? 'Could not generate the other angles.');
+          }
+        })
+        .catch(() => {
+          setAngleShotsError('Could not generate the other angles.');
+        })
+        .finally(() => {
+          setIsLoadingAngleShots(false);
+        });
     }
 
     const response = await haircutService.generateGuide({
@@ -237,6 +257,8 @@ export function useHaircutPlanner() {
     setSelectedOption(null);
     setGuide(null);
     setAngleShots(null);
+    setAngleShotsError(null);
+    setIsLoadingAngleShots(false);
     setError(null);
     setStage('upload');
   }
@@ -246,7 +268,7 @@ export function useHaircutPlanner() {
     pickFromLibrary, handleOpenCamera,
     stage, session, error,
     currentBatch, batchIndex, likedOptions,
-    selectedOption, guide, angleShots,
+    selectedOption, guide, angleShots, angleShotsError, isLoadingAngleShots,
     startSession, handleSwipedRight, handleSwipedLeft, handleSwipedAll,
     reviewFavorites, requestMoreHaircuts, selectFinal, reset,
   };

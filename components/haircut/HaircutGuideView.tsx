@@ -11,6 +11,8 @@ type HaircutGuideViewProps = {
   option: HaircutOption;
   guide: HaircutGuideResponse;
   angleShots: HaircutAngleShots | null;
+  isLoadingAngleShots: boolean;
+  angleShotsError: string | null;
 };
 
 function Section({ title, children }: PropsWithChildren<{ title: string }>) {
@@ -32,15 +34,16 @@ function BulletList({ items }: { items: string[] }) {
   );
 }
 
-// Square tiles — the source headshot (and every edit derived from it) is
-// captured/uploaded square, so matching that aspect ratio avoids the crop
-// biasing toward one side that a mismatched fixed height would cause.
+// Square tiles, contain (never crop) — the generated image's real dimensions
+// aren't guaranteed to match a square exactly, and cropping was cutting into
+// the subject off-center. contain always shows the whole image, at the cost
+// of a small letterbox margin if the source isn't quite square.
 function AnglePhoto({ label, option }: { label: string; option: HaircutOption | null }) {
   return (
     <View style={{ flex: 1, gap: 4 }}>
       <View style={{ aspectRatio: 1, backgroundColor: theme.colors.card, borderRadius: 14, overflow: 'hidden', width: '100%' }}>
         {option?.status === 'ready' && option.imageUrl ? (
-          <Image contentFit="cover" source={{ uri: option.imageUrl }} style={{ height: '100%', width: '100%' }} />
+          <Image contentFit="contain" source={{ uri: option.imageUrl }} style={{ height: '100%', width: '100%' }} />
         ) : option?.status === 'failed' ? (
           <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
             <AppIcon color={theme.colors.subtleText} name="warning" size={18} />
@@ -56,7 +59,7 @@ function AnglePhoto({ label, option }: { label: string; option: HaircutOption | 
   );
 }
 
-export function HaircutGuideView({ option, guide, angleShots }: HaircutGuideViewProps) {
+export function HaircutGuideView({ option, guide, angleShots, isLoadingAngleShots, angleShotsError }: HaircutGuideViewProps) {
   return (
     <View style={{ backgroundColor: theme.colors.background, gap: spacing.lg, padding: spacing.lg, width: 360 }}>
       <View style={{ alignItems: 'center', gap: 2 }}>
@@ -65,17 +68,19 @@ export function HaircutGuideView({ option, guide, angleShots }: HaircutGuideView
       </View>
 
       {option.imageUrl ? (
-        <View style={{ aspectRatio: 1, borderRadius: 20, overflow: 'hidden', width: '100%' }}>
-          <Image contentFit="cover" source={{ uri: option.imageUrl }} style={{ height: '100%', width: '100%' }} />
+        <View style={{ aspectRatio: 1, backgroundColor: theme.colors.card, borderRadius: 20, overflow: 'hidden', width: '100%' }}>
+          <Image contentFit="contain" source={{ uri: option.imageUrl }} style={{ height: '100%', width: '100%' }} />
         </View>
       ) : null}
 
-      {angleShots ? (
+      {angleShots || isLoadingAngleShots ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <AnglePhoto label="Front Angled" option={angleShots.frontAngled} />
-          <AnglePhoto label="Side" option={angleShots.side} />
-          <AnglePhoto label="Back" option={angleShots.back} />
+          <AnglePhoto label="Front Angled" option={angleShots?.frontAngled ?? null} />
+          <AnglePhoto label="Side" option={angleShots?.side ?? null} />
+          <AnglePhoto label="Back" option={angleShots?.back ?? null} />
         </View>
+      ) : angleShotsError ? (
+        <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>{angleShotsError}</AppText>
       ) : null}
 
       <Section title="THE LOOK">

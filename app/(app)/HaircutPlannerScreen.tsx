@@ -22,7 +22,7 @@ export function HaircutPlannerScreen() {
     pickFromLibrary, handleOpenCamera,
     stage, session, error,
     currentBatch, batchIndex, likedOptions,
-    selectedOption, guide, angleShots,
+    selectedOption, guide, angleShots, angleShotsError, isLoadingAngleShots,
     startSession, handleSwipedRight, handleSwipedLeft, handleSwipedAll,
     reviewFavorites, requestMoreHaircuts, selectFinal, reset,
   } = useHaircutPlanner();
@@ -159,7 +159,13 @@ export function HaircutPlannerScreen() {
         {stage === 'guide' && selectedOption && guide ? (
           <View style={{ gap: spacing.lg }}>
             <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }}>
-              <HaircutGuideView option={selectedOption} guide={guide} angleShots={angleShots} />
+              <HaircutGuideView
+                option={selectedOption}
+                guide={guide}
+                angleShots={angleShots}
+                isLoadingAngleShots={isLoadingAngleShots}
+                angleShotsError={angleShotsError}
+              />
             </ViewShot>
             {exportMessage ? (
               <AppText tone="muted" style={{ textAlign: 'center', fontSize: 12 }}>{exportMessage}</AppText>
@@ -194,13 +200,13 @@ function HaircutOptionCard({ option, onPress }: { option: HaircutOption; onPress
         overflow: 'hidden',
         width: '47%',
       }}>
-      {option.imageUrl ? (
-        <Image contentFit="cover" source={{ uri: option.imageUrl }} style={{ height: 160, width: '100%' }} />
-      ) : (
-        <View style={{ alignItems: 'center', backgroundColor: theme.colors.card, height: 160, justifyContent: 'center' }}>
+      <View style={{ alignItems: 'center', backgroundColor: theme.colors.card, height: 160, justifyContent: 'center', width: '100%' }}>
+        {option.imageUrl ? (
+          <Image contentFit="contain" source={{ uri: option.imageUrl }} style={{ height: '100%', width: '100%' }} />
+        ) : (
           <AppIcon color={theme.colors.subtleText} name="person" size={28} />
-        </View>
-      )}
+        )}
+      </View>
       <View style={{ padding: spacing.sm }}>
         <AppText style={{ fontSize: 13, fontFamily: theme.fonts.sansMedium }}>{option.styleLabel}</AppText>
       </View>
