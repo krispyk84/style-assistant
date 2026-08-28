@@ -9,6 +9,7 @@ import {
   createHaircutSessionSchema,
   generateHaircutAngleShotsSchema,
   generateHaircutGuideSchema,
+  saveHaircutSessionSchema,
 } from './haircut.validation.js';
 
 export const haircutRouter = Router();
@@ -50,6 +51,36 @@ haircutRouter.post(
     const id = Array.isArray(request.params.id) ? request.params.id[0]! : request.params.id!;
     const payload = parseWithSchema(generateHaircutAngleShotsSchema, request.body);
     const result = await haircutService.generateAngleShots(id, payload.optionId, request.userId!);
+    return sendSuccess(response, result);
+  })
+);
+
+haircutRouter.get(
+  '/haircut/saved-sessions',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const sessions = await haircutService.listSavedSessions(request.userId!);
+    return sendSuccess(response, { sessions });
+  })
+);
+
+haircutRouter.post(
+  '/haircut/sessions/:id/save',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const id = Array.isArray(request.params.id) ? request.params.id[0]! : request.params.id!;
+    const payload = parseWithSchema(saveHaircutSessionSchema, request.body);
+    const result = await haircutService.saveSession(id, payload, request.userId!);
+    return sendSuccess(response, result);
+  })
+);
+
+haircutRouter.delete(
+  '/haircut/sessions/:id/save',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const id = Array.isArray(request.params.id) ? request.params.id[0]! : request.params.id!;
+    const result = await haircutService.unsaveSession(id, request.userId!);
     return sendSuccess(response, result);
   })
 );

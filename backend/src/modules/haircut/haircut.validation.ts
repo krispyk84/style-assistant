@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { haircutGuideResponseSchema } from './haircut.schemas.js';
+
 export const createHaircutSessionSchema = z.object({
   headshotImageUrl: z.string().url(),
 });
@@ -15,3 +17,9 @@ export const generateHaircutGuideSchema = z.object({
   styleSummary: z.string().min(1),
 });
 export type GenerateHaircutGuidePayload = z.infer<typeof generateHaircutGuideSchema>;
+
+export const saveHaircutSessionSchema = z.object({
+  optionId: z.string().min(1),
+  guide: haircutGuideResponseSchema,
+});
+export type SaveHaircutSessionPayload = z.infer<typeof saveHaircutSessionSchema>;

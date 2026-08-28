@@ -17,7 +17,7 @@ import {
 import { storageProvider } from '../../storage/index.js';
 import { haircutRepository } from './haircut.repository.js';
 import { HAIRCUT_GUIDE_JSON_SCHEMA, haircutGuideResponseSchema } from './haircut.schemas.js';
-import type { CreateHaircutSessionPayload, GenerateHaircutGuidePayload } from './haircut.validation.js';
+import type { CreateHaircutSessionPayload, GenerateHaircutGuidePayload, SaveHaircutSessionPayload } from './haircut.validation.js';
 
 const STAGGER_MS = 500;
 const STYLE_BY_KEY = new Map(HAIRCUT_STYLES.map((style) => [style.key, style]));
@@ -213,6 +213,49 @@ export const haircutService = {
       }],
       supabaseUserId,
       feature: 'haircut-generation',
+    });
+  },
+
+  async saveSession(id: string, payload: SaveHaircutSessionPayload, supabaseUserId: string) {
+    const session = await haircutRepository.getSession(id, supabaseUserId);
+    if (!session) throw new HttpError(404, 'NOT_FOUND', 'Haircut session not found.');
+
+    const chosen = session.options.find((option) => option.id === payload.optionId);
+    if (!chosen || chosen.status !== 'ready') {
+      throw new HttpError(422, 'OPTION_NOT_READY', 'That haircut is not ready yet.');
+    }
+
+    await haircutRepository.saveSession(id, supabaseUserId, { chosenOptionId: payload.optionId, guideData: payload.guide });
+    return { sessionId: id, saved: true as const };
+  },
+
+  async unsaveSession(id: string, supabaseUserId: string) {
+    await haircutRepository.unsaveSession(id, supabaseUserId);
+    return { sessionId: id, saved: false as const };
+  },
+
+  async listSavedSessions(supabaseUserId: string) {
+    const sessions = await haircutRepository.listSavedSessions(supabaseUserId);
+    return sessions.flatMap((session) => {
+      const chosen = session.options.find((option) => option.id === session.chosenOptionId);
+      if (!chosen || !session.guideData || !session.savedAt) return [];
+
+      const angleFor = (angle: HaircutAngle) => {
+        const option = session.options.find((o) => o.styleKey === `${chosen.styleKey}::${angle}`);
+        return option ? mapOption(option) : null;
+      };
+      const frontAngled = angleFor('front-angled');
+      const side = angleFor('side');
+      const back = angleFor('back');
+
+      return [{
+        sessionId: session.id,
+        styleLabel: chosen.styleLabel,
+        savedAt: session.savedAt.toISOString(),
+        option: mapOption(chosen),
+        angleShots: frontAngled && side && back ? { frontAngled, side, back } : null,
+        guide: session.guideData,
+      }];
     });
   },
 };

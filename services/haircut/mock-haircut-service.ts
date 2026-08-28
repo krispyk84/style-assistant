@@ -6,6 +6,9 @@ import type {
   HaircutAngleShotsResponse,
   HaircutGuideResponse,
   HaircutSessionResponse,
+  SaveHaircutSessionRequest,
+  SaveHaircutSessionResponse,
+  SavedHaircutSessionsResponse,
 } from '@/types/api';
 import type { HaircutService } from './haircut-service';
 
@@ -43,6 +46,30 @@ export const mockHaircutService: HaircutService = {
   },
 
   async generateGuide(_request: GenerateHaircutGuideRequest): Promise<ApiResponse<HaircutGuideResponse>> {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'UNAVAILABLE', message: 'Haircut Planner is not available right now.' },
+    };
+  },
+
+  async saveSession(_sessionId: string, _request: SaveHaircutSessionRequest): Promise<ApiResponse<SaveHaircutSessionResponse>> {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'UNAVAILABLE', message: 'Haircut Planner is not available right now.' },
+    };
+  },
+
+  async unsaveSession(_sessionId: string): Promise<ApiResponse<SaveHaircutSessionResponse>> {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'UNAVAILABLE', message: 'Haircut Planner is not available right now.' },
+    };
+  },
+
+  async listSavedSessions(): Promise<ApiResponse<SavedHaircutSessionsResponse>> {
     return {
       success: false,
       data: null,

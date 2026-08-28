@@ -3,13 +3,22 @@ import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import type ViewShot from 'react-native-view-shot';
 
-export function useHaircutGuideExport(viewShotRef: RefObject<ViewShot | null>) {
+export function useHaircutGuideExport(viewShotRef: RefObject<ViewShot | null>, onCaptureModeChange?: (capturing: boolean) => void) {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   async function capture(): Promise<string | null> {
-    const uri = await viewShotRef.current?.capture?.();
-    return uri ?? null;
+    // Give the app-only chrome (e.g. the Save Haircut button) a frame to hide
+    // via onCaptureModeChange before snapshotting, so it isn't baked into the
+    // exported image — and a frame to reappear afterward either way.
+    onCaptureModeChange?.(true);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    try {
+      const uri = await viewShotRef.current?.capture?.();
+      return uri ?? null;
+    } finally {
+      onCaptureModeChange?.(false);
+    }
   }
 
   async function saveToPhotos() {

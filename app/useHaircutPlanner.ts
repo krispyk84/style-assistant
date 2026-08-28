@@ -4,7 +4,13 @@ import { useRouter } from 'expo-router';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import { cameraCaptureResult } from '@/lib/camera-capture-result';
 import { haircutService } from '@/services/haircut';
-import type { HaircutAngleShots, HaircutGuideResponse, HaircutOption, HaircutSessionResponse } from '@/types/api';
+import type {
+  HaircutAngleShots,
+  HaircutGuideResponse,
+  HaircutOption,
+  HaircutSessionResponse,
+  SavedHaircutSession,
+} from '@/types/api';
 
 export type HaircutPlannerStage =
   | 'upload'
@@ -56,6 +62,28 @@ export function useHaircutPlanner() {
   // `session` (replaced on every poll response), this only changes on a NEW session,
   // so it's safe as an effect dependency without recreating the interval every tick.
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
+  const [savedSessions, setSavedSessions] = useState<SavedHaircutSession[]>([]);
+  const [isLoadingSavedSessions, setIsLoadingSavedSessions] = useState(true);
+  const [isSavingSession, setIsSavingSession] = useState(false);
+  const [isCurrentSessionSaved, setIsCurrentSessionSaved] = useState(false);
+  // True when the guide stage is showing a previously-saved session opened
+  // directly from the upload screen, rather than one just reached by swiping —
+  // there's no swipe/favorites context to step back into, so goBack() treats
+  // it as its own flow and returns to the upload screen instead of 'narrowed'.
+  const [viewingSaved, setViewingSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void haircutService.listSavedSessions().then((response) => {
+      if (cancelled) return;
+      if (response.success && response.data) setSavedSessions(response.data.sessions);
+      setIsLoadingSavedSessions(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function handleOpenCamera() {
     cameraCaptureResult.setListener(async (captured) => {
@@ -178,6 +206,8 @@ export function useHaircutPlanner() {
     setError(null);
     setAngleShots(null);
     setAngleShotsError(null);
+    setIsCurrentSessionSaved(false);
+    setViewingSaved(false);
 
     // Kick off the angle shots (front-angled/side/back) alongside the text guide —
     // they take longer (3 more image generations), so don't block entering the
@@ -252,6 +282,10 @@ export function useHaircutPlanner() {
   // the whole flow via the navigator instead.
   function goBack() {
     if (stage === 'guide') {
+      if (viewingSaved) {
+        reset();
+        return;
+      }
       setGuide(null);
       setSelectedOption(null);
       setAngleShots(null);
@@ -280,8 +314,59 @@ export function useHaircutPlanner() {
     setAngleShots(null);
     setAngleShotsError(null);
     setIsLoadingAngleShots(false);
+    setIsCurrentSessionSaved(false);
+    setViewingSaved(false);
     setError(null);
     setStage('upload');
+  }
+
+  async function saveHaircut() {
+    if (!activeSessionId || !selectedOption || !guide || isSavingSession) return;
+    setIsSavingSession(true);
+    const response = await haircutService.saveSession(activeSessionId, { optionId: selectedOption.id, guide });
+    setIsSavingSession(false);
+    if (!response.success) {
+      setError(response.error?.message ?? 'Could not save this haircut. Please try again.');
+      return;
+    }
+    setIsCurrentSessionSaved(true);
+    setSavedSessions((prev) => [
+      {
+        sessionId: activeSessionId,
+        styleLabel: selectedOption.styleLabel,
+        savedAt: new Date().toISOString(),
+        option: selectedOption,
+        angleShots,
+        guide,
+      },
+      ...prev.filter((saved) => saved.sessionId !== activeSessionId),
+    ]);
+  }
+
+  async function unsaveHaircut() {
+    if (!activeSessionId || isSavingSession) return;
+    setIsSavingSession(true);
+    const response = await haircutService.unsaveSession(activeSessionId);
+    setIsSavingSession(false);
+    if (!response.success) {
+      setError(response.error?.message ?? 'Could not remove this saved haircut. Please try again.');
+      return;
+    }
+    setIsCurrentSessionSaved(false);
+    setSavedSessions((prev) => prev.filter((saved) => saved.sessionId !== activeSessionId));
+  }
+
+  function openSavedSession(saved: SavedHaircutSession) {
+    setActiveSessionId(saved.sessionId);
+    setSelectedOption(saved.option);
+    setGuide(saved.guide);
+    setAngleShots(saved.angleShots);
+    setAngleShotsError(null);
+    setIsLoadingAngleShots(false);
+    setIsCurrentSessionSaved(true);
+    setViewingSaved(true);
+    setError(null);
+    setStage('guide');
   }
 
   return {
@@ -290,7 +375,9 @@ export function useHaircutPlanner() {
     stage, session, error,
     currentBatch, batchIndex, likedOptions,
     selectedOption, guide, angleShots, angleShotsError, isLoadingAngleShots,
+    savedSessions, isLoadingSavedSessions, isSavingSession, isCurrentSessionSaved,
     startSession, handleSwipedRight, handleSwipedLeft, handleSwipedAll,
     reviewFavorites, requestMoreHaircuts, selectFinal, reset, goBack,
+    saveHaircut, unsaveHaircut, openSavedSession,
   };
 }

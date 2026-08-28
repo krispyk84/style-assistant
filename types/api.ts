@@ -319,6 +319,29 @@ export type HaircutGuideResponse = {
   products: string[];
 };
 
+export type SaveHaircutSessionRequest = {
+  optionId: string;
+  guide: HaircutGuideResponse;
+};
+
+export type SaveHaircutSessionResponse = {
+  sessionId: string;
+  saved: boolean;
+};
+
+export type SavedHaircutSession = {
+  sessionId: string;
+  styleLabel: string;
+  savedAt: string;
+  option: HaircutOption;
+  angleShots: HaircutAngleShots | null;
+  guide: HaircutGuideResponse;
+};
+
+export type SavedHaircutSessionsResponse = {
+  sessions: SavedHaircutSession[];
+};
+
 // ── Generate 5 Outfits (closet-only) ──────────────────────────────────────────
 
 export type ClosetGeneratedOutfit = {

@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 
@@ -13,7 +13,7 @@ import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing, theme } from '@/constants/theme';
-import type { HaircutOption } from '@/types/api';
+import type { HaircutOption, SavedHaircutSession } from '@/types/api';
 import { useHaircutPlanner } from './useHaircutPlanner';
 
 export function HaircutPlannerScreen() {
@@ -23,12 +23,15 @@ export function HaircutPlannerScreen() {
     stage, session, error,
     currentBatch, batchIndex, likedOptions,
     selectedOption, guide, angleShots, angleShotsError, isLoadingAngleShots,
+    savedSessions, isLoadingSavedSessions, isSavingSession, isCurrentSessionSaved,
     startSession, handleSwipedRight, handleSwipedLeft, handleSwipedAll,
     reviewFavorites, requestMoreHaircuts, selectFinal, reset, goBack,
+    saveHaircut, unsaveHaircut, openSavedSession,
   } = useHaircutPlanner();
 
   const viewShotRef = useRef<ViewShot>(null);
-  const { isSaving, message: exportMessage, saveToPhotos, shareGuide } = useHaircutGuideExport(viewShotRef);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const { isSaving, message: exportMessage, saveToPhotos, shareGuide } = useHaircutGuideExport(viewShotRef, setIsCapturing);
 
   const readyCount = session?.options.filter((o) => o.status === 'ready' || o.status === 'failed').length ?? 0;
   const totalCount = session?.options.length ?? 0;
@@ -74,6 +77,17 @@ export function HaircutPlannerScreen() {
               disabled={!image || isUploading}
               onPress={() => void startSession()}
             />
+
+            {isLoadingSavedSessions ? null : savedSessions.length > 0 ? (
+              <View style={{ gap: spacing.sm }}>
+                <AppText variant="sectionTitle">Saved haircuts</AppText>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+                  {savedSessions.map((saved) => (
+                    <SavedHaircutCard key={saved.sessionId} saved={saved} onPress={() => openSavedSession(saved)} />
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
           </View>
         ) : null}
 
@@ -165,6 +179,11 @@ export function HaircutPlannerScreen() {
                 angleShots={angleShots}
                 isLoadingAngleShots={isLoadingAngleShots}
                 angleShotsError={angleShotsError}
+                isSaved={isCurrentSessionSaved}
+                isSaving={isSavingSession}
+                onSave={() => void saveHaircut()}
+                onUnsave={() => void unsaveHaircut()}
+                hideSaveButton={isCapturing}
               />
             </ViewShot>
             {exportMessage ? (
@@ -184,6 +203,33 @@ export function HaircutPlannerScreen() {
         ) : null}
       </View>
     </AppScreen>
+  );
+}
+
+function SavedHaircutCard({ saved, onPress }: { saved: SavedHaircutSession; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.border,
+        borderRadius: 16,
+        borderWidth: 1,
+        gap: spacing.xs,
+        overflow: 'hidden',
+        width: 120,
+      }}>
+      <View style={{ alignItems: 'center', backgroundColor: theme.colors.card, height: 120, justifyContent: 'center', width: '100%' }}>
+        {saved.option.imageUrl ? (
+          <Image contentFit="contain" source={{ uri: saved.option.imageUrl }} style={{ height: '100%', width: '100%' }} />
+        ) : (
+          <AppIcon color={theme.colors.subtleText} name="person" size={24} />
+        )}
+      </View>
+      <AppText style={{ fontSize: 12, fontFamily: theme.fonts.sansMedium, paddingHorizontal: spacing.xs, paddingBottom: spacing.xs }} numberOfLines={1}>
+        {saved.styleLabel}
+      </AppText>
+    </Pressable>
   );
 }
 

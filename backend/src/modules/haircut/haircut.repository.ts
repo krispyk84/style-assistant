@@ -44,4 +44,31 @@ export const haircutRepository = {
   ) {
     return prisma.haircutOption.update({ where: { id }, data });
   },
+
+  // updateMany (not update) so the supabaseUserId ownership check is baked into
+  // the query itself — the caller checks the resulting count rather than a
+  // separate findFirst-then-update round trip.
+  async saveSession(id: string, supabaseUserId: string, data: { chosenOptionId: string; guideData: object }) {
+    return prisma.haircutSession.updateMany({
+      where: { id, supabaseUserId },
+      data: { chosenOptionId: data.chosenOptionId, guideData: data.guideData, savedAt: new Date() },
+    });
+  },
+
+  // Only clears savedAt — chosenOptionId/guideData are harmless leftovers once
+  // unsaved (listSavedSessions filters on savedAt, so they're never surfaced).
+  async unsaveSession(id: string, supabaseUserId: string) {
+    return prisma.haircutSession.updateMany({
+      where: { id, supabaseUserId },
+      data: { savedAt: null },
+    });
+  },
+
+  async listSavedSessions(supabaseUserId: string) {
+    return prisma.haircutSession.findMany({
+      where: { supabaseUserId, savedAt: { not: null } },
+      include: { options: { orderBy: { createdAt: 'asc' } } },
+      orderBy: { savedAt: 'desc' },
+    });
+  },
 };

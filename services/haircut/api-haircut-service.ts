@@ -7,6 +7,9 @@ import type {
   HaircutAngleShotsResponse,
   HaircutGuideResponse,
   HaircutSessionResponse,
+  SaveHaircutSessionRequest,
+  SaveHaircutSessionResponse,
+  SavedHaircutSessionsResponse,
 } from '@/types/api';
 import type { HaircutService } from './haircut-service';
 
@@ -40,5 +43,22 @@ export const apiHaircutService: HaircutService = {
       method: 'POST',
       body: request,
     });
+  },
+
+  async saveSession(sessionId: string, request: SaveHaircutSessionRequest): Promise<ApiResponse<SaveHaircutSessionResponse>> {
+    return createApiClient().request<SaveHaircutSessionResponse>(`/haircut/sessions/${sessionId}/save`, {
+      method: 'POST',
+      body: request,
+    });
+  },
+
+  async unsaveSession(sessionId: string): Promise<ApiResponse<SaveHaircutSessionResponse>> {
+    return createApiClient().request<SaveHaircutSessionResponse>(`/haircut/sessions/${sessionId}/save`, {
+      method: 'DELETE',
+    });
+  },
+
+  async listSavedSessions(): Promise<ApiResponse<SavedHaircutSessionsResponse>> {
+    return createApiClient().request<SavedHaircutSessionsResponse>('/haircut/saved-sessions');
   },
 };
