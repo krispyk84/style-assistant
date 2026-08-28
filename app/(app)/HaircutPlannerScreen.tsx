@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { useRef } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 
 import { HaircutGuideView } from '@/components/haircut/HaircutGuideView';
@@ -33,8 +33,18 @@ export function HaircutPlannerScreen() {
   const readyCount = session?.options.filter((o) => o.status === 'ready' || o.status === 'failed').length ?? 0;
   const totalCount = session?.options.length ?? 0;
 
+  // The ScrollView keeps whatever scroll offset it had before a stage change. Stages
+  // vary hugely in content height (the upload form vs. a short spinner), so a stale
+  // offset from a taller stage can leave the viewport pointed past the end of a
+  // shorter one's content — reset to top on every stage change so the new content
+  // always starts visible.
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [stage]);
+
   return (
-    <AppScreen scrollable={stage !== 'swipe'}>
+    <AppScreen scrollable={stage !== 'swipe'} scrollRef={scrollRef}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Haircut Planner" showBack />
 

@@ -23,7 +23,7 @@ type AppScreenProps = PropsWithChildren<{
   /** When true, shows a permanent back chevron row above the content. */
   backButton?: boolean;
   /** Optional ref forwarded to the inner ScrollView (only meaningful when scrollable=true). */
-  scrollRef?: RefObject<ScrollView>;
+  scrollRef?: RefObject<ScrollView | null>;
   /** Optional scroll handler forwarded to the inner ScrollView. */
   onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
   /** Optional refresh control forwarded to the inner ScrollView. */
