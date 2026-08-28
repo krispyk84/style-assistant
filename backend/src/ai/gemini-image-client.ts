@@ -4,7 +4,7 @@ import { HttpError } from '../lib/http-error.js';
 import { usageService } from '../modules/usage/usage.service.js';
 import { OUTFIT_STYLE_REFS } from './style-refs-data.js';
 import { buildOutfitPrompt, buildClosetPrompt } from './gemini-prompt-builder.js';
-import { buildHaircutEditPrompt, type HaircutStyle } from './prompts/haircut.prompts.js';
+import { buildHaircutEditPrompt, buildHaircutAngleEditPrompt, type HaircutAngle, type HaircutStyle } from './prompts/haircut.prompts.js';
 
 export type GenerateImageInput = {
   prompt: string;
@@ -104,10 +104,84 @@ export type GenerateHaircutImageInput = {
   supabaseUserId?: string;
 };
 
+export type GenerateHaircutAngleShotInput = {
+  /** A data: URL of the already-generated haircut photo (the chosen option's image), not the original headshot. */
+  haircutImageDataUrl: string;
+  style: HaircutStyle;
+  angle: HaircutAngle;
+  supabaseUserId?: string;
+};
+
 function parseDataUrl(dataUrl: string): { mimeType: string; base64: string } | null {
   const match = /^data:([^;]+);base64,(.+)$/s.exec(dataUrl);
   if (!match) return null;
   return { mimeType: match[1]!, base64: match[2]! };
+}
+
+async function dispatchHaircutGeneration(params: {
+  sourceDataUrl: string;
+  promptText: string;
+  logKey: string;
+  supabaseUserId?: string;
+}): Promise<{ mimeType: string; data: Buffer }> {
+  if (!env.GEMINI_API_KEY) {
+    throw new HttpError(500, 'GEMINI_IMAGE_CONFIG_MISSING', 'GEMINI_API_KEY is required to use the Gemini image client.');
+  }
+
+  const source = parseDataUrl(params.sourceDataUrl);
+  if (!source) {
+    throw new HttpError(500, 'HAIRCUT_IMAGE_INVALID', 'The source image could not be prepared for editing.');
+  }
+
+  logger.info(
+    { provider: 'gemini-image', model: env.GEMINI_IMAGE_MODEL, logKey: params.logKey, feature: 'haircut-generation' },
+    'Gemini haircut generation starting'
+  );
+
+  const startMs = Date.now();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_IMAGE_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildRequest([source], params.promptText)),
+    });
+
+    const latencyMs = Date.now() - startMs;
+
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => null);
+      logger.error(
+        { statusCode: res.status, error: errorBody, provider: 'gemini-image', logKey: params.logKey, latencyMs },
+        'Gemini haircut generation request failed'
+      );
+      throw new HttpError(502, 'GEMINI_HAIRCUT_FAILED', 'The AI provider could not render this image.');
+    }
+
+    const responseData = await res.json();
+    const { base64, mimeType } = parseResponse(responseData);
+
+    logger.info(
+      { provider: 'gemini-image', model: env.GEMINI_IMAGE_MODEL, logKey: params.logKey, latencyMs, mimeType },
+      'Gemini haircut generation completed'
+    );
+
+    if (params.supabaseUserId) {
+      usageService.record({
+        supabaseUserId: params.supabaseUserId,
+        feature: 'haircut-generation',
+        model: env.GEMINI_IMAGE_MODEL,
+        costUsd: GEMINI_IMAGE_COST_USD,
+      });
+    }
+
+    return { mimeType, data: Buffer.from(base64, 'base64') };
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    logger.error({ error, provider: 'gemini-image', logKey: params.logKey }, 'Unexpected Gemini haircut generation failure');
+    throw new HttpError(502, 'GEMINI_HAIRCUT_UNAVAILABLE', 'The AI provider is currently unavailable for haircut rendering.');
+  }
 }
 
 // ─── Client ───────────────────────────────────────────────────────────────────
@@ -187,65 +261,20 @@ export const geminiImageClient = {
   },
 
   async generateHaircutEdit(input: GenerateHaircutImageInput): Promise<{ mimeType: string; data: Buffer }> {
-    if (!env.GEMINI_API_KEY) {
-      throw new HttpError(500, 'GEMINI_IMAGE_CONFIG_MISSING', 'GEMINI_API_KEY is required to use the Gemini image client.');
-    }
+    return dispatchHaircutGeneration({
+      sourceDataUrl: input.headshotDataUrl,
+      promptText: buildHaircutEditPrompt(input.style),
+      logKey: input.style.key,
+      supabaseUserId: input.supabaseUserId,
+    });
+  },
 
-    const headshot = parseDataUrl(input.headshotDataUrl);
-    if (!headshot) {
-      throw new HttpError(500, 'HAIRCUT_IMAGE_INVALID', 'The headshot image could not be prepared for editing.');
-    }
-
-    const promptText = buildHaircutEditPrompt(input.style);
-
-    logger.info(
-      { provider: 'gemini-image', model: env.GEMINI_IMAGE_MODEL, styleKey: input.style.key, feature: 'haircut-generation' },
-      'Gemini haircut edit starting'
-    );
-
-    const startMs = Date.now();
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_IMAGE_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`;
-
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildRequest([headshot], promptText)),
-      });
-
-      const latencyMs = Date.now() - startMs;
-
-      if (!res.ok) {
-        const errorBody = await res.json().catch(() => null);
-        logger.error(
-          { statusCode: res.status, error: errorBody, provider: 'gemini-image', styleKey: input.style.key, latencyMs },
-          'Gemini haircut edit request failed'
-        );
-        throw new HttpError(502, 'GEMINI_HAIRCUT_FAILED', 'The AI provider could not render this haircut.');
-      }
-
-      const responseData = await res.json();
-      const { base64, mimeType } = parseResponse(responseData);
-
-      logger.info(
-        { provider: 'gemini-image', model: env.GEMINI_IMAGE_MODEL, styleKey: input.style.key, latencyMs, mimeType },
-        'Gemini haircut edit completed'
-      );
-
-      if (input.supabaseUserId) {
-        usageService.record({
-          supabaseUserId: input.supabaseUserId,
-          feature: 'haircut-generation',
-          model: env.GEMINI_IMAGE_MODEL,
-          costUsd: GEMINI_IMAGE_COST_USD,
-        });
-      }
-
-      return { mimeType, data: Buffer.from(base64, 'base64') };
-    } catch (error) {
-      if (error instanceof HttpError) throw error;
-      logger.error({ error, provider: 'gemini-image', styleKey: input.style.key }, 'Unexpected Gemini haircut edit failure');
-      throw new HttpError(502, 'GEMINI_HAIRCUT_UNAVAILABLE', 'The AI provider is currently unavailable for haircut rendering.');
-    }
+  async generateHaircutAngleShot(input: GenerateHaircutAngleShotInput): Promise<{ mimeType: string; data: Buffer }> {
+    return dispatchHaircutGeneration({
+      sourceDataUrl: input.haircutImageDataUrl,
+      promptText: buildHaircutAngleEditPrompt(input.style, input.angle),
+      logKey: `${input.style.key}:${input.angle}`,
+      supabaseUserId: input.supabaseUserId,
+    });
   },
 };

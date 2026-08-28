@@ -5,7 +5,11 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { parseWithSchema } from '../../lib/validation.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { haircutService } from './haircut.service.js';
-import { createHaircutSessionSchema, generateHaircutGuideSchema } from './haircut.validation.js';
+import {
+  createHaircutSessionSchema,
+  generateHaircutAngleShotsSchema,
+  generateHaircutGuideSchema,
+} from './haircut.validation.js';
 
 export const haircutRouter = Router();
 
@@ -35,6 +39,17 @@ haircutRouter.post(
   asyncHandler(async (request, response) => {
     const id = Array.isArray(request.params.id) ? request.params.id[0]! : request.params.id!;
     const result = await haircutService.addMoreOptions(id, request.userId!);
+    return sendSuccess(response, result);
+  })
+);
+
+haircutRouter.post(
+  '/haircut/sessions/:id/angles',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const id = Array.isArray(request.params.id) ? request.params.id[0]! : request.params.id!;
+    const payload = parseWithSchema(generateHaircutAngleShotsSchema, request.body);
+    const result = await haircutService.generateAngleShots(id, payload.optionId, request.userId!);
     return sendSuccess(response, result);
   })
 );

@@ -40,6 +40,35 @@ export function buildHaircutEditPrompt(style: Pick<HaircutStyle, 'label' | 'summ
   ].join('\n');
 }
 
+export type HaircutAngle = 'front-angled' | 'side' | 'back';
+
+export const HAIRCUT_ANGLES: { angle: HaircutAngle; label: string }[] = [
+  { angle: 'front-angled', label: 'Front Angled' },
+  { angle: 'side', label: 'Side' },
+  { angle: 'back', label: 'Back' },
+];
+
+const ANGLE_INSTRUCTIONS: Record<HaircutAngle, string> = {
+  'front-angled':
+    'Show this exact same styled hairstyle from a front-angled, three-quarter camera view — the head turned slightly to one side while most of the face still faces the camera. ' +
+    'Preserve the same person\'s face, facial features, skin tone, facial hair, and expression, plus the same lighting style and background as the reference photo.',
+  side:
+    'Show this exact same styled hairstyle from a direct side profile view (the head turned roughly 90 degrees), showing the ear and the full side silhouette of the cut clearly. ' +
+    'The face will naturally be seen in profile rather than forward-facing — that is expected and correct for this angle. Preserve the same skin tone, facial hair, hair color and texture, lighting style, and background as the reference photo.',
+  back:
+    'Show this exact same styled hairstyle from directly behind the head, showing the back hairline, nape, and rear silhouette of the cut clearly. ' +
+    'The face will not be visible from this angle — that is expected and correct, do not try to show it. Preserve the same skin tone, hair color and texture, lighting style, and background as the reference photo.',
+};
+
+export function buildHaircutAngleEditPrompt(style: Pick<HaircutStyle, 'label' | 'summary'>, angle: HaircutAngle): string {
+  return [
+    'This is a real photo of a real person who has already had their hair edited to a specific styled haircut. Generate a new photo of the SAME person with the SAME haircut, but from a different camera angle.',
+    `Haircut already applied: ${style.label} — ${style.summary}`,
+    ANGLE_INSTRUCTIONS[angle],
+    'The output must look like a photorealistic, unedited photo of the SAME real person — not an illustration, not a different photo style, not a different person.',
+  ].join('\n');
+}
+
 export function buildHaircutGuideSystemPrompt(): string {
   return [
     'You are an expert barber writing a concise, practical haircut guide for a client who is about to book an appointment.',

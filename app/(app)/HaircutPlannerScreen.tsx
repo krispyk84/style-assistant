@@ -22,7 +22,7 @@ export function HaircutPlannerScreen() {
     pickFromLibrary, handleOpenCamera,
     stage, session, error,
     currentBatch, batchIndex, likedOptions,
-    selectedOption, guide,
+    selectedOption, guide, angleShots,
     startSession, handleSwipedRight, handleSwipedLeft, handleSwipedAll,
     reviewFavorites, requestMoreHaircuts, selectFinal, reset,
   } = useHaircutPlanner();
@@ -157,7 +157,7 @@ export function HaircutPlannerScreen() {
         {stage === 'guide' && selectedOption && guide ? (
           <View style={{ gap: spacing.lg }}>
             <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }}>
-              <HaircutGuideView option={selectedOption} guide={guide} />
+              <HaircutGuideView option={selectedOption} guide={guide} angleShots={angleShots} />
             </ViewShot>
             {exportMessage ? (
               <AppText tone="muted" style={{ textAlign: 'center', fontSize: 12 }}>{exportMessage}</AppText>

@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import { cameraCaptureResult } from '@/lib/camera-capture-result';
 import { haircutService } from '@/services/haircut';
-import type { HaircutGuideResponse, HaircutOption, HaircutSessionResponse } from '@/types/api';
+import type { HaircutAngleShots, HaircutGuideResponse, HaircutOption, HaircutSessionResponse } from '@/types/api';
 
 export type HaircutPlannerStage =
   | 'upload'
@@ -44,6 +44,7 @@ export function useHaircutPlanner() {
   const [batchIndex, setBatchIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<HaircutOption | null>(null);
   const [guide, setGuide] = useState<HaircutGuideResponse | null>(null);
+  const [angleShots, setAngleShots] = useState<HaircutAngleShots | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Set once when a session is created and held constant across poll ticks — unlike
   // `session` (replaced on every poll response), this only changes on a NEW session,
@@ -169,6 +170,23 @@ export function useHaircutPlanner() {
     setSelectedOption(option);
     setStage('guide-loading');
     setError(null);
+    setAngleShots(null);
+
+    // Kick off the angle shots (front-angled/side/back) alongside the text guide —
+    // they take longer (3 more image generations), so don't block entering the
+    // guide stage on them; they fill in progressively via the poll effect below.
+    if (activeSessionId) {
+      void haircutService.generateAngleShots(activeSessionId, { optionId: option.id }).then((angleResponse) => {
+        if (angleResponse.success && angleResponse.data) {
+          setAngleShots({
+            frontAngled: angleResponse.data.frontAngled,
+            side: angleResponse.data.side,
+            back: angleResponse.data.back,
+          });
+        }
+      });
+    }
+
     const response = await haircutService.generateGuide({
       styleLabel: option.styleLabel,
       styleSummary: option.styleSummary,
@@ -182,6 +200,32 @@ export function useHaircutPlanner() {
     setStage('guide');
   }
 
+  // Poll the angle shots (front-angled/side/back) while any are still pending —
+  // reuses the same session-status endpoint since they're just more HaircutOption
+  // rows on the same session.
+  useEffect(() => {
+    if (stage !== 'guide' || !activeSessionId || !angleShots) return;
+    const anyPending = [angleShots.frontAngled, angleShots.side, angleShots.back].some((o) => o.status === 'pending');
+    if (!anyPending) return;
+    const sessionId = activeSessionId;
+
+    const interval = setInterval(async () => {
+      const response = await haircutService.getSession(sessionId);
+      if (!response.success || !response.data) return;
+      const byId = new Map(response.data.options.map((o) => [o.id, o]));
+      setAngleShots((prev) => {
+        if (!prev) return prev;
+        return {
+          frontAngled: byId.get(prev.frontAngled.id) ?? prev.frontAngled,
+          side: byId.get(prev.side.id) ?? prev.side,
+          back: byId.get(prev.back.id) ?? prev.back,
+        };
+      });
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [stage, activeSessionId, angleShots]);
+
   function reset() {
     removeImage();
     setActiveSessionId(null);
@@ -192,6 +236,7 @@ export function useHaircutPlanner() {
     setBatchIndex(0);
     setSelectedOption(null);
     setGuide(null);
+    setAngleShots(null);
     setError(null);
     setStage('upload');
   }
@@ -201,7 +246,7 @@ export function useHaircutPlanner() {
     pickFromLibrary, handleOpenCamera,
     stage, session, error,
     currentBatch, batchIndex, likedOptions,
-    selectedOption, guide,
+    selectedOption, guide, angleShots,
     startSession, handleSwipedRight, handleSwipedLeft, handleSwipedAll,
     reviewFavorites, requestMoreHaircuts, selectFinal, reset,
   };

@@ -286,6 +286,24 @@ export type HaircutSessionResponse = {
   options: HaircutOption[];
 };
 
+export type HaircutAngleShots = {
+  frontAngled: HaircutOption;
+  side: HaircutOption;
+  back: HaircutOption;
+};
+
+export type GenerateHaircutAngleShotsRequest = {
+  optionId: string;
+};
+
+export type HaircutAngleShotsResponse = {
+  sessionId: string;
+  front: HaircutOption;
+  frontAngled: HaircutOption;
+  side: HaircutOption;
+  back: HaircutOption;
+};
+
 export type GenerateHaircutGuideRequest = {
   styleLabel: string;
   styleSummary: string;

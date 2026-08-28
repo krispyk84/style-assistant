@@ -1,14 +1,16 @@
 import { Image } from 'expo-image';
 import type { PropsWithChildren } from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
-import type { HaircutGuideResponse, HaircutOption } from '@/types/api';
+import type { HaircutAngleShots, HaircutGuideResponse, HaircutOption } from '@/types/api';
 
 type HaircutGuideViewProps = {
   option: HaircutOption;
   guide: HaircutGuideResponse;
+  angleShots: HaircutAngleShots | null;
 };
 
 function Section({ title, children }: PropsWithChildren<{ title: string }>) {
@@ -30,7 +32,31 @@ function BulletList({ items }: { items: string[] }) {
   );
 }
 
-export function HaircutGuideView({ option, guide }: HaircutGuideViewProps) {
+// Square tiles — the source headshot (and every edit derived from it) is
+// captured/uploaded square, so matching that aspect ratio avoids the crop
+// biasing toward one side that a mismatched fixed height would cause.
+function AnglePhoto({ label, option }: { label: string; option: HaircutOption | null }) {
+  return (
+    <View style={{ flex: 1, gap: 4 }}>
+      <View style={{ aspectRatio: 1, backgroundColor: theme.colors.card, borderRadius: 14, overflow: 'hidden', width: '100%' }}>
+        {option?.status === 'ready' && option.imageUrl ? (
+          <Image contentFit="cover" source={{ uri: option.imageUrl }} style={{ height: '100%', width: '100%' }} />
+        ) : option?.status === 'failed' ? (
+          <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+            <AppIcon color={theme.colors.subtleText} name="warning" size={18} />
+          </View>
+        ) : (
+          <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+            <ActivityIndicator color={theme.colors.accent} size="small" />
+          </View>
+        )}
+      </View>
+      <AppText tone="subtle" style={{ fontSize: 10, textAlign: 'center' }}>{label}</AppText>
+    </View>
+  );
+}
+
+export function HaircutGuideView({ option, guide, angleShots }: HaircutGuideViewProps) {
   return (
     <View style={{ backgroundColor: theme.colors.background, gap: spacing.lg, padding: spacing.lg, width: 360 }}>
       <View style={{ alignItems: 'center', gap: 2 }}>
@@ -39,8 +65,16 @@ export function HaircutGuideView({ option, guide }: HaircutGuideViewProps) {
       </View>
 
       {option.imageUrl ? (
-        <View style={{ borderRadius: 20, height: 340, overflow: 'hidden' }}>
+        <View style={{ aspectRatio: 1, borderRadius: 20, overflow: 'hidden', width: '100%' }}>
           <Image contentFit="cover" source={{ uri: option.imageUrl }} style={{ height: '100%', width: '100%' }} />
+        </View>
+      ) : null}
+
+      {angleShots ? (
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <AnglePhoto label="Front Angled" option={angleShots.frontAngled} />
+          <AnglePhoto label="Side" option={angleShots.side} />
+          <AnglePhoto label="Back" option={angleShots.back} />
         </View>
       ) : null}
 

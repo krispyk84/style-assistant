@@ -5,11 +5,13 @@ import { openAiClient } from '../../ai/openai-client.js';
 import { geminiImageClient } from '../../ai/gemini-image-client.js';
 import { resolveImageUrlForAI } from '../../ai/image-input.js';
 import {
+  HAIRCUT_ANGLES,
   HAIRCUT_STYLES,
   INITIAL_BATCH_SIZE,
   MORE_BATCH_SIZE,
   buildHaircutGuideSystemPrompt,
   buildHaircutGuideUserPrompt,
+  type HaircutAngle,
   type HaircutStyle,
 } from '../../ai/prompts/haircut.prompts.js';
 import { storageProvider } from '../../storage/index.js';
@@ -62,6 +64,34 @@ async function generateOption(optionId: string, headshotDataUrl: string, style: 
   } catch (error) {
     const { code, message } = describeError(error);
     logger.error({ optionId, styleKey: style.key, errorCode: code, error }, 'Haircut option generation failed');
+    await haircutRepository.updateOption(optionId, { status: 'failed', errorCode: code, errorMessage: message });
+  }
+}
+
+async function generateAngleOption(
+  optionId: string,
+  haircutImageDataUrl: string,
+  style: HaircutStyle,
+  angle: HaircutAngle,
+  supabaseUserId: string,
+) {
+  try {
+    const image = await geminiImageClient.generateHaircutAngleShot({ haircutImageDataUrl, style, angle, supabaseUserId });
+    const storedFile = await storageProvider.storeGeneratedFile({
+      category: 'haircut-option',
+      fileExtension: '.jpg',
+      mimeType: image.mimeType,
+      data: image.data,
+    });
+    await haircutRepository.updateOption(optionId, {
+      status: 'ready',
+      imageStorageKey: storedFile.storageKey,
+      imageMimeType: image.mimeType,
+      imageData: image.data,
+    });
+  } catch (error) {
+    const { code, message } = describeError(error);
+    logger.error({ optionId, styleKey: style.key, angle, errorCode: code, error }, 'Haircut angle shot generation failed');
     await haircutRepository.updateOption(optionId, { status: 'failed', errorCode: code, errorMessage: message });
   }
 }
@@ -125,6 +155,51 @@ export const haircutService = {
     );
 
     return { sessionId: id, status: 'generating' as const, options: [...session.options, ...newOptions].map(mapOption) };
+  },
+
+  async generateAngleShots(id: string, optionId: string, supabaseUserId: string) {
+    const session = await haircutRepository.getSession(id, supabaseUserId);
+    if (!session) throw new HttpError(404, 'NOT_FOUND', 'Haircut session not found.');
+
+    const chosen = session.options.find((option) => option.id === optionId);
+    if (!chosen || chosen.status !== 'ready') {
+      throw new HttpError(422, 'OPTION_NOT_READY', 'That haircut is not ready yet.');
+    }
+
+    const haircutImageUrl = mapOption(chosen).imageUrl;
+    if (!haircutImageUrl) throw new HttpError(422, 'OPTION_NOT_READY', 'That haircut is not ready yet.');
+
+    const haircutInput = await resolveImageUrlForAI(haircutImageUrl);
+    if (!haircutInput) {
+      throw new HttpError(422, 'HEADSHOT_UNAVAILABLE', 'Could not read the chosen haircut photo. Please try again.');
+    }
+
+    const style: HaircutStyle = { key: chosen.styleKey, label: chosen.styleLabel, summary: chosen.styleSummary };
+    const angleStyles: HaircutStyle[] = HAIRCUT_ANGLES.map(({ angle, label }) => ({
+      key: `${chosen.styleKey}::${angle}`,
+      label,
+      summary: chosen.styleSummary,
+    }));
+
+    const angleOptions = await haircutRepository.createOptions(id, angleStyles);
+
+    void Promise.all(
+      angleOptions.map((option, index) => {
+        const angle = HAIRCUT_ANGLES[index]!.angle;
+        return new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS)).then(() =>
+          generateAngleOption(option.id, haircutInput.image_url, style, angle, supabaseUserId),
+        );
+      }),
+    );
+
+    const mappedAngles = angleOptions.map(mapOption);
+    return {
+      sessionId: id,
+      front: mapOption(chosen),
+      frontAngled: mappedAngles[0]!,
+      side: mappedAngles[1]!,
+      back: mappedAngles[2]!,
+    };
   },
 
   async generateGuide(payload: GenerateHaircutGuidePayload, supabaseUserId: string) {

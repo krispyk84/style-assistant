@@ -1,7 +1,9 @@
 import type {
   ApiResponse,
   CreateHaircutSessionRequest,
+  GenerateHaircutAngleShotsRequest,
   GenerateHaircutGuideRequest,
+  HaircutAngleShotsResponse,
   HaircutGuideResponse,
   HaircutSessionResponse,
 } from '@/types/api';
@@ -25,6 +27,14 @@ export const mockHaircutService: HaircutService = {
   },
 
   async addMoreOptions(_sessionId: string): Promise<ApiResponse<HaircutSessionResponse>> {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'UNAVAILABLE', message: 'Haircut Planner is not available right now.' },
+    };
+  },
+
+  async generateAngleShots(_sessionId: string, _request: GenerateHaircutAngleShotsRequest): Promise<ApiResponse<HaircutAngleShotsResponse>> {
     return {
       success: false,
       data: null,
