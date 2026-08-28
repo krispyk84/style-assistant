@@ -36,7 +36,7 @@ const MACROS = [
 
 export default function MacroBar({ onRun, running, lastMacro }) {
   return (
-    <div className="shrink-0 border-t border-line bg-ink px-4 py-3">
+    <div className="shrink-0 border-t border-line bg-ink px-4 py-2.5">
       <div className="grid grid-cols-3 gap-3">
         {MACROS.map((macro) => {
           const Icon = macro.icon;
@@ -47,7 +47,7 @@ export default function MacroBar({ onRun, running, lastMacro }) {
               type="button"
               disabled={running}
               onClick={() => onRun(macro.name)}
-              className="ht-tap flex h-[68px] items-center gap-3 rounded-card border px-4 text-left disabled:opacity-60"
+              className="ht-tap flex h-[64px] items-center gap-3 rounded-card border px-4 text-left disabled:opacity-60"
               style={{
                 background: macro.bg,
                 color: macro.fg,

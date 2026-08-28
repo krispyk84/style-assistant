@@ -11,19 +11,39 @@ npm install
 npm run dev      # hub on :4100 + Vite dev server on :5173
 ```
 
-Open `http://<your-mac>.local:5173` on the iPad. Vite proxies `/api` to the hub,
-so both work over the LAN.
+Open `http://<mac-lan-ip>:5173` on the iPad — `ipconfig getifaddr en0` prints the
+address. Vite proxies `/api` to the hub, so both work over the LAN.
 
 For the panel that actually lives on the wall, build once and let the hub serve
 everything from a single port:
 
 ```bash
 npm run build
-npm start        # http://<host>:4100
+npm start        # http://<mac-lan-ip>:4100
 ```
 
-Add it to the iPad home screen — `apple-mobile-web-app-capable` makes it open
-full-screen with no Safari chrome.
+Then on the iPad: open that URL in Safari, **Share → Add to Home Screen**, and
+launch it from the icon. `apple-mobile-web-app-capable` makes it open
+full-screen with no Safari chrome. Settings → Display → Auto-Lock: Never keeps
+it awake, and Guided Access (triple-click the side button) locks the iPad into
+it so nobody swipes out mid-film.
+
+The hub has to stay running on the Mac for the panel to work — it is the only
+thing that talks to the devices. `npm start` dies with the terminal; use `pm2`,
+a LaunchAgent, or just leave the window open.
+
+### Verified viewports
+
+Laid out for iPad mini landscape and checked so no column scrolls:
+
+| Device | CSS viewport | Tightest column headroom |
+|---|---|---|
+| iPad mini 1–5 | 1024×768 | 50px |
+| iPad mini 6/7 | 1133×744 | 26px |
+| iPad 10th gen | 1080×810 | 92px |
+
+Narrower or shorter than that and the columns scroll independently rather than
+clipping — it degrades, it doesn't break.
 
 ## Layout
 

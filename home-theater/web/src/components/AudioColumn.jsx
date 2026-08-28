@@ -45,7 +45,7 @@ export default function AudioColumn({ state, send, patch, api }) {
     );
 
   return (
-    <div className="ht-scroll flex flex-col gap-3 pb-1">
+    <div className="ht-scroll flex flex-col gap-2 pb-1">
       <SectionLabel>Sonos Audio</SectionLabel>
 
       <Card>

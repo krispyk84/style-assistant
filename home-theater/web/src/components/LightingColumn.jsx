@@ -59,6 +59,7 @@ export default function LightingColumn({ state, send, patch, api }) {
 
       <Card compact>
         <CardHead
+          dense
           icon={Sparkles}
           tone="amber"
           active={syncbox.sync}
@@ -115,6 +116,7 @@ export default function LightingColumn({ state, send, patch, api }) {
 
       <Card compact>
         <CardHead
+          dense
           icon={PanelTop}
           tone="amber"
           active={lights.bias.on}
@@ -140,6 +142,7 @@ export default function LightingColumn({ state, send, patch, api }) {
 
       <Card compact>
         <CardHead
+          dense
           icon={Lightbulb}
           tone="amber"
           active={lights.room.on}

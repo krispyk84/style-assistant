@@ -26,7 +26,7 @@ function PathStep({ icon: Icon, label, detail, active, tone = 'cyan' }) {
   );
 }
 
-const PathLink = () => <div className="ml-4 h-3 w-px bg-line" />;
+const PathLink = () => <div className="ml-4 h-2 w-px bg-line" />;
 
 export default function VideoColumn({ state, send, api, onOpenRemote }) {
   const { tv, source, syncbox, audio } = state;
@@ -57,7 +57,7 @@ export default function VideoColumn({ state, send, api, onOpenRemote }) {
     );
 
   return (
-    <div className="ht-scroll flex flex-col gap-3 pb-1">
+    <div className="ht-scroll flex flex-col gap-2 pb-1">
       <SectionLabel>Video &amp; Display</SectionLabel>
 
       <Card>

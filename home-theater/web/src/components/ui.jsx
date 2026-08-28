@@ -20,7 +20,7 @@ export function Card({ children, className = '', muted = false, compact = false 
   return (
     <div
       className={`rounded-card border border-line ${muted ? 'bg-card' : 'bg-raised'} ${
-        compact ? 'px-4 py-3' : 'p-4'
+        compact ? 'px-4 py-2.5' : 'p-4'
       } ${className}`}
     >
       {children}
@@ -28,16 +28,26 @@ export function Card({ children, className = '', muted = false, compact = false 
   );
 }
 
-export function CardHead({ icon: Icon, title, subtitle, tone = 'sage', active = false, right }) {
+export function CardHead({
+  icon: Icon,
+  title,
+  subtitle,
+  tone = 'sage',
+  active = false,
+  right,
+  dense = false,
+}) {
   const t = TONES[tone];
   return (
     <div className="flex items-center gap-3">
       {Icon ? (
         <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-line"
+          className={`flex ${
+            dense ? 'h-9 w-9' : 'h-11 w-11'
+          } shrink-0 items-center justify-center rounded-2xl border border-line`}
           style={{ background: active ? t.soft : '#0a0d12' }}
         >
-          <Icon size={22} color={active ? t.fill : '#64748b'} strokeWidth={1.8} />
+          <Icon size={dense ? 18 : 22} color={active ? t.fill : '#64748b'} strokeWidth={1.8} />
         </div>
       ) : null}
       <div className="min-w-0 flex-1">
@@ -137,9 +147,9 @@ export function Slider({
   return (
     <div className={disabled ? 'opacity-45' : undefined}>
       {label || readout ? (
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-baseline justify-between leading-tight">
           <span className="text-[13px] text-slate-400">{label}</span>
-          <span className="text-[15px] font-semibold tabular-nums text-slate-100">{readout}</span>
+          <span className="text-[14px] font-semibold tabular-nums text-slate-100">{readout}</span>
         </div>
       ) : null}
       <div className="flex items-center gap-3">
