@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useState, type PropsWithChildren } from 'react';
 import { ActivityIndicator, Modal, Pressable, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
@@ -89,6 +89,7 @@ export function HaircutGuideView({ option, guide, angleShots, isLoadingAngleShot
   ];
   const [selectedKey, setSelectedKey] = useState('front');
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const insets = useSafeAreaInsets();
   const selectedPhoto = photos.find((photo) => photo.key === selectedKey) ?? photos[0]!;
   const mainReady = selectedPhoto.option?.status === 'ready' && !!selectedPhoto.option.imageUrl;
 
@@ -133,11 +134,19 @@ export function HaircutGuideView({ option, guide, angleShots, isLoadingAngleShot
       )}
 
       <Modal visible={fullscreenOpen} animationType="fade" transparent onRequestClose={() => setFullscreenOpen(false)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)' }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)' }}>
           <Pressable
             hitSlop={12}
             onPress={() => setFullscreenOpen(false)}
-            style={{ alignSelf: 'flex-end', padding: spacing.lg }}>
+            style={{
+              alignSelf: 'flex-end',
+              // Modal content renders outside the normal safe-area tree on iOS, so
+              // insets.top can read as 0 here even though the modal draws under the
+              // status bar — fall back to a fixed clearance if insets look unset.
+              paddingTop: Math.max(insets.top, 50) + spacing.sm,
+              paddingHorizontal: spacing.lg,
+              paddingBottom: spacing.sm,
+            }}>
             <AppIcon color="#fff" name="close" size={28} />
           </Pressable>
           {mainReady ? (
@@ -147,7 +156,7 @@ export function HaircutGuideView({ option, guide, angleShots, isLoadingAngleShot
               style={{ flex: 1, width: '100%' }}
             />
           ) : null}
-        </SafeAreaView>
+        </View>
       </Modal>
 
       <Section title="THE LOOK">

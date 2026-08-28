@@ -36,8 +36,8 @@ export function buildHaircutEditPrompt(style: Pick<HaircutStyle, 'label' | 'summ
     'This is a real photo of a real person. Edit ONLY their hairstyle.',
     'Preserve EXACTLY as shown in the original photo: their face, facial features, skin tone, facial hair, expression, head pose, camera angle, lighting, clothing, and background. Do not change anything about the person\'s identity or the scene.',
     `Change their hairstyle to: ${style.label} — ${style.summary}`,
-    'Keep the subject in the exact same position, scale, and framing as the original photo — centered the same way, with the same crop and the same amount of headroom and margin on all sides. Do not shift, re-crop, zoom, or reposition the subject within the frame.',
-    'The output must look like a photorealistic, unedited photo of the SAME person — not an illustration, not a different person, not a different photo. The only difference from the original photo should be the hair.',
+    'Frame the output with the subject centered in the middle of the image, with roughly equal empty margin of background visible on the left side and the right side — even if the subject was positioned slightly off-center (e.g. shifted left or right) in the original photo. Keep the same zoom level/distance, camera angle, and vertical headroom as the original — only recenter them horizontally, do not zoom in, zoom out, or crop tighter.',
+    'The output must look like a photorealistic, unedited photo of the SAME person — not an illustration, not a different person, not a different photo. The only difference from the original photo should be the hair and the horizontal centering.',
   ].join('\n');
 }
 
@@ -66,7 +66,7 @@ export function buildHaircutAngleEditPrompt(style: Pick<HaircutStyle, 'label' | 
     'This is a real photo of a real person who has already had their hair edited to a specific styled haircut. Generate a new photo of the SAME person with the SAME haircut, but from a different camera angle.',
     `Haircut already applied: ${style.label} — ${style.summary}`,
     ANGLE_INSTRUCTIONS[angle],
-    'Center the subject\'s head and shoulders in the frame with even margin on all sides, matching the framing and scale of the reference photo — do not crop tightly, shift the subject off-center, or leave large empty space on one side.',
+    'Center the subject\'s head and shoulders in the middle of the frame with roughly equal empty margin of background on the left and right — even if the reference photo itself was slightly off-center. Keep the same zoom level/distance and vertical headroom as the reference photo — do not crop tightly or leave large empty space on one side only.',
     'The output must look like a photorealistic, unedited photo of the SAME real person — not an illustration, not a different photo style, not a different person.',
   ].join('\n');
 }
