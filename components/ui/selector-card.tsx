@@ -31,7 +31,7 @@ export function SelectorCard({
     <Pressable
       onPress={onPress}
       style={{
-        backgroundColor: selected ? '#FBF4EA' : theme.colors.surface,
+        backgroundColor: selected ? theme.colors.subtleSurface : theme.colors.surface,
         borderColor: selected ? theme.colors.accent : theme.colors.border,
         borderRadius: 20,
         borderWidth: selected ? 2 : 1,

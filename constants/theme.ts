@@ -1,24 +1,28 @@
 import type { Theme } from '@react-navigation/native';
 
+// Kept in sync with constants/themes.ts NEWFIT_COLORS — this static object
+// is the default for components that don't call useTheme() (see CLAUDE.md
+// "Static theme" convention). Both files must be updated together.
 export const theme = {
   colors: {
-    background: '#FCFAF7',
-    surface: '#FFFFFF',
-    subtleSurface: '#F7F2EE',
-    card: '#F5EDE8',
-    border: '#E8DED6',
-    text: '#221C18',
-    mutedText: '#6F625A',
-    subtleText: '#9E8F85',
-    accent: '#A56A1F',
-    inverseText: '#FFFFFF',
-    danger: '#C95F4A',
-    dangerSurface: '#FEF0EE',
+    background: '#151210',
+    surface: '#1F1A15',
+    subtleSurface: '#251F19',
+    card: '#2A241D',
+    border: '#38312A',
+    text: '#F3ECE1',
+    mutedText: '#B3A395',
+    subtleText: '#7C6E61',
+    accent: '#C9A876',
+    inverseText: '#1A140F',
+    danger: '#E2735F',
+    dangerSurface: '#2D1512',
+    overlay: 'rgba(10, 8, 6, 0.75)',
   },
   fonts: {
     sans: 'AvenirNext-Regular',
     sansMedium: 'AvenirNext-DemiBold',
-    serif: 'Georgia-Bold',
+    serif: 'Didot',
   },
 } as const;
 
@@ -32,7 +36,7 @@ export const spacing = {
 } as const;
 
 export const navTheme: Theme = {
-  dark: false,
+  dark: true,
   colors: {
     primary: theme.colors.accent,
     background: theme.colors.background,

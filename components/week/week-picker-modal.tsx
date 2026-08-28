@@ -78,7 +78,7 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
         onPress={onClose}
         style={{
           alignItems: 'center',
-          backgroundColor: 'rgba(24, 18, 14, 0.24)',
+          backgroundColor: theme.colors.overlay,
           flex: 1,
           justifyContent: 'center',
           padding: spacing.lg,
@@ -86,7 +86,7 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
         <Pressable
           onPress={() => undefined}
           style={{
-            backgroundColor: '#FFFDFC',
+            backgroundColor: theme.colors.surface,
             borderRadius: 28,
             gap: spacing.md,
             maxWidth: 420,

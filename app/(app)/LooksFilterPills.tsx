@@ -24,7 +24,9 @@ export function LooksFilterPills<T extends string>({
 }: LooksFilterPillsProps<T>) {
   const { theme } = useTheme();
   const activeBg = activeColor === 'text' ? theme.colors.text : theme.colors.accent;
-  const activeFg = activeColor === 'text' ? theme.colors.inverseText : '#FFFFFF';
+  // Both theme.text and theme.accent are light in the current palette, so
+  // inverseText (dark) is correct against either — no need for a fixed white.
+  const activeFg = theme.colors.inverseText;
 
   return (
     <ScrollView

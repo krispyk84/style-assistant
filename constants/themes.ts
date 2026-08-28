@@ -27,46 +27,41 @@ export type AppTheme = {
 const FONTS = {
   sans: 'AvenirNext-Regular',
   sansMedium: 'AvenirNext-DemiBold',
-  serif: 'Georgia-Bold',
+  serif: 'Didot',
+} as const;
+
+// "NewFit" redesign (see redesign/newfit-style branch) — moody editorial
+// fashion-tech look: near-black warm brown, champagne-gold accent, cream
+// text. Both light and dark resolve to the same palette on purpose — the
+// reference has no separate light mode, and unifying them means every
+// screen looks consistent regardless of the user's stored appearance
+// preference. dark:true on BOTH keeps the status bar icons light-on-dark
+// correctly in either case.
+const NEWFIT_COLORS = {
+  background: '#151210',
+  surface: '#1F1A15',
+  subtleSurface: '#251F19',
+  card: '#2A241D',
+  border: '#38312A',
+  text: '#F3ECE1',
+  mutedText: '#B3A395',
+  subtleText: '#7C6E61',
+  accent: '#C9A876',
+  inverseText: '#1A140F',
+  danger: '#E2735F',
+  dangerSurface: '#2D1512',
+  overlay: 'rgba(10, 8, 6, 0.75)',
 } as const;
 
 export const lightTheme: AppTheme = {
-  dark: false,
-  colors: {
-    background: '#FCFAF7',
-    surface: '#FFFFFF',
-    subtleSurface: '#F7F2EE',
-    card: '#F5EDE8',
-    border: '#E8DED6',
-    text: '#221C18',
-    mutedText: '#6F625A',
-    subtleText: '#9E8F85',
-    accent: '#A56A1F',
-    inverseText: '#FFFFFF',
-    danger: '#C95F4A',
-    dangerSurface: '#FEF0EE',
-    overlay: 'rgba(24, 18, 14, 0.52)',
-  },
+  dark: true,
+  colors: NEWFIT_COLORS,
   fonts: FONTS,
 };
 
 export const darkTheme: AppTheme = {
   dark: true,
-  colors: {
-    background: '#0E0C0A',
-    surface: '#181411',
-    subtleSurface: '#1C1814',
-    card: '#221C17',
-    border: '#2E2620',
-    text: '#F0EAE3',
-    mutedText: '#9E8F85',
-    subtleText: '#6B5E56',
-    accent: '#C4822E',
-    inverseText: '#0E0C0A',
-    danger: '#E07060',
-    dangerSurface: '#2A1210',
-    overlay: 'rgba(0, 0, 0, 0.72)',
-  },
+  colors: NEWFIT_COLORS,
   fonts: FONTS,
 };
 
