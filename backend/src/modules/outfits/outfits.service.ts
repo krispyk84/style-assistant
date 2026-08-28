@@ -1,4 +1,5 @@
 import { env } from '../../config/env.js';
+import { logger } from '../../config/logger.js';
 import { HttpError } from '../../lib/http-error.js';
 import type { GenerateOutfitsRequest, OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
 import { openAiClient } from '../../ai/openai-client.js';
@@ -201,7 +202,9 @@ export const outfitsService = {
 
     await outfitsRepository.upsertGeneratedOutfit(input.profileId, response, supabaseUserId);
     void tierSketchService.queueSketchesForOutfit(response, profileToSubject(profile), supabaseUserId);
-    void outfitsService.pruneOutfitHistory(supabaseUserId);
+    outfitsService.pruneOutfitHistory(supabaseUserId).catch((error) => {
+      logger.error({ supabaseUserId, error }, 'Outfit history prune failed');
+    });
     return response;
   },
 
@@ -284,12 +287,27 @@ export const outfitsService = {
    * Deletes this user's outfit history beyond the most recent HISTORY_RETENTION_LIMIT,
    * skipping anything currently favourited or assigned to a week day. Safe to call
    * repeatedly/concurrently — a delete of an already-deleted id is a no-op.
+   *
+   * findProtectedRequestIds queries Supabase-managed tables (saved_outfits/week_plan)
+   * that turned out NOT to be reachable from this Postgres connection ("relation
+   * does not exist") — that error was thrown from an un-awaited, uncaught fire-and-forget
+   * call, which crashed the whole Node process (Render: "exited with status 1") on every
+   * History-tab open. If we can't positively verify what's protected, do NOT delete
+   * anything this round — better to skip a cleanup pass than risk deleting something
+   * that's actually favourited/planned.
    */
   async pruneOutfitHistory(supabaseUserId: string, keep: number = HISTORY_RETENTION_LIMIT) {
     const beyondLimit = await outfitsRepository.findHistoryRequestIdsBeyondLimit(supabaseUserId, keep);
     if (beyondLimit.length === 0) return 0;
 
-    const protectedIds = await outfitsRepository.findProtectedRequestIds(beyondLimit);
+    let protectedIds: Set<string>;
+    try {
+      protectedIds = await outfitsRepository.findProtectedRequestIds(beyondLimit);
+    } catch (error) {
+      logger.error({ supabaseUserId, error }, 'Could not verify saved/planned outfits — skipping history prune this round');
+      return 0;
+    }
+
     const toDelete = beyondLimit.filter((id) => !protectedIds.has(id));
     if (toDelete.length === 0) return 0;
 
@@ -299,9 +317,12 @@ export const outfitsService = {
   async getOutfitHistory(supabaseUserId: string, { page, limit }: { page: number; limit: number }) {
     // Page 1 doubles as the cleanup trigger — items beyond HISTORY_RETENTION_LIMIT
     // are never on page 1 (limit is always far below the retention count), so this
-    // can't race with or affect what's actually returned below.
+    // can't race with or affect what's actually returned below. .catch() is load-bearing:
+    // an unawaited rejection here is an unhandled rejection, which crashes the process.
     if (page === 1) {
-      void outfitsService.pruneOutfitHistory(supabaseUserId);
+      outfitsService.pruneOutfitHistory(supabaseUserId).catch((error) => {
+        logger.error({ supabaseUserId, error }, 'Outfit history prune failed');
+      });
     }
 
     const { items, total } = await outfitsRepository.findOutfitHistory(supabaseUserId, { page, limit });
@@ -323,7 +344,13 @@ export const outfitsService = {
   },
 
   async deleteOutfit(requestId: string, supabaseUserId: string) {
-    const protectedIds = await outfitsRepository.findProtectedRequestIds([requestId]);
+    let protectedIds: Set<string>;
+    try {
+      protectedIds = await outfitsRepository.findProtectedRequestIds([requestId]);
+    } catch (error) {
+      logger.error({ requestId, error }, 'Could not verify saved/planned outfits — refusing delete to be safe');
+      throw new HttpError(503, 'PROTECTION_CHECK_FAILED', 'Could not verify this look is safe to delete. Please try again.');
+    }
     if (protectedIds.has(requestId)) {
       throw new HttpError(409, 'OUTFIT_SAVED', 'This look is saved to Favourites or your Week planner — remove it there first.');
     }
