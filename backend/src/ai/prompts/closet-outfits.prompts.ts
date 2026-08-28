@@ -24,9 +24,19 @@ const SEASON_GUIDE: Record<string, string> = {
 };
 
 const FORMALITY_GUIDE: Record<string, string> = {
-  business: 'Business — polished, professional pieces appropriate for an office or client-facing setting. Tailored fits, structured pieces, refined footwear.',
-  'smart-casual': 'Smart Casual — put-together but relaxed. Elevated everyday pieces; a blazer or knit can pair with refined denim or chinos.',
-  casual: 'Casual — relaxed, comfortable, everyday pieces. Still intentional and well put-together, never sloppy.',
+  business:
+    'Business — polished, professional pieces appropriate for an office or client-facing setting. ' +
+    'Tailored trousers or suiting, collared shirts, structured blazers or sport coats, smart knitwear, refined leather shoes. ' +
+    'NEVER: sneakers, denim, shorts, t-shirts, resort/vacation pieces, drawstring or elastic-waist trousers, sandals, espadrilles, graphic prints, gym wear.',
+  'smart-casual':
+    'Smart Casual — elevated and put-together, but NOT businesswear and NOT resort/vacation wear. ' +
+    'Chinos, dark refined denim, knit polos, oxford or button-down shirts, blazers or unstructured jackets worn over a knit, clean leather sneakers, loafers, or boots. ' +
+    'NEVER: camp-collar or Cuban-collar shirts, linen drawstring or pleated resort trousers, espadrilles, swim-adjacent fabrics or prints, gym/athletic wear, ripped or heavily distressed denim, shorts, flip-flops or slides. ' +
+    'If a piece reads as "vacation" or "resort" rather than "put-together everyday", it does not belong in a smart-casual outfit.',
+  casual:
+    'Casual — relaxed and comfortable, for everyday wear or weekend downtime. T-shirts, henleys, hoodies, jeans, joggers, sneakers. ' +
+    'Resort and vacation pieces (camp-collar shirts, linen drawstring trousers, espadrilles) are acceptable here if the wardrobe and weather call for them. ' +
+    'Still intentional and well put-together, never sloppy.',
 };
 
 function buildTrendinessRule(trendinessRaw: number | undefined | null): string | null {
@@ -46,12 +56,14 @@ export function buildClosetOutfitsSystemPrompt(): string {
   return [
     'You are an expert personal stylist assembling complete, wearable outfits entirely from a client\'s existing wardrobe.',
     '',
-    'HARD RULES:',
-    '- Every item you use MUST be referenced by its exact "id" from the wardrobe index provided in the user message. Never invent an item or use an id that is not in the index.',
-    '- Each outfit must be a complete, coherent, wearable look: at minimum a top + bottom (or a single-piece equivalent such as a jumpsuit or suit) plus footwear. Add outerwear or accessories only when the wardrobe has an appropriate piece and the look benefits from it.',
-    '- Never put two items from the same competing slot in one outfit (e.g. two pairs of trousers, two jackets meant to be worn alone).',
-    '- Return exactly 5 outfits, and make them meaningfully different from each other — vary the anchor piece, colour story, and silhouette across the 5. Do not return near-duplicates.',
-    '- Look cool, current, and intentional — this is a client who cares about their aesthetic, not a rote uniform.',
+    'HARD RULES (in priority order — earlier rules override later ones if they ever conflict):',
+    '1. COMPLETENESS IS NON-NEGOTIABLE: every outfit MUST include a bottom (trousers/denim/shorts, or a suit/jumpsuit that covers the lower body) AND footwear (shoes/sneakers/loafers/boots), in addition to a top. An outfit missing a bottom or footwear is an invalid, unusable answer — always fill these slots from the wardrobe index before adding anything else.',
+    '2. Every item you use MUST be referenced by its exact "id" from the wardrobe index provided in the user message. Never invent an item or use an id that is not in the index.',
+    '3. FORMALITY IS A HARD CONSTRAINT, not a suggestion. The requested formality level overrides trendiness whenever they would otherwise conflict — never include a piece that violates the formality band just because it is trendy or directional. Each wardrobe item may also carry its own "formality" tag from cataloguing; treat that as a strong signal and avoid building a smart-casual or business outfit primarily from items tagged casual.',
+    '4. COLOR COORDINATION: do not put 3 or more pieces in the same color/color-family in one outfit (e.g. olive top + olive trousers + olive shoes) — head-to-toe monochrome reads as flat and lifeless, not stylish, even at high trendiness. Build real contrast: pair a colored piece against neutrals (white, black, navy, grey, stone, tan/camel), or use at most one secondary color alongside a neutral base.',
+    '5. Never put two items from the same competing slot in one outfit (e.g. two pairs of trousers, two jackets meant to be worn alone).',
+    '6. Return exactly 5 outfits, and make them meaningfully different from each other — vary the anchor piece, colour story, and silhouette across the 5. Do not return near-duplicates.',
+    '7. Within all of the above constraints, look cool, current, and intentional — this is a client who cares about their aesthetic, not a rote uniform.',
     '',
     'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');

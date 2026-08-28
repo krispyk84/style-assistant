@@ -22,6 +22,16 @@ const MIN_WARDROBE_SIZE = 5;
 const MAX_ATTEMPTS = 3;
 const SKETCH_STAGGER_MS = 400;
 
+// A generated outfit must cover both of these slots to count as "complete" —
+// the LLM is instructed to do this, but instructions alone aren't reliable
+// enough to skip validating it server-side.
+const BOTTOM_CATEGORIES = new Set(['Trousers', 'Denim', 'Shorts', 'Suit']);
+const FOOTWEAR_CATEGORIES = new Set(['Shoes', 'Sneakers', 'Loafers', 'Boots']);
+
+function isCompleteOutfit(categories: string[]): boolean {
+  return categories.some((c) => BOTTOM_CATEGORIES.has(c)) && categories.some((c) => FOOTWEAR_CATEGORIES.has(c));
+}
+
 type MappedClosetItem = ReturnType<typeof mapClosetItem>;
 
 type ResolvedOutfit = {
@@ -76,6 +86,11 @@ function resolveOutfits(
     // or ended up with fewer than 2 real items after filtering.
     if (validIds.length < 2 || validIds.length !== uniqueIds.length) continue;
 
+    // Drop outfits missing a bottom or footwear — an incomplete outfit is a
+    // failed generation, not a partial success worth showing.
+    const categories = validIds.map((id) => itemsById.get(id)!.category);
+    if (!isCompleteOutfit(categories)) continue;
+
     resolved.push({
       id: `outfit-${i}-${validIds.join('-')}`,
       title: outfit.title,
@@ -92,7 +107,7 @@ async function requestOutfits(params: {
   userPrompt: string;
   supabaseUserId: string;
 }): Promise<{ title: string; itemIds: string[]; whyItWorks: string }[]> {
-  const validIds = new Set(params.index.map((item) => item.id));
+  const categoryById = new Map(params.index.map((item) => [item.id, item.category]));
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const result = await openAiClient.createStructuredResponse({
@@ -104,9 +119,15 @@ async function requestOutfits(params: {
       feature: 'outfit-generation',
     });
 
-    // Accept as soon as at least 3 of the 5 outfits reference only real ids —
-    // resolveOutfits() filters the rest, and the caller surfaces however many survive.
-    const usableCount = result.outfits.filter((outfit) => outfit.itemIds.every((id) => validIds.has(id))).length;
+    // Accept as soon as at least 3 of the 5 outfits reference only real ids AND
+    // cover a bottom + footwear — resolveOutfits() re-validates and filters the
+    // rest, but retrying here gives the model a real chance to fix incomplete outfits
+    // instead of the caller silently surfacing fewer than 5.
+    const usableCount = result.outfits.filter((outfit) => {
+      if (!outfit.itemIds.every((id) => categoryById.has(id))) return false;
+      const categories = outfit.itemIds.map((id) => categoryById.get(id)!);
+      return isCompleteOutfit(categories);
+    }).length;
     if (usableCount >= 3) {
       return result.outfits;
     }
