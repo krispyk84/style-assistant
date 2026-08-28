@@ -28,6 +28,15 @@ type AppScreenProps = PropsWithChildren<{
   onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
   /** Optional refresh control forwarded to the inner ScrollView. */
   refreshControl?: ScrollViewProps['refreshControl'];
+  /**
+   * When false, disables rubber-band/momentum overscroll (default true, matching
+   * iOS's native ScrollView default). Turn off on screens whose content height
+   * changes dynamically and abruptly (e.g. an image appearing) — a fling gesture
+   * whose momentum was calculated against the old (shorter) content can overshoot
+   * scroll bounds once content grows mid-gesture, and without bounce enabled to
+   * self-correct, the scroll view can be left stuck past the end of its content.
+   */
+  bounces?: boolean;
 }>;
 
 const FLOATING_BACK_THRESHOLD = 80;
@@ -41,6 +50,7 @@ export function AppScreen({
   scrollRef,
   onScroll,
   refreshControl,
+  bounces = true,
 }: AppScreenProps) {
   const [showFloatingBack, setShowFloatingBack] = useState(false);
   const insets = useSafeAreaInsets();
@@ -95,6 +105,7 @@ export function AppScreen({
         <ScrollView
           ref={scrollRef}
           automaticallyAdjustKeyboardInsets
+          bounces={bounces}
           contentContainerStyle={{ flexGrow: 1 }}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"

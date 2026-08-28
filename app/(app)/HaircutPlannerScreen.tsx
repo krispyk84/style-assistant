@@ -33,18 +33,20 @@ export function HaircutPlannerScreen() {
   const readyCount = session?.options.filter((o) => o.status === 'ready' || o.status === 'failed').length ?? 0;
   const totalCount = session?.options.length ?? 0;
 
-  // The ScrollView keeps whatever scroll offset it had before a stage change. Stages
-  // vary hugely in content height (the upload form vs. a short spinner), so a stale
-  // offset from a taller stage can leave the viewport pointed past the end of a
-  // shorter one's content — reset to top on every stage change so the new content
-  // always starts visible.
+  // The ScrollView keeps whatever scroll offset it had before content resizes.
+  // Stages vary hugely in content height (the upload form vs. a short spinner),
+  // and within the upload stage itself, picking a photo grows the content by
+  // several hundred px in one update (empty dashed box -> image preview). A
+  // stale offset relative to the new (shorter or taller) content can leave the
+  // viewport pointed past the end of it — reset to top whenever the stage OR
+  // the picked image changes so the new content always starts visible.
   const scrollRef = useRef<ScrollView>(null);
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-  }, [stage]);
+  }, [stage, image]);
 
   return (
-    <AppScreen scrollable={stage !== 'swipe'} scrollRef={scrollRef}>
+    <AppScreen scrollable={stage !== 'swipe'} scrollRef={scrollRef} bounces={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Haircut Planner" showBack />
 
