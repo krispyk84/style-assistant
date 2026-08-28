@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { View } from 'react-native';
+import { Dimensions, View } from 'react-native';
 import Swiper from 'react-native-deck-swiper';
 
 import { AppText } from '@/components/ui/app-text';
@@ -12,9 +12,18 @@ type HaircutSwipeDeckProps = {
   onSwipedAll: () => void;
 };
 
+// react-native-deck-swiper positions cards by measuring its own container, but
+// doesn't reliably propagate a bounded height down through nested flex parents —
+// giving the card and its image explicit pixel dimensions (rather than flex: 1)
+// avoids the image rendering at its natural (much larger) intrinsic size.
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_HEIGHT = Math.min(520, SCREEN_HEIGHT * 0.6);
+const CARD_WIDTH = SCREEN_WIDTH - spacing.lg * 2;
+const CARD_IMAGE_HEIGHT = CARD_HEIGHT - 76;
+
 export function HaircutSwipeDeck({ options, onSwipedRight, onSwipedAll }: HaircutSwipeDeckProps) {
   return (
-    <View style={{ flex: 1, minHeight: 460 }}>
+    <View style={{ height: CARD_HEIGHT + 40 }}>
       <Swiper
         cards={options}
         keyExtractor={(option) => option.id}
@@ -25,15 +34,22 @@ export function HaircutSwipeDeck({ options, onSwipedRight, onSwipedAll }: Haircu
               borderColor: theme.colors.border,
               borderRadius: 24,
               borderWidth: 1,
-              flex: 1,
+              height: CARD_HEIGHT,
               overflow: 'hidden',
+              width: CARD_WIDTH,
             }}>
             {option.imageUrl ? (
-              <Image contentFit="cover" source={{ uri: option.imageUrl }} style={{ flex: 1 }} />
-            ) : null}
+              <Image
+                contentFit="cover"
+                source={{ uri: option.imageUrl }}
+                style={{ height: CARD_IMAGE_HEIGHT, width: '100%' }}
+              />
+            ) : (
+              <View style={{ backgroundColor: theme.colors.card, height: CARD_IMAGE_HEIGHT, width: '100%' }} />
+            )}
             <View style={{ backgroundColor: theme.colors.surface, padding: spacing.md }}>
               <AppText variant="sectionTitle">{option.styleLabel}</AppText>
-              <AppText tone="muted" style={{ fontSize: 13 }}>{option.styleSummary}</AppText>
+              <AppText tone="muted" style={{ fontSize: 13 }} numberOfLines={2}>{option.styleSummary}</AppText>
             </View>
           </View>
         )}
@@ -42,6 +58,8 @@ export function HaircutSwipeDeck({ options, onSwipedRight, onSwipedAll }: Haircu
         cardIndex={0}
         stackSize={3}
         stackSeparation={14}
+        cardHorizontalMargin={spacing.lg}
+        cardVerticalMargin={20}
         showSecondCard
         verticalSwipe={false}
         disableTopSwipe
