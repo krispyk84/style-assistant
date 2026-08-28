@@ -94,7 +94,7 @@ export function HaircutGuideView({ option, guide, angleShots, isLoadingAngleShot
   const mainReady = selectedPhoto.option?.status === 'ready' && !!selectedPhoto.option.imageUrl;
 
   return (
-    <View style={{ backgroundColor: theme.colors.background, gap: spacing.lg, padding: spacing.lg, width: 360 }}>
+    <View style={{ alignSelf: 'center', backgroundColor: theme.colors.background, gap: spacing.lg, padding: spacing.lg, width: 360 }}>
       <View style={{ alignItems: 'center', gap: 2 }}>
         <AppText tone="muted" variant="eyebrow" style={{ letterSpacing: 2.4 }}>HAIRCUT GUIDE</AppText>
         <AppText variant="heroSmall" style={{ textAlign: 'center' }}>{option.styleLabel}</AppText>
