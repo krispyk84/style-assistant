@@ -6,6 +6,9 @@ export const haircutRepository = {
     return prisma.haircutSession.create({ data: input });
   },
 
+  // Returns only the rows just created for this call (scoped by styleKey), not
+  // every option in the session — callers that need the full set already have
+  // it (getSession) or can concatenate themselves.
   async createOptions(sessionId: string, styles: HaircutStyle[]) {
     await prisma.haircutOption.createMany({
       data: styles.map((style) => ({
@@ -15,7 +18,10 @@ export const haircutRepository = {
         styleSummary: style.summary,
       })),
     });
-    return prisma.haircutOption.findMany({ where: { sessionId }, orderBy: { createdAt: 'asc' } });
+    return prisma.haircutOption.findMany({
+      where: { sessionId, styleKey: { in: styles.map((style) => style.key) } },
+      orderBy: { createdAt: 'asc' },
+    });
   },
 
   async getSession(id: string, supabaseUserId: string) {

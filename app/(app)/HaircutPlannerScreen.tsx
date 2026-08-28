@@ -21,9 +21,10 @@ export function HaircutPlannerScreen() {
     image, isPicking, isUploading, uploadError,
     pickFromLibrary, handleOpenCamera,
     stage, session, error,
-    readyOptions, likedOptions,
+    currentBatch, batchIndex, likedOptions,
     selectedOption, guide,
-    startSession, handleSwipedRight, handleSwipedAll, selectFinal, reset,
+    startSession, handleSwipedRight, handleSwipedLeft, handleSwipedAll,
+    reviewFavorites, requestMoreHaircuts, selectFinal, reset,
   } = useHaircutPlanner();
 
   const viewShotRef = useRef<ViewShot>(null);
@@ -33,7 +34,7 @@ export function HaircutPlannerScreen() {
   const totalCount = session?.options.length ?? 0;
 
   return (
-    <AppScreen scrollable={stage !== 'swipe'} floatingBack>
+    <AppScreen scrollable={stage !== 'swipe'}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Haircut Planner" showBack />
 
@@ -74,11 +75,51 @@ export function HaircutPlannerScreen() {
         ) : null}
 
         {stage === 'swipe' ? (
-          <View style={{ flex: 1, gap: spacing.md }}>
+          <View style={{ gap: spacing.md }}>
+            <HaircutSwipeDeck
+              key={batchIndex}
+              options={currentBatch}
+              onSwipedRight={handleSwipedRight}
+              onSwipedLeft={handleSwipedLeft}
+              onSwipedAll={handleSwipedAll}
+            />
             <AppText tone="muted" style={{ textAlign: 'center', fontSize: 13 }}>
-              Swipe right to like, left to pass
+              Swipe right to like, left to discard
             </AppText>
-            <HaircutSwipeDeck options={readyOptions} onSwipedRight={handleSwipedRight} onSwipedAll={handleSwipedAll} />
+          </View>
+        ) : null}
+
+        {stage === 'swipe-choice' ? (
+          <View style={{ alignItems: 'center', gap: spacing.lg, paddingVertical: spacing.xl }}>
+            <View style={{ gap: spacing.xs }}>
+              <AppText variant="heroSmall" style={{ textAlign: 'center' }}>That's all of them</AppText>
+              <AppText tone="muted" style={{ textAlign: 'center' }}>
+                {likedOptions.length > 0
+                  ? `You liked ${likedOptions.length} so far. Want to see more, or ready to review your favorites?`
+                  : 'You haven\'t liked any yet. See more haircuts to keep looking.'}
+              </AppText>
+            </View>
+            {error ? (
+              <AppText style={{ color: theme.colors.danger, fontSize: 13, textAlign: 'center' }}>{error}</AppText>
+            ) : null}
+            <View style={{ alignSelf: 'stretch', gap: spacing.sm }}>
+              <PrimaryButton label="See More Haircuts" onPress={() => void requestMoreHaircuts()} />
+              <PrimaryButton
+                label="Review My Favorites"
+                onPress={reviewFavorites}
+                variant="secondary"
+                disabled={likedOptions.length === 0}
+              />
+            </View>
+          </View>
+        ) : null}
+
+        {stage === 'more-loading' ? (
+          <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xl }}>
+            <ActivityIndicator color={theme.colors.accent} size="large" />
+            <AppText tone="muted" style={{ textAlign: 'center' }}>
+              Rendering more haircuts on your photo... {readyCount}/{totalCount}
+            </AppText>
           </View>
         ) : null}
 

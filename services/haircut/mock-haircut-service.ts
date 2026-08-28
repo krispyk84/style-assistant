@@ -24,6 +24,14 @@ export const mockHaircutService: HaircutService = {
     };
   },
 
+  async addMoreOptions(_sessionId: string): Promise<ApiResponse<HaircutSessionResponse>> {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'UNAVAILABLE', message: 'Haircut Planner is not available right now.' },
+    };
+  },
+
   async generateGuide(_request: GenerateHaircutGuideRequest): Promise<ApiResponse<HaircutGuideResponse>> {
     return {
       success: false,

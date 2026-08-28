@@ -9,6 +9,7 @@ import type { HaircutOption } from '@/types/api';
 type HaircutSwipeDeckProps = {
   options: HaircutOption[];
   onSwipedRight: (cardIndex: number) => void;
+  onSwipedLeft: (cardIndex: number) => void;
   onSwipedAll: () => void;
 };
 
@@ -17,11 +18,14 @@ type HaircutSwipeDeckProps = {
 // giving the card and its image explicit pixel dimensions (rather than flex: 1)
 // avoids the image rendering at its natural (much larger) intrinsic size.
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_HEIGHT = Math.min(520, SCREEN_HEIGHT * 0.6);
+const CARD_HEIGHT = Math.min(560, SCREEN_HEIGHT * 0.64);
 const CARD_WIDTH = SCREEN_WIDTH - spacing.lg * 2;
-const CARD_IMAGE_HEIGHT = CARD_HEIGHT - 76;
+// Footer must fit a title line + up to 2 description lines + vertical padding —
+// too little room here clips the description text (title ~22px + 2×18px lines + 2×16px padding).
+const CARD_FOOTER_HEIGHT = 110;
+const CARD_IMAGE_HEIGHT = CARD_HEIGHT - CARD_FOOTER_HEIGHT;
 
-export function HaircutSwipeDeck({ options, onSwipedRight, onSwipedAll }: HaircutSwipeDeckProps) {
+export function HaircutSwipeDeck({ options, onSwipedRight, onSwipedLeft, onSwipedAll }: HaircutSwipeDeckProps) {
   return (
     <View style={{ height: CARD_HEIGHT + 40 }}>
       <Swiper
@@ -47,13 +51,14 @@ export function HaircutSwipeDeck({ options, onSwipedRight, onSwipedAll }: Haircu
             ) : (
               <View style={{ backgroundColor: theme.colors.card, height: CARD_IMAGE_HEIGHT, width: '100%' }} />
             )}
-            <View style={{ backgroundColor: theme.colors.surface, padding: spacing.md }}>
-              <AppText variant="sectionTitle">{option.styleLabel}</AppText>
-              <AppText tone="muted" style={{ fontSize: 13 }} numberOfLines={2}>{option.styleSummary}</AppText>
+            <View style={{ backgroundColor: theme.colors.surface, height: CARD_FOOTER_HEIGHT, gap: 4, padding: spacing.md }}>
+              <AppText variant="sectionTitle" numberOfLines={1}>{option.styleLabel}</AppText>
+              <AppText tone="muted" style={{ fontSize: 13, lineHeight: 18 }} numberOfLines={2}>{option.styleSummary}</AppText>
             </View>
           </View>
         )}
         onSwipedRight={onSwipedRight}
+        onSwipedLeft={onSwipedLeft}
         onSwipedAll={onSwipedAll}
         cardIndex={0}
         stackSize={3}

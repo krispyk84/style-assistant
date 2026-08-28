@@ -6,6 +6,8 @@ import { geminiImageClient } from '../../ai/gemini-image-client.js';
 import { resolveImageUrlForAI } from '../../ai/image-input.js';
 import {
   HAIRCUT_STYLES,
+  INITIAL_BATCH_SIZE,
+  MORE_BATCH_SIZE,
   buildHaircutGuideSystemPrompt,
   buildHaircutGuideUserPrompt,
   type HaircutStyle,
@@ -72,7 +74,7 @@ export const haircutService = {
     }
 
     const session = await haircutRepository.createSession({ supabaseUserId, headshotImageUrl: payload.headshotImageUrl });
-    const options = await haircutRepository.createOptions(session.id, HAIRCUT_STYLES);
+    const options = await haircutRepository.createOptions(session.id, HAIRCUT_STYLES.slice(0, INITIAL_BATCH_SIZE));
 
     // Fire-and-forget, staggered like tier sketches — the response returns
     // immediately with 'pending' options; the client polls getSession().
@@ -93,6 +95,36 @@ export const haircutService = {
     const session = await haircutRepository.getSession(id, supabaseUserId);
     if (!session) throw new HttpError(404, 'NOT_FOUND', 'Haircut session not found.');
     return { sessionId: session.id, status: deriveSessionStatus(session.options), options: session.options.map(mapOption) };
+  },
+
+  async addMoreOptions(id: string, supabaseUserId: string) {
+    const session = await haircutRepository.getSession(id, supabaseUserId);
+    if (!session) throw new HttpError(404, 'NOT_FOUND', 'Haircut session not found.');
+
+    const usedKeys = new Set(session.options.map((option) => option.styleKey));
+    const nextStyles = HAIRCUT_STYLES.filter((style) => !usedKeys.has(style.key)).slice(0, MORE_BATCH_SIZE);
+    if (nextStyles.length === 0) {
+      throw new HttpError(422, 'NO_MORE_STYLES', 'No more haircut styles left to try for this photo.');
+    }
+
+    const headshotInput = await resolveImageUrlForAI(session.headshotImageUrl);
+    if (!headshotInput) {
+      throw new HttpError(422, 'HEADSHOT_UNAVAILABLE', 'Could not read the uploaded headshot. Please try uploading it again.');
+    }
+
+    const newOptions = await haircutRepository.createOptions(id, nextStyles);
+
+    void Promise.all(
+      newOptions.map((option, index) => {
+        const style = STYLE_BY_KEY.get(option.styleKey);
+        if (!style) return Promise.resolve();
+        return new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS)).then(() =>
+          generateOption(option.id, headshotInput.image_url, style, supabaseUserId),
+        );
+      }),
+    );
+
+    return { sessionId: id, status: 'generating' as const, options: [...session.options, ...newOptions].map(mapOption) };
   },
 
   async generateGuide(payload: GenerateHaircutGuidePayload, supabaseUserId: string) {

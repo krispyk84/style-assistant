@@ -20,6 +20,12 @@ export const apiHaircutService: HaircutService = {
     return createApiClient().request<HaircutSessionResponse>(`/haircut/sessions/${sessionId}`);
   },
 
+  async addMoreOptions(sessionId: string): Promise<ApiResponse<HaircutSessionResponse>> {
+    return createApiClient().request<HaircutSessionResponse>(`/haircut/sessions/${sessionId}/more`, {
+      method: 'POST',
+    });
+  },
+
   async generateGuide(request: GenerateHaircutGuideRequest): Promise<ApiResponse<HaircutGuideResponse>> {
     return createApiClient().request<HaircutGuideResponse>('/haircut/guide', {
       method: 'POST',

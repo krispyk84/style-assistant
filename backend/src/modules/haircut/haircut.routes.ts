@@ -30,6 +30,16 @@ haircutRouter.get(
 );
 
 haircutRouter.post(
+  '/haircut/sessions/:id/more',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const id = Array.isArray(request.params.id) ? request.params.id[0]! : request.params.id!;
+    const result = await haircutService.addMoreOptions(id, request.userId!);
+    return sendSuccess(response, result);
+  })
+);
+
+haircutRouter.post(
   '/haircut/guide',
   requireAuth,
   asyncHandler(async (request, response) => {

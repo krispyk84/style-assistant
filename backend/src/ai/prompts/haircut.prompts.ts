@@ -10,7 +10,9 @@ export type HaircutStyle = {
 };
 
 // Curated, fixed set — deliberately not LLM-chosen, so results are predictable
-// and every session tries the same well-known trendy cuts.
+// and every session tries the same well-known trendy cuts. A session starts
+// with the first INITIAL_BATCH_SIZE styles; "see more" draws from the rest,
+// in order, until the list is exhausted.
 export const HAIRCUT_STYLES: HaircutStyle[] = [
   { key: 'textured-quiff', label: 'Textured Quiff', summary: 'Voluminous, textured hair swept up and back with soft movement and a natural side part.' },
   { key: 'modern-crew-cut', label: 'Modern Crew Cut', summary: 'Short, neat, tapered sides with a slightly longer textured top.' },
@@ -18,7 +20,16 @@ export const HAIRCUT_STYLES: HaircutStyle[] = [
   { key: 'textured-crop', label: 'Textured Crop', summary: 'Short textured fringe with a low fade and a messy, natural finish.' },
   { key: 'classic-side-part', label: 'Classic Side Part', summary: 'Sharp, defined side part with a clean taper — polished and timeless.' },
   { key: 'buzz-fade', label: 'Buzz Fade', summary: 'Very short, uniform buzz cut with a skin fade at the sides.' },
+  { key: 'curly-fringe', label: 'Curly Fringe', summary: 'Natural curls left longer on top and swept forward into a soft fringe, tight taper on the sides.' },
+  { key: 'french-crop', label: 'French Crop', summary: 'Short blunt fringe with a textured crop on top and a mid fade on the sides.' },
+  { key: 'pompadour', label: 'Modern Pompadour', summary: 'Bold volume swept straight up and back from the forehead, tight fade on the sides.' },
+  { key: 'wavy-shag', label: 'Wavy Shag', summary: 'Longer, layered, textured cut with natural wave and a lived-in, undone finish.' },
+  { key: 'ivy-league', label: 'Ivy League', summary: 'A tidy, slightly longer take on the crew cut with a soft side part and clean taper.' },
+  { key: 'low-fade-afro', label: 'Textured Afro Fade', summary: 'Natural textured volume on top with a crisp low fade at the sides and back.' },
 ];
+
+export const INITIAL_BATCH_SIZE = 6;
+export const MORE_BATCH_SIZE = 4;
 
 export function buildHaircutEditPrompt(style: Pick<HaircutStyle, 'label' | 'summary'>): string {
   return [

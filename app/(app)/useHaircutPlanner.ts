@@ -10,6 +10,8 @@ export type HaircutPlannerStage =
   | 'upload'
   | 'generating'
   | 'swipe'
+  | 'swipe-choice'
+  | 'more-loading'
   | 'narrowed'
   | 'guide-loading'
   | 'guide'
@@ -27,6 +29,12 @@ export function useHaircutPlanner() {
   const [stage, setStage] = useState<HaircutPlannerStage>('upload');
   const [session, setSession] = useState<HaircutSessionResponse | null>(null);
   const [likedOptions, setLikedOptions] = useState<HaircutOption[]>([]);
+  // Every option id the user has already swiped (either direction), across all
+  // batches — used to compute which ready options belong in the CURRENT batch.
+  const [swipedIds, setSwipedIds] = useState<Set<string>>(new Set());
+  // Bumped every time a fresh batch of cards is ready to show — used as the
+  // swipe deck's `key` so it remounts cleanly instead of reusing stale internal state.
+  const [batchIndex, setBatchIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<HaircutOption | null>(null);
   const [guide, setGuide] = useState<HaircutGuideResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +54,9 @@ export function useHaircutPlanner() {
   async function startSession() {
     if (!uploadedImage) return;
     setError(null);
+    setLikedOptions([]);
+    setSwipedIds(new Set());
+    setBatchIndex(0);
     setStage('generating');
     const response = await haircutService.createSession({ headshotImageUrl: uploadedImage.publicUrl });
     if (!response.success || !response.data) {
@@ -57,11 +68,12 @@ export function useHaircutPlanner() {
     setActiveSessionId(response.data.sessionId);
   }
 
-  // Poll while generating — stop once every option has resolved to ready/failed.
-  // Depends on `activeSessionId` (set once per session), not `session` (replaced on
-  // every tick), so the interval isn't torn down and recreated on every poll response.
+  // Poll while generating (initial batch or a "see more" batch) — stop once every
+  // option in the session has resolved to ready/failed. Depends on `activeSessionId`
+  // (set once per session), not `session` (replaced on every tick), so the interval
+  // isn't torn down and recreated on every poll response.
   useEffect(() => {
-    if (stage !== 'generating' || !activeSessionId) return;
+    if ((stage !== 'generating' && stage !== 'more-loading') || !activeSessionId) return;
     const sessionId = activeSessionId;
 
     const interval = setInterval(async () => {
@@ -70,39 +82,79 @@ export function useHaircutPlanner() {
       setSession(response.data);
       if (response.data.status === 'ready') {
         clearInterval(interval);
-        const readyOptions = response.data.options.filter((option) => option.status === 'ready');
-        if (readyOptions.length === 0) {
-          setError('None of the haircuts could be generated. Please try a different photo.');
-          setStage('error');
-          return;
-        }
-        setLikedOptions([]);
-        setStage('swipe');
+
+        setSwipedIds((currentSwipedIds) => {
+          const freshBatch = response.data!.options.filter(
+            (option) => option.status === 'ready' && !currentSwipedIds.has(option.id),
+          );
+
+          if (freshBatch.length === 0) {
+            // First-ever batch fully failed — a hard dead end. A "more" batch that
+            // fully failed just returns to the choice screen with existing favorites intact.
+            if (currentSwipedIds.size === 0) {
+              setError('None of the haircuts could be generated. Please try a different photo.');
+              setStage('error');
+            } else {
+              setError('Those didn\'t come through. Try again, or review your favorites.');
+              setStage('swipe-choice');
+            }
+          } else {
+            setBatchIndex((i) => i + 1);
+            setStage('swipe');
+          }
+
+          return currentSwipedIds;
+        });
       }
     }, POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
-    // setSession/setStage/setError/setLikedOptions are stable dispatchers — omitted intentionally.
+    // setSession/setStage/setError/setBatchIndex/setSwipedIds are stable dispatchers — omitted intentionally.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, activeSessionId]);
 
   const readyOptions = session?.options.filter((option) => option.status === 'ready') ?? [];
+  const currentBatch = readyOptions.filter((option) => !swipedIds.has(option.id));
+
+  function markSwiped(cardIndex: number) {
+    const swiped = currentBatch[cardIndex];
+    if (swiped) setSwipedIds((prev) => new Set(prev).add(swiped.id));
+    return swiped;
+  }
 
   function handleSwipedRight(cardIndex: number) {
-    const swiped = readyOptions[cardIndex];
+    const swiped = markSwiped(cardIndex);
     if (swiped) setLikedOptions((prev) => [...prev, swiped]);
   }
 
+  function handleSwipedLeft(cardIndex: number) {
+    markSwiped(cardIndex);
+  }
+
   function handleSwipedAll() {
-    setLikedOptions((current) => {
-      if (current.length === 0) {
-        setError('You swiped left on all of them. Try again with a different photo.');
-        setStage('error');
-      } else {
-        setStage('narrowed');
-      }
-      return current;
-    });
+    setStage('swipe-choice');
+  }
+
+  function reviewFavorites() {
+    if (likedOptions.length === 0) {
+      setError('You haven\'t liked any yet. Swipe right on the ones you like, or start over with a different photo.');
+      setStage('error');
+      return;
+    }
+    setStage('narrowed');
+  }
+
+  async function requestMoreHaircuts() {
+    if (!activeSessionId) return;
+    setError(null);
+    setStage('more-loading');
+    const response = await haircutService.addMoreOptions(activeSessionId);
+    if (!response.success || !response.data) {
+      setError(response.error?.message ?? 'No more haircut styles to try for this photo.');
+      setStage('swipe-choice');
+      return;
+    }
+    setSession(response.data);
   }
 
   async function selectFinal(option: HaircutOption) {
@@ -127,6 +179,8 @@ export function useHaircutPlanner() {
     setActiveSessionId(null);
     setSession(null);
     setLikedOptions([]);
+    setSwipedIds(new Set());
+    setBatchIndex(0);
     setSelectedOption(null);
     setGuide(null);
     setError(null);
@@ -137,8 +191,9 @@ export function useHaircutPlanner() {
     image, isPicking, isUploading, uploadError,
     pickFromLibrary, handleOpenCamera,
     stage, session, error,
-    readyOptions, likedOptions,
+    currentBatch, batchIndex, likedOptions,
     selectedOption, guide,
-    startSession, handleSwipedRight, handleSwipedAll, selectFinal, reset,
+    startSession, handleSwipedRight, handleSwipedLeft, handleSwipedAll,
+    reviewFavorites, requestMoreHaircuts, selectFinal, reset,
   };
 }
