@@ -246,6 +246,10 @@ export const closetService = {
     return closetOutfitsService.generateOutfitVariations(payload, supabaseUserId);
   },
 
+  async setOutfitFeedback(feedbackId: string, feedback: 'love' | 'hate' | null, supabaseUserId: string) {
+    return closetOutfitsService.setOutfitFeedback(feedbackId, supabaseUserId, feedback);
+  },
+
   async recordAnchorUsed(id: string, supabaseUserId: string) {
     await closetRepository.recordAnchorUsed(id, supabaseUserId);
     return { recorded: true };

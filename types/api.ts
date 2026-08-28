@@ -344,11 +344,15 @@ export type SavedHaircutSessionsResponse = {
 
 // ── Generate 5 Outfits (closet-only) ──────────────────────────────────────────
 
+export type ClosetOutfitFeedbackValue = 'love' | 'hate' | null;
+
 export type ClosetGeneratedOutfit = {
   id: string;
   title: string;
   whyItWorks: string;
   items: ClosetItem[];
+  feedbackId: string;
+  feedback: ClosetOutfitFeedbackValue;
   sketchJobId: string;
   sketchStatus: 'pending' | 'ready' | 'failed';
   sketchImageUrl: string | null;
@@ -369,6 +373,16 @@ export type GenerateClosetOutfitVariationsRequest = {
 
 export type GenerateClosetOutfitsResponse = {
   outfits: ClosetGeneratedOutfit[];
+};
+
+export type SetClosetOutfitFeedbackRequest = {
+  feedbackId: string;
+  feedback: 'love' | 'hate' | null;
+};
+
+export type SetClosetOutfitFeedbackResponse = {
+  feedbackId: string;
+  feedback: ClosetOutfitFeedbackValue;
 };
 
 export type ClosetAnalyseRecommendation = {

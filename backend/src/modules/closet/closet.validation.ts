@@ -118,6 +118,11 @@ export const generateClosetOutfitVariationsSchema = z.object({
   baseItemIds: z.array(z.string()).min(2),
 });
 
+export const setClosetOutfitFeedbackSchema = z.object({
+  feedbackId: z.string().min(1),
+  feedback: z.enum(['love', 'hate']).nullable(),
+});
+
 export type StylistId = 'vittorio' | 'alessandra';
 export type AnalyzeClosetItemPayload = z.infer<typeof analyzeClosetItemSchema>;
 export type SaveClosetItemPayload = z.infer<typeof saveClosetItemSchema>;
@@ -128,3 +133,4 @@ export type ClosetMatchPayload = z.infer<typeof closetMatchSchema>;
 export type HelpMePickPayload = z.infer<typeof helpMePickSchema>;
 export type GenerateClosetOutfitsPayload = z.infer<typeof generateClosetOutfitsSchema>;
 export type GenerateClosetOutfitVariationsPayload = z.infer<typeof generateClosetOutfitVariationsSchema>;
+export type SetClosetOutfitFeedbackPayload = z.infer<typeof setClosetOutfitFeedbackSchema>;

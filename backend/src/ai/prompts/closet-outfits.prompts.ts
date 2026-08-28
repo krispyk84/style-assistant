@@ -63,10 +63,45 @@ export function buildClosetOutfitsSystemPrompt(): string {
     '4. COLOR COORDINATION: do not put 3 or more pieces in the same color/color-family in one outfit (e.g. olive top + olive trousers + olive shoes) — head-to-toe monochrome reads as flat and lifeless, not stylish, even at high trendiness. Build real contrast: pair a colored piece against neutrals (white, black, navy, grey, stone, tan/camel), or use at most one secondary color alongside a neutral base.',
     '5. Never put two items from the same competing slot in one outfit (e.g. two pairs of trousers, two jackets meant to be worn alone).',
     '6. Return exactly 5 outfits, and make them meaningfully different from each other — vary the anchor piece, colour story, and silhouette across the 5. Do not return near-duplicates.',
-    '7. Within all of the above constraints, look cool, current, and intentional — this is a client who cares about their aesthetic, not a rote uniform.',
+    '7. VARIETY ACROSS REQUESTS: this client has a large wardrobe. If the user message lists "Recently featured items", deliberately minimise reusing them here — actively draw on other pieces from the index that still satisfy every rule above, rather than defaulting to the same "obvious" combination every time. Only reuse a recently-featured item when the wardrobe genuinely does not offer a suitable alternative for that slot.',
+    '8. PREFERENCE SIGNAL: if the user message lists items the client has loved or hated in past outfits, lean toward the loved items and the styles they represent where they fit the brief, and avoid the hated items where a reasonable alternative exists — but never let this override rules 1-6.',
+    '9. Within all of the above constraints, look cool, current, and intentional — this is a client who cares about their aesthetic, not a rote uniform.',
     '',
     'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');
+}
+
+export type ClosetOutfitVarietyContext = {
+  /** Item ids featured in this client's recent generations — deprioritise, don't hard-exclude. */
+  recentlyUsedItems?: { id: string; name: string }[];
+  /** Item ids from outfits this client explicitly loved/hated. */
+  preference?: { loved: { id: string; name: string }[]; hated: { id: string; name: string }[] };
+};
+
+function buildVarietyAndPreferenceBlock(context?: ClosetOutfitVarietyContext): string | null {
+  if (!context) return null;
+  const lines: string[] = [];
+
+  if (context.recentlyUsedItems?.length) {
+    lines.push(
+      'Recently featured items (used in outfits generated for this client recently — minimise reuse per rule 7):',
+      context.recentlyUsedItems.map((item) => `- ${item.name} (${item.id})`).join('\n'),
+    );
+  }
+  if (context.preference?.loved.length) {
+    lines.push(
+      'Loved in past outfits (lean into these where they fit the brief, per rule 8):',
+      context.preference.loved.map((item) => `- ${item.name} (${item.id})`).join('\n'),
+    );
+  }
+  if (context.preference?.hated.length) {
+    lines.push(
+      'Disliked in past outfits (avoid where a reasonable alternative exists, per rule 8):',
+      context.preference.hated.map((item) => `- ${item.name} (${item.id})`).join('\n'),
+    );
+  }
+
+  return lines.length ? lines.join('\n') : null;
 }
 
 function buildContextBlock(params: {
@@ -75,6 +110,7 @@ function buildContextBlock(params: {
   weatherStylingHint?: string | null;
   season?: string | null;
   trendiness?: number | null;
+  variety?: ClosetOutfitVarietyContext;
 }): string {
   const lines = [
     `Formality: ${FORMALITY_GUIDE[params.formality] ?? params.formality}`,
@@ -82,6 +118,7 @@ function buildContextBlock(params: {
     params.weatherSummary ? `Current weather: ${params.weatherSummary}` : null,
     params.weatherStylingHint ? `Weather styling guidance: ${params.weatherStylingHint}` : null,
     buildTrendinessRule(params.trendiness),
+    buildVarietyAndPreferenceBlock(params.variety),
   ];
   return lines.filter((line): line is string => line !== null).join('\n');
 }
@@ -93,6 +130,7 @@ export function buildClosetOutfitsUserPrompt(params: {
   weatherStylingHint?: string | null;
   season?: string | null;
   trendiness?: number | null;
+  variety?: ClosetOutfitVarietyContext;
 }): string {
   return [
     buildContextBlock(params),
@@ -113,6 +151,7 @@ export function buildClosetOutfitVariationsUserPrompt(params: {
   weatherStylingHint?: string | null;
   season?: string | null;
   trendiness?: number | null;
+  variety?: ClosetOutfitVarietyContext;
 }): string {
   return [
     buildContextBlock(params),

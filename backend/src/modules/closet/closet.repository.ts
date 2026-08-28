@@ -139,4 +139,60 @@ export const closetRepository = {
   }) {
     return prisma.closetSketchJob.update({ where: { id }, data });
   },
+
+  // One row per outfit created at generation time (createOutfitFeedbackRows),
+  // later updated in place when the user taps love/hate (updateOutfitFeedback).
+  async createOutfitFeedbackRows(
+    supabaseUserId: string,
+    formality: string,
+    outfits: { title: string; itemIds: string[] }[],
+  ) {
+    return Promise.all(
+      outfits.map((outfit) =>
+        prisma.closetOutfitFeedback.create({
+          data: { supabaseUserId, formality, title: outfit.title, itemIds: outfit.itemIds },
+        }),
+      ),
+    );
+  },
+
+  /** Item ids used across this user's last `limit` generated outfits — a variety signal for the next prompt. */
+  async getRecentlyUsedItemIds(supabaseUserId: string, limit: number): Promise<string[]> {
+    const rows = await prisma.closetOutfitFeedback.findMany({
+      where: { supabaseUserId },
+      select: { itemIds: true },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    const ids = new Set<string>();
+    for (const row of rows) {
+      for (const id of row.itemIds as string[]) ids.add(id);
+    }
+    return [...ids];
+  },
+
+  /** Item ids from this user's loved/hated outfits — a preference signal for the next prompt. */
+  async getPreferenceItemIds(supabaseUserId: string): Promise<{ loved: string[]; hated: string[] }> {
+    const rows = await prisma.closetOutfitFeedback.findMany({
+      where: { supabaseUserId, feedback: { in: ['love', 'hate'] } },
+      select: { itemIds: true, feedback: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    const loved = new Set<string>();
+    const hated = new Set<string>();
+    for (const row of rows) {
+      const target = row.feedback === 'love' ? loved : hated;
+      for (const id of row.itemIds as string[]) target.add(id);
+    }
+    return { loved: [...loved], hated: [...hated] };
+  },
+
+  async setOutfitFeedback(id: string, supabaseUserId: string, feedback: 'love' | 'hate' | null): Promise<boolean> {
+    const result = await prisma.closetOutfitFeedback.updateMany({
+      where: { id, supabaseUserId },
+      data: { feedback },
+    });
+    return result.count > 0;
+  },
 };

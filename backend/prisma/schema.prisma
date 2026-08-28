@@ -409,3 +409,22 @@ model ClosetAnalysisSnapshot {
 
   @@index([supabaseUserId, createdAt(sort: Desc)])
 }
+
+// One row per outfit produced by "Generate 5 Outfits" (base outfits and
+// variations alike). Serves two purposes: recent itemIds feed a variety
+// signal into the next generation's prompt (avoid repeating the same
+// pieces), and feedback ('love'/'hate') feeds a preference signal — both
+// read back by closet-outfits.service.ts when building future prompts.
+model ClosetOutfitFeedback {
+  id             String   @id @default(cuid())
+  supabaseUserId String
+  formality      String
+  title          String
+  itemIds        Json
+  feedback       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([supabaseUserId, createdAt(sort: Desc)])
+  @@index([supabaseUserId, feedback])
+}

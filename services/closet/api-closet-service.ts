@@ -16,6 +16,8 @@ import type {
   HelpMePickRequest,
   HelpMePickResponse,
   SaveClosetItemRequest,
+  SetClosetOutfitFeedbackRequest,
+  SetClosetOutfitFeedbackResponse,
   UpdateClosetItemRequest,
 } from '@/types/api';
 import type { ApiResponse } from '@/types/api';
@@ -116,6 +118,13 @@ export const apiClosetService: ClosetService = {
 
   async generateOutfitVariations(request: GenerateClosetOutfitVariationsRequest): Promise<ApiResponse<GenerateClosetOutfitsResponse>> {
     return createApiClient().request<GenerateClosetOutfitsResponse>('/closet/generate-outfit-variations', {
+      method: 'POST',
+      body: request,
+    });
+  },
+
+  async setOutfitFeedback(request: SetClosetOutfitFeedbackRequest): Promise<ApiResponse<SetClosetOutfitFeedbackResponse>> {
+    return createApiClient().request<SetClosetOutfitFeedbackResponse>('/closet/outfit-feedback', {
       method: 'POST',
       body: request,
     });

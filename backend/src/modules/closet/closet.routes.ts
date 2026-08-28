@@ -14,6 +14,7 @@ import {
   generateClosetSketchSchema,
   helpMePickSchema,
   saveClosetItemSchema,
+  setClosetOutfitFeedbackSchema,
   updateClosetItemSchema,
 } from './closet.validation.js';
 
@@ -54,6 +55,16 @@ closetRouter.post(
   asyncHandler(async (request, response) => {
     const payload = parseWithSchema(generateClosetOutfitVariationsSchema, request.body);
     const result = await closetService.generateOutfitVariations(payload, request.userId!);
+    return sendSuccess(response, result);
+  })
+);
+
+closetRouter.post(
+  '/closet/outfit-feedback',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(setClosetOutfitFeedbackSchema, request.body);
+    const result = await closetService.setOutfitFeedback(payload.feedbackId, payload.feedback, request.userId!);
     return sendSuccess(response, result);
   })
 );

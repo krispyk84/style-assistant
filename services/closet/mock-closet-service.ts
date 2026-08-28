@@ -16,6 +16,8 @@ import type {
   HelpMePickRequest,
   HelpMePickResponse,
   SaveClosetItemRequest,
+  SetClosetOutfitFeedbackRequest,
+  SetClosetOutfitFeedbackResponse,
   UpdateClosetItemRequest,
 } from '@/types/api';
 import type { ClosetItem, ClosetItemFitStatus, ClosetItemSilhouette } from '@/types/closet';
@@ -203,6 +205,14 @@ export const mockClosetService: ClosetService = {
   },
 
   async generateOutfitVariations(_request: GenerateClosetOutfitVariationsRequest): Promise<ApiResponse<GenerateClosetOutfitsResponse>> {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'UNAVAILABLE', message: 'Generate Outfits is not available right now.' },
+    };
+  },
+
+  async setOutfitFeedback(_request: SetClosetOutfitFeedbackRequest): Promise<ApiResponse<SetClosetOutfitFeedbackResponse>> {
     return {
       success: false,
       data: null,

@@ -16,6 +16,7 @@ type ClosetOutfitCardProps = {
   isSaving?: boolean;
   onAddToWeek?: () => void;
   onDelete?: () => void;
+  onFeedback?: (value: 'love' | 'hate') => void;
 };
 
 export function ClosetOutfitCard({
@@ -27,6 +28,7 @@ export function ClosetOutfitCard({
   isSaving = false,
   onAddToWeek,
   onDelete,
+  onFeedback,
 }: ClosetOutfitCardProps) {
   const showActions = onSave || onAddToWeek || onDelete;
   return (
@@ -139,6 +141,51 @@ export function ClosetOutfitCard({
               ) : null}
             </>
           )}
+        </View>
+      ) : null}
+
+      {onFeedback ? (
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <Pressable
+            onPress={(event) => {
+              event.stopPropagation();
+              onFeedback('love');
+            }}
+            style={[
+              actionButtonStyle,
+              outfit.feedback === 'love' ? { backgroundColor: theme.colors.accent, borderColor: theme.colors.accent } : null,
+            ]}>
+            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+              <AppIcon
+                color={outfit.feedback === 'love' ? theme.colors.inverseText : theme.colors.text}
+                name="heart"
+                size={16}
+              />
+              <AppText style={{ color: outfit.feedback === 'love' ? theme.colors.inverseText : theme.colors.text }}>
+                Love it
+              </AppText>
+            </View>
+          </Pressable>
+          <Pressable
+            onPress={(event) => {
+              event.stopPropagation();
+              onFeedback('hate');
+            }}
+            style={[
+              actionButtonStyle,
+              outfit.feedback === 'hate' ? { backgroundColor: theme.colors.danger, borderColor: theme.colors.danger } : null,
+            ]}>
+            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+              <AppIcon
+                color={outfit.feedback === 'hate' ? theme.colors.inverseText : theme.colors.text}
+                name="thumbs-down"
+                size={16}
+              />
+              <AppText style={{ color: outfit.feedback === 'hate' ? theme.colors.inverseText : theme.colors.text }}>
+                Hate it
+              </AppText>
+            </View>
+          </Pressable>
         </View>
       ) : null}
     </Pressable>

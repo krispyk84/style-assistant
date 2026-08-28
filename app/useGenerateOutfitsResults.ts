@@ -127,6 +127,27 @@ export function useGenerateOutfitsResults() {
     setSavingOutfitId(null);
   }
 
+  async function handleFeedback(outfit: ClosetGeneratedOutfit, value: 'love' | 'hate') {
+    // Tapping the already-selected state clears it, matching the same
+    // thumbs-up/down pattern used for tier outfit feedback elsewhere.
+    const nextValue = outfit.feedback === value ? null : value;
+
+    const applyUpdate = (list: ClosetGeneratedOutfit[]) =>
+      list.map((item) => (item.feedbackId === outfit.feedbackId ? { ...item, feedback: nextValue } : item));
+    setOutfits(applyUpdate);
+    setVariations(applyUpdate);
+
+    const response = await closetService.setOutfitFeedback({ feedbackId: outfit.feedbackId, feedback: nextValue });
+    if (!response.success) {
+      // Revert on failure.
+      const revert = (list: ClosetGeneratedOutfit[]) =>
+        list.map((item) => (item.feedbackId === outfit.feedbackId ? { ...item, feedback: outfit.feedback } : item));
+      setOutfits(revert);
+      setVariations(revert);
+      showToast('Could not save your feedback.', 'error');
+    }
+  }
+
   async function handleAssignToWeek(dayKey: string, dayLabel: string) {
     if (!weekPickerOutfit) return;
     try {
@@ -154,5 +175,6 @@ export function useGenerateOutfitsResults() {
     backToOutfits,
     handleSaveOutfit,
     handleAssignToWeek,
+    handleFeedback,
   };
 }

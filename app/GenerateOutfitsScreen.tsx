@@ -15,7 +15,7 @@ export function GenerateOutfitsScreen() {
   const {
     formality, stage, outfits, selectedOutfit, variations, error,
     savedOutfitIds, savingOutfitId, weekPickerOutfit, setWeekPickerOutfit,
-    loadOutfits, selectOutfit, backToOutfits, handleSaveOutfit, handleAssignToWeek,
+    loadOutfits, selectOutfit, backToOutfits, handleSaveOutfit, handleAssignToWeek, handleFeedback,
   } = useGenerateOutfitsResults();
 
   const isLoading = stage === 'loading' || stage === 'variations-loading';
@@ -78,6 +78,7 @@ export function GenerateOutfitsScreen() {
                 isSaved={savedOutfitIds.includes(outfit.id)}
                 isSaving={savingOutfitId === outfit.id}
                 onAddToWeek={() => setWeekPickerOutfit(outfit)}
+                onFeedback={(value) => void handleFeedback(outfit, value)}
               />
             ))}
           </View>

@@ -9,6 +9,7 @@ import {
   buildClosetOutfitsUserPrompt,
   buildClosetOutfitVariationsUserPrompt,
   type ClosetOutfitIndexItem,
+  type ClosetOutfitVarietyContext,
 } from '../../ai/prompts/closet-outfits.prompts.js';
 import { buildClosetOutfitSketchPrompt } from '../../ai/prompts/closet-outfit-sketch.prompts.js';
 import { storageProvider } from '../../storage/index.js';
@@ -22,6 +23,10 @@ const MIN_WARDROBE_SIZE = 5;
 const MAX_ATTEMPTS = 4;
 const TARGET_OUTFIT_COUNT = 5;
 const SKETCH_STAGGER_MS = 400;
+// Two batches' worth of outfits (a base 5 + a variations 5) — wide enough to
+// meaningfully steer the model away from repeats, narrow enough that older
+// generations stop suppressing an item forever.
+const RECENT_OUTFITS_FOR_VARIETY = 10;
 
 // A generated outfit must cover both of these slots to count as "complete" —
 // the LLM is instructed to do this, but instructions alone aren't reliable
@@ -40,6 +45,8 @@ type ResolvedOutfit = {
   title: string;
   whyItWorks: string;
   items: MappedClosetItem[];
+  feedbackId: string;
+  feedback: 'love' | 'hate' | null;
   sketchJobId: string;
   sketchStatus: 'pending' | 'ready' | 'failed';
   sketchImageUrl: string | null;
@@ -55,7 +62,13 @@ async function loadIndex(supabaseUserId: string) {
     );
   }
 
-  const index: ClosetOutfitIndexItem[] = items.map((item) => ({
+  // Shuffled per request — LLMs skew toward items earlier in a long list, so
+  // sending the same order every time compounds that bias into the same
+  // handful of items getting picked call after call regardless of prompt
+  // instructions.
+  const shuffled = [...items].sort(() => Math.random() - 0.5);
+
+  const index: ClosetOutfitIndexItem[] = shuffled.map((item) => ({
     id: item.id,
     name: item.title,
     category: item.category,
@@ -72,11 +85,32 @@ async function loadIndex(supabaseUserId: string) {
   return { index, itemsById };
 }
 
+async function buildVarietyContext(
+  supabaseUserId: string,
+  itemsById: Map<string, Awaited<ReturnType<typeof closetRepository.getItems>>[number]>,
+): Promise<ClosetOutfitVarietyContext> {
+  const [recentIds, preference] = await Promise.all([
+    closetRepository.getRecentlyUsedItemIds(supabaseUserId, RECENT_OUTFITS_FOR_VARIETY),
+    closetRepository.getPreferenceItemIds(supabaseUserId),
+  ]);
+
+  const toNamed = (ids: string[]) =>
+    ids
+      .map((id) => itemsById.get(id))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .map((item) => ({ id: item.id, name: item.title }));
+
+  return {
+    recentlyUsedItems: toNamed(recentIds),
+    preference: { loved: toNamed(preference.loved), hated: toNamed(preference.hated) },
+  };
+}
+
 function resolveOutfits(
   outfits: { title: string; itemIds: string[]; whyItWorks: string }[],
   itemsById: Map<string, Awaited<ReturnType<typeof closetRepository.getItems>>[number]>,
-): Omit<ResolvedOutfit, 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[] {
-  const resolved: Omit<ResolvedOutfit, 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[] = [];
+): Omit<ResolvedOutfit, 'feedbackId' | 'feedback' | 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[] {
+  const resolved: Omit<ResolvedOutfit, 'feedbackId' | 'feedback' | 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[] = [];
 
   for (let i = 0; i < outfits.length; i++) {
     const outfit = outfits[i]!;
@@ -201,6 +235,19 @@ async function generateOutfitSketch(
   }
 }
 
+async function attachFeedbackIds(
+  outfits: Omit<ResolvedOutfit, 'feedbackId' | 'feedback' | 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[],
+  formality: string,
+  supabaseUserId: string,
+): Promise<Omit<ResolvedOutfit, 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[]> {
+  const rows = await closetRepository.createOutfitFeedbackRows(
+    supabaseUserId,
+    formality,
+    outfits.map((outfit) => ({ title: outfit.title, itemIds: outfit.items.map((item) => item.id) })),
+  );
+  return outfits.map((outfit, index) => ({ ...outfit, feedbackId: rows[index]!.id, feedback: null }));
+}
+
 async function attachSketchJobs(
   outfits: Omit<ResolvedOutfit, 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[],
   supabaseUserId: string,
@@ -242,6 +289,7 @@ async function attachSketchJobs(
 export const closetOutfitsService = {
   async generateOutfits(payload: GenerateClosetOutfitsPayload, supabaseUserId: string) {
     const { index, itemsById } = await loadIndex(supabaseUserId);
+    const variety = await buildVarietyContext(supabaseUserId, itemsById);
 
     const userPrompt = buildClosetOutfitsUserPrompt({
       index,
@@ -250,6 +298,7 @@ export const closetOutfitsService = {
       weatherStylingHint: payload.weatherContext?.stylingHint,
       season: payload.weatherContext?.season,
       trendiness: payload.trendiness,
+      variety,
     });
 
     const outfits = await requestOutfits({ index, userPrompt, supabaseUserId });
@@ -259,11 +308,13 @@ export const closetOutfitsService = {
       throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not assemble outfits from your closet. Please try again.');
     }
 
-    return { outfits: await attachSketchJobs(resolved, supabaseUserId) };
+    const withFeedbackIds = await attachFeedbackIds(resolved, payload.formality, supabaseUserId);
+    return { outfits: await attachSketchJobs(withFeedbackIds, supabaseUserId) };
   },
 
   async generateOutfitVariations(payload: GenerateClosetOutfitVariationsPayload, supabaseUserId: string) {
     const { index, itemsById } = await loadIndex(supabaseUserId);
+    const variety = await buildVarietyContext(supabaseUserId, itemsById);
 
     const validBaseIds = payload.baseItemIds.filter((id) => itemsById.has(id));
     if (validBaseIds.length < 2) {
@@ -278,6 +329,7 @@ export const closetOutfitsService = {
       weatherStylingHint: payload.weatherContext?.stylingHint,
       season: payload.weatherContext?.season,
       trendiness: payload.trendiness,
+      variety,
     });
 
     const outfits = await requestOutfits({ index, userPrompt, supabaseUserId });
@@ -287,6 +339,15 @@ export const closetOutfitsService = {
       throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not generate variations for that outfit. Please try again.');
     }
 
-    return { outfits: await attachSketchJobs(resolved, supabaseUserId) };
+    const withFeedbackIds = await attachFeedbackIds(resolved, payload.formality, supabaseUserId);
+    return { outfits: await attachSketchJobs(withFeedbackIds, supabaseUserId) };
+  },
+
+  async setOutfitFeedback(feedbackId: string, supabaseUserId: string, feedback: 'love' | 'hate' | null) {
+    const updated = await closetRepository.setOutfitFeedback(feedbackId, supabaseUserId, feedback);
+    if (!updated) {
+      throw new HttpError(404, 'OUTFIT_FEEDBACK_NOT_FOUND', 'No generated outfit exists for the provided id.');
+    }
+    return { feedbackId, feedback };
   },
 };
