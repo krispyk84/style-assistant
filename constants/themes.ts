@@ -31,37 +31,49 @@ const FONTS = {
 } as const;
 
 // "NewFit" redesign (see redesign/newfit-style branch) — moody editorial
-// fashion-tech look: near-black warm brown, champagne-gold accent, cream
-// text. Both light and dark resolve to the same palette on purpose — the
-// reference has no separate light mode, and unifying them means every
-// screen looks consistent regardless of the user's stored appearance
-// preference. dark:true on BOTH keeps the status bar icons light-on-dark
-// correctly in either case.
-const NEWFIT_COLORS = {
-  background: '#151210',
-  surface: '#1F1A15',
-  subtleSurface: '#251F19',
-  card: '#2A241D',
-  border: '#38312A',
-  text: '#F3ECE1',
-  mutedText: '#B3A395',
-  subtleText: '#7C6E61',
-  accent: '#C9A876',
-  inverseText: '#1A140F',
-  danger: '#E2735F',
-  dangerSurface: '#2D1512',
-  overlay: 'rgba(10, 8, 6, 0.75)',
-} as const;
+// fashion-tech look, same champagne-gold/serif branding in both modes. The
+// accent is deeper in light mode and paler in dark mode — same hue family,
+// lightness tuned per background so it stays readable as both a fill (button
+// backgrounds) and, via inverseText, correctly contrasts whichever text sits
+// on top of it.
 
 export const lightTheme: AppTheme = {
-  dark: true,
-  colors: NEWFIT_COLORS,
+  dark: false,
+  colors: {
+    background: '#FAF6EF',
+    surface: '#FFFFFF',
+    subtleSurface: '#F5EEE1',
+    card: '#F0E6D5',
+    border: '#E3D6C2',
+    text: '#241C15',
+    mutedText: '#7A6C5D',
+    subtleText: '#A0937F',
+    accent: '#A9793A',
+    inverseText: '#FFFFFF',
+    danger: '#C95F4A',
+    dangerSurface: '#FEF0EE',
+    overlay: 'rgba(24, 18, 14, 0.52)',
+  },
   fonts: FONTS,
 };
 
 export const darkTheme: AppTheme = {
   dark: true,
-  colors: NEWFIT_COLORS,
+  colors: {
+    background: '#151210',
+    surface: '#1F1A15',
+    subtleSurface: '#251F19',
+    card: '#2A241D',
+    border: '#38312A',
+    text: '#F3ECE1',
+    mutedText: '#B3A395',
+    subtleText: '#7C6E61',
+    accent: '#C9A876',
+    inverseText: '#1A140F',
+    danger: '#E2735F',
+    dangerSurface: '#2D1512',
+    overlay: 'rgba(10, 8, 6, 0.75)',
+  },
   fonts: FONTS,
 };
 

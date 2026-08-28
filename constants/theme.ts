@@ -1,23 +1,25 @@
 import type { Theme } from '@react-navigation/native';
 
-// Kept in sync with constants/themes.ts NEWFIT_COLORS — this static object
-// is the default for components that don't call useTheme() (see CLAUDE.md
-// "Static theme" convention). Both files must be updated together.
+// Kept in sync with constants/themes.ts lightTheme — this static object is
+// the default for components that don't call useTheme() (see CLAUDE.md
+// "Static theme" convention), so it always renders light regardless of the
+// user's dark-mode preference — same as before the NewFit redesign. Both
+// files must be updated together.
 export const theme = {
   colors: {
-    background: '#151210',
-    surface: '#1F1A15',
-    subtleSurface: '#251F19',
-    card: '#2A241D',
-    border: '#38312A',
-    text: '#F3ECE1',
-    mutedText: '#B3A395',
-    subtleText: '#7C6E61',
-    accent: '#C9A876',
-    inverseText: '#1A140F',
-    danger: '#E2735F',
-    dangerSurface: '#2D1512',
-    overlay: 'rgba(10, 8, 6, 0.75)',
+    background: '#FAF6EF',
+    surface: '#FFFFFF',
+    subtleSurface: '#F5EEE1',
+    card: '#F0E6D5',
+    border: '#E3D6C2',
+    text: '#241C15',
+    mutedText: '#7A6C5D',
+    subtleText: '#A0937F',
+    accent: '#A9793A',
+    inverseText: '#FFFFFF',
+    danger: '#C95F4A',
+    dangerSurface: '#FEF0EE',
+    overlay: 'rgba(24, 18, 14, 0.52)',
   },
   fonts: {
     sans: 'AvenirNext-Regular',
@@ -36,7 +38,7 @@ export const spacing = {
 } as const;
 
 export const navTheme: Theme = {
-  dark: true,
+  dark: false,
   colors: {
     primary: theme.colors.accent,
     background: theme.colors.background,
