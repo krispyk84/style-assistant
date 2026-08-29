@@ -78,10 +78,19 @@ export function AppScreen({
     [floatingBack, onScroll],
   );
 
+  // flex: 1 only makes sense for the non-scrollable case (fill the screen for
+  // static content). Inside a ScrollView, giving the sole content child
+  // flex: 1 creates a circular sizing constraint against the ScrollView's own
+  // contentContainerStyle flexGrow: 1 — normally invisible, but Yoga can
+  // resolve it inconsistently whenever content height changes asynchronously
+  // (an image swapping in, a card mounting/unmounting), leaving the scroll
+  // view showing a stale/collapsed layout. contentContainerStyle's
+  // flexGrow: 1 alone already makes short content fill the viewport without
+  // needing this child to also carry flex: 1.
   const content = (
     <View
       style={{
-        flex: 1,
+        ...(scrollable ? null : { flex: 1 }),
         paddingHorizontal: spacing.lg,
         paddingTop: topInset ? spacing.md : spacing.xs,
         paddingBottom: spacing.xl,
