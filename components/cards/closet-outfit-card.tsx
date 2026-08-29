@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { ClosetOutfitDetailModal } from '@/components/cards/closet-outfit-detail-modal';
 import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPanel';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
@@ -36,6 +37,7 @@ export function ClosetOutfitCard({
   onSecondOpinion,
 }: ClosetOutfitCardProps) {
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const showActions = onSave || onAddToWeek || onDelete;
 
   function toggleItemSelected(itemId: string) {
@@ -60,7 +62,7 @@ export function ClosetOutfitCard({
 
       <AppText tone="muted" style={{ fontSize: 13, fontStyle: 'italic' }}>{outfit.whyItWorks}</AppText>
 
-      <View style={{ backgroundColor: theme.colors.card, borderRadius: 16, overflow: 'hidden' }}>
+      <Pressable onPress={() => setIsDetailOpen(true)} style={{ backgroundColor: theme.colors.card, borderRadius: 16, overflow: 'hidden' }}>
         <GeneratedSketchPanel
           mode="compact"
           status={outfit.sketchStatus}
@@ -69,7 +71,9 @@ export function ClosetOutfitCard({
           pendingMessage="The illustration will appear automatically when it's ready."
           failedLabel="Sketch unavailable"
         />
-      </View>
+      </Pressable>
+
+      <ClosetOutfitDetailModal visible={isDetailOpen} outfit={outfit} onClose={() => setIsDetailOpen(false)} />
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
         {outfit.items.map((item) => {
