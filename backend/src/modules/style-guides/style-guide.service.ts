@@ -8,7 +8,8 @@ type RetrievalTask =
   | 'trip-generation'
   | 'tier-regeneration'
   | 'compatibility-check'
-  | 'selfie-review';
+  | 'selfie-review'
+  | 'second-opinion';
 
 type RetrieveGuidanceInput = {
   task: RetrievalTask;

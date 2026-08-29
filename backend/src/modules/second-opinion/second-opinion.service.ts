@@ -2,6 +2,7 @@ import { openAiClient } from '../../ai/openai-client.js';
 import { secondOpinionJsonSchema, secondOpinionModelSchema } from './second-opinion.schemas.js';
 import { buildSecondOpinionInstructions, buildSecondOpinionUserPrompt, type StylistId } from '../../ai/prompts/second-opinion.prompts.js';
 import { profileRepository } from '../profile/profile.repository.js';
+import { styleGuideService } from '../style-guides/style-guide.service.js';
 
 export type SecondOpinionRequest = {
   stylistId: StylistId;
@@ -30,6 +31,19 @@ export const secondOpinionService = {
       ? await profileRepository.findById(input.profileId)
       : await profileRepository.findByUserId(supabaseUserId);
 
+    // No-ops (returns null) unless a style guide has actually been uploaded and
+    // STYLE_GUIDE_ENABLED is on — see backend/scripts/setup-style-guide.ts.
+    const guidance = await styleGuideService.retrieveGuidance({
+      task: 'second-opinion',
+      query: [
+        'current menswear trends, key aesthetic directions, standout pieces, styling philosophy',
+        input.outfitTitle,
+        ...(input.keyPieces ?? []),
+        ...(input.shoes ?? []),
+        ...(input.accessories ?? []),
+      ].filter(Boolean).join(', '),
+    });
+
     const aiOutput = await openAiClient.createStructuredResponse({
       schema: secondOpinionModelSchema,
       jsonSchema: {
@@ -53,6 +67,7 @@ export const secondOpinionService = {
             fitNotes: input.fitNotes,
             whyItWorks: input.whyItWorks,
             stylingDirection: input.stylingDirection,
+            styleGuideContext: guidance?.promptContext,
           }),
         },
       ],

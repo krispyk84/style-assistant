@@ -149,9 +149,24 @@ async function requestOutfits(params: {
   mustIncludeItemIds?: string[];
 }): Promise<{ title: string; itemIds: string[]; whyItWorks: string }[]> {
   const categoryById = new Map(params.index.map((item) => [item.id, item.category]));
-  let best: { outfits: { title: string; itemIds: string[]; whyItWorks: string }[]; usableCount: number } | null = null;
+  const isUsable = (outfit: { itemIds: string[] }) => {
+    if (!outfit.itemIds.every((id) => categoryById.has(id))) return false;
+    const categories = outfit.itemIds.map((id) => categoryById.get(id)!);
+    if (!isCompleteOutfit(categories)) return false;
+    if (params.mustIncludeItemIds && !params.mustIncludeItemIds.every((id) => outfit.itemIds.includes(id))) return false;
+    return true;
+  };
 
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+  // Accumulate usable outfits ACROSS attempts rather than requiring a single
+  // attempt to score 5/5 — a retry that got 4/5 right shouldn't discard the
+  // one good outfit from a prior attempt that only got 2/5 right. This is
+  // what actually fixed generations settling for 3 outfits instead of 5: the
+  // old version replaced the "best" attempt wholesale each retry instead of
+  // combining what already validated.
+  const accumulated: { title: string; itemIds: string[]; whyItWorks: string }[] = [];
+  const seenKeys = new Set<string>();
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS && accumulated.length < TARGET_OUTFIT_COUNT; attempt++) {
     const result = await openAiClient.createStructuredResponse({
       schema: closetOutfitsLlmResponseSchema,
       jsonSchema: CLOSET_OUTFITS_JSON_SCHEMA,
@@ -161,29 +176,18 @@ async function requestOutfits(params: {
       feature: 'outfit-generation',
     });
 
-    // resolveOutfits() re-validates and filters the rest, but retrying here
-    // gives the model a real chance to fix incomplete/invalid outfits instead
-    // of the caller silently surfacing fewer than TARGET_OUTFIT_COUNT. Keep
-    // the best attempt seen so far so a later, worse retry can't discard a
-    // good earlier one.
-    const usableCount = result.outfits.filter((outfit) => {
-      if (!outfit.itemIds.every((id) => categoryById.has(id))) return false;
-      const categories = outfit.itemIds.map((id) => categoryById.get(id)!);
-      if (!isCompleteOutfit(categories)) return false;
-      if (params.mustIncludeItemIds && !params.mustIncludeItemIds.every((id) => outfit.itemIds.includes(id))) return false;
-      return true;
-    }).length;
-
-    if (!best || usableCount > best.usableCount) {
-      best = { outfits: result.outfits, usableCount };
-    }
-    if (usableCount >= TARGET_OUTFIT_COUNT) {
-      return result.outfits;
+    for (const outfit of result.outfits) {
+      if (!isUsable(outfit)) continue;
+      const key = [...outfit.itemIds].sort().join('|');
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      accumulated.push(outfit);
+      if (accumulated.length >= TARGET_OUTFIT_COUNT) break;
     }
   }
 
-  if (best && best.usableCount >= 3) {
-    return best.outfits;
+  if (accumulated.length >= 3) {
+    return accumulated.slice(0, TARGET_OUTFIT_COUNT);
   }
 
   throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not assemble outfits from your closet. Please try again.');
