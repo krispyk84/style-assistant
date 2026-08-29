@@ -23,6 +23,12 @@ import type { CreateHaircutSessionPayload, GenerateHaircutGuidePayload, SaveHair
 
 const STAGGER_MS = 500;
 
+// Each unsaved session carries up to ~20 HaircutOption rows with real JPEG
+// blobs — far heavier per-row than tiered outfit history — so this stays
+// deliberately smaller than HISTORY_RETENTION_LIMIT (50) in outfits.service.ts.
+// Saved sessions (savedAt set) are never counted against this limit at all.
+export const HAIRCUT_SESSION_RETENTION_LIMIT = 10;
+
 /**
  * The style list a session draws from: the current seasonal top-20 trend
  * list (a mix of classic + trending cuts, refreshed periodically via Gemini)
@@ -141,7 +147,26 @@ export const haircutService = {
       }),
     );
 
+    // Fire-and-forget with .catch() — an unawaited rejection here is an
+    // unhandled promise rejection, which crashes the whole process (this
+    // exact failure mode already happened once this session for outfit
+    // history pruning; never repeat it).
+    haircutService.pruneUnsavedSessions(supabaseUserId).catch((error) => {
+      logger.error({ supabaseUserId, error }, 'Haircut session prune failed');
+    });
+
     return { sessionId: session.id, status: 'generating' as const, options: options.map(mapOption) };
+  },
+
+  /**
+   * Deletes this user's unsaved haircut sessions beyond HAIRCUT_SESSION_RETENTION_LIMIT.
+   * Saved sessions are excluded from the candidate set at the query level, not
+   * just skipped by ordering, so a saved session can never be deleted here.
+   */
+  async pruneUnsavedSessions(supabaseUserId: string, keep: number = HAIRCUT_SESSION_RETENTION_LIMIT) {
+    const staleIds = await haircutRepository.findUnsavedSessionIdsBeyondLimit(supabaseUserId, keep);
+    if (staleIds.length === 0) return 0;
+    return haircutRepository.deleteSessionsByIds(staleIds);
   },
 
   async getSession(id: string, supabaseUserId: string) {

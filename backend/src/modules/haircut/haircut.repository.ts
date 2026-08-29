@@ -71,4 +71,26 @@ export const haircutRepository = {
       orderBy: { savedAt: 'desc' },
     });
   },
+
+  // Unsaved sessions beyond the retention limit — each carries up to ~20
+  // HaircutOption rows with real JPEG blobs, so these are worth pruning
+  // aggressively. Saved sessions (savedAt set) are never candidates here at
+  // all — the where-clause excludes them outright, not just via ordering.
+  async findUnsavedSessionIdsBeyondLimit(supabaseUserId: string, keep: number) {
+    const sessions = await prisma.haircutSession.findMany({
+      where: { supabaseUserId, savedAt: null },
+      orderBy: { createdAt: 'desc' },
+      skip: keep,
+      select: { id: true },
+    });
+    return sessions.map((session) => session.id);
+  },
+
+  // onDelete: Cascade on HaircutOption.session means this also removes every
+  // option row (and its image blob) belonging to these sessions.
+  async deleteSessionsByIds(ids: string[]) {
+    if (ids.length === 0) return 0;
+    const result = await prisma.haircutSession.deleteMany({ where: { id: { in: ids } } });
+    return result.count;
+  },
 };

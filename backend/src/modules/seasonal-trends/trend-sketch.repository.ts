@@ -63,4 +63,16 @@ export const trendSketchRepository = {
       where: { status: { in: ['pending', 'failed'] }, firstGeneratedAt: { lt: olderThan } },
     });
   },
+
+  /**
+   * Rows not seen in the current top-20 for longer than the given cutoff —
+   * touchLastSeen() refreshes lastSeenAt every time a freshly generated
+   * profile still contains this trend, so a row this old has genuinely
+   * fallen out of rotation across at least one full season cycle, not just
+   * been deprioritized within the current one.
+   */
+  async deleteStale(olderThan: Date) {
+    const result = await prisma.trendSketch.deleteMany({ where: { lastSeenAt: { lt: olderThan } } });
+    return result.count;
+  },
 };

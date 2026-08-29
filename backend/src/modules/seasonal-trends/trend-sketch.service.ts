@@ -19,6 +19,12 @@ const STAGGER_MS = 1000;
 // and becomes eligible for retryStuckSketches() to pick up.
 const STALE_MS = 1000 * 60 * 10;
 
+// A sketch not seen in the current top-20 for longer than this is genuinely
+// gone, not just temporarily out of favour — safely past two full season
+// cycles (~90 days each) without recurring, so it's deleted to reclaim its
+// image blob rather than kept "just in case" forever.
+const STALE_RETENTION_MS = 1000 * 60 * 60 * 24 * 200;
+
 type TrendSketchRow = Awaited<ReturnType<typeof trendSketchRepository.findByKey>>;
 
 function inputFromRow(row: NonNullable<TrendSketchRow>): TrendSketchInput {
@@ -118,6 +124,17 @@ export const trendSketchService = {
         await generateSketch(row.id, inputFromRow(row));
       })();
     });
+  },
+
+  /**
+   * Deletes sketches for trends that have fallen out of rotation for good —
+   * not seen in the current top-20 for STALE_RETENTION_MS. Run periodically
+   * by the trend-refresh scheduler; cheap no-op on ticks with nothing stale.
+   */
+  async pruneStaleSketches() {
+    const deleted = await trendSketchRepository.deleteStale(new Date(Date.now() - STALE_RETENTION_MS));
+    if (deleted > 0) logger.info({ deleted }, 'Trend sketch: pruned stale sketches');
+    return deleted;
   },
 
   /** Pure read — looks up each trend's current sketch status/url without writing anything. */

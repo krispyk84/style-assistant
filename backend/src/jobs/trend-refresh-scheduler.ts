@@ -31,6 +31,12 @@ function runCheck() {
   } catch (error) {
     logger.error({ error }, 'Trend refresh scheduler: check failed to fire');
   }
+
+  // Piggybacks on the same 6-hour tick — trend staleness changes slowly, so
+  // this doesn't need its own faster interval like the stuck-sketch retry does.
+  trendSketchService.pruneStaleSketches().catch((error) => {
+    logger.error({ error }, 'Trend sketch prune sweep failed to fire');
+  });
 }
 
 function runSketchRetrySweep() {
