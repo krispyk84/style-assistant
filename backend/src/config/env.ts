@@ -40,7 +40,10 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   // Gemini text client (seasonal-trends.service.ts) — separate from the image
   // model above since structured JSON output is a text-generation feature.
-  GEMINI_TEXT_MODEL: z.string().default('gemini-2.5-flash'),
+  // gemini-2.5-flash was retired for new API keys (Gemini now 404s it with a
+  // "no longer available to new users" message) — confirmed via production
+  // logs; gemini-3.6-flash is Google's stated replacement.
+  GEMINI_TEXT_MODEL: z.string().default('gemini-3.6-flash'),
 });
 
 export const env = envSchema.parse(process.env);

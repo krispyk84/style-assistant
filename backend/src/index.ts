@@ -4,6 +4,7 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { prisma } from './db/prisma.js';
+import { startTrendRefreshScheduler } from './jobs/trend-refresh-scheduler.js';
 
 async function bootstrap() {
   const app = createApp();
@@ -19,6 +20,8 @@ async function bootstrap() {
       'Style Assistant API listening'
     );
   });
+
+  startTrendRefreshScheduler();
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutting down API');
