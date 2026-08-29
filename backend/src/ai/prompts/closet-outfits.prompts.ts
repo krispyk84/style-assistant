@@ -111,6 +111,22 @@ function buildVarietyAndPreferenceBlock(context?: ClosetOutfitVarietyContext): s
   return lines.length ? lines.join('\n') : null;
 }
 
+/**
+ * Free-form additional guidance from the user — appended as a HARD styling
+ * constraint so the model treats it as a steering signal rather than a hint.
+ * Mirrors buildAdditionalDetailsRule in outfits.prompts.ts (the tiered-outfit
+ * flow's equivalent field).
+ */
+function buildAdditionalDetailsRule(additionalDetails: string | undefined | null): string | null {
+  const trimmed = additionalDetails?.trim();
+  if (!trimmed) return null;
+  return [
+    'ADDITIONAL USER DETAILS — these are user-supplied directives. Treat them as a HARD styling constraint that must visibly shape every outfit; do not ignore, dilute, or summarise them away:',
+    `"${trimmed}"`,
+    'If the directive conflicts with a styling instinct, follow the directive. If it specifies a context (occasion, audience, activity), let it inform which wardrobe items you select and how formal/relaxed the styling reads within the requested formality band. If it forbids a piece, color, or feel, do not select anything from the wardrobe index that violates it.',
+  ].join('\n');
+}
+
 function buildSeasonalFashionTrendsRule(
   formality: string,
   seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null,
@@ -129,6 +145,7 @@ function buildContextBlock(params: {
   weatherStylingHint?: string | null;
   season?: string | null;
   trendiness?: number | null;
+  additionalDetails?: string | null;
   variety?: ClosetOutfitVarietyContext;
   seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
 }): string {
@@ -138,6 +155,7 @@ function buildContextBlock(params: {
     params.weatherSummary ? `Current weather: ${params.weatherSummary}` : null,
     params.weatherStylingHint ? `Weather styling guidance: ${params.weatherStylingHint}` : null,
     buildTrendinessRule(params.trendiness),
+    buildAdditionalDetailsRule(params.additionalDetails),
     buildSeasonalFashionTrendsRule(params.formality, params.seasonalTrends),
     buildVarietyAndPreferenceBlock(params.variety),
   ];
@@ -151,6 +169,7 @@ export function buildClosetOutfitsUserPrompt(params: {
   weatherStylingHint?: string | null;
   season?: string | null;
   trendiness?: number | null;
+  additionalDetails?: string | null;
   variety?: ClosetOutfitVarietyContext;
   seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
 }): string {
@@ -174,6 +193,7 @@ export function buildClosetOutfitVariationsUserPrompt(params: {
   weatherStylingHint?: string | null;
   season?: string | null;
   trendiness?: number | null;
+  additionalDetails?: string | null;
   variety?: ClosetOutfitVarietyContext;
   seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
 }): string {

@@ -376,6 +376,8 @@ export type GenerateClosetOutfitsRequest = {
   /** Location-derived, for seasonal fashion trend lookup — separate from weatherContext since it isn't weather data. */
   hemisphere?: Hemisphere;
   region?: string;
+  /** Freeform steering guidance — occasion, style direction, things to avoid. */
+  additionalDetails?: string;
 };
 
 export type GenerateClosetOutfitVariationsRequest = {
@@ -384,6 +386,7 @@ export type GenerateClosetOutfitVariationsRequest = {
   trendiness?: number;
   hemisphere?: Hemisphere;
   region?: string;
+  additionalDetails?: string;
   baseItemIds: string[];
   /** Item ids to actually swap (1-2) — every other base item is kept unchanged across all 5 variations. */
   swapItemIds: string[];

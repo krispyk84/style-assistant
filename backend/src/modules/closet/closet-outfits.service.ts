@@ -326,6 +326,7 @@ export const closetOutfitsService = {
       weatherStylingHint: payload.weatherContext?.stylingHint,
       season: payload.weatherContext?.season,
       trendiness: payload.trendiness,
+      additionalDetails: payload.additionalDetails,
       variety,
       seasonalTrends,
     });
@@ -368,6 +369,7 @@ export const closetOutfitsService = {
       weatherStylingHint: payload.weatherContext?.stylingHint,
       season: payload.weatherContext?.season,
       trendiness: payload.trendiness,
+      additionalDetails: payload.additionalDetails,
       variety,
       seasonalTrends,
     });

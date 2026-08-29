@@ -12,8 +12,9 @@ import type { LookTierSlug } from '@/types/look-request';
 export type GenerateOutfitsStage = 'loading' | 'outfits' | 'variations-loading' | 'variations' | 'error';
 
 export function useGenerateOutfitsResults() {
-  const params = useLocalSearchParams<{ formality?: string }>();
+  const params = useLocalSearchParams<{ formality?: string; additionalDetails?: string }>();
   const formality = (params.formality as LookTierSlug | undefined) ?? 'smart-casual';
+  const additionalDetails = params.additionalDetails;
 
   const [stage, setStage] = useState<GenerateOutfitsStage>('loading');
   const [outfits, setOutfits] = useState<ClosetGeneratedOutfit[]>([]);
@@ -40,6 +41,7 @@ export function useGenerateOutfitsResults() {
       trendiness: settings.trendiness,
       hemisphere: weatherContext?.hemisphere ?? undefined,
       region: weatherContext?.countryCode ?? undefined,
+      additionalDetails,
     });
     if (!response.success || !response.data) {
       setError(response.error?.message ?? 'Could not generate outfits. Please try again.');
@@ -67,6 +69,7 @@ export function useGenerateOutfitsResults() {
       trendiness: settings.trendiness,
       hemisphere: weatherContext?.hemisphere ?? undefined,
       region: weatherContext?.countryCode ?? undefined,
+      additionalDetails,
       baseItemIds: outfit.items.map((item) => item.id),
       swapItemIds,
     });
