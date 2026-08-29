@@ -6,8 +6,18 @@ export const HAIRCUT_TREND_CLASSIFICATIONS = ['classic', 'trending'] as const;
 // sides so a response can't come back all-classic or all-trending.
 const MIN_PER_CLASSIFICATION = 5;
 
+// Gemini is instructed to return a kebab-case slug for `key` but won't always
+// match that exactly (stray capitals, underscores, etc.) — normalize instead
+// of rejecting, so a minor formatting slip doesn't repeatedly fail validation
+// and leave the profile stuck on "generating" forever.
+const kebabCaseKey = z
+  .string()
+  .min(1)
+  .transform((value) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''))
+  .refine((value) => value.length > 0, 'key must contain at least one alphanumeric character');
+
 const haircutTrendStyleSchema = z.object({
-  key: z.string().min(1).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'key must be a kebab-case slug'),
+  key: kebabCaseKey,
   label: z.string().min(1),
   summary: z.string().min(1),
   classification: z.enum(HAIRCUT_TREND_CLASSIFICATIONS),

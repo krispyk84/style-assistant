@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { useAppSession } from '@/hooks/use-app-session';
 import { loadWeatherContext } from '@/lib/weather-storage';
@@ -6,11 +6,6 @@ import { seasonalTrendsService } from '@/services/seasonal-trends';
 import type { SeasonalTrendReportEntry } from '@/types/api';
 import type { Hemisphere } from '@/types/weather';
 
-// Generation is a structured Gemini call for 30 trends across three
-// formality tiers — give it a real window to finish rather than checking
-// once and giving up. Bounded so a stuck request can't leave the modal
-// spinning forever.
-const POLL_ATTEMPTS = 6;
 const POLL_INTERVAL_MS = 3000;
 
 function wait(ms: number) {
@@ -28,12 +23,19 @@ export function useFashionTrendReport() {
   const [trends, setTrends] = useState<SeasonalTrendReportEntry[] | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bumped on every open()/close() — invalidates any in-flight poll loop from
+  // a previous open so it stops touching state once the modal is no longer
+  // the one that started it. No attempt cap: generation genuinely can take a
+  // while, and the user can always close the modal to stop waiting.
+  const generationTokenRef = useRef(0);
 
   async function open() {
+    const token = ++generationTokenRef.current;
     setIsOpen(true);
     setIsLoading(true);
     setIsGenerating(false);
     setError(null);
+    setTrends(null);
 
     const weatherContext = await loadWeatherContext();
     const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
@@ -45,8 +47,10 @@ export function useFashionTrendReport() {
     // background check already fired one on app launch.
     void seasonalTrendsService.ensure({ fashionGender, hemisphere, region });
 
-    for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
+    let firstAttempt = true;
+    while (generationTokenRef.current === token) {
       const response = await seasonalTrendsService.getReport(fashionGender, hemisphere);
+      if (generationTokenRef.current !== token) return; // closed or reopened while this was in flight
 
       if (response.success && response.data?.available) {
         setTrends(response.data.trends);
@@ -64,18 +68,16 @@ export function useFashionTrendReport() {
         return;
       }
 
-      // available: false — a generation is (or should be) in flight; keep polling.
-      setIsGenerating(true);
-      if (attempt < POLL_ATTEMPTS - 1) await wait(POLL_INTERVAL_MS);
+      // available: false — a generation is (or should be) in flight; keep polling
+      // for as long as the modal stays open.
+      if (!firstAttempt) setIsGenerating(true);
+      firstAttempt = false;
+      await wait(POLL_INTERVAL_MS);
     }
-
-    setTrends(null);
-    setError('This season\'s trend report is taking longer than expected to generate — please try again in a moment.');
-    setIsLoading(false);
-    setIsGenerating(false);
   }
 
   function close() {
+    generationTokenRef.current++;
     setIsOpen(false);
   }
 

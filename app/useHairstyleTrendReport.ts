@@ -1,14 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { haircutTrendsService } from '@/services/haircut-trends';
 import type { HaircutTrendStyle } from '@/types/api';
 import type { Hemisphere } from '@/types/weather';
 
-// Generation is a structured Gemini call for 20 styles — give it a real
-// window to finish rather than checking once and giving up. Bounded so a
-// stuck request can't leave the modal spinning forever.
-const POLL_ATTEMPTS = 6;
 const POLL_INTERVAL_MS = 3000;
 
 function wait(ms: number) {
@@ -25,12 +21,19 @@ export function useHairstyleTrendReport() {
   const [styles, setStyles] = useState<HaircutTrendStyle[] | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bumped on every open()/close() — invalidates any in-flight poll loop from
+  // a previous open so it stops touching state once the modal is no longer
+  // the one that started it. No attempt cap: generation genuinely can take a
+  // while, and the user can always close the modal to stop waiting.
+  const generationTokenRef = useRef(0);
 
   async function open() {
+    const token = ++generationTokenRef.current;
     setIsOpen(true);
     setIsLoading(true);
     setIsGenerating(false);
     setError(null);
+    setStyles(null);
 
     const weatherContext = await loadWeatherContext();
     const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
@@ -41,8 +44,10 @@ export function useHairstyleTrendReport() {
     // background check already fired one on screen mount.
     void haircutTrendsService.ensure({ hemisphere, region });
 
-    for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
+    let firstAttempt = true;
+    while (generationTokenRef.current === token) {
       const response = await haircutTrendsService.getCurrent(hemisphere);
+      if (generationTokenRef.current !== token) return; // closed or reopened while this was in flight
 
       if (response.success && response.data?.available) {
         setStyles(response.data.styles);
@@ -60,18 +65,16 @@ export function useHairstyleTrendReport() {
         return;
       }
 
-      // available: false — a generation is (or should be) in flight; keep polling.
-      setIsGenerating(true);
-      if (attempt < POLL_ATTEMPTS - 1) await wait(POLL_INTERVAL_MS);
+      // available: false — a generation is (or should be) in flight; keep polling
+      // for as long as the modal stays open.
+      if (!firstAttempt) setIsGenerating(true);
+      firstAttempt = false;
+      await wait(POLL_INTERVAL_MS);
     }
-
-    setStyles(null);
-    setError('This season\'s trend report is taking longer than expected to generate — please try again in a moment.');
-    setIsLoading(false);
-    setIsGenerating(false);
   }
 
   function close() {
+    generationTokenRef.current++;
     setIsOpen(false);
   }
 
