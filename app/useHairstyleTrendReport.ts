@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 
+import { useAppSession } from '@/hooks/use-app-session';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { haircutTrendsService } from '@/services/haircut-trends';
 import type { HaircutTrendStyle } from '@/types/api';
@@ -12,6 +13,7 @@ function wait(ms: number) {
 }
 
 export function useHairstyleTrendReport() {
+  const { profile } = useAppSession();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   // True once the first check comes back empty and we're actively waiting on
@@ -38,15 +40,16 @@ export function useHairstyleTrendReport() {
     const weatherContext = await loadWeatherContext();
     const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
     const region = weatherContext?.countryCode ?? undefined;
+    const fashionGender = profile.gender === 'woman' ? 'womenswear' : 'menswear';
 
     // Opening the report is what actually triggers generation if nothing
     // exists yet — ensure() is idempotent, so this is safe even if a
     // background check already fired one on screen mount.
-    void haircutTrendsService.ensure({ hemisphere, region });
+    void haircutTrendsService.ensure({ fashionGender, hemisphere, region });
 
     let firstAttempt = true;
     while (generationTokenRef.current === token) {
-      const response = await haircutTrendsService.getCurrent(hemisphere);
+      const response = await haircutTrendsService.getCurrent(fashionGender, hemisphere);
       if (generationTokenRef.current !== token) return; // closed or reopened while this was in flight
 
       if (response.success && response.data?.available) {

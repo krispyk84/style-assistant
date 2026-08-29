@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
+import { useAppSession } from '@/hooks/use-app-session';
 import { cameraCaptureResult } from '@/lib/camera-capture-result';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { haircutService } from '@/services/haircut';
@@ -30,6 +31,7 @@ const POLL_INTERVAL_MS = 3000;
 
 export function useHaircutPlanner() {
   const router = useRouter();
+  const { profile } = useAppSession();
   const {
     image, uploadedImage, isPicking, isUploading, error: uploadError,
     pickFromLibrary, removeImage, setImage, uploadImage,
@@ -95,8 +97,13 @@ export function useHaircutPlanner() {
     void (async () => {
       const weatherContext = await loadWeatherContext();
       const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
-      await haircutTrendsService.ensure({ hemisphere, region: weatherContext?.countryCode ?? undefined });
+      const fashionGender = profile.gender === 'woman' ? 'womenswear' : 'menswear';
+      await haircutTrendsService.ensure({ fashionGender, hemisphere, region: weatherContext?.countryCode ?? undefined });
     })().catch(() => undefined);
+    // profile is stable for the life of this screen; re-running this on every
+    // profile object identity change would refire the ensure() network call
+    // needlessly — intentional mount-only effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleOpenCamera() {
@@ -228,7 +235,7 @@ export function useHaircutPlanner() {
     setIsCurrentSessionSaved(false);
     setViewingSaved(false);
 
-    // Kick off the angle shots (front-angled/side/back) alongside the text guide —
+    // Kick off the angle shots (top/side/back) alongside the text guide —
     // they take longer (3 more image generations), so don't block entering the
     // guide stage on them; they fill in progressively via the poll effect below.
     // isLoadingAngleShots is tracked separately from angleShots so the guide
@@ -240,7 +247,7 @@ export function useHaircutPlanner() {
         .then((angleResponse) => {
           if (angleResponse.success && angleResponse.data) {
             setAngleShots({
-              frontAngled: angleResponse.data.frontAngled,
+              top: angleResponse.data.top,
               side: angleResponse.data.side,
               back: angleResponse.data.back,
             });
@@ -269,12 +276,12 @@ export function useHaircutPlanner() {
     setStage('guide');
   }
 
-  // Poll the angle shots (front-angled/side/back) while any are still pending —
+  // Poll the angle shots (top/side/back) while any are still pending —
   // reuses the same session-status endpoint since they're just more HaircutOption
   // rows on the same session.
   useEffect(() => {
     if (stage !== 'guide' || !activeSessionId || !angleShots) return;
-    const anyPending = [angleShots.frontAngled, angleShots.side, angleShots.back].some((o) => o.status === 'pending');
+    const anyPending = [angleShots.top, angleShots.side, angleShots.back].some((o) => o.status === 'pending');
     if (!anyPending) return;
     const sessionId = activeSessionId;
 
@@ -285,7 +292,7 @@ export function useHaircutPlanner() {
       setAngleShots((prev) => {
         if (!prev) return prev;
         return {
-          frontAngled: byId.get(prev.frontAngled.id) ?? prev.frontAngled,
+          top: byId.get(prev.top.id) ?? prev.top,
           side: byId.get(prev.side.id) ?? prev.side,
           back: byId.get(prev.back.id) ?? prev.back,
         };

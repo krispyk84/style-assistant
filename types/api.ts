@@ -298,7 +298,7 @@ export type HaircutSessionResponse = {
 };
 
 export type HaircutAngleShots = {
-  frontAngled: HaircutOption;
+  top: HaircutOption;
   side: HaircutOption;
   back: HaircutOption;
 };
@@ -310,7 +310,7 @@ export type GenerateHaircutAngleShotsRequest = {
 export type HaircutAngleShotsResponse = {
   sessionId: string;
   front: HaircutOption;
-  frontAngled: HaircutOption;
+  top: HaircutOption;
   side: HaircutOption;
   back: HaircutOption;
 };
@@ -437,6 +437,7 @@ export type HaircutTrendStyle = {
 };
 
 export type EnsureHaircutTrendsRequest = {
+  fashionGender: FashionGender;
   hemisphere: Hemisphere;
   region?: string;
 };

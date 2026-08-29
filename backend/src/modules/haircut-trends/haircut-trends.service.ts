@@ -2,34 +2,48 @@ import { logger } from '../../config/logger.js';
 import { describeError } from '../../lib/http-error.js';
 import { geminiTextClient } from '../../ai/gemini-text-client.js';
 import { buildHaircutTrendsInstructions, buildHaircutTrendsUserPrompt } from '../../ai/prompts/haircut-trends.prompts.js';
+import type { FashionGender } from '../seasonal-trends/seasonal-trends.repository.js';
 import { getFashionSeason, type Hemisphere } from '../seasonal-trends/season-math.js';
 import { haircutTrendsRepository } from './haircut-trends.repository.js';
 import { HAIRCUT_TRENDS_GEMINI_SCHEMA, haircutTrendProfileResponseSchema } from './haircut-trends.schemas.js';
 
 type EnsureInput = {
+  fashionGender: FashionGender;
   hemisphere: Hemisphere;
   region?: string;
 };
 
 // One centralized dedup point: if several requests call ensure() for the
-// same (season, year, hemisphere) while a generation is already in flight,
-// they all no-op against the same in-progress attempt instead of firing
-// duplicate Gemini requests. Cleared once the in-flight attempt settles.
+// same (season, year, fashionGender, hemisphere) while a generation is
+// already in flight, they all no-op against the same in-progress attempt
+// instead of firing duplicate Gemini requests. Cleared once the in-flight
+// attempt settles.
 const inFlightGenerations = new Map<string, Promise<void>>();
 
-function keyFor(season: string, year: number, hemisphere: Hemisphere) {
-  return `${season}:${year}:${hemisphere}`;
+function keyFor(season: string, year: number, fashionGender: FashionGender, hemisphere: Hemisphere) {
+  return `${season}:${year}:${fashionGender}:${hemisphere}`;
 }
 
-async function generateAndPersist(params: { season: string; year: number; hemisphere: Hemisphere; region?: string }) {
+async function generateAndPersist(params: {
+  season: string;
+  year: number;
+  fashionGender: FashionGender;
+  hemisphere: Hemisphere;
+  region?: string;
+}) {
   const regionOrLocation = params.region?.trim() || 'Unknown — assume mainstream North America';
 
   try {
     const raw = await geminiTextClient.generateStructuredContent({
-      instructions: buildHaircutTrendsInstructions(),
-      userPrompt: buildHaircutTrendsUserPrompt({ season: params.season, year: params.year, regionOrLocation }),
+      instructions: buildHaircutTrendsInstructions(params.fashionGender),
+      userPrompt: buildHaircutTrendsUserPrompt({
+        season: params.season,
+        year: params.year,
+        fashionGender: params.fashionGender,
+        regionOrLocation,
+      }),
       responseSchema: HAIRCUT_TRENDS_GEMINI_SCHEMA,
-      logKey: `haircut-trends:${params.season}:${params.year}`,
+      logKey: `haircut-trends:${params.fashionGender}:${params.season}:${params.year}`,
     });
 
     const parsed = haircutTrendProfileResponseSchema.safeParse(raw);
@@ -37,11 +51,11 @@ async function generateAndPersist(params: { season: string; year: number; hemisp
     if (!parsed.success) {
       const reason = parsed.error.issues.map((issue) => issue.message).join('; ').slice(0, 500);
       logger.error(
-        { season: params.season, year: params.year, reason },
+        { fashionGender: params.fashionGender, season: params.season, year: params.year, reason },
         'Haircut trends: Gemini response failed validation — keeping any existing valid profile'
       );
       await haircutTrendsRepository.createInvalid(
-        { season: params.season, year: params.year, hemisphere: params.hemisphere },
+        { season: params.season, year: params.year, fashionGender: params.fashionGender, hemisphere: params.hemisphere },
         params.region ?? null,
         reason,
         raw,
@@ -50,16 +64,19 @@ async function generateAndPersist(params: { season: string; year: number; hemisp
     }
 
     await haircutTrendsRepository.createValid(
-      { season: params.season, year: params.year, hemisphere: params.hemisphere },
+      { season: params.season, year: params.year, fashionGender: params.fashionGender, hemisphere: params.hemisphere },
       params.region ?? null,
       parsed.data,
     );
 
-    logger.info({ season: params.season, year: params.year }, 'Haircut trends: new profile generated and persisted');
+    logger.info(
+      { fashionGender: params.fashionGender, season: params.season, year: params.year },
+      'Haircut trends: new profile generated and persisted'
+    );
   } catch (error) {
     const { code, message } = describeError(error);
     logger.error(
-      { season: params.season, year: params.year, errorCode: code, message, error },
+      { fashionGender: params.fashionGender, season: params.season, year: params.year, errorCode: code, message, error },
       'Haircut trends: generation failed — the app continues on its existing/stale profile or the fixed curated list'
     );
   }
@@ -67,14 +84,14 @@ async function generateAndPersist(params: { season: string; year: number; hemisp
 
 export const haircutTrendsService = {
   /** Pure DB read — never calls Gemini. */
-  async getCurrentTrendProfile(hemisphere: Hemisphere) {
+  async getCurrentTrendProfile(fashionGender: FashionGender, hemisphere: Hemisphere) {
     const { season, year } = getFashionSeason(new Date(), hemisphere);
-    const current = await haircutTrendsRepository.findCurrent({ season, year, hemisphere });
+    const current = await haircutTrendsRepository.findCurrent({ season, year, fashionGender, hemisphere });
     if (current) {
       return { profile: current, isStale: false as const };
     }
 
-    const stale = await haircutTrendsRepository.findMostRecentValid(hemisphere);
+    const stale = await haircutTrendsRepository.findMostRecentValid(fashionGender, hemisphere);
     if (stale) {
       return { profile: stale, isStale: true as const };
     }
@@ -85,11 +102,11 @@ export const haircutTrendsService = {
   /**
    * The one entry point that can trigger a Gemini call. Safe to call from
    * multiple concurrent requests — dedupes in-flight generations per
-   * (season, year, hemisphere) key, and never blocks the caller.
+   * (season, year, fashionGender, hemisphere) key, and never blocks the caller.
    */
   ensureCurrentProfile(input: EnsureInput): void {
     const { season, year } = getFashionSeason(new Date(), input.hemisphere);
-    const key = keyFor(season, year, input.hemisphere);
+    const key = keyFor(season, year, input.fashionGender, input.hemisphere);
 
     // Must be synchronous and precede any `await` — see seasonal-trends.service.ts
     // for the full race-condition rationale (two concurrent callers must not
@@ -98,10 +115,14 @@ export const haircutTrendsService = {
 
     const generation = (async () => {
       try {
-        const existing = await haircutTrendsRepository.findCurrent({ season, year, hemisphere: input.hemisphere });
+        const existing = await haircutTrendsRepository.findCurrent({
+          season, year, fashionGender: input.fashionGender, hemisphere: input.hemisphere,
+        });
         if (existing) return;
 
-        await generateAndPersist({ season, year, hemisphere: input.hemisphere, region: input.region });
+        await generateAndPersist({
+          season, year, fashionGender: input.fashionGender, hemisphere: input.hemisphere, region: input.region,
+        });
       } catch (error) {
         logger.error({ error, key }, 'Haircut trends: ensureCurrentProfile background check failed');
       } finally {
@@ -115,11 +136,13 @@ export const haircutTrendsService = {
   /** Debug/manual refresh — same dedup guard, but skips the "already have one" check. */
   forceRefresh(input: EnsureInput): void {
     const { season, year } = getFashionSeason(new Date(), input.hemisphere);
-    const key = keyFor(season, year, input.hemisphere);
+    const key = keyFor(season, year, input.fashionGender, input.hemisphere);
 
     if (inFlightGenerations.has(key)) return;
 
-    const generation = generateAndPersist({ season, year, hemisphere: input.hemisphere, region: input.region }).finally(() => {
+    const generation = generateAndPersist({
+      season, year, fashionGender: input.fashionGender, hemisphere: input.hemisphere, region: input.region,
+    }).finally(() => {
       inFlightGenerations.delete(key);
     });
 

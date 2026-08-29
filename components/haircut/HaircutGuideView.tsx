@@ -83,7 +83,7 @@ function AnglePhoto({ label, option, selected, onPress }: { label: string; optio
 export function HaircutGuideView({ option, guide, angleShots, isLoadingAngleShots, angleShotsError, isSaved, isSaving, onSave, onUnsave, hideSaveButton = false }: HaircutGuideViewProps) {
   const photos: PhotoTile[] = [
     { key: 'front', label: 'Front', option },
-    { key: 'front-angled', label: 'Front Angled', option: angleShots?.frontAngled ?? null },
+    { key: 'top', label: 'Top', option: angleShots?.top ?? null },
     { key: 'side', label: 'Side', option: angleShots?.side ?? null },
     { key: 'back', label: 'Back', option: angleShots?.back ?? null },
   ];

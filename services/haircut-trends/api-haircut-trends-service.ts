@@ -14,7 +14,7 @@ export const apiHaircutTrendsService: HaircutTrendsService = {
       body: request,
     });
   },
-  getCurrent(hemisphere) {
-    return createApiClient().request(`/haircut-trends/current?hemisphere=${hemisphere}`);
+  getCurrent(fashionGender, hemisphere) {
+    return createApiClient().request(`/haircut-trends/current?fashionGender=${fashionGender}&hemisphere=${hemisphere}`);
   },
 };

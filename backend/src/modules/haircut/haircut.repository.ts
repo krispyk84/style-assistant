@@ -2,7 +2,7 @@ import { prisma } from '../../db/prisma.js';
 import type { HaircutStyle } from '../../ai/prompts/haircut.prompts.js';
 
 export const haircutRepository = {
-  async createSession(input: { supabaseUserId: string; headshotImageUrl: string; hemisphere?: string; region?: string }) {
+  async createSession(input: { supabaseUserId: string; headshotImageUrl: string; hemisphere?: string; region?: string; fashionGender?: string }) {
     return prisma.haircutSession.create({ data: input });
   },
 
@@ -92,5 +92,24 @@ export const haircutRepository = {
     if (ids.length === 0) return 0;
     const result = await prisma.haircutSession.deleteMany({ where: { id: { in: ids } } });
     return result.count;
+  },
+
+  /**
+   * Angle-shot options (styleKey contains "::", e.g. "textured-quiff::top")
+   * stuck pending/failed for longer than the given cutoff — covers
+   * generation orphaned by a server restart (in-flight work only ever lived
+   * in memory) as well as genuine failures. Includes the parent session's
+   * other options so the caller can find the "front" option to rebuild the
+   * generation input from.
+   */
+  async findStuckAngleOptions(olderThan: Date) {
+    return prisma.haircutOption.findMany({
+      where: {
+        status: { in: ['pending', 'failed'] },
+        styleKey: { contains: '::' },
+        createdAt: { lt: olderThan },
+      },
+      include: { session: { include: { options: true } } },
+    });
   },
 };

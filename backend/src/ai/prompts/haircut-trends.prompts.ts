@@ -1,21 +1,30 @@
 import { HAIRCUT_TREND_STYLE_COUNT } from '../../modules/haircut-trends/haircut-trends.schemas.js';
 
-export function buildHaircutTrendsInstructions(): string {
+export function buildHaircutTrendsInstructions(fashionGender: 'menswear' | 'womenswear'): string {
+  const audience = fashionGender === 'womenswear' ? 'women' : 'men';
   return [
     'You are a hairstyling trend intelligence engine for a personal style app.',
-    'Your job is to identify the current season\'s most relevant haircuts — a mix of what is genuinely trending right now AND enduring classic cuts that remain in steady demand at barbershops and salons.',
+    `Your job is to identify the current season's most relevant haircuts and hairstyles for ${audience} — a mix of what is genuinely trending right now AND enduring classic cuts that remain in steady demand at barbershops and salons.`,
+    `Every single style MUST be a haircut ${audience === 'men' ? 'a man' : 'a woman'} would realistically ask for at a barbershop or salon today. Do NOT include any style associated with the opposite gender — this list will be shown exclusively to ${audience} in a ${fashionGender} styling context, so a mismatched style is a hard failure, not a stylistic choice.`,
     'Prioritize styles that are actionable for an AI photo-editing tool to render on a real headshot: describe length, texture, fade/taper type, parting, and finish concretely rather than vaguely.',
     'Avoid one-off runway/editorial looks, costume-like styles, or anything that would look strange on an everyday person walking into a barbershop or salon.',
     'Return ONLY valid JSON matching the provided schema. No markdown, no commentary outside the JSON.',
   ].join('\n');
 }
 
-export function buildHaircutTrendsUserPrompt(input: { season: string; year: number; regionOrLocation: string }): string {
+export function buildHaircutTrendsUserPrompt(input: {
+  season: string;
+  year: number;
+  fashionGender: 'menswear' | 'womenswear';
+  regionOrLocation: string;
+}): string {
+  const audience = input.fashionGender === 'womenswear' ? 'women\'s' : 'men\'s';
   return [
     `Season: ${input.season} ${input.year}`,
+    `Audience: ${audience} haircuts only (${input.fashionGender})`,
     `Region/location context: ${input.regionOrLocation}`,
     '',
-    `Produce exactly ${HAIRCUT_TREND_STYLE_COUNT} haircuts for this season.`,
+    `Produce exactly ${HAIRCUT_TREND_STYLE_COUNT} ${audience} haircuts for this season. Every entry must be a style genuinely suited to ${audience === 'men\'s' ? 'men' : 'women'} — do not include any style from the opposite gender's hair trends.`,
     'This list must be a well-balanced MIX — do not make it skew entirely toward edgy or directional cuts:',
     '- At least 5 entries should be classification "trending": current, of-the-moment cuts that are gaining popularity right now.',
     '- At least 5 entries should be classification "classic": timeless, enduringly popular cuts that remain reliably in-demand regardless of season (e.g. classic side parts, crew cuts, buzz cuts) — these should NOT be filler, pick genuinely well-regarded classics.',

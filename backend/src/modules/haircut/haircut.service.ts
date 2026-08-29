@@ -7,6 +7,7 @@ import { resolveImageUrlForAI } from '../../ai/image-input.js';
 import {
   HAIRCUT_ANGLES,
   HAIRCUT_STYLES,
+  HAIRCUT_STYLES_WOMENSWEAR,
   INITIAL_BATCH_SIZE,
   MORE_BATCH_SIZE,
   buildHaircutGuideSystemPrompt,
@@ -15,7 +16,9 @@ import {
   type HaircutStyle,
 } from '../../ai/prompts/haircut.prompts.js';
 import { storageProvider } from '../../storage/index.js';
+import { profileRepository } from '../profile/profile.repository.js';
 import { haircutTrendsService } from '../haircut-trends/haircut-trends.service.js';
+import type { FashionGender } from '../seasonal-trends/seasonal-trends.repository.js';
 import type { Hemisphere } from '../seasonal-trends/season-math.js';
 import { haircutRepository } from './haircut.repository.js';
 import { HAIRCUT_GUIDE_JSON_SCHEMA, haircutGuideResponseSchema } from './haircut.schemas.js';
@@ -23,26 +26,42 @@ import type { CreateHaircutSessionPayload, GenerateHaircutGuidePayload, SaveHair
 
 const STAGGER_MS = 500;
 
+// A pending/failed angle-shot option older than this is treated as abandoned
+// rather than still legitimately in flight — most commonly because a server
+// restart killed an in-flight generation (that work only ever existed in
+// memory) — and becomes eligible for retryStuckAngleShots() to pick up.
+const STALE_MS = 1000 * 60 * 10;
+
 // Each unsaved session carries up to ~20 HaircutOption rows with real JPEG
 // blobs — far heavier per-row than tiered outfit history — so this stays
 // deliberately smaller than HISTORY_RETENTION_LIMIT (50) in outfits.service.ts.
 // Saved sessions (savedAt set) are never counted against this limit at all.
 export const HAIRCUT_SESSION_RETENTION_LIMIT = 10;
 
+function fashionGenderForProfile(profile: { gender?: string | null } | null | undefined): FashionGender {
+  return profile?.gender === 'woman' ? 'womenswear' : 'menswear';
+}
+
+function fallbackStylesFor(fashionGender: FashionGender): HaircutStyle[] {
+  return fashionGender === 'womenswear' ? HAIRCUT_STYLES_WOMENSWEAR : HAIRCUT_STYLES;
+}
+
 /**
  * The style list a session draws from: the current seasonal top-20 trend
- * list (a mix of classic + trending cuts, refreshed periodically via Gemini)
- * when available, falling back to the fixed 12-style curated list when no
- * hemisphere is known or no trend profile has been generated yet/Gemini is
- * unreachable — mirrors the "stale/missing profile never blocks the feature"
- * principle used by the outfit seasonal-trends system.
+ * list for this fashionGender (a mix of classic + trending cuts, refreshed
+ * periodically via Gemini) when available, falling back to the fixed
+ * 12-style curated list for that gender when no hemisphere is known or no
+ * trend profile has been generated yet/Gemini is unreachable — mirrors the
+ * "stale/missing profile never blocks the feature" principle used by the
+ * outfit seasonal-trends system.
  */
-async function resolveActiveStyles(hemisphere?: string | null): Promise<HaircutStyle[]> {
-  if (!hemisphere) return HAIRCUT_STYLES;
-  const trendData = await haircutTrendsService.getCurrentTrendProfile(hemisphere as Hemisphere);
-  if (!trendData) return HAIRCUT_STYLES;
+async function resolveActiveStyles(hemisphere: string | null | undefined, fashionGender: FashionGender): Promise<HaircutStyle[]> {
+  const fallback = fallbackStylesFor(fashionGender);
+  if (!hemisphere) return fallback;
+  const trendData = await haircutTrendsService.getCurrentTrendProfile(fashionGender, hemisphere as Hemisphere);
+  if (!trendData) return fallback;
   const styles = trendData.profile.styles as unknown as { key: string; label: string; summary: string }[];
-  if (!Array.isArray(styles) || styles.length === 0) return HAIRCUT_STYLES;
+  if (!Array.isArray(styles) || styles.length === 0) return fallback;
   return styles.map((s) => ({ key: s.key, label: s.label, summary: s.summary }));
 }
 
@@ -127,12 +146,15 @@ export const haircutService = {
       throw new HttpError(422, 'HEADSHOT_UNAVAILABLE', 'Could not read the uploaded headshot. Please try uploading it again.');
     }
 
-    const activeStyles = await resolveActiveStyles(payload.hemisphere);
+    const profile = await profileRepository.findByUserId(supabaseUserId);
+    const fashionGender = fashionGenderForProfile(profile);
+    const activeStyles = await resolveActiveStyles(payload.hemisphere, fashionGender);
     const session = await haircutRepository.createSession({
       supabaseUserId,
       headshotImageUrl: payload.headshotImageUrl,
       hemisphere: payload.hemisphere,
       region: payload.region,
+      fashionGender,
     });
     const options = await haircutRepository.createOptions(session.id, activeStyles.slice(0, INITIAL_BATCH_SIZE));
 
@@ -179,7 +201,12 @@ export const haircutService = {
     const session = await haircutRepository.getSession(id, supabaseUserId);
     if (!session) throw new HttpError(404, 'NOT_FOUND', 'Haircut session not found.');
 
-    const activeStyles = await resolveActiveStyles(session.hemisphere);
+    // Sessions created before the fashionGender snapshot was added have no
+    // stored value — fall back to deriving it fresh from the profile so
+    // "see more" never breaks for pre-existing sessions.
+    const fashionGender = (session.fashionGender as FashionGender | null)
+      ?? fashionGenderForProfile(await profileRepository.findByUserId(supabaseUserId));
+    const activeStyles = await resolveActiveStyles(session.hemisphere, fashionGender);
     const usedKeys = new Set(session.options.map((option) => option.styleKey));
     const nextStyles = activeStyles.filter((style) => !usedKeys.has(style.key)).slice(0, MORE_BATCH_SIZE);
     if (nextStyles.length === 0) {
@@ -244,7 +271,7 @@ export const haircutService = {
     return {
       sessionId: id,
       front: mapOption(chosen),
-      frontAngled: mappedAngles[0]!,
+      top: mappedAngles[0]!,
       side: mappedAngles[1]!,
       back: mappedAngles[2]!,
     };
@@ -292,7 +319,7 @@ export const haircutService = {
         const option = session.options.find((o) => o.styleKey === `${chosen.styleKey}::${angle}`);
         return option ? mapOption(option) : null;
       };
-      const frontAngled = angleFor('front-angled');
+      const top = angleFor('top');
       const side = angleFor('side');
       const back = angleFor('back');
 
@@ -301,9 +328,52 @@ export const haircutService = {
         styleLabel: chosen.styleLabel,
         savedAt: session.savedAt.toISOString(),
         option: mapOption(chosen),
-        angleShots: frontAngled && side && back ? { frontAngled, side, back } : null,
+        angleShots: top && side && back ? { top, side, back } : null,
         guide: session.guideData,
       }];
+    });
+  },
+
+  /**
+   * Server-side self-healing sweep — retries any angle-shot HaircutOption
+   * stuck pending/failed for longer than STALE_MS, reconstructing the
+   * generation input from the "front" option in the same session (the
+   * angle option itself only stores the angle's own label, not the original
+   * haircut style label/photo). Run periodically by the trend refresh
+   * scheduler, independent of any live session view.
+   */
+  async retryStuckAngleShots() {
+    const stuck = await haircutRepository.findStuckAngleOptions(new Date(Date.now() - STALE_MS));
+    // Always logged, unconditionally — the only way to tell "the sweep ran
+    // and found nothing" apart from "the sweep never ran at all" from logs.
+    logger.info({ stuckCount: stuck.length }, 'Haircut angle shot retry sweep: ran');
+    if (stuck.length === 0) return;
+
+    stuck.forEach((option, index) => {
+      void (async () => {
+        await new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS));
+
+        const separatorIndex = option.styleKey.lastIndexOf('::');
+        if (separatorIndex === -1) return; // not actually an angle option — shouldn't happen given the query filter
+        const frontStyleKey = option.styleKey.slice(0, separatorIndex);
+        const angle = option.styleKey.slice(separatorIndex + 2) as HaircutAngle;
+
+        const front = option.session.options.find((o) => o.styleKey === frontStyleKey && o.status === 'ready');
+        if (!front?.imageStorageKey) {
+          logger.error({ optionId: option.id }, 'Haircut angle shot retry: original haircut photo unavailable, cannot retry');
+          return;
+        }
+
+        const haircutImageUrl = `${env.STORAGE_PUBLIC_BASE_URL}/media/${front.imageStorageKey}`;
+        const haircutInput = await resolveImageUrlForAI(haircutImageUrl);
+        if (!haircutInput) {
+          logger.error({ optionId: option.id }, 'Haircut angle shot retry: could not resolve original haircut photo');
+          return;
+        }
+
+        const style: HaircutStyle = { key: front.styleKey, label: front.styleLabel, summary: front.styleSummary };
+        await generateAngleOption(option.id, haircutInput.image_url, style, angle, option.session.supabaseUserId);
+      })();
     });
   },
 };

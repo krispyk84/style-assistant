@@ -40,8 +40,8 @@ haircutTrendsRouter.get(
   '/haircut-trends/current',
   requireAuth,
   asyncHandler(async (request, response) => {
-    const { hemisphere } = parseWithSchema(getHaircutTrendsSchema, request.query);
-    const result = await haircutTrendsService.getCurrentTrendProfile(hemisphere);
+    const { fashionGender, hemisphere } = parseWithSchema(getHaircutTrendsSchema, request.query);
+    const result = await haircutTrendsService.getCurrentTrendProfile(fashionGender, hemisphere);
     if (!result) {
       return sendSuccess(response, { available: false as const });
     }

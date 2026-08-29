@@ -28,6 +28,24 @@ export const HAIRCUT_STYLES: HaircutStyle[] = [
   { key: 'low-fade-afro', label: 'Textured Afro Fade', summary: 'Natural textured volume on top with a crisp low fade at the sides and back.' },
 ];
 
+// Fixed fallback for womenswear sessions — same role as HAIRCUT_STYLES
+// (used only when no hemisphere is known or no womenswear trend profile has
+// been generated yet).
+export const HAIRCUT_STYLES_WOMENSWEAR: HaircutStyle[] = [
+  { key: 'long-layers', label: 'Long Layers', summary: 'Long length with soft face-framing layers cut throughout for movement and volume.' },
+  { key: 'butterfly-cut', label: 'Butterfly Cut', summary: 'Long layered hairstyle with cascading face-framing feathery layers blown outward away from the face with high volume.' },
+  { key: 'blunt-bob', label: 'Blunt Bob', summary: 'Chin-to-collarbone length blunt-cut bob with a clean, sharp horizontal hemline.' },
+  { key: 'curtain-bangs-lob', label: 'Curtain Bangs Lob', summary: 'Long bob past the shoulders paired with soft, center-parted curtain bangs framing the face.' },
+  { key: 'wolf-cut', label: 'Wolf Cut', summary: 'Heavily layered shag with a shorter, voluminous crown blending into longer, textured ends.' },
+  { key: 'pixie-cut', label: 'Pixie Cut', summary: 'Very short, cropped cut with textured length on top and closely tapered sides and back.' },
+  { key: 'classic-bob', label: 'Classic Bob', summary: 'Timeless jaw-length bob with a clean, rounded shape and subtle inward curve at the ends.' },
+  { key: 'long-shag', label: 'Long Shag', summary: 'Long, heavily layered cut with a wispy fringe and textured, undone movement throughout.' },
+  { key: 'sleek-straight-lob', label: 'Sleek Straight Lob', summary: 'Sleek, blunt shoulder-length cut worn straight and smooth with a deep side part.' },
+  { key: 'curly-shag', label: 'Curly Shag', summary: 'Layered shag cut tailored for natural curls, with shorter face-framing pieces and defined curl clumps.' },
+  { key: 'shoulder-length-waves', label: 'Shoulder-Length Waves', summary: 'Shoulder-grazing length styled in loose, natural waves with softly layered ends.' },
+  { key: 'micro-fringe-bob', label: 'Micro Fringe Bob', summary: 'Chin-length bob paired with a short, blunt micro fringe cut above the brow.' },
+];
+
 export const INITIAL_BATCH_SIZE = 6;
 export const MORE_BATCH_SIZE = 4;
 
@@ -41,18 +59,22 @@ export function buildHaircutEditPrompt(style: Pick<HaircutStyle, 'label' | 'summ
   ].join('\n');
 }
 
-export type HaircutAngle = 'front-angled' | 'side' | 'back';
+export type HaircutAngle = 'top' | 'side' | 'back';
 
 export const HAIRCUT_ANGLES: { angle: HaircutAngle; label: string }[] = [
-  { angle: 'front-angled', label: 'Front Angled' },
+  { angle: 'top', label: 'Top' },
   { angle: 'side', label: 'Side' },
   { angle: 'back', label: 'Back' },
 ];
 
 const ANGLE_INSTRUCTIONS: Record<HaircutAngle, string> = {
-  'front-angled':
-    'Show this exact same styled hairstyle from a front-angled, three-quarter camera view — the head turned slightly to one side while most of the face still faces the camera. ' +
-    'Preserve the same person\'s face, facial features, skin tone, facial hair, and expression, plus the same lighting style and background as the reference photo.',
+  // A barber needs this angle, not a near-duplicate of the front shot — it
+  // shows the crown pattern, part line, and top density/layering that a
+  // front-on photo can't reveal.
+  top:
+    'Show this exact same styled hairstyle from directly above, looking straight down at the crown of the head — a top-down bird\'s-eye view. ' +
+    'Clearly show the crown hair pattern or whorl, the part line and its exact position, and how the top length and layering are distributed across the scalp. ' +
+    'The face will not be visible from this angle — that is expected and correct, do not try to show it. Preserve the same skin tone, hair color and texture, lighting style, and background as the reference photo.',
   side:
     'Show this exact same styled hairstyle from a direct side profile view (the head turned roughly 90 degrees), showing the ear and the full side silhouette of the cut clearly. ' +
     'The face will naturally be seen in profile rather than forward-facing — that is expected and correct for this angle. Preserve the same skin tone, facial hair, hair color and texture, lighting style, and background as the reference photo.',
