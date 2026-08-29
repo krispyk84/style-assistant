@@ -7,6 +7,12 @@ import { buildTrendSketchPrompt, type TrendSketchInput } from '../../ai/prompts/
 import { storageProvider } from '../../storage/index.js';
 import { trendSketchRepository } from './trend-sketch.repository.js';
 
+// Staggered like closet-outfit and haircut-option sketch generation — firing
+// 20 image-generation calls simultaneously risks tripping OpenAI's rate
+// limits and forcing retries, which makes the whole batch slower overall
+// than spacing them out would.
+const STAGGER_MS = 1000;
+
 async function generateSketch(id: string, trend: TrendSketchInput) {
   try {
     const prompt = buildTrendSketchPrompt(trend);
@@ -50,7 +56,7 @@ export const trendSketchService = {
    * Fire-and-forget: never blocks profile persistence on image generation.
    */
   ensureSketchesForFreshProfile(fashionGender: string, trends: TrendSketchInput[]) {
-    for (const trend of trends) {
+    trends.forEach((trend, index) => {
       void (async () => {
         try {
           const existing = await trendSketchRepository.findByKey(fashionGender, trend.name);
@@ -59,12 +65,13 @@ export const trendSketchService = {
             return;
           }
           const created = await trendSketchRepository.createPending(fashionGender, trend.name, trend.formality);
+          await new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS));
           await generateSketch(created.id, trend);
         } catch (error) {
           logger.error({ error, fashionGender, name: trend.name }, 'Trend sketch ensure failed');
         }
       })();
-    }
+    });
   },
 
   /** Pure read — looks up each trend's current sketch status/url without writing anything. */
