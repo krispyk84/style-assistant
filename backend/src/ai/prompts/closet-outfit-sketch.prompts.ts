@@ -59,12 +59,28 @@ export function buildClosetOutfitSketchPrompt(input: {
 
   const outfitSection = `Outfit "${input.outfitTitle}":\n${outfitLines.join('\n')}`;
 
+  // Hard "exact item list" constraint. Without this, the model sometimes adds
+  // an unlisted layering piece (most often a blazer or jacket) to make the
+  // look feel more "complete" or editorial — even when the wardrobe selection
+  // has no outerwear at all. This mirrors the established FORBIDDEN-wording
+  // pattern used for bag/hat opt-outs in outfits.prompts.ts.
+  const exclusivityRule =
+    'EXACT ITEM LIST — HARD CONSTRAINT: the items listed above are the ONLY items the figure wears. ' +
+    'Do not add any garment, layer, or accessory that is not explicitly listed — no extra jacket, blazer, coat, cardigan, vest, undershirt, scarf, hat, bag, jewelry, or any other piece, no matter how much more "complete" or "editorial" the look would feel with one. ' +
+    'If a category (e.g. outerwear, accessories) has no items listed above, the figure must NOT wear or carry anything from that category.';
+
+  const outerwearRule = outerwear.length === 0
+    ? 'OUTERWEAR: FORBIDDEN. No jacket, blazer, coat, or third layer of any kind — the figure wears only the listed top(s), nothing over them.'
+    : null;
+
   const parts = [
     HEADLESS_GUARD,
     STYLE_GUARD,
     input.subjectBrief ?? null,
     STYLE_PREAMBLE,
     outfitSection,
+    exclusivityRule,
+    outerwearRule,
     'Every listed item is a REAL garment the wearer already owns — render each one true to its stated color, pattern, and material rather than inventing a different interpretation.',
     QUALITY_ADDENDUM,
     QUALITY_ADDENDUM_2,
