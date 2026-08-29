@@ -1,16 +1,16 @@
 import {
-  HEADLESS_GUARD,
-  QUALITY_ADDENDUM,
-  QUALITY_ADDENDUM_2,
-  STYLE_GUARD,
-  STYLE_PREAMBLE,
-} from './sketch-style-preamble.js';
+  CLOSET_ITEM_COMPOSITION_RULES,
+  CLOSET_ITEM_QUALITY_ADDENDUM,
+  CLOSET_ITEM_STYLE_PREAMBLE,
+} from './closet-item-sketch.prompts.js';
 
-// Sketch prompt for one entry in the "Fashion Trend Report". Unlike outfit/
-// closet sketches (a specific set of real or invented garments), this
-// illustrates an abstract seasonal TREND CONCEPT — the model has to compose
-// a single representative outfit from the trend's own garment/silhouette/
-// colour/material guidance rather than a fixed item list.
+// Sketch prompt for one entry in the "Fashion Trend Report". A trend report
+// row is about ONE trend-defining piece (a shoe, a jacket, a knit, an
+// accessory), not a full head-to-toe outfit — so this reuses the single-item
+// closet product-shot visual system (isolated, no body/mannequin, no full
+// outfit) rather than the full-figure outfit sketch system. The model is
+// told to pick the single most trend-defining item out of the trend's
+// garment/silhouette/colour/material guidance and render only that.
 
 export type TrendSketchInput = {
   name: string;
@@ -41,13 +41,11 @@ export function buildTrendSketchPrompt(input: TrendSketchInput): string {
   ].filter(Boolean).join('\n');
 
   const parts = [
-    HEADLESS_GUARD,
-    STYLE_GUARD,
-    STYLE_PREAMBLE,
+    CLOSET_ITEM_STYLE_PREAMBLE,
     trendSection,
-    'This sketch illustrates a SEASONAL FASHION TREND CONCEPT, not a specific real garment someone owns — compose ONE clear, representative outfit that demonstrates this trend in action, built from the garment/silhouette/colour/material guidance above. Stay strictly within the stated formality band.',
-    QUALITY_ADDENDUM,
-    QUALITY_ADDENDUM_2,
+    'This sketch illustrates a SEASONAL FASHION TREND CONCEPT, not a specific real garment someone owns. Identify the SINGLE most trend-defining item out of the guidance above — prefer a listed footwear or accessory item if one is named, otherwise the primary garment category — and render ONLY that one item as an isolated hero product illustration. Every other detail (silhouette, colour, material, any other listed category) describes that ONE hero item, not separate pieces — do NOT render a full outfit, a body, or a mannequin, and do NOT depict multiple garments worn together. Stay strictly within the stated formality band.',
+    CLOSET_ITEM_QUALITY_ADDENDUM,
+    CLOSET_ITEM_COMPOSITION_RULES,
   ];
 
   return parts.join('\n\n');

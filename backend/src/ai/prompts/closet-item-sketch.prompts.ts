@@ -5,7 +5,7 @@
 // Part 3: CLOSET_ITEM_QUALITY_ADDENDUM (rendering quality + color fidelity)
 // Part 4: CLOSET_ITEM_COMPOSITION_RULES (framing + category-specific layout)
 
-const CLOSET_ITEM_STYLE_PREAMBLE =
+export const CLOSET_ITEM_STYLE_PREAMBLE =
   'Create a consistent editorial menswear fashion illustration in the exact same visual language across generations. ' +
   'Use an atmospheric hand-rendered watercolor sketch treatment throughout. ' +
   'The background must be a warm off-white watercolor paper field with visible paper grain, soft beige-gray wash, uneven transparency, subtle pigment blooms, faint edge staining, cloudy tonal variation, and loose brush residue around the subject — never a flat white or clean digital background. ' +
@@ -18,7 +18,7 @@ const CLOSET_ITEM_STYLE_PREAMBLE =
   'The item should feel elevated, collectible, and fashion-editorial. ' +
   'Keep the same luxury menswear watercolor-paper aesthetic as the outfit sketches so the closet-item image and outfit image belong to the exact same visual system.';
 
-const CLOSET_ITEM_QUALITY_ADDENDUM =
+export const CLOSET_ITEM_QUALITY_ADDENDUM =
   'Push the rendering away from simple illustration and toward a more elevated, fashion-editorial watercolor product sketch. ' +
   'Make the subject feel luxurious, stylish, modern, and highly considered while staying completely true to the provided item. ' +
   'Increase color fidelity: the item must match the real product color as accurately as possible, prioritizing exact hue, depth, temperature, undertone, and saturation rather than drifting toward generic beige, tan, gray, or muted neutrals. ' +
@@ -29,7 +29,7 @@ const CLOSET_ITEM_QUALITY_ADDENDUM =
   'Keep the hand-drawn editorial line quality and watercolor-paper background, but make the final result feel closer to a high-end fashion concept sketch or luxury menswear product board than a simplified catalog illustration. ' +
   'Avoid color drift, generic neutralization, flat fills, cartoon cleanliness, overly soft simplification, or loss of product-specific detail.';
 
-const CLOSET_ITEM_COMPOSITION_RULES =
+export const CLOSET_ITEM_COMPOSITION_RULES =
   'The single item must always be fully visible in frame and never cropped. Leave a small margin around the subject so the entire silhouette is clearly shown. Scale the subject generously so it feels prominent and editorial, but do not let any edge touch or cross the frame boundary. ' +
   'Use category-appropriate composition: ' +
   'Tops, shirts, jackets, knitwear: render front-facing, symmetrical, isolated, floating naturally, with realistic shoulder shape and garment drape. No body, no face, no mannequin stand; the piece should read like a luxury product sketch suspended on paper. ' +
