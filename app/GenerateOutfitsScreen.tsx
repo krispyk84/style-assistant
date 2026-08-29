@@ -72,8 +72,7 @@ export function GenerateOutfitsScreen() {
               <ClosetOutfitCard
                 key={outfit.id}
                 outfit={outfit}
-                selected={!isVariations && selectedOutfit?.id === outfit.id}
-                onPress={isVariations ? undefined : () => void selectOutfit(outfit)}
+                onGenerateVariants={isVariations ? undefined : (swapItemIds) => void selectOutfit(outfit, swapItemIds)}
                 onSave={() => void handleSaveOutfit(outfit)}
                 isSaved={savedOutfitIds.includes(outfit.id)}
                 isSaving={savingOutfitId === outfit.id}

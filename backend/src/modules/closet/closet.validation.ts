@@ -116,6 +116,7 @@ export const generateClosetOutfitVariationsSchema = z.object({
   weatherContext: closetOutfitWeatherContextSchema,
   trendiness: z.number().min(0).max(100).optional(),
   baseItemIds: z.array(z.string()).min(2),
+  swapItemIds: z.array(z.string()).min(1).max(2),
 });
 
 export const setClosetOutfitFeedbackSchema = z.object({

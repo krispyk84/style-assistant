@@ -53,7 +53,7 @@ export function useGenerateOutfitsResults() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function selectOutfit(outfit: ClosetGeneratedOutfit) {
+  async function selectOutfit(outfit: ClosetGeneratedOutfit, swapItemIds: string[]) {
     setSelectedOutfit(outfit);
     setStage('variations-loading');
     setError(null);
@@ -63,6 +63,7 @@ export function useGenerateOutfitsResults() {
       weatherContext,
       trendiness: settings.trendiness,
       baseItemIds: outfit.items.map((item) => item.id),
+      swapItemIds,
     });
     if (!response.success || !response.data) {
       setError(response.error?.message ?? 'Could not generate variations. Please try again.');

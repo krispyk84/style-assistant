@@ -146,6 +146,7 @@ export function buildClosetOutfitsUserPrompt(params: {
 export function buildClosetOutfitVariationsUserPrompt(params: {
   index: ClosetOutfitIndexItem[];
   baseItemIds: string[];
+  swapItemIds: string[];
   formality: string;
   weatherSummary?: string | null;
   weatherStylingHint?: string | null;
@@ -153,6 +154,13 @@ export function buildClosetOutfitVariationsUserPrompt(params: {
   trendiness?: number | null;
   variety?: ClosetOutfitVarietyContext;
 }): string {
+  const keepItemIds = params.baseItemIds.filter((id) => !params.swapItemIds.includes(id));
+  const indexById = new Map(params.index.map((item) => [item.id, item]));
+  const describe = (id: string) => {
+    const item = indexById.get(id);
+    return item ? `${item.name} (${id})` : id;
+  };
+
   return [
     buildContextBlock(params),
     '',
@@ -161,10 +169,15 @@ export function buildClosetOutfitVariationsUserPrompt(params: {
     '',
     `Base outfit (item ids): ${JSON.stringify(params.baseItemIds)}`,
     '',
-    'Build exactly 5 variations of the base outfit above. For each variation:',
-    '- Keep MOST of the base outfit\'s items unchanged.',
-    '- Swap exactly 1 or 2 items for a different item from the wardrobe index (e.g. a different top, a different pair of shoes, or add/remove one accessory) — never swap every item, and never return the base outfit unchanged.',
-    '- Each of the 5 variations must be distinct from the base outfit AND from each other — do not repeat the same swap twice.',
+    'The client has told you exactly what to change — this is not your choice to make:',
+    `- KEEP UNCHANGED in every variation, exactly as in the base outfit: ${keepItemIds.map(describe).join(', ') || '(none)'}`,
+    `- REPLACE in every variation, each with a different item from the wardrobe index: ${params.swapItemIds.map(describe).join(', ')}`,
+    '',
+    'Build exactly 5 variations of the base outfit. For each variation:',
+    '- Every "keep unchanged" item id above MUST appear in the variation\'s item list, unmodified. This is a hard requirement — a variation missing one of them is an invalid answer.',
+    '- Every "replace" item above MUST be swapped for a different item from the wardrobe index that fills the same role (e.g. a different top for a top, a different shoe for a shoe) and still satisfies the formality/completeness/color rules with the kept items.',
+    '- Do not touch any item that is not explicitly listed as "replace" above.',
+    '- Across the 5 variations, use a different replacement each time where the wardrobe offers enough alternatives for that slot — don\'t repeat the same replacement item twice unless the wardrobe genuinely has no other option.',
     'For each variation return: a short title, the full list of item ids used (including the unchanged ones), and one sentence on why the swap works.',
   ].join('\n');
 }

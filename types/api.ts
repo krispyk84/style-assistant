@@ -369,6 +369,8 @@ export type GenerateClosetOutfitVariationsRequest = {
   weatherContext?: WeatherContext | null;
   trendiness?: number;
   baseItemIds: string[];
+  /** Item ids to actually swap (1-2) — every other base item is kept unchanged across all 5 variations. */
+  swapItemIds: string[];
 };
 
 export type GenerateClosetOutfitsResponse = {

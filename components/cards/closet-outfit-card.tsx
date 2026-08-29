@@ -1,52 +1,60 @@
 import { Image } from 'expo-image';
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPanel';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
+import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
 import type { ClosetGeneratedOutfit } from '@/types/api';
 
+const MAX_SWAP_SELECTION = 2;
+
 type ClosetOutfitCardProps = {
   outfit: ClosetGeneratedOutfit;
-  onPress?: () => void;
-  selected?: boolean;
   onSave?: () => void;
   isSaved?: boolean;
   isSaving?: boolean;
   onAddToWeek?: () => void;
   onDelete?: () => void;
   onFeedback?: (value: 'love' | 'hate') => void;
+  /** When set, item thumbnails become selectable (up to 2) and a "Generate Variants" button appears above Save/Add to week. */
+  onGenerateVariants?: (selectedItemIds: string[]) => void;
 };
 
 export function ClosetOutfitCard({
   outfit,
-  onPress,
-  selected,
   onSave,
   isSaved = false,
   isSaving = false,
   onAddToWeek,
   onDelete,
   onFeedback,
+  onGenerateVariants,
 }: ClosetOutfitCardProps) {
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const showActions = onSave || onAddToWeek || onDelete;
+
+  function toggleItemSelected(itemId: string) {
+    setSelectedItemIds((current) => {
+      if (current.includes(itemId)) return current.filter((id) => id !== itemId);
+      if (current.length >= MAX_SWAP_SELECTION) return current;
+      return [...current, itemId];
+    });
+  }
+
   return (
-    <Pressable
-      disabled={!onPress}
-      onPress={onPress}
+    <View
       style={{
         backgroundColor: theme.colors.surface,
-        borderColor: selected ? theme.colors.accent : theme.colors.border,
+        borderColor: theme.colors.border,
         borderRadius: 20,
-        borderWidth: selected ? 2 : 1,
+        borderWidth: 1,
         gap: spacing.sm,
         padding: spacing.md,
       }}>
-      <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-        <AppText variant="sectionTitle">{outfit.title}</AppText>
-        {selected ? <AppIcon color={theme.colors.accent} name="check-circle" size={18} /> : null}
-      </View>
+      <AppText variant="sectionTitle">{outfit.title}</AppText>
 
       <AppText tone="muted" style={{ fontSize: 13, fontStyle: 'italic' }}>{outfit.whyItWorks}</AppText>
 
@@ -64,12 +72,15 @@ export function ClosetOutfitCard({
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
         {outfit.items.map((item) => {
           const imageUri = item.sketchImageUrl ?? item.uploadedImageUrl;
-          return (
-            <View key={item.id} style={{ alignItems: 'center', width: 72 }}>
+          const isSelected = selectedItemIds.includes(item.id);
+          const thumbnail = (
+            <>
               <View
                 style={{
                   backgroundColor: theme.colors.card,
+                  borderColor: isSelected ? theme.colors.accent : 'transparent',
                   borderRadius: 12,
+                  borderWidth: 2,
                   height: 72,
                   overflow: 'hidden',
                   width: 72,
@@ -81,30 +92,65 @@ export function ClosetOutfitCard({
                     <AppIcon color={theme.colors.subtleText} name="closet" size={20} />
                   </View>
                 )}
+                {isSelected ? (
+                  <View
+                    style={{
+                      alignItems: 'center',
+                      backgroundColor: theme.colors.accent,
+                      borderRadius: 999,
+                      height: 20,
+                      justifyContent: 'center',
+                      position: 'absolute',
+                      right: 4,
+                      top: 4,
+                      width: 20,
+                    }}>
+                    <AppIcon color={theme.colors.inverseText} name="check-circle" size={14} />
+                  </View>
+                ) : null}
               </View>
               <AppText tone="subtle" numberOfLines={1} style={{ fontSize: 10, marginTop: 2, textAlign: 'center', width: 72 }}>
                 {item.title}
               </AppText>
-            </View>
+            </>
+          );
+
+          if (!onGenerateVariants) {
+            return (
+              <View key={item.id} style={{ alignItems: 'center', width: 72 }}>
+                {thumbnail}
+              </View>
+            );
+          }
+
+          return (
+            <Pressable key={item.id} onPress={() => toggleItemSelected(item.id)} style={{ alignItems: 'center', width: 72 }}>
+              {thumbnail}
+            </Pressable>
           );
         })}
       </View>
 
-      {onPress ? (
-        <AppText tone="muted" style={{ fontSize: 12 }}>
-          {selected ? 'Selected' : 'Tap to generate 5 variations'}
-        </AppText>
+      {onGenerateVariants ? (
+        <View style={{ gap: spacing.xs }}>
+          <AppText tone="subtle" style={{ fontSize: 12 }}>
+            {selectedItemIds.length === 0
+              ? 'Tap 1-2 pieces above to swap — everything else stays the same.'
+              : `Swapping ${selectedItemIds.length} piece${selectedItemIds.length === 1 ? '' : 's'} — the rest of this outfit stays the same.`}
+          </AppText>
+          <PrimaryButton
+            label="Generate Variants"
+            variant="secondary"
+            disabled={selectedItemIds.length === 0}
+            onPress={() => onGenerateVariants(selectedItemIds)}
+          />
+        </View>
       ) : null}
 
       {showActions ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {onDelete ? (
-            <Pressable
-              onPress={(event) => {
-                event.stopPropagation();
-                onDelete();
-              }}
-              style={actionButtonStyle}>
+            <Pressable onPress={onDelete} style={actionButtonStyle}>
               <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
                 <AppIcon color={theme.colors.danger} name="trash" size={16} />
                 <AppText style={{ color: theme.colors.danger }}>Remove</AppText>
@@ -115,10 +161,7 @@ export function ClosetOutfitCard({
               {onSave ? (
                 <Pressable
                   disabled={isSaved || isSaving}
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    onSave();
-                  }}
+                  onPress={onSave}
                   style={[actionButtonStyle, { backgroundColor: isSaved ? theme.colors.card : theme.colors.surface }]}>
                   <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
                     <AppIcon color={theme.colors.text} name={isSaved ? 'bookmark-filled' : 'bookmark'} size={16} />
@@ -127,12 +170,7 @@ export function ClosetOutfitCard({
                 </Pressable>
               ) : null}
               {onAddToWeek ? (
-                <Pressable
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    onAddToWeek();
-                  }}
-                  style={actionButtonStyle}>
+                <Pressable onPress={onAddToWeek} style={actionButtonStyle}>
                   <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
                     <AppIcon color={theme.colors.text} name="calendar" size={16} />
                     <AppText>Add to week</AppText>
@@ -147,10 +185,7 @@ export function ClosetOutfitCard({
       {onFeedback ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <Pressable
-            onPress={(event) => {
-              event.stopPropagation();
-              onFeedback('love');
-            }}
+            onPress={() => onFeedback('love')}
             style={[
               actionButtonStyle,
               outfit.feedback === 'love' ? { backgroundColor: theme.colors.accent, borderColor: theme.colors.accent } : null,
@@ -167,10 +202,7 @@ export function ClosetOutfitCard({
             </View>
           </Pressable>
           <Pressable
-            onPress={(event) => {
-              event.stopPropagation();
-              onFeedback('hate');
-            }}
+            onPress={() => onFeedback('hate')}
             style={[
               actionButtonStyle,
               outfit.feedback === 'hate' ? { backgroundColor: theme.colors.danger, borderColor: theme.colors.danger } : null,
@@ -188,7 +220,7 @@ export function ClosetOutfitCard({
           </Pressable>
         </View>
       ) : null}
-    </Pressable>
+    </View>
   );
 }
 

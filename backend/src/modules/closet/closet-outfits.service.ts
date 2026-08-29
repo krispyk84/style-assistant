@@ -109,6 +109,7 @@ async function buildVarietyContext(
 function resolveOutfits(
   outfits: { title: string; itemIds: string[]; whyItWorks: string }[],
   itemsById: Map<string, Awaited<ReturnType<typeof closetRepository.getItems>>[number]>,
+  mustIncludeItemIds?: string[],
 ): Omit<ResolvedOutfit, 'feedbackId' | 'feedback' | 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[] {
   const resolved: Omit<ResolvedOutfit, 'feedbackId' | 'feedback' | 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[] = [];
 
@@ -126,6 +127,10 @@ function resolveOutfits(
     const categories = validIds.map((id) => itemsById.get(id)!.category);
     if (!isCompleteOutfit(categories)) continue;
 
+    // Variations only: the client explicitly asked to keep certain items
+    // unchanged — a variation that dropped one is invalid, not a partial success.
+    if (mustIncludeItemIds && !mustIncludeItemIds.every((id) => validIds.includes(id))) continue;
+
     resolved.push({
       id: `outfit-${i}-${validIds.join('-')}`,
       title: outfit.title,
@@ -141,6 +146,7 @@ async function requestOutfits(params: {
   index: ClosetOutfitIndexItem[];
   userPrompt: string;
   supabaseUserId: string;
+  mustIncludeItemIds?: string[];
 }): Promise<{ title: string; itemIds: string[]; whyItWorks: string }[]> {
   const categoryById = new Map(params.index.map((item) => [item.id, item.category]));
   let best: { outfits: { title: string; itemIds: string[]; whyItWorks: string }[]; usableCount: number } | null = null;
@@ -163,7 +169,9 @@ async function requestOutfits(params: {
     const usableCount = result.outfits.filter((outfit) => {
       if (!outfit.itemIds.every((id) => categoryById.has(id))) return false;
       const categories = outfit.itemIds.map((id) => categoryById.get(id)!);
-      return isCompleteOutfit(categories);
+      if (!isCompleteOutfit(categories)) return false;
+      if (params.mustIncludeItemIds && !params.mustIncludeItemIds.every((id) => outfit.itemIds.includes(id))) return false;
+      return true;
     }).length;
 
     if (!best || usableCount > best.usableCount) {
@@ -321,9 +329,16 @@ export const closetOutfitsService = {
       throw new HttpError(422, 'INVALID_BASE_OUTFIT', 'The selected outfit no longer matches your closet.');
     }
 
+    const swapItemIds = payload.swapItemIds.filter((id) => validBaseIds.includes(id));
+    if (swapItemIds.length === 0) {
+      throw new HttpError(422, 'INVALID_SWAP_ITEMS', 'Select 1 or 2 items from the outfit to swap.');
+    }
+    const keepItemIds = validBaseIds.filter((id) => !swapItemIds.includes(id));
+
     const userPrompt = buildClosetOutfitVariationsUserPrompt({
       index,
       baseItemIds: validBaseIds,
+      swapItemIds,
       formality: payload.formality,
       weatherSummary: payload.weatherContext?.summary,
       weatherStylingHint: payload.weatherContext?.stylingHint,
@@ -332,8 +347,8 @@ export const closetOutfitsService = {
       variety,
     });
 
-    const outfits = await requestOutfits({ index, userPrompt, supabaseUserId });
-    const resolved = resolveOutfits(outfits, itemsById);
+    const outfits = await requestOutfits({ index, userPrompt, supabaseUserId, mustIncludeItemIds: keepItemIds });
+    const resolved = resolveOutfits(outfits, itemsById, keepItemIds);
 
     if (resolved.length === 0) {
       throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not generate variations for that outfit. Please try again.');
