@@ -7,7 +7,7 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
 import { formatTierLabel } from '@/lib/outfit-utils';
-import type { SeasonalTrendReportEntry } from '@/types/api';
+import type { SeasonalTrendReportEntry, TrendFeedbackValue } from '@/types/api';
 
 type FashionTrendReportModalProps = {
   visible: boolean;
@@ -17,6 +17,8 @@ type FashionTrendReportModalProps = {
   isStale: boolean;
   error: string | null;
   onClose: () => void;
+  /** Sets (feedback) or clears (null) this user's personal thumbs up/down on a trend. */
+  onSetTrendFeedback: (trendName: string, feedback: TrendFeedbackValue | null) => void;
 };
 
 const LIFECYCLE_LABEL: Record<SeasonalTrendReportEntry['lifecycle'], string> = {
@@ -26,7 +28,7 @@ const LIFECYCLE_LABEL: Record<SeasonalTrendReportEntry['lifecycle'], string> = {
   declining: 'Declining',
 };
 
-export function FashionTrendReportModal({ visible, isLoading, isGenerating, trends, isStale, error, onClose }: FashionTrendReportModalProps) {
+export function FashionTrendReportModal({ visible, isLoading, isGenerating, trends, isStale, error, onClose, onSetTrendFeedback }: FashionTrendReportModalProps) {
   const insets = useSafeAreaInsets();
   const [fullscreenSketch, setFullscreenSketch] = useState<{ url: string; name: string } | null>(null);
 
@@ -46,11 +48,8 @@ export function FashionTrendReportModal({ visible, isLoading, isGenerating, tren
             paddingHorizontal: spacing.lg,
             paddingBottom: spacing.md,
           }}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <AppText variant="sectionTitle">Fashion Trend Report</AppText>
-            <AppText tone="muted" style={{ fontSize: 13 }}>
-              This season&apos;s top 20 — spanning business, smart casual, and casual.
-            </AppText>
+          <View style={{ flex: 1 }}>
+            <AppText variant="heroSmall">Fashion Trend Report</AppText>
           </View>
           <Pressable hitSlop={12} onPress={onClose}>
             <AppIcon color={theme.colors.subtleText} name="close" size={24} />
@@ -95,7 +94,12 @@ export function FashionTrendReportModal({ visible, isLoading, isGenerating, tren
                       {formatTierLabel(trend.formality)}
                     </AppText>
                   ) : null}
-                  <TrendRow trend={trend} showDivider={!showSectionHeader} onSelectSketch={setFullscreenSketch} />
+                  <TrendRow
+                    trend={trend}
+                    showDivider={!showSectionHeader}
+                    onSelectSketch={setFullscreenSketch}
+                    onSetFeedback={(feedback) => onSetTrendFeedback(trend.name, feedback)}
+                  />
                 </View>
               );
             })}
@@ -141,10 +145,12 @@ function TrendRow({
   trend,
   showDivider,
   onSelectSketch,
+  onSetFeedback,
 }: {
   trend: SeasonalTrendReportEntry;
   showDivider: boolean;
   onSelectSketch: (sketch: { url: string; name: string }) => void;
+  onSetFeedback: (feedback: TrendFeedbackValue | null) => void;
 }) {
   const isDirectional = trend.lifecycle === 'emerging' || trend.lifecycle === 'current';
   const isSketchReady = trend.sketchStatus === 'ready' && !!trend.sketchImageUrl;
@@ -203,6 +209,48 @@ function TrendRow({
         </View>
         <AppText tone="muted" style={{ fontSize: 13 }}>{trend.summary}</AppText>
       </View>
+
+      <FeedbackButtons feedback={trend.userFeedback} onSetFeedback={onSetFeedback} />
+    </View>
+  );
+}
+
+/** Personal thumbs up/down on a trend — tapping an already-selected thumb clears it back to neutral. */
+function FeedbackButtons({
+  feedback,
+  onSetFeedback,
+}: {
+  feedback: TrendFeedbackValue | null;
+  onSetFeedback: (feedback: TrendFeedbackValue | null) => void;
+}) {
+  return (
+    <View style={{ gap: spacing.xs, justifyContent: 'center' }}>
+      <Pressable
+        hitSlop={8}
+        onPress={() => onSetFeedback(feedback === 'up' ? null : 'up')}
+        style={{
+          alignItems: 'center',
+          backgroundColor: feedback === 'up' ? theme.colors.card : 'transparent',
+          borderColor: feedback === 'up' ? theme.colors.accent : theme.colors.border,
+          borderRadius: 999,
+          borderWidth: 1,
+          padding: spacing.xs,
+        }}>
+        <AppIcon color={feedback === 'up' ? theme.colors.accent : theme.colors.mutedText} name="thumbs-up" size={14} />
+      </Pressable>
+      <Pressable
+        hitSlop={8}
+        onPress={() => onSetFeedback(feedback === 'down' ? null : 'down')}
+        style={{
+          alignItems: 'center',
+          backgroundColor: feedback === 'down' ? theme.colors.dangerSurface : 'transparent',
+          borderColor: feedback === 'down' ? theme.colors.danger : theme.colors.border,
+          borderRadius: 999,
+          borderWidth: 1,
+          padding: spacing.xs,
+        }}>
+        <AppIcon color={feedback === 'down' ? theme.colors.danger : theme.colors.mutedText} name="thumbs-down" size={14} />
+      </Pressable>
     </View>
   );
 }

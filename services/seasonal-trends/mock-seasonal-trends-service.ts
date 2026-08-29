@@ -10,4 +10,7 @@ export const mockSeasonalTrendsService: SeasonalTrendsService = {
   async getReport() {
     return { success: true, data: { available: false }, error: null };
   },
+  async setFeedback() {
+    return { success: true, data: { acknowledged: true }, error: null };
+  },
 };

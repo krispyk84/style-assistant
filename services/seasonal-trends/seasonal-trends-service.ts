@@ -4,6 +4,8 @@ import type {
   EnsureSeasonalTrendsResponse,
   FashionGender,
   GetSeasonalTrendsReportResponse,
+  SetTrendFeedbackRequest,
+  SetTrendFeedbackResponse,
 } from '@/types/api';
 import type { Hemisphere } from '@/types/weather';
 
@@ -14,4 +16,6 @@ export type SeasonalTrendsService = {
   refresh: (request: EnsureSeasonalTrendsRequest) => Promise<ApiResponse<EnsureSeasonalTrendsResponse>>;
   /** Fetches the current top-20 "Fashion Trend Report" for display. */
   getReport: (fashionGender: FashionGender, hemisphere: Hemisphere) => Promise<ApiResponse<GetSeasonalTrendsReportResponse>>;
+  /** Sets (or clears, via feedback: null) this user's personal thumbs up/down on a trend. */
+  setFeedback: (request: SetTrendFeedbackRequest) => Promise<ApiResponse<SetTrendFeedbackResponse>>;
 };

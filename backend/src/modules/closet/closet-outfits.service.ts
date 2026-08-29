@@ -16,6 +16,7 @@ import { buildClosetOutfitSketchPrompt } from '../../ai/prompts/closet-outfit-sk
 import { storageProvider } from '../../storage/index.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { seasonalTrendsService } from '../seasonal-trends/seasonal-trends.service.js';
+import { trendFeedbackService } from '../seasonal-trends/trend-feedback.service.js';
 import type { FashionGender } from '../seasonal-trends/seasonal-trends.repository.js';
 import type { Hemisphere } from '../seasonal-trends/season-math.js';
 import { closetRepository } from './closet.repository.js';
@@ -30,7 +31,13 @@ function fashionGenderForProfile(gender: string | null | undefined): FashionGend
 async function loadSeasonalTrends(supabaseUserId: string, hemisphere?: Hemisphere) {
   if (!hemisphere) return null;
   const profile = await profileRepository.findByUserId(supabaseUserId);
-  return seasonalTrendsService.getCurrentTrendProfile(fashionGenderForProfile(profile?.gender), hemisphere);
+  const fashionGender = fashionGenderForProfile(profile?.gender);
+  const [result, feedbackMap] = await Promise.all([
+    seasonalTrendsService.getCurrentTrendProfile(fashionGender, hemisphere),
+    trendFeedbackService.getFeedbackMap(supabaseUserId, fashionGender),
+  ]);
+  if (!result) return null;
+  return { ...result, feedbackMap };
 }
 
 const MIN_WARDROBE_SIZE = 5;

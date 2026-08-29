@@ -1,4 +1,6 @@
 import type { FashionTrend } from '../../modules/seasonal-trends/seasonal-trends.schemas.js';
+import { trendSketchRepository } from '../../modules/seasonal-trends/trend-sketch.repository.js';
+import type { TrendFeedbackValue } from '../../modules/seasonal-trends/trend-feedback.repository.js';
 
 // Central trend-weighting configuration — the ONE place that governs how
 // strongly seasonal trends influence outfit generation, rather than scoring
@@ -14,6 +16,10 @@ export const TREND_WEIGHT_CONFIG = {
   staleProfileDamping: 0.7,
   /** Multiplier applied to a "declining" trend's score — per spec, declining trends modestly reduce preference, never a hard penalty. */
   decliningLifecycleDamping: 0.5,
+  /** Multiplier applied when THIS user has thumbs-up'd the trend — a personal bias, never a hard requirement. */
+  userFavourMultiplier: 1.35,
+  /** Multiplier applied when THIS user has thumbs-down'd the trend — a personal bias, never a hard exclusion. */
+  userAvoidMultiplier: 0.55,
 } as const;
 
 type Formality = 'business' | 'smart-casual' | 'casual';
@@ -25,23 +31,29 @@ function trendListKeyFor(formality: Formality): 'business' | 'smartCasual' | 'ca
 }
 
 // trend relevance (rank, implicit in the score below) × trend strength ×
-// confidence × versatility × lifecycle damping — formality match and
-// garment/category relevance are handled upstream by (a) selecting the
-// formality-specific list in the first place, and (b) the per-slot
-// applicability guidance included in the returned text (only apply a
-// footwear trend to footwear, etc).
-export function scoreTrend(trend: FashionTrend, isStale: boolean): number {
+// confidence × versatility × lifecycle damping × personal user feedback —
+// formality match and garment/category relevance are handled upstream by
+// (a) selecting the formality-specific list in the first place, and (b) the
+// per-slot applicability guidance included in the returned text (only apply
+// a footwear trend to footwear, etc).
+export function scoreTrend(trend: FashionTrend, isStale: boolean, feedback?: TrendFeedbackValue | null): number {
   let score = trend.trendStrength * trend.confidence * (trend.versatility / 10);
   if (isStale) score *= TREND_WEIGHT_CONFIG.staleProfileDamping;
   if (trend.lifecycle === 'declining') score *= TREND_WEIGHT_CONFIG.decliningLifecycleDamping;
+  if (feedback === 'up') score *= TREND_WEIGHT_CONFIG.userFavourMultiplier;
+  if (feedback === 'down') score *= TREND_WEIGHT_CONFIG.userAvoidMultiplier;
   return score;
 }
 
-function formatTrendLine(trend: FashionTrend): string {
+function formatTrendLine(trend: FashionTrend, feedback?: TrendFeedbackValue | null): string {
   const rules = trend.stylingRules.slice(0, 2).join(' ');
   const avoid = trend.avoid.length ? ` Avoid: ${trend.avoid.slice(0, 2).join('; ')}.` : '';
   const lifecycleNote = trend.lifecycle === 'declining' ? ' (declining — use sparingly, do not force it out)' : '';
-  return `- ${trend.name}${lifecycleNote}: ${rules}${avoid}`;
+  const feedbackNote =
+    feedback === 'up' ? ' (this user has liked this trend — lean into it a bit more often when relevant)'
+    : feedback === 'down' ? ' (this user prefers to avoid this trend — lean away from it when a suitable alternative exists)'
+    : '';
+  return `- ${trend.name}${lifecycleNote}${feedbackNote}: ${rules}${avoid}`;
 }
 
 /**
@@ -53,6 +65,8 @@ export function buildSeasonalTrendGuidance(input: {
   profile: { business: unknown; smartCasual: unknown; casual: unknown } | null;
   formality: Formality;
   isStale: boolean;
+  /** This user's personal thumbs up/down per trend, keyed by normalized trend name — optional; omit for no personal bias. */
+  feedbackMap?: Map<string, TrendFeedbackValue> | null;
 }): string | null {
   if (!input.profile) return null;
 
@@ -60,12 +74,15 @@ export function buildSeasonalTrendGuidance(input: {
   const trends = input.profile[key] as FashionTrend[] | undefined;
   if (!Array.isArray(trends) || trends.length === 0) return null;
 
+  const feedbackFor = (trend: FashionTrend) =>
+    input.feedbackMap?.get(trendSketchRepository.normalizeTrendKey(trend.name)) ?? null;
+
   const ranked = [...trends]
-    .map((trend) => ({ trend, score: scoreTrend(trend, input.isStale) }))
+    .map((trend) => ({ trend, feedback: feedbackFor(trend), score: scoreTrend(trend, input.isStale, feedbackFor(trend)) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, TREND_WEIGHT_CONFIG.topTrendCount);
 
-  const lines = ranked.map(({ trend }) => formatTrendLine(trend));
+  const lines = ranked.map(({ trend, feedback }) => formatTrendLine(trend, feedback));
 
   return [
     `Current seasonal fashion trends${input.isStale ? ' (from last season — treat as a softer signal, still broadly relevant)' : ''}:`,

@@ -406,6 +406,8 @@ export type EnsureSeasonalTrendsResponse = {
   acknowledged: boolean;
 };
 
+export type TrendFeedbackValue = 'up' | 'down';
+
 export type SeasonalTrendReportEntry = {
   name: string;
   summary: string;
@@ -419,6 +421,19 @@ export type SeasonalTrendReportEntry = {
   accessories: string[];
   sketchStatus: 'pending' | 'ready' | 'failed' | null;
   sketchImageUrl: string | null;
+  /** This user's personal thumbs up/down on this trend — null means neutral, no opinion set. */
+  userFeedback: TrendFeedbackValue | null;
+};
+
+export type SetTrendFeedbackRequest = {
+  fashionGender: FashionGender;
+  trendName: string;
+  /** null clears any existing feedback for this trend, back to neutral. */
+  feedback: TrendFeedbackValue | null;
+};
+
+export type SetTrendFeedbackResponse = {
+  acknowledged: boolean;
 };
 
 export type GetSeasonalTrendsReportResponse =

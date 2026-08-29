@@ -4,11 +4,13 @@
 // index up front and require every returned outfit to be built entirely from
 // those item ids — no invented pieces.
 
+import type { TrendFeedbackValue } from '../../modules/seasonal-trends/trend-feedback.repository.js';
 import { buildSeasonalTrendGuidance } from './seasonal-trend-guidance.js';
 
 export type ClosetOutfitSeasonalTrendsContext = {
   profile: { business: unknown; smartCasual: unknown; casual: unknown };
   isStale: boolean;
+  feedbackMap?: Map<string, TrendFeedbackValue> | null;
 };
 
 export type ClosetOutfitIndexItem = {
@@ -136,6 +138,7 @@ function buildSeasonalFashionTrendsRule(
     profile: seasonalTrends.profile,
     formality: formality as 'business' | 'smart-casual' | 'casual',
     isStale: seasonalTrends.isStale,
+    feedbackMap: seasonalTrends.feedbackMap,
   });
 }
 

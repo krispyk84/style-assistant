@@ -25,6 +25,7 @@ import { profileRepository } from '../profile/profile.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
 import { tierSketchService } from './tier-sketch.service.js';
 import { seasonalTrendsService } from '../seasonal-trends/seasonal-trends.service.js';
+import { trendFeedbackService } from '../seasonal-trends/trend-feedback.service.js';
 import type { FashionGender } from '../seasonal-trends/seasonal-trends.repository.js';
 import type { Hemisphere } from '../seasonal-trends/season-math.js';
 
@@ -52,9 +53,15 @@ function fashionGenderForProfile(profile: ProfileLike): FashionGender {
   return profile?.gender === 'woman' ? 'womenswear' : 'menswear';
 }
 
-async function loadSeasonalTrends(profile: ProfileLike, hemisphere?: Hemisphere) {
+async function loadSeasonalTrends(profile: ProfileLike, hemisphere: Hemisphere | undefined, supabaseUserId: string) {
   if (!hemisphere) return null;
-  return seasonalTrendsService.getCurrentTrendProfile(fashionGenderForProfile(profile), hemisphere);
+  const fashionGender = fashionGenderForProfile(profile);
+  const [result, feedbackMap] = await Promise.all([
+    seasonalTrendsService.getCurrentTrendProfile(fashionGender, hemisphere),
+    trendFeedbackService.getFeedbackMap(supabaseUserId, fashionGender),
+  ]);
+  if (!result) return null;
+  return { ...result, feedbackMap };
 }
 
 function profileToSubject(profile: ProfileLike): SubjectRenderingInput {
@@ -143,7 +150,7 @@ export const outfitsService = {
           vibeKeywords,
         }),
       }),
-      loadSeasonalTrends(profile, input.hemisphere),
+      loadSeasonalTrends(profile, input.hemisphere, supabaseUserId),
     ]);
     const userContent: Array<{ type: 'input_text'; text: string } | { type: 'input_image'; image_url: string; detail?: 'low' | 'high' | 'auto' }> = [
       {
@@ -253,7 +260,7 @@ export const outfitsService = {
           currentStylingDirection: currentRecommendation?.stylingDirection,
         }),
       }),
-      loadSeasonalTrends(profile, existing.input.hemisphere),
+      loadSeasonalTrends(profile, existing.input.hemisphere, supabaseUserId),
     ]);
     const userContent: Array<{ type: 'input_text'; text: string } | { type: 'input_image'; image_url: string; detail?: 'low' | 'high' | 'auto' }> = [
       {

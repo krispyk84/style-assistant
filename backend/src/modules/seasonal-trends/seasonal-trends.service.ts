@@ -6,6 +6,8 @@ import { scoreTrend } from '../../ai/prompts/seasonal-trend-guidance.js';
 import { getFashionSeason, type Hemisphere } from './season-math.js';
 import { seasonalTrendsRepository, type FashionGender } from './seasonal-trends.repository.js';
 import { SEASONAL_TRENDS_GEMINI_SCHEMA, seasonalTrendProfileResponseSchema, type FashionTrend } from './seasonal-trends.schemas.js';
+import { trendFeedbackService } from './trend-feedback.service.js';
+import { trendSketchRepository } from './trend-sketch.repository.js';
 import { trendSketchService } from './trend-sketch.service.js';
 
 const TREND_REPORT_COUNT = 20;
@@ -182,20 +184,24 @@ export const seasonalTrendsService = {
    * status/url via a pure read (generation itself is kicked off separately,
    * tied to profile creation — see generateAndPersist).
    */
-  async getTrendReport(fashionGender: FashionGender, hemisphere: Hemisphere) {
+  async getTrendReport(fashionGender: FashionGender, hemisphere: Hemisphere, supabaseUserId: string) {
     const result = await seasonalTrendsService.getCurrentTrendProfile(fashionGender, hemisphere);
     if (!result) return null;
 
     const trends = buildTrendReport(result.profile, result.isStale)
       .sort((a, b) => FORMALITY_SORT_ORDER[a.formality] - FORMALITY_SORT_ORDER[b.formality]);
 
-    const sketchByName = await trendSketchService.getSketchStatuses(fashionGender, trends.map((t) => t.name));
+    const [sketchByName, feedbackMap] = await Promise.all([
+      trendSketchService.getSketchStatuses(fashionGender, trends.map((t) => t.name)),
+      trendFeedbackService.getFeedbackMap(supabaseUserId, fashionGender),
+    ]);
 
     return {
       trends: trends.map((trend) => ({
         ...trend,
         sketchStatus: sketchByName.get(trend.name)?.sketchStatus ?? null,
         sketchImageUrl: sketchByName.get(trend.name)?.sketchImageUrl ?? null,
+        userFeedback: feedbackMap.get(trendSketchRepository.normalizeTrendKey(trend.name)) ?? null,
       })),
       isStale: result.isStale,
       generatedAt: result.profile.generatedAt,

@@ -169,6 +169,7 @@ export function HomeScreen() {
         isStale={trendReport.isStale}
         error={trendReport.error}
         onClose={trendReport.close}
+        onSetTrendFeedback={trendReport.setTrendFeedback}
       />
     </AppScreen>
   );

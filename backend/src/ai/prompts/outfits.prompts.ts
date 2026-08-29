@@ -1,4 +1,5 @@
 import type { GenerateOutfitsRequest, OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
+import type { TrendFeedbackValue } from '../../modules/seasonal-trends/trend-feedback.repository.js';
 import { buildBaseOutfitRules } from './base-stylist-rules.js';
 import { formatProfileContext } from '../prompt-context.js';
 import { buildSeasonalTrendGuidance } from './seasonal-trend-guidance.js';
@@ -8,6 +9,7 @@ type PromptProfile = Parameters<typeof formatProfileContext>[0];
 export type OutfitsSeasonalTrendsContext = {
   profile: { business: unknown; smartCasual: unknown; casual: unknown };
   isStale: boolean;
+  feedbackMap?: Map<string, TrendFeedbackValue> | null;
 } | null;
 
 /**
@@ -20,7 +22,12 @@ function buildSeasonalTrendsRule(seasonalTrends: OutfitsSeasonalTrendsContext, t
   if (!seasonalTrends) return null;
   const blocks = tiers
     .map((tier) => {
-      const guidance = buildSeasonalTrendGuidance({ profile: seasonalTrends.profile, formality: tier, isStale: seasonalTrends.isStale });
+      const guidance = buildSeasonalTrendGuidance({
+        profile: seasonalTrends.profile,
+        formality: tier,
+        isStale: seasonalTrends.isStale,
+        feedbackMap: seasonalTrends.feedbackMap,
+      });
       return guidance ? `For the ${tier} tier:\n${guidance}` : null;
     })
     .filter((block): block is string => Boolean(block));

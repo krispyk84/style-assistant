@@ -512,3 +512,20 @@ model TrendSketch {
   @@unique([fashionGender, trendNameKey])
   @@index([fashionGender, status])
 }
+
+// Per-user thumbs up/down on a seasonal fashion trend — a soft personal bias
+// applied on top of the (shared, global) trend ranking when building outfit-
+// generation prompts. Deliberately NOT shared across users: this is a
+// personal preference, not a correction to the trend data itself.
+model TrendFeedback {
+  id             String   @id @default(cuid())
+  supabaseUserId String
+  fashionGender  String
+  trendNameKey   String
+  feedback       String // 'up' | 'down'
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([supabaseUserId, fashionGender, trendNameKey])
+  @@index([supabaseUserId, fashionGender])
+}

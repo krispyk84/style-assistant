@@ -5,7 +5,8 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { parseWithSchema } from '../../lib/validation.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { seasonalTrendsService } from './seasonal-trends.service.js';
-import { ensureSeasonalTrendsSchema, getSeasonalTrendsReportSchema } from './seasonal-trends.validation.js';
+import { trendFeedbackService } from './trend-feedback.service.js';
+import { ensureSeasonalTrendsSchema, getSeasonalTrendsReportSchema, setTrendFeedbackSchema } from './seasonal-trends.validation.js';
 
 export const seasonalTrendsRouter = Router();
 
@@ -43,7 +44,7 @@ seasonalTrendsRouter.get(
   requireAuth,
   asyncHandler(async (request, response) => {
     const { fashionGender, hemisphere } = parseWithSchema(getSeasonalTrendsReportSchema, request.query);
-    const result = await seasonalTrendsService.getTrendReport(fashionGender, hemisphere);
+    const result = await seasonalTrendsService.getTrendReport(fashionGender, hemisphere, request.userId!);
     if (!result) {
       return sendSuccess(response, { available: false as const });
     }
@@ -53,5 +54,17 @@ seasonalTrendsRouter.get(
       generatedAt: result.generatedAt.toISOString(),
       trends: result.trends,
     });
+  })
+);
+
+// User's personal thumbs up/down on a trend — a soft per-user bias applied
+// to outfit-generation prompt weighting, not a correction shared globally.
+seasonalTrendsRouter.post(
+  '/seasonal-trends/feedback',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(setTrendFeedbackSchema, request.body);
+    await trendFeedbackService.setFeedback(request.userId!, payload.fashionGender, payload.trendName, payload.feedback);
+    return sendSuccess(response, { acknowledged: true });
   })
 );

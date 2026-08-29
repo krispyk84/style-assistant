@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { useAppSession } from '@/hooks/use-app-session';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { seasonalTrendsService } from '@/services/seasonal-trends';
-import type { SeasonalTrendReportEntry } from '@/types/api';
+import type { SeasonalTrendReportEntry, TrendFeedbackValue } from '@/types/api';
 import type { Hemisphere } from '@/types/weather';
 
 const POLL_INTERVAL_MS = 3000;
@@ -92,5 +92,26 @@ export function useFashionTrendReport() {
     setIsOpen(false);
   }
 
-  return { isOpen, open, close, isLoading, isGenerating, trends, isStale, error };
+  // Personal, per-user bias only — never affects what other users see for
+  // this trend. Optimistic local update so the thumb responds instantly;
+  // reverted if the request fails.
+  async function setTrendFeedback(trendName: string, feedback: TrendFeedbackValue | null) {
+    const fashionGender = profile.gender === 'woman' ? 'womenswear' : 'menswear';
+    let previous: TrendFeedbackValue | null = null;
+    setTrends((prev) => {
+      if (!prev) return prev;
+      return prev.map((t) => {
+        if (t.name !== trendName) return t;
+        previous = t.userFeedback;
+        return { ...t, userFeedback: feedback };
+      });
+    });
+
+    const response = await seasonalTrendsService.setFeedback({ fashionGender, trendName, feedback });
+    if (!response.success) {
+      setTrends((prev) => prev?.map((t) => (t.name === trendName ? { ...t, userFeedback: previous } : t)) ?? prev);
+    }
+  }
+
+  return { isOpen, open, close, isLoading, isGenerating, trends, isStale, error, setTrendFeedback };
 }

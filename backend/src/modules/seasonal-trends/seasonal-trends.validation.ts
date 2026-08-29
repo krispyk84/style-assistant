@@ -11,3 +11,9 @@ export const getSeasonalTrendsReportSchema = z.object({
   fashionGender: z.enum(['menswear', 'womenswear']),
   hemisphere: z.enum(['northern', 'southern']).default('northern'),
 });
+
+export const setTrendFeedbackSchema = z.object({
+  fashionGender: z.enum(['menswear', 'womenswear']),
+  trendName: z.string().trim().min(1).max(200),
+  feedback: z.enum(['up', 'down']).nullable(),
+});
