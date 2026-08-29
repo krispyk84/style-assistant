@@ -16,7 +16,10 @@ import { useHomeData } from './useHomeData';
 // ── Screen ─────────────────────────────────────────────────────────────────────
 
 export function HomeScreen() {
-  const { weather, weatherLoading, weatherError, profile, currentImageUrl, isResolved, closetReadiness } = useHomeData();
+  const {
+    weather, weatherLoading, weatherError, profile, currentImageUrl, isResolved, closetReadiness,
+    closetCurrentImageUrl, isClosetCarouselResolved,
+  } = useHomeData();
   const { theme } = useTheme();
   const generateOutfits = useGenerateOutfits();
 
@@ -100,7 +103,14 @@ export function HomeScreen() {
 
         {/* Generate from closet */}
         {closetReadiness ? (
-          <GenerateFromClosetButton readiness={closetReadiness} onPress={generateOutfits.open} />
+          <GenerateFromClosetButton
+            readiness={closetReadiness}
+            onPress={generateOutfits.open}
+            currentImageUrl={closetCurrentImageUrl}
+            isResolved={isClosetCarouselResolved}
+            accentColor={theme.colors.accent}
+            inverseColor={theme.colors.inverseText}
+          />
         ) : null}
         <GenerateOutfitsModal hook={generateOutfits} />
 
@@ -131,7 +141,21 @@ export function HomeScreen() {
 
 // ── Private components ─────────────────────────────────────────────────────────
 
-function GenerateFromClosetButton({ readiness, onPress }: { readiness: ClosetReadiness; onPress: () => void }) {
+function GenerateFromClosetButton({
+  readiness,
+  onPress,
+  currentImageUrl,
+  isResolved,
+  accentColor,
+  inverseColor,
+}: {
+  readiness: ClosetReadiness;
+  onPress: () => void;
+  currentImageUrl: string | null;
+  isResolved: boolean;
+  accentColor: string;
+  inverseColor: string;
+}) {
   const { theme } = useTheme();
 
   if (!readiness.ready) {
@@ -158,34 +182,58 @@ function GenerateFromClosetButton({ readiness, onPress }: { readiness: ClosetRea
     );
   }
 
+  // Mirrors the "Create a New Look" hero card above — same size, same dark
+  // base + gradient-over-photo treatment, same carousel behavior (shuffled
+  // order, prefetch-then-swap, CAROUSEL_INTERVAL_MS cadence) — just sourced
+  // from closet item photos instead of saved-outfit sketches.
   return (
-    <Pressable
-      onPress={onPress}
-      style={{
-        alignItems: 'center',
-        backgroundColor: theme.colors.card,
-        borderColor: theme.colors.border,
-        borderRadius: 20,
-        borderWidth: 1,
-        flexDirection: 'row',
-        gap: spacing.md,
-        justifyContent: 'space-between',
-        padding: spacing.lg,
-      }}>
-      <View style={{ flex: 1, gap: 2 }}>
-        <AppText variant="sectionTitle">Create Outfits From My Closet</AppText>
-        <AppText tone="muted" style={{ fontSize: 13 }}>Five complete looks, built entirely from what you own.</AppText>
-      </View>
-      <View
-        style={{
-          alignItems: 'center',
-          backgroundColor: theme.colors.accent,
-          borderRadius: 999,
-          height: 40,
-          justifyContent: 'center',
-          width: 40,
-        }}>
-        <AppIcon color={theme.colors.inverseText} name="arrow-right" size={18} />
+    <Pressable onPress={onPress} style={{ borderRadius: 24, overflow: 'hidden' }}>
+      <View style={{ minHeight: 320 }}>
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#2A1F14' }]} />
+
+        {isResolved && currentImageUrl ? (
+          <Image
+            contentFit="cover"
+            source={{ uri: currentImageUrl }}
+            style={StyleSheet.absoluteFillObject}
+          />
+        ) : null}
+
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(18, 12, 6, 0.40)' }]} />
+
+        <View
+          style={{
+            flex: 1,
+            justifyContent: 'flex-end',
+            minHeight: 320,
+            padding: spacing.lg,
+            gap: spacing.md,
+          }}>
+          <View style={{ gap: spacing.xs }}>
+            <AppText variant="eyebrow" style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: 2 }}>
+              From your wardrobe
+            </AppText>
+            <AppText variant="hero" style={{ color: '#FFFFFF' }}>
+              Create Outfits{'\n'}From My Closet
+            </AppText>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+            <AppText style={{ color: 'rgba(255,255,255,0.72)', fontSize: 14, lineHeight: 20, maxWidth: '65%' }}>
+              Five complete looks, built entirely from what you already own.
+            </AppText>
+            <View
+              style={{
+                alignItems: 'center',
+                backgroundColor: accentColor,
+                borderRadius: 999,
+                height: 48,
+                justifyContent: 'center',
+                width: 48,
+              }}>
+              <AppIcon color={inverseColor} name="arrow-right" size={20} />
+            </View>
+          </View>
+        </View>
       </View>
     </Pressable>
   );

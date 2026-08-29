@@ -29,6 +29,9 @@ export function useHomeData() {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [isResolved, setIsResolved] = useState(false);
   const [closetReadiness, setClosetReadiness] = useState<ClosetReadiness | null>(null);
+  const [closetCarouselImages, setClosetCarouselImages] = useState<string[]>([]);
+  const [closetCarouselIndex, setClosetCarouselIndex] = useState(0);
+  const [isClosetCarouselResolved, setIsClosetCarouselResolved] = useState(false);
   // Track focus so the carousel is skipped when on another tab
   const isFocusedRef = useRef(true);
 
@@ -44,11 +47,28 @@ export function useHomeData() {
   useFocusEffect(
     useCallback(() => {
       let isMounted = true;
-      void closetService.getItems().then((response) => {
+      void closetService.getItems().then(async (response) => {
         if (!isMounted) return;
-        if (response.success && response.data) {
-          setClosetReadiness(evaluateClosetReadiness(response.data.items));
+        if (!response.success || !response.data) return;
+
+        setClosetReadiness(evaluateClosetReadiness(response.data.items));
+
+        const urls = response.data.items
+          .map((item) => item.sketchImageUrl ?? item.uploadedImageUrl)
+          .filter((url): url is string => Boolean(url));
+        const shuffled = [...urls].sort(() => Math.random() - 0.5);
+
+        if (shuffled.length > 0) {
+          await Promise.race([
+            Image.prefetch(shuffled[0]!),
+            new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+          ]);
+          if (shuffled.length > 1) void Image.prefetch(shuffled.slice(1));
         }
+
+        if (!isMounted) return;
+        setClosetCarouselImages(shuffled);
+        setIsClosetCarouselResolved(true);
       });
       return () => {
         isMounted = false;
@@ -93,8 +113,20 @@ export function useHomeData() {
     return () => clearInterval(interval);
   }, [carouselImages]);
 
+  useEffect(() => {
+    if (closetCarouselImages.length <= 1) return;
+
+    const interval = setInterval(() => {
+      if (!isFocusedRef.current) return;
+      setClosetCarouselIndex((i) => (i + 1) % closetCarouselImages.length);
+    }, CAROUSEL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [closetCarouselImages]);
+
   const hasRealImages = carouselImages.length > 0;
   const currentImageUrl = carouselImages[carouselIndex] ?? null;
+  const closetCurrentImageUrl = closetCarouselImages[closetCarouselIndex] ?? null;
 
   return {
     weather,
@@ -106,5 +138,7 @@ export function useHomeData() {
     savedPreviews,
     isResolved,
     closetReadiness,
+    closetCurrentImageUrl,
+    isClosetCarouselResolved,
   };
 }
