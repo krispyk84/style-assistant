@@ -286,6 +286,9 @@ export type HaircutOption = {
 
 export type CreateHaircutSessionRequest = {
   headshotImageUrl: string;
+  /** Location-derived, for the seasonal haircut trend list — separate from weatherContext since it isn't weather data. */
+  hemisphere?: Hemisphere;
+  region?: string;
 };
 
 export type HaircutSessionResponse = {
@@ -399,6 +402,41 @@ export type EnsureSeasonalTrendsRequest = {
 export type EnsureSeasonalTrendsResponse = {
   acknowledged: boolean;
 };
+
+export type SeasonalTrendReportEntry = {
+  name: string;
+  summary: string;
+  formality: LookTierSlug;
+  lifecycle: 'emerging' | 'current' | 'established' | 'declining';
+};
+
+export type GetSeasonalTrendsReportResponse =
+  | { available: false }
+  | { available: true; isStale: boolean; generatedAt: string; trends: SeasonalTrendReportEntry[] };
+
+// ── Seasonal Haircut Trends (Hairstyle Trend Report) ─────────────────────────
+
+export type HaircutTrendClassification = 'classic' | 'trending';
+
+export type HaircutTrendStyle = {
+  key: string;
+  label: string;
+  summary: string;
+  classification: HaircutTrendClassification;
+};
+
+export type EnsureHaircutTrendsRequest = {
+  hemisphere: Hemisphere;
+  region?: string;
+};
+
+export type EnsureHaircutTrendsResponse = {
+  acknowledged: boolean;
+};
+
+export type GetHaircutTrendsResponse =
+  | { available: false }
+  | { available: true; isStale: boolean; generatedAt: string; styles: HaircutTrendStyle[] };
 
 export type GenerateClosetOutfitsResponse = {
   outfits: ClosetGeneratedOutfit[];

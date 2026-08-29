@@ -6,12 +6,14 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { AppIcon } from '@/components/ui/app-icon';
 import { GenerateOutfitsModal } from '@/components/closet/GenerateOutfitsModal';
 import { useGenerateOutfits } from '@/components/closet/useGenerateOutfits';
+import { FashionTrendReportModal } from '@/components/cards/fashion-trend-report-modal';
 import { WeatherCard } from '@/components/cards/weather-card';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import type { ClosetReadiness } from '@/lib/closet-readiness';
+import { useFashionTrendReport } from './useFashionTrendReport';
 import { useHomeData } from './useHomeData';
 
 // ── Screen ─────────────────────────────────────────────────────────────────────
@@ -23,6 +25,7 @@ export function HomeScreen() {
   } = useHomeData();
   const { theme } = useTheme();
   const generateOutfits = useGenerateOutfits();
+  const trendReport = useFashionTrendReport();
 
   // Home's content height changes at several independent points as async data
   // resolves (closetReadiness mounting/unmounting the ~320px "Create Outfits
@@ -138,6 +141,14 @@ export function HomeScreen() {
             isLoading={weatherLoading}
             errorMessage={weatherError}
           />
+          <Pressable
+            onPress={() => void trendReport.open()}
+            style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center', paddingVertical: spacing.xs }}>
+            <AppIcon color={theme.colors.accent} name="sparkles" size={16} />
+            <AppText style={{ color: theme.colors.accent, fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>
+              Fashion Trend Report
+            </AppText>
+          </Pressable>
         </View>
 
         {/* Footer */}
@@ -149,6 +160,15 @@ export function HomeScreen() {
         </View>
 
       </View>
+
+      <FashionTrendReportModal
+        visible={trendReport.isOpen}
+        isLoading={trendReport.isLoading}
+        trends={trendReport.trends}
+        isStale={trendReport.isStale}
+        error={trendReport.error}
+        onClose={trendReport.close}
+      />
     </AppScreen>
   );
 }

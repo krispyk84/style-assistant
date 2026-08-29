@@ -237,6 +237,9 @@ model HaircutSession {
   id               String          @id @default(cuid())
   supabaseUserId   String
   headshotImageUrl String
+  // Location-derived, snapshotted at session-create time so "see more" batches keep sourcing from the same trend profile.
+  hemisphere       String?
+  region           String?
   savedAt          DateTime?
   chosenOptionId   String?
   guideData        Json?
@@ -453,4 +456,24 @@ model SeasonalTrendProfile {
 
   @@unique([season, year, fashionGender, hemisphere])
   @@index([fashionGender, hemisphere, status, createdAt(sort: Desc)])
+}
+
+// Seasonal top-20 haircut trend list (unisex — the Haircut Planner feature
+// has no gender branching today). Mirrors SeasonalTrendProfile's status/
+// invalidReason "never overwrite a valid profile with a bad one" guarantee.
+model HaircutTrendProfile {
+  id            String   @id @default(cuid())
+  season        String
+  year          Int
+  hemisphere    String
+  region        String?
+  schemaVersion Int      @default(1)
+  status        String   @default("valid")
+  styles        Json
+  invalidReason String?
+  generatedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@unique([season, year, hemisphere])
+  @@index([hemisphere, status, createdAt(sort: Desc)])
 }

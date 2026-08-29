@@ -3,7 +3,10 @@ import { useRouter } from 'expo-router';
 
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import { cameraCaptureResult } from '@/lib/camera-capture-result';
+import { loadWeatherContext } from '@/lib/weather-storage';
 import { haircutService } from '@/services/haircut';
+import { haircutTrendsService } from '@/services/haircut-trends';
+import type { Hemisphere } from '@/types/weather';
 import type {
   HaircutAngleShots,
   HaircutGuideResponse,
@@ -85,6 +88,17 @@ export function useHaircutPlanner() {
     };
   }, []);
 
+  // Fires once per Haircut Planner visit — idempotent no-op if this season's
+  // trend list already exists. Never blocks the UI; failures are swallowed
+  // since the swipe deck falls back to the fixed curated list either way.
+  useEffect(() => {
+    void (async () => {
+      const weatherContext = await loadWeatherContext();
+      const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
+      await haircutTrendsService.ensure({ hemisphere, region: weatherContext?.countryCode ?? undefined });
+    })().catch(() => undefined);
+  }, []);
+
   function handleOpenCamera() {
     cameraCaptureResult.setListener(async (captured) => {
       setImage(captured);
@@ -101,7 +115,12 @@ export function useHaircutPlanner() {
     setCurrentBatch([]);
     setBatchIndex(0);
     setStage('generating');
-    const response = await haircutService.createSession({ headshotImageUrl: uploadedImage.publicUrl });
+    const weatherContext = await loadWeatherContext();
+    const response = await haircutService.createSession({
+      headshotImageUrl: uploadedImage.publicUrl,
+      hemisphere: weatherContext?.hemisphere ?? undefined,
+      region: weatherContext?.countryCode ?? undefined,
+    });
     if (!response.success || !response.data) {
       setError(response.error?.message ?? 'Could not start the haircut planner. Please try again.');
       setStage('error');

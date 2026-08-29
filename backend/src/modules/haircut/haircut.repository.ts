@@ -2,7 +2,7 @@ import { prisma } from '../../db/prisma.js';
 import type { HaircutStyle } from '../../ai/prompts/haircut.prompts.js';
 
 export const haircutRepository = {
-  async createSession(input: { supabaseUserId: string; headshotImageUrl: string }) {
+  async createSession(input: { supabaseUserId: string; headshotImageUrl: string; hemisphere?: string; region?: string }) {
     return prisma.haircutSession.create({ data: input });
   },
 

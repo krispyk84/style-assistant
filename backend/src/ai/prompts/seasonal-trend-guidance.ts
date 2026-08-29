@@ -30,7 +30,7 @@ function trendListKeyFor(formality: Formality): 'business' | 'smartCasual' | 'ca
 // formality-specific list in the first place, and (b) the per-slot
 // applicability guidance included in the returned text (only apply a
 // footwear trend to footwear, etc).
-function scoreTrend(trend: FashionTrend, isStale: boolean): number {
+export function scoreTrend(trend: FashionTrend, isStale: boolean): number {
   let score = trend.trendStrength * trend.confidence * (trend.versatility / 10);
   if (isStale) score *= TREND_WEIGHT_CONFIG.staleProfileDamping;
   if (trend.lifecycle === 'declining') score *= TREND_WEIGHT_CONFIG.decliningLifecycleDamping;

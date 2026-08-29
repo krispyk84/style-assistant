@@ -14,4 +14,7 @@ export const apiSeasonalTrendsService: SeasonalTrendsService = {
       body: request,
     });
   },
+  getReport(fashionGender, hemisphere) {
+    return createApiClient().request(`/seasonal-trends/report?fashionGender=${fashionGender}&hemisphere=${hemisphere}`);
+  },
 };

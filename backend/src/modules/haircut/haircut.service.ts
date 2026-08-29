@@ -15,12 +15,30 @@ import {
   type HaircutStyle,
 } from '../../ai/prompts/haircut.prompts.js';
 import { storageProvider } from '../../storage/index.js';
+import { haircutTrendsService } from '../haircut-trends/haircut-trends.service.js';
+import type { Hemisphere } from '../seasonal-trends/season-math.js';
 import { haircutRepository } from './haircut.repository.js';
 import { HAIRCUT_GUIDE_JSON_SCHEMA, haircutGuideResponseSchema } from './haircut.schemas.js';
 import type { CreateHaircutSessionPayload, GenerateHaircutGuidePayload, SaveHaircutSessionPayload } from './haircut.validation.js';
 
 const STAGGER_MS = 500;
-const STYLE_BY_KEY = new Map(HAIRCUT_STYLES.map((style) => [style.key, style]));
+
+/**
+ * The style list a session draws from: the current seasonal top-20 trend
+ * list (a mix of classic + trending cuts, refreshed periodically via Gemini)
+ * when available, falling back to the fixed 12-style curated list when no
+ * hemisphere is known or no trend profile has been generated yet/Gemini is
+ * unreachable — mirrors the "stale/missing profile never blocks the feature"
+ * principle used by the outfit seasonal-trends system.
+ */
+async function resolveActiveStyles(hemisphere?: string | null): Promise<HaircutStyle[]> {
+  if (!hemisphere) return HAIRCUT_STYLES;
+  const trendData = await haircutTrendsService.getCurrentTrendProfile(hemisphere as Hemisphere);
+  if (!trendData) return HAIRCUT_STYLES;
+  const styles = trendData.profile.styles as unknown as { key: string; label: string; summary: string }[];
+  if (!Array.isArray(styles) || styles.length === 0) return HAIRCUT_STYLES;
+  return styles.map((s) => ({ key: s.key, label: s.label, summary: s.summary }));
+}
 
 type HaircutOptionRow = {
   id: string;
@@ -103,15 +121,20 @@ export const haircutService = {
       throw new HttpError(422, 'HEADSHOT_UNAVAILABLE', 'Could not read the uploaded headshot. Please try uploading it again.');
     }
 
-    const session = await haircutRepository.createSession({ supabaseUserId, headshotImageUrl: payload.headshotImageUrl });
-    const options = await haircutRepository.createOptions(session.id, HAIRCUT_STYLES.slice(0, INITIAL_BATCH_SIZE));
+    const activeStyles = await resolveActiveStyles(payload.hemisphere);
+    const session = await haircutRepository.createSession({
+      supabaseUserId,
+      headshotImageUrl: payload.headshotImageUrl,
+      hemisphere: payload.hemisphere,
+      region: payload.region,
+    });
+    const options = await haircutRepository.createOptions(session.id, activeStyles.slice(0, INITIAL_BATCH_SIZE));
 
     // Fire-and-forget, staggered like tier sketches — the response returns
     // immediately with 'pending' options; the client polls getSession().
     void Promise.all(
       options.map((option, index) => {
-        const style = STYLE_BY_KEY.get(option.styleKey);
-        if (!style) return Promise.resolve();
+        const style: HaircutStyle = { key: option.styleKey, label: option.styleLabel, summary: option.styleSummary };
         return new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS)).then(() =>
           generateOption(option.id, headshotInput.image_url, style, supabaseUserId),
         );
@@ -131,8 +154,9 @@ export const haircutService = {
     const session = await haircutRepository.getSession(id, supabaseUserId);
     if (!session) throw new HttpError(404, 'NOT_FOUND', 'Haircut session not found.');
 
+    const activeStyles = await resolveActiveStyles(session.hemisphere);
     const usedKeys = new Set(session.options.map((option) => option.styleKey));
-    const nextStyles = HAIRCUT_STYLES.filter((style) => !usedKeys.has(style.key)).slice(0, MORE_BATCH_SIZE);
+    const nextStyles = activeStyles.filter((style) => !usedKeys.has(style.key)).slice(0, MORE_BATCH_SIZE);
     if (nextStyles.length === 0) {
       throw new HttpError(422, 'NO_MORE_STYLES', 'No more haircut styles left to try for this photo.');
     }
@@ -146,8 +170,7 @@ export const haircutService = {
 
     void Promise.all(
       newOptions.map((option, index) => {
-        const style = STYLE_BY_KEY.get(option.styleKey);
-        if (!style) return Promise.resolve();
+        const style: HaircutStyle = { key: option.styleKey, label: option.styleLabel, summary: option.styleSummary };
         return new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS)).then(() =>
           generateOption(option.id, headshotInput.image_url, style, supabaseUserId),
         );

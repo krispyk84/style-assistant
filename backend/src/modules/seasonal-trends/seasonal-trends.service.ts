@@ -2,9 +2,51 @@ import { logger } from '../../config/logger.js';
 import { describeError } from '../../lib/http-error.js';
 import { geminiTextClient } from '../../ai/gemini-text-client.js';
 import { buildSeasonalTrendsInstructions, buildSeasonalTrendsUserPrompt } from '../../ai/prompts/seasonal-trends.prompts.js';
+import { scoreTrend } from '../../ai/prompts/seasonal-trend-guidance.js';
 import { getFashionSeason, type Hemisphere } from './season-math.js';
 import { seasonalTrendsRepository, type FashionGender } from './seasonal-trends.repository.js';
-import { SEASONAL_TRENDS_GEMINI_SCHEMA, seasonalTrendProfileResponseSchema } from './seasonal-trends.schemas.js';
+import { SEASONAL_TRENDS_GEMINI_SCHEMA, seasonalTrendProfileResponseSchema, type FashionTrend } from './seasonal-trends.schemas.js';
+
+const TREND_REPORT_COUNT = 20;
+type TrendReportFormality = 'business' | 'smart-casual' | 'casual';
+
+export type TrendReportEntry = {
+  name: string;
+  summary: string;
+  formality: TrendReportFormality;
+  lifecycle: FashionTrend['lifecycle'];
+};
+
+// Flattens the three formality-specific lists (30 trends total) into a single
+// ranked top-20 for the human-facing "Fashion Trend Report" — reuses the same
+// scoring weights that already drive prompt injection, so the report reflects
+// the exact same notion of "top" the stylist itself is using, not a separate
+// ad-hoc ranking. Dedupes by name in case the same concept was named
+// identically across formality tiers.
+function buildTrendReport(
+  profile: { business: unknown; smartCasual: unknown; casual: unknown },
+  isStale: boolean,
+): TrendReportEntry[] {
+  const tagged: { trend: FashionTrend; formality: TrendReportFormality }[] = [
+    ...((profile.business as FashionTrend[] | undefined) ?? []).map((trend) => ({ trend, formality: 'business' as const })),
+    ...((profile.smartCasual as FashionTrend[] | undefined) ?? []).map((trend) => ({ trend, formality: 'smart-casual' as const })),
+    ...((profile.casual as FashionTrend[] | undefined) ?? []).map((trend) => ({ trend, formality: 'casual' as const })),
+  ];
+
+  const seenNames = new Set<string>();
+  const deduped = tagged.filter(({ trend }) => {
+    const key = trend.name.trim().toLowerCase();
+    if (seenNames.has(key)) return false;
+    seenNames.add(key);
+    return true;
+  });
+
+  return deduped
+    .map((entry) => ({ ...entry, score: scoreTrend(entry.trend, isStale) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, TREND_REPORT_COUNT)
+    .map(({ trend, formality }) => ({ name: trend.name, summary: trend.summary, formality, lifecycle: trend.lifecycle }));
+}
 
 type EnsureInput = {
   fashionGender: FashionGender;
@@ -101,6 +143,21 @@ export const seasonalTrendsService = {
     }
 
     return null;
+  },
+
+  /**
+   * Human-facing "Fashion Trend Report" — the same three formality-specific
+   * lists flattened, deduped, and ranked into a single top-20, using the
+   * exact scoring weights already driving prompt injection. Pure DB read.
+   */
+  async getTrendReport(fashionGender: FashionGender, hemisphere: Hemisphere) {
+    const result = await seasonalTrendsService.getCurrentTrendProfile(fashionGender, hemisphere);
+    if (!result) return null;
+    return {
+      trends: buildTrendReport(result.profile, result.isStale),
+      isStale: result.isStale,
+      generatedAt: result.profile.generatedAt,
+    };
   },
 
   /**

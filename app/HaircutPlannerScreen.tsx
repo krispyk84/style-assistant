@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 
 import { HaircutGuideView } from '@/components/haircut/HaircutGuideView';
+import { HairstyleTrendReportModal } from '@/components/haircut/HairstyleTrendReportModal';
 import { HaircutSwipeDeck } from '@/components/haircut/HaircutSwipeDeck';
 import { useHaircutGuideExport } from '@/components/haircut/useHaircutGuideExport';
 import { ImagePickerField } from '@/components/forms/image-picker-field';
@@ -15,6 +16,7 @@ import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing, theme } from '@/constants/theme';
 import type { HaircutOption, SavedHaircutSession } from '@/types/api';
 import { useHaircutPlanner } from './useHaircutPlanner';
+import { useHairstyleTrendReport } from './useHairstyleTrendReport';
 
 export function HaircutPlannerScreen() {
   const {
@@ -28,6 +30,8 @@ export function HaircutPlannerScreen() {
     reviewFavorites, requestMoreHaircuts, selectFinal, reset, goBack,
     saveHaircut, unsaveHaircut, openSavedSession,
   } = useHaircutPlanner();
+
+  const trendReport = useHairstyleTrendReport();
 
   const viewShotRef = useRef<ViewShot>(null);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -77,6 +81,15 @@ export function HaircutPlannerScreen() {
               disabled={!image || isUploading}
               onPress={() => void startSession()}
             />
+
+            <Pressable
+              onPress={() => void trendReport.open()}
+              style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+              <AppIcon color={theme.colors.accent} name="sparkles" size={16} />
+              <AppText style={{ color: theme.colors.accent, fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>
+                Hairstyle Trend Report
+              </AppText>
+            </Pressable>
 
             {isLoadingSavedSessions ? null : savedSessions.length > 0 ? (
               <View style={{ gap: spacing.sm }}>
@@ -202,6 +215,15 @@ export function HaircutPlannerScreen() {
           </View>
         ) : null}
       </View>
+
+      <HairstyleTrendReportModal
+        visible={trendReport.isOpen}
+        isLoading={trendReport.isLoading}
+        styles={trendReport.styles}
+        isStale={trendReport.isStale}
+        error={trendReport.error}
+        onClose={trendReport.close}
+      />
     </AppScreen>
   );
 }

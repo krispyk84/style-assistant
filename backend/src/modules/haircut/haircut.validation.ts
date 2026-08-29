@@ -4,6 +4,9 @@ import { haircutGuideResponseSchema } from './haircut.schemas.js';
 
 export const createHaircutSessionSchema = z.object({
   headshotImageUrl: z.string().url(),
+  /** Location-derived, for the seasonal haircut trend list — snapshotted onto the session so "see more" keeps sourcing consistently. */
+  hemisphere: z.enum(['northern', 'southern']).optional(),
+  region: z.string().trim().max(200).optional(),
 });
 export type CreateHaircutSessionPayload = z.infer<typeof createHaircutSessionSchema>;
 

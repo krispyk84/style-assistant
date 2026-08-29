@@ -5,7 +5,7 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { parseWithSchema } from '../../lib/validation.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { seasonalTrendsService } from './seasonal-trends.service.js';
-import { ensureSeasonalTrendsSchema } from './seasonal-trends.validation.js';
+import { ensureSeasonalTrendsSchema, getSeasonalTrendsReportSchema } from './seasonal-trends.validation.js';
 
 export const seasonalTrendsRouter = Router();
 
@@ -33,5 +33,25 @@ seasonalTrendsRouter.post(
     const payload = parseWithSchema(ensureSeasonalTrendsSchema, request.body);
     seasonalTrendsService.forceRefresh(payload);
     return sendSuccess(response, { acknowledged: true });
+  })
+);
+
+// Powers the "Fashion Trend Report" card on Home — flattens the three
+// formality-specific lists into a single ranked top-20 for display.
+seasonalTrendsRouter.get(
+  '/seasonal-trends/report',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const { fashionGender, hemisphere } = parseWithSchema(getSeasonalTrendsReportSchema, request.query);
+    const result = await seasonalTrendsService.getTrendReport(fashionGender, hemisphere);
+    if (!result) {
+      return sendSuccess(response, { available: false as const });
+    }
+    return sendSuccess(response, {
+      available: true as const,
+      isStale: result.isStale,
+      generatedAt: result.generatedAt.toISOString(),
+      trends: result.trends,
+    });
   })
 );
