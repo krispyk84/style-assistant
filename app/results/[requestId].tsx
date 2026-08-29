@@ -17,7 +17,7 @@ import { spacing, theme } from '@/constants/theme';
 import { buildSavedOutfitId } from '@/lib/saved-outfits-storage';
 import { buildTierHref, parseLookInput, parseVariantRequestIds, type LookRouteParams } from '@/lib/look-route';
 import { LOOK_TIER_OPTIONS } from '@/types/look-request';
-import { formatTierLabel } from '@/lib/outfit-utils';
+import { buildSecondOpinionSubject, formatTierLabel } from '@/lib/outfit-utils';
 
 import { MultiLookResults } from './MultiLookResults';
 import { useResultsData } from './useResultsData';
@@ -244,7 +244,7 @@ export default function ResultDetailsScreen() {
       {secondOpinionTier && response ? (
         <StylistChooserModal
           visible
-          recommendation={response.recommendations.find((r) => r.tier === secondOpinionTier)!}
+          subject={buildSecondOpinionSubject(response.recommendations.find((r) => r.tier === secondOpinionTier)!)}
           onClose={() => setSecondOpinionTier(null)}
         />
       ) : null}

@@ -21,6 +21,7 @@ type ClosetOutfitCardProps = {
   onFeedback?: (value: 'love' | 'hate') => void;
   /** When set, item thumbnails become selectable (up to 2) and a "Generate Variants" button appears above Save/Add to week. */
   onGenerateVariants?: (selectedItemIds: string[]) => void;
+  onSecondOpinion?: () => void;
 };
 
 export function ClosetOutfitCard({
@@ -32,6 +33,7 @@ export function ClosetOutfitCard({
   onDelete,
   onFeedback,
   onGenerateVariants,
+  onSecondOpinion,
 }: ClosetOutfitCardProps) {
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const showActions = onSave || onAddToWeek || onDelete;
@@ -180,6 +182,25 @@ export function ClosetOutfitCard({
             </>
           )}
         </View>
+      ) : null}
+
+      {onSecondOpinion ? (
+        <Pressable
+          onPress={onSecondOpinion}
+          style={{
+            alignItems: 'center',
+            borderColor: theme.colors.accent,
+            borderRadius: 999,
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.xs,
+            justifyContent: 'center',
+            minHeight: 44,
+            paddingHorizontal: spacing.md,
+          }}>
+          <AppIcon color={theme.colors.accent} name="chat" size={16} />
+          <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
+        </Pressable>
       ) : null}
 
       {onFeedback ? (

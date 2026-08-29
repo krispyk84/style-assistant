@@ -12,6 +12,7 @@ import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { trackClosetMatchThumbDown, trackClosetMatchThumbUp } from '@/lib/analytics';
+import { buildSecondOpinionSubject } from '@/lib/outfit-utils';
 import { buildPiecesToCheck } from './tier-detail-helpers';
 import { useTierDetailActions } from './useTierDetailActions';
 import { useTierDetailData } from './useTierDetailData';
@@ -177,7 +178,7 @@ export function TierDetailScreen() {
 
       <StylistChooserModal
         visible={secondOpinionVisible}
-        recommendation={liveRecommendation}
+        subject={buildSecondOpinionSubject(liveRecommendation)}
         onClose={() => setSecondOpinionVisible(false)}
       />
     </AppScreen>

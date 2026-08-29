@@ -223,6 +223,11 @@ export type SecondOpinionResponse = {
   createdAt: string;
 };
 
+/** Whatever a caller has on hand describing an outfit — every field here is optional
+ * on SecondOpinionRequest, so any outfit shape (tier-based or closet-generated) can
+ * populate whichever of these it actually has. */
+export type SecondOpinionSubject = Omit<SecondOpinionRequest, 'stylistId' | 'profileId'>;
+
 /** Structured outfit piece input for the closet matching API. */
 export type OutfitPieceInput = {
   display_name: string;

@@ -7,7 +7,7 @@ import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
 import { STYLISTS, type StylistId } from '@/lib/stylists';
-import type { LookRecommendation } from '@/types/look-request';
+import type { SecondOpinionSubject } from '@/types/api';
 import { StylistOpinionResultView } from './StylistOpinionResultView';
 import { useSecondOpinionRequest } from './useSecondOpinionRequest';
 
@@ -15,13 +15,13 @@ import { useSecondOpinionRequest } from './useSecondOpinionRequest';
 
 export type StylistChooserModalProps = {
   visible: boolean;
-  recommendation: LookRecommendation;
+  subject: SecondOpinionSubject;
   onClose: () => void;
 };
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export function StylistChooserModal({ visible, recommendation, onClose }: StylistChooserModalProps) {
+export function StylistChooserModal({ visible, subject, onClose }: StylistChooserModalProps) {
   const { height: screenHeight } = useWindowDimensions();
   const [selectedId, setSelectedId] = useState<StylistId | null>(null);
 
@@ -168,7 +168,7 @@ export function StylistChooserModal({ visible, recommendation, onClose }: Stylis
                   <PrimaryButton
                     disabled={!selectedId}
                     label={selectedId ? `Ask ${selectedStylist?.name}` : 'Select a stylist'}
-                    onPress={() => void handleGetOpinion({ selectedId: selectedId!, recommendation })}
+                    onPress={() => void handleGetOpinion({ selectedId: selectedId!, subject })}
                   />
                 )}
               </>

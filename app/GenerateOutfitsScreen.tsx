@@ -2,19 +2,21 @@ import { useEffect, useRef } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 
 import { ClosetOutfitCard } from '@/components/cards/closet-outfit-card';
+import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser-modal';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { spacing, theme } from '@/constants/theme';
-import { formatTierLabel } from '@/lib/outfit-utils';
+import { buildSecondOpinionSubjectFromClosetOutfit, formatTierLabel } from '@/lib/outfit-utils';
 import { useGenerateOutfitsResults } from './useGenerateOutfitsResults';
 
 export function GenerateOutfitsScreen() {
   const {
     formality, stage, outfits, selectedOutfit, variations, error,
     savedOutfitIds, savingOutfitId, weekPickerOutfit, setWeekPickerOutfit,
+    secondOpinionOutfit, setSecondOpinionOutfit,
     loadOutfits, selectOutfit, backToOutfits, handleSaveOutfit, handleAssignToWeek, handleFeedback,
   } = useGenerateOutfitsResults();
 
@@ -78,6 +80,7 @@ export function GenerateOutfitsScreen() {
                 isSaving={savingOutfitId === outfit.id}
                 onAddToWeek={() => setWeekPickerOutfit(outfit)}
                 onFeedback={(value) => void handleFeedback(outfit, value)}
+                onSecondOpinion={() => setSecondOpinionOutfit(outfit)}
               />
             ))}
           </View>
@@ -89,6 +92,14 @@ export function GenerateOutfitsScreen() {
         onClose={() => setWeekPickerOutfit(null)}
         onSelectDay={(dayKey, dayLabel) => void handleAssignToWeek(dayKey, dayLabel)}
       />
+
+      {secondOpinionOutfit ? (
+        <StylistChooserModal
+          visible
+          subject={buildSecondOpinionSubjectFromClosetOutfit(secondOpinionOutfit)}
+          onClose={() => setSecondOpinionOutfit(null)}
+        />
+      ) : null}
     </AppScreen>
   );
 }

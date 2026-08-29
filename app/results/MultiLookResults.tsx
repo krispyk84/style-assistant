@@ -40,6 +40,7 @@ import {
 } from '@/types/look-request';
 import { useToast } from '@/components/ui/toast-provider';
 import { trackSaveOutfit, trackAddToWeek } from '@/lib/analytics';
+import { buildSecondOpinionSubject } from '@/lib/outfit-utils';
 
 const SKETCH_POLL_INTERVAL_MS = 4000;
 
@@ -453,7 +454,7 @@ export function MultiLookResults({
             return (
               <StylistChooserModal
                 visible
-                recommendation={recommendation}
+                subject={buildSecondOpinionSubject(recommendation)}
                 onClose={() => setSecondOpinionRequestId(null)}
               />
             );

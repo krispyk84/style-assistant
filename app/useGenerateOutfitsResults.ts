@@ -23,6 +23,7 @@ export function useGenerateOutfitsResults() {
   const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
   const [savingOutfitId, setSavingOutfitId] = useState<string | null>(null);
   const [weekPickerOutfit, setWeekPickerOutfit] = useState<ClosetGeneratedOutfit | null>(null);
+  const [secondOpinionOutfit, setSecondOpinionOutfit] = useState<ClosetGeneratedOutfit | null>(null);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -171,6 +172,8 @@ export function useGenerateOutfitsResults() {
     savingOutfitId,
     weekPickerOutfit,
     setWeekPickerOutfit,
+    secondOpinionOutfit,
+    setSecondOpinionOutfit,
     loadOutfits,
     selectOutfit,
     backToOutfits,
