@@ -1,17 +1,21 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { describeError } from '../../lib/http-error.js';
+import { runWithConcurrencyLimit } from '../../lib/concurrency-limit.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { buildTrendSketchPrompt, type TrendSketchInput } from '../../ai/prompts/trend-sketch.prompts.js';
 import { storageProvider } from '../../storage/index.js';
 import { trendSketchRepository } from './trend-sketch.repository.js';
 
-// Staggered like closet-outfit and haircut-option sketch generation — firing
-// 20 image-generation calls simultaneously risks tripping OpenAI's rate
-// limits and forcing retries, which makes the whole batch slower overall
-// than spacing them out would.
-const STAGGER_MS = 1000;
+// Bounds actual concurrent generations (not just start times) — a top-20
+// profile can need up to 20 fresh sketches at once; each OpenAI image call
+// holds a full image buffer in memory for its duration, and a simple stagger
+// only spaces out *start* times, not overlap — if a call takes longer than
+// the stagger interval (very likely), most of the batch ends up running
+// concurrently anyway, which is exactly what tripped this server's memory
+// limit and forced a restart (killing every sketch mid-generation).
+const GENERATION_CONCURRENCY = 3;
 
 // A pending/failed sketch older than this is treated as abandoned rather than
 // still legitimately in flight — most commonly because a server restart
@@ -95,22 +99,25 @@ export const trendSketchService = {
    */
   ensureSketchesForFreshProfile(fashionGender: string, trends: TrendSketchInput[]) {
     logger.info({ fashionGender, count: trends.length }, 'Trend sketch ensure: called for fresh profile');
-    trends.forEach((trend, index) => {
-      void (async () => {
+    void (async () => {
+      // Existence checks are cheap DB reads — fine to resolve all up front.
+      // Only the expensive part (actual image generation) needs bounding.
+      const toGenerate: { id: string; trend: TrendSketchInput }[] = [];
+      for (const trend of trends) {
         try {
           const existing = await trendSketchRepository.findByKey(fashionGender, trend.name);
           if (existing) {
             if (existing.status === 'ready') await trendSketchRepository.touchLastSeen(existing.id);
-            return;
+            continue;
           }
           const created = await trendSketchRepository.createPending(fashionGender, trend);
-          await new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS));
-          await generateSketch(created.id, trend);
+          toGenerate.push({ id: created.id, trend });
         } catch (error) {
           logger.error({ error, fashionGender, name: trend.name }, 'Trend sketch ensure failed');
         }
-      })();
-    });
+      }
+      await runWithConcurrencyLimit(toGenerate, GENERATION_CONCURRENCY, ({ id, trend }) => generateSketch(id, trend));
+    })();
   },
 
   /**
@@ -126,12 +133,7 @@ export const trendSketchService = {
     // and found nothing" apart from "the sweep never ran at all" from logs.
     logger.info({ stuckCount: stuck.length }, 'Trend sketch retry sweep: ran');
     if (stuck.length === 0) return;
-    stuck.forEach((row, index) => {
-      void (async () => {
-        await new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS));
-        await generateSketch(row.id, inputFromRow(row));
-      })();
-    });
+    await runWithConcurrencyLimit(stuck, GENERATION_CONCURRENCY, (row) => generateSketch(row.id, inputFromRow(row)));
   },
 
   /**

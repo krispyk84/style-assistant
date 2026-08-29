@@ -1,6 +1,7 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { HttpError, describeError } from '../../lib/http-error.js';
+import { runWithConcurrencyLimit } from '../../lib/concurrency-limit.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { geminiImageClient } from '../../ai/gemini-image-client.js';
 import { resolveImageUrlForAI } from '../../ai/image-input.js';
@@ -24,7 +25,12 @@ import { haircutRepository } from './haircut.repository.js';
 import { HAIRCUT_GUIDE_JSON_SCHEMA, haircutGuideResponseSchema } from './haircut.schemas.js';
 import type { CreateHaircutSessionPayload, GenerateHaircutGuidePayload, SaveHaircutSessionPayload } from './haircut.validation.js';
 
-const STAGGER_MS = 500;
+// Bounds actual concurrent generations (not just start times) — each Gemini
+// image-edit call holds a full image buffer in memory for its duration, and
+// a simple stagger only spaces out *start* times, not overlap. Too much real
+// concurrency across sessions is exactly what tripped the server's memory
+// limit on the trend-sketch side; mirrored here for the same protection.
+const GENERATION_CONCURRENCY = 3;
 
 // A pending/failed angle-shot option older than this is treated as abandoned
 // rather than still legitimately in flight — most commonly because a server
@@ -158,16 +164,12 @@ export const haircutService = {
     });
     const options = await haircutRepository.createOptions(session.id, activeStyles.slice(0, INITIAL_BATCH_SIZE));
 
-    // Fire-and-forget, staggered like tier sketches — the response returns
-    // immediately with 'pending' options; the client polls getSession().
-    void Promise.all(
-      options.map((option, index) => {
-        const style: HaircutStyle = { key: option.styleKey, label: option.styleLabel, summary: option.styleSummary };
-        return new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS)).then(() =>
-          generateOption(option.id, headshotInput.image_url, style, supabaseUserId),
-        );
-      }),
-    );
+    // Fire-and-forget, bounded-concurrency like trend sketches — the response
+    // returns immediately with 'pending' options; the client polls getSession().
+    void runWithConcurrencyLimit(options, GENERATION_CONCURRENCY, (option) => {
+      const style: HaircutStyle = { key: option.styleKey, label: option.styleLabel, summary: option.styleSummary };
+      return generateOption(option.id, headshotInput.image_url, style, supabaseUserId);
+    });
 
     // Fire-and-forget with .catch() — an unawaited rejection here is an
     // unhandled promise rejection, which crashes the whole process (this
@@ -220,14 +222,10 @@ export const haircutService = {
 
     const newOptions = await haircutRepository.createOptions(id, nextStyles);
 
-    void Promise.all(
-      newOptions.map((option, index) => {
-        const style: HaircutStyle = { key: option.styleKey, label: option.styleLabel, summary: option.styleSummary };
-        return new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS)).then(() =>
-          generateOption(option.id, headshotInput.image_url, style, supabaseUserId),
-        );
-      }),
-    );
+    void runWithConcurrencyLimit(newOptions, GENERATION_CONCURRENCY, (option) => {
+      const style: HaircutStyle = { key: option.styleKey, label: option.styleLabel, summary: option.styleSummary };
+      return generateOption(option.id, headshotInput.image_url, style, supabaseUserId);
+    });
 
     return { sessionId: id, status: 'generating' as const, options: [...session.options, ...newOptions].map(mapOption) };
   },
@@ -258,14 +256,10 @@ export const haircutService = {
 
     const angleOptions = await haircutRepository.createOptions(id, angleStyles);
 
-    void Promise.all(
-      angleOptions.map((option, index) => {
-        const angle = HAIRCUT_ANGLES[index]!.angle;
-        return new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS)).then(() =>
-          generateAngleOption(option.id, haircutInput.image_url, style, angle, supabaseUserId),
-        );
-      }),
-    );
+    void runWithConcurrencyLimit(angleOptions, GENERATION_CONCURRENCY, (option, index) => {
+      const angle = HAIRCUT_ANGLES[index]!.angle;
+      return generateAngleOption(option.id, haircutInput.image_url, style, angle, supabaseUserId);
+    });
 
     const mappedAngles = angleOptions.map(mapOption);
     return {
@@ -349,31 +343,27 @@ export const haircutService = {
     logger.info({ stuckCount: stuck.length }, 'Haircut angle shot retry sweep: ran');
     if (stuck.length === 0) return;
 
-    stuck.forEach((option, index) => {
-      void (async () => {
-        await new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS));
+    await runWithConcurrencyLimit(stuck, GENERATION_CONCURRENCY, async (option) => {
+      const separatorIndex = option.styleKey.lastIndexOf('::');
+      if (separatorIndex === -1) return; // not actually an angle option — shouldn't happen given the query filter
+      const frontStyleKey = option.styleKey.slice(0, separatorIndex);
+      const angle = option.styleKey.slice(separatorIndex + 2) as HaircutAngle;
 
-        const separatorIndex = option.styleKey.lastIndexOf('::');
-        if (separatorIndex === -1) return; // not actually an angle option — shouldn't happen given the query filter
-        const frontStyleKey = option.styleKey.slice(0, separatorIndex);
-        const angle = option.styleKey.slice(separatorIndex + 2) as HaircutAngle;
+      const front = option.session.options.find((o) => o.styleKey === frontStyleKey && o.status === 'ready');
+      if (!front?.imageStorageKey) {
+        logger.error({ optionId: option.id }, 'Haircut angle shot retry: original haircut photo unavailable, cannot retry');
+        return;
+      }
 
-        const front = option.session.options.find((o) => o.styleKey === frontStyleKey && o.status === 'ready');
-        if (!front?.imageStorageKey) {
-          logger.error({ optionId: option.id }, 'Haircut angle shot retry: original haircut photo unavailable, cannot retry');
-          return;
-        }
+      const haircutImageUrl = `${env.STORAGE_PUBLIC_BASE_URL}/media/${front.imageStorageKey}`;
+      const haircutInput = await resolveImageUrlForAI(haircutImageUrl);
+      if (!haircutInput) {
+        logger.error({ optionId: option.id }, 'Haircut angle shot retry: could not resolve original haircut photo');
+        return;
+      }
 
-        const haircutImageUrl = `${env.STORAGE_PUBLIC_BASE_URL}/media/${front.imageStorageKey}`;
-        const haircutInput = await resolveImageUrlForAI(haircutImageUrl);
-        if (!haircutInput) {
-          logger.error({ optionId: option.id }, 'Haircut angle shot retry: could not resolve original haircut photo');
-          return;
-        }
-
-        const style: HaircutStyle = { key: front.styleKey, label: front.styleLabel, summary: front.styleSummary };
-        await generateAngleOption(option.id, haircutInput.image_url, style, angle, option.session.supabaseUserId);
-      })();
+      const style: HaircutStyle = { key: front.styleKey, label: front.styleLabel, summary: front.styleSummary };
+      await generateAngleOption(option.id, haircutInput.image_url, style, angle, option.session.supabaseUserId);
     });
   },
 };

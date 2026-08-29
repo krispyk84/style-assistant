@@ -1,6 +1,7 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { HttpError, describeError } from '../../lib/http-error.js';
+import { runWithConcurrencyLimit } from '../../lib/concurrency-limit.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
@@ -35,7 +36,11 @@ async function loadSeasonalTrends(supabaseUserId: string, hemisphere?: Hemispher
 const MIN_WARDROBE_SIZE = 5;
 const MAX_ATTEMPTS = 4;
 const TARGET_OUTFIT_COUNT = 5;
-const SKETCH_STAGGER_MS = 400;
+// Bounds actual concurrent generations (not just start times) — each
+// gpt-image-1-mini call holds a full image buffer in memory for its
+// duration; too much real concurrency across requests is what tripped the
+// server's memory limit on the trend-sketch side, so this mirrors that fix.
+const SKETCH_GENERATION_CONCURRENCY = 3;
 // Two batches' worth of outfits (a base 5 + a variations 5) — wide enough to
 // meaningfully steer the model away from repeats, narrow enough that older
 // generations stop suppressing an item forever.
@@ -298,14 +303,11 @@ async function attachSketchJobs(
     sketchImageUrl: null,
   }));
 
-  // Fire-and-forget, staggered — the response returns immediately with 'pending'
-  // sketch jobs; the client polls each via the existing closet sketch-job endpoint.
-  void Promise.all(
-    withJobs.map((outfit, index) =>
-      new Promise<void>((resolve) => setTimeout(resolve, index * SKETCH_STAGGER_MS)).then(() =>
-        generateOutfitSketch(outfit.sketchJobId, outfit, subjectBrief, supabaseUserId),
-      ),
-    ),
+  // Fire-and-forget, bounded-concurrency — the response returns immediately
+  // with 'pending' sketch jobs; the client polls each via the existing
+  // closet sketch-job endpoint.
+  void runWithConcurrencyLimit(withJobs, SKETCH_GENERATION_CONCURRENCY, (outfit) =>
+    generateOutfitSketch(outfit.sketchJobId, outfit, subjectBrief, supabaseUserId),
   );
 
   return withJobs;
