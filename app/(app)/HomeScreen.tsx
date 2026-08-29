@@ -24,7 +24,7 @@ export function HomeScreen() {
   const generateOutfits = useGenerateOutfits();
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable bounces={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
 
         {/* Header */}
