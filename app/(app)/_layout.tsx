@@ -199,6 +199,7 @@ export default function AppTabsLayout() {
         <Tabs.Screen name="useFavouritesData"   options={{ href: null }} />
         <Tabs.Screen name="useHistoryData"      options={{ href: null }} />
         <Tabs.Screen name="useHistoryActions"   options={{ href: null }} />
+        <Tabs.Screen name="useFashionTrendReport" options={{ href: null }} />
         <Tabs.Screen name="useHomeData"         options={{ href: null }} />
         <Tabs.Screen name="useLogout"           options={{ href: null }} />
         <Tabs.Screen name="useSettings"         options={{ href: null }} />

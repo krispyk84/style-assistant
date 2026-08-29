@@ -164,6 +164,7 @@ export function HomeScreen() {
       <FashionTrendReportModal
         visible={trendReport.isOpen}
         isLoading={trendReport.isLoading}
+        isGenerating={trendReport.isGenerating}
         trends={trendReport.trends}
         isStale={trendReport.isStale}
         error={trendReport.error}

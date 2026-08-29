@@ -10,6 +10,7 @@ import type { SeasonalTrendReportEntry } from '@/types/api';
 type FashionTrendReportModalProps = {
   visible: boolean;
   isLoading: boolean;
+  isGenerating: boolean;
   trends: SeasonalTrendReportEntry[] | null;
   isStale: boolean;
   error: string | null;
@@ -23,7 +24,7 @@ const LIFECYCLE_LABEL: Record<SeasonalTrendReportEntry['lifecycle'], string> = {
   declining: 'Declining',
 };
 
-export function FashionTrendReportModal({ visible, isLoading, trends, isStale, error, onClose }: FashionTrendReportModalProps) {
+export function FashionTrendReportModal({ visible, isLoading, isGenerating, trends, isStale, error, onClose }: FashionTrendReportModalProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -54,8 +55,13 @@ export function FashionTrendReportModal({ visible, isLoading, trends, isStale, e
         </View>
 
         {isLoading ? (
-          <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+          <View style={{ alignItems: 'center', flex: 1, gap: spacing.md, justifyContent: 'center', paddingHorizontal: spacing.lg }}>
             <ActivityIndicator color={theme.colors.accent} />
+            {isGenerating ? (
+              <AppText tone="muted" style={{ textAlign: 'center', fontSize: 13 }}>
+                Putting this season&apos;s report together — this can take a few seconds.
+              </AppText>
+            ) : null}
           </View>
         ) : error || !trends ? (
           <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg }}>

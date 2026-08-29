@@ -9,13 +9,14 @@ import type { HaircutTrendStyle } from '@/types/api';
 type HairstyleTrendReportModalProps = {
   visible: boolean;
   isLoading: boolean;
+  isGenerating: boolean;
   styles: HaircutTrendStyle[] | null;
   isStale: boolean;
   error: string | null;
   onClose: () => void;
 };
 
-export function HairstyleTrendReportModal({ visible, isLoading, styles, isStale, error, onClose }: HairstyleTrendReportModalProps) {
+export function HairstyleTrendReportModal({ visible, isLoading, isGenerating, styles, isStale, error, onClose }: HairstyleTrendReportModalProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -46,8 +47,13 @@ export function HairstyleTrendReportModal({ visible, isLoading, styles, isStale,
         </View>
 
         {isLoading ? (
-          <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+          <View style={{ alignItems: 'center', flex: 1, gap: spacing.md, justifyContent: 'center', paddingHorizontal: spacing.lg }}>
             <ActivityIndicator color={theme.colors.accent} />
+            {isGenerating ? (
+              <AppText tone="muted" style={{ textAlign: 'center', fontSize: 13 }}>
+                Putting this season&apos;s report together — this can take a few seconds.
+              </AppText>
+            ) : null}
           </View>
         ) : error || !styles ? (
           <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg }}>

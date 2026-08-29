@@ -219,6 +219,7 @@ export function HaircutPlannerScreen() {
       <HairstyleTrendReportModal
         visible={trendReport.isOpen}
         isLoading={trendReport.isLoading}
+        isGenerating={trendReport.isGenerating}
         styles={trendReport.styles}
         isStale={trendReport.isStale}
         error={trendReport.error}
