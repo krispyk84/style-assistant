@@ -1,6 +1,6 @@
 import { Redirect, router, Tabs } from 'expo-router';
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MoreBottomSheet } from '@/components/more/more-bottom-sheet';
@@ -18,6 +18,7 @@ import { useLogout } from './useLogout';
 // (weather, hero + closet image carousels) before giving up — a stuck
 // network shouldn't be able to trap the user on the splash screen forever.
 const HOME_READY_TIMEOUT_MS = 8000;
+const SPLASH_FADE_OUT_MS = 300;
 
 const TAB_ICON_SIZE = 22;
 
@@ -70,6 +71,11 @@ export default function AppTabsLayout() {
   const [moreSheetVisible, setMoreSheetVisible] = useState(false);
   const isHomeReady = useSyncExternalStore(homeReadiness.subscribe, homeReadiness.getSnapshot);
   const [homeReadyTimedOut, setHomeReadyTimedOut] = useState(false);
+  // Kept mounted slightly past showSplashOverlay flipping false so the fade-out
+  // animation below has time to actually play — an instant unmount would make
+  // the splash disappear abruptly regardless of the opacity animation.
+  const [isSplashMounted, setIsSplashMounted] = useState(true);
+  const splashOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!user) {
@@ -85,6 +91,26 @@ export default function AppTabsLayout() {
     return () => clearTimeout(timeout);
   }, [isHydrated, isHomeReady]);
 
+  const showSplashOverlay = isHydrated && !isHomeReady && !homeReadyTimedOut;
+
+  useEffect(() => {
+    if (showSplashOverlay) {
+      // Home became not-ready again (shouldn't normally happen once shown) — snap back visible.
+      splashOpacity.setValue(1);
+      setIsSplashMounted(true);
+      return;
+    }
+    if (!isSplashMounted) return;
+    Animated.timing(splashOpacity, {
+      toValue: 0,
+      duration: SPLASH_FADE_OUT_MS,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) setIsSplashMounted(false);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSplashOverlay]);
+
   if (!isHydrated) {
     return <BrandSplash messages={SPLASH_MESSAGES} />;
   }
@@ -97,7 +123,6 @@ export default function AppTabsLayout() {
   // the splash just visually covers that work as an overlay until Home
   // reports it's fully ready (or the safety timeout fires), rather than
   // blocking the mount itself.
-  const showSplashOverlay = !isHomeReady && !homeReadyTimedOut;
 
   return (
     <View style={{ flex: 1 }}>
@@ -220,10 +245,12 @@ export default function AppTabsLayout() {
         <Tabs.Screen name="useSavedTripsData"         options={{ href: null }} />
       </Tabs>
 
-      {showSplashOverlay ? (
-        <View style={StyleSheet.absoluteFillObject}>
+      {isSplashMounted ? (
+        <Animated.View
+          pointerEvents={showSplashOverlay ? 'auto' : 'none'}
+          style={[StyleSheet.absoluteFillObject, { opacity: splashOpacity }]}>
           <BrandSplash messages={SPLASH_MESSAGES} />
-        </View>
+        </Animated.View>
       ) : null}
     </View>
   );
