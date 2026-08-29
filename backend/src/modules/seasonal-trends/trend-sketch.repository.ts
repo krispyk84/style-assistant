@@ -1,4 +1,5 @@
 import { prisma } from '../../db/prisma.js';
+import type { TrendSketchInput } from '../../ai/prompts/trend-sketch.prompts.js';
 
 function normalizeTrendKey(name: string): string {
   return name.trim().toLowerCase();
@@ -13,9 +14,23 @@ export const trendSketchRepository = {
     });
   },
 
-  async createPending(fashionGender: string, trendName: string, formality: string) {
+  async createPending(fashionGender: string, trend: TrendSketchInput) {
     return prisma.trendSketch.create({
-      data: { fashionGender, trendNameKey: normalizeTrendKey(trendName), trendName, formality },
+      data: {
+        fashionGender,
+        trendNameKey: normalizeTrendKey(trend.name),
+        trendName: trend.name,
+        formality: trend.formality,
+        trendData: {
+          summary: trend.summary,
+          garmentCategories: trend.garmentCategories,
+          silhouettes: trend.silhouettes,
+          colours: trend.colours,
+          materialsOrTextures: trend.materialsOrTextures,
+          footwear: trend.footwear,
+          accessories: trend.accessories,
+        },
+      },
     });
   },
 
@@ -36,5 +51,16 @@ export const trendSketchRepository = {
     },
   ) {
     return prisma.trendSketch.update({ where: { id }, data });
+  },
+
+  /**
+   * Rows stuck pending or failed for longer than the given cutoff — covers
+   * generation orphaned by a server restart (in-flight work only ever lived
+   * in memory) as well as genuine failures, so both get retried.
+   */
+  async findStuck(olderThan: Date) {
+    return prisma.trendSketch.findMany({
+      where: { status: { in: ['pending', 'failed'] }, firstGeneratedAt: { lt: olderThan } },
+    });
   },
 };

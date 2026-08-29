@@ -490,6 +490,11 @@ model TrendSketch {
   trendNameKey     String
   trendName        String
   formality        String
+  // Full descriptive fields needed to (re)build the sketch prompt, persisted
+  // so a stuck/failed sketch can be retried purely from this row — without
+  // depending on the original in-memory trend list that requested it still
+  // being around (it won't be, across a server restart).
+  trendData        Json?
   status           String    @default("pending")
   sketchStorageKey String?
   sketchMimeType   String?
