@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppIcon, type AppIconName } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
@@ -33,6 +33,7 @@ export function GenerateOutfitsModal({ hook }: GenerateOutfitsModalProps) {
 
   return (
     <Modal animationType="fade" transparent visible={isOpen} onRequestClose={close}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <Pressable
         onPress={close}
         style={{
@@ -172,6 +173,7 @@ export function GenerateOutfitsModal({ hook }: GenerateOutfitsModalProps) {
           </ScrollView>
         </Pressable>
       </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
