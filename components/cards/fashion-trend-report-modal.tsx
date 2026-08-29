@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -27,6 +28,7 @@ const LIFECYCLE_LABEL: Record<SeasonalTrendReportEntry['lifecycle'], string> = {
 
 export function FashionTrendReportModal({ visible, isLoading, isGenerating, trends, isStale, error, onClose }: FashionTrendReportModalProps) {
   const insets = useSafeAreaInsets();
+  const [fullscreenSketch, setFullscreenSketch] = useState<{ url: string; name: string } | null>(null);
 
   return (
     <Modal animationType="slide" visible={visible} onRequestClose={onClose}>
@@ -93,19 +95,75 @@ export function FashionTrendReportModal({ visible, isLoading, isGenerating, tren
                       {formatTierLabel(trend.formality)}
                     </AppText>
                   ) : null}
-                  <TrendRow trend={trend} showDivider={!showSectionHeader} />
+                  <TrendRow trend={trend} showDivider={!showSectionHeader} onSelectSketch={setFullscreenSketch} />
                 </View>
               );
             })}
           </ScrollView>
         )}
       </View>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={fullscreenSketch !== null}
+        onRequestClose={() => setFullscreenSketch(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)' }}>
+          <Pressable
+            hitSlop={12}
+            onPress={() => setFullscreenSketch(null)}
+            style={{
+              alignSelf: 'flex-end',
+              // Modal content renders outside the normal safe-area tree on iOS, so
+              // insets.top can read as 0 here even though the modal draws under the
+              // status bar — fall back to a fixed clearance if insets look unset.
+              paddingTop: Math.max(insets.top, 50) + spacing.sm,
+              paddingHorizontal: spacing.lg,
+              paddingBottom: spacing.sm,
+            }}>
+            <AppIcon color="#fff" name="close" size={28} />
+          </Pressable>
+          {fullscreenSketch ? (
+            <>
+              <Image contentFit="contain" source={{ uri: fullscreenSketch.url }} style={{ flex: 1, width: '100%' }} />
+              <AppText style={{ color: '#fff', fontSize: 15, paddingBottom: insets.bottom + spacing.lg, paddingHorizontal: spacing.lg, textAlign: 'center' }}>
+                {fullscreenSketch.name}
+              </AppText>
+            </>
+          ) : null}
+        </View>
+      </Modal>
     </Modal>
   );
 }
 
-function TrendRow({ trend, showDivider }: { trend: SeasonalTrendReportEntry; showDivider: boolean }) {
+function TrendRow({
+  trend,
+  showDivider,
+  onSelectSketch,
+}: {
+  trend: SeasonalTrendReportEntry;
+  showDivider: boolean;
+  onSelectSketch: (sketch: { url: string; name: string }) => void;
+}) {
   const isDirectional = trend.lifecycle === 'emerging' || trend.lifecycle === 'current';
+  const isSketchReady = trend.sketchStatus === 'ready' && !!trend.sketchImageUrl;
+
+  const thumbnail = (
+    <View style={{ backgroundColor: theme.colors.card, borderRadius: 12, height: 88, overflow: 'hidden', width: 66 }}>
+      {isSketchReady ? (
+        <Image contentFit="cover" source={{ uri: trend.sketchImageUrl! }} style={{ height: '100%', width: '100%' }} />
+      ) : trend.sketchStatus === 'pending' || trend.sketchStatus === null ? (
+        <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+          <ActivityIndicator color={theme.colors.subtleText} size="small" />
+        </View>
+      ) : (
+        <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+          <AppIcon color={theme.colors.subtleText} name="sparkles" size={18} />
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <View
@@ -116,19 +174,11 @@ function TrendRow({ trend, showDivider }: { trend: SeasonalTrendReportEntry; sho
         gap: spacing.sm,
         paddingTop: showDivider ? spacing.md : 0,
       }}>
-      <View style={{ backgroundColor: theme.colors.card, borderRadius: 12, height: 88, overflow: 'hidden', width: 66 }}>
-        {trend.sketchStatus === 'ready' && trend.sketchImageUrl ? (
-          <Image contentFit="cover" source={{ uri: trend.sketchImageUrl }} style={{ height: '100%', width: '100%' }} />
-        ) : trend.sketchStatus === 'pending' || trend.sketchStatus === null ? (
-          <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
-            <ActivityIndicator color={theme.colors.subtleText} size="small" />
-          </View>
-        ) : (
-          <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
-            <AppIcon color={theme.colors.subtleText} name="sparkles" size={18} />
-          </View>
-        )}
-      </View>
+      {isSketchReady ? (
+        <Pressable onPress={() => onSelectSketch({ url: trend.sketchImageUrl!, name: trend.name })}>{thumbnail}</Pressable>
+      ) : (
+        thumbnail
+      )}
 
       <View style={{ flex: 1, gap: spacing.xs }}>
         <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' }}>
