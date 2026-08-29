@@ -6,15 +6,23 @@ import { scoreTrend } from '../../ai/prompts/seasonal-trend-guidance.js';
 import { getFashionSeason, type Hemisphere } from './season-math.js';
 import { seasonalTrendsRepository, type FashionGender } from './seasonal-trends.repository.js';
 import { SEASONAL_TRENDS_GEMINI_SCHEMA, seasonalTrendProfileResponseSchema, type FashionTrend } from './seasonal-trends.schemas.js';
+import { trendSketchService } from './trend-sketch.service.js';
 
 const TREND_REPORT_COUNT = 20;
 type TrendReportFormality = 'business' | 'smart-casual' | 'casual';
+const FORMALITY_SORT_ORDER: Record<TrendReportFormality, number> = { business: 0, 'smart-casual': 1, casual: 2 };
 
 export type TrendReportEntry = {
   name: string;
   summary: string;
   formality: TrendReportFormality;
   lifecycle: FashionTrend['lifecycle'];
+  garmentCategories: string[];
+  silhouettes: string[];
+  colours: string[];
+  materialsOrTextures: string[];
+  footwear: string[];
+  accessories: string[];
 };
 
 // Flattens the three formality-specific lists (30 trends total) into a single
@@ -22,7 +30,8 @@ export type TrendReportEntry = {
 // scoring weights that already drive prompt injection, so the report reflects
 // the exact same notion of "top" the stylist itself is using, not a separate
 // ad-hoc ranking. Dedupes by name in case the same concept was named
-// identically across formality tiers.
+// identically across formality tiers. Selection is by score; the caller sorts
+// the returned array for display (e.g. grouped by formality).
 function buildTrendReport(
   profile: { business: unknown; smartCasual: unknown; casual: unknown },
   isStale: boolean,
@@ -45,7 +54,18 @@ function buildTrendReport(
     .map((entry) => ({ ...entry, score: scoreTrend(entry.trend, isStale) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, TREND_REPORT_COUNT)
-    .map(({ trend, formality }) => ({ name: trend.name, summary: trend.summary, formality, lifecycle: trend.lifecycle }));
+    .map(({ trend, formality }) => ({
+      name: trend.name,
+      summary: trend.summary,
+      formality,
+      lifecycle: trend.lifecycle,
+      garmentCategories: trend.garmentCategories,
+      silhouettes: trend.silhouettes,
+      colours: trend.colours,
+      materialsOrTextures: trend.materialsOrTextures,
+      footwear: trend.footwear,
+      accessories: trend.accessories,
+    }));
 }
 
 type EnsureInput = {
@@ -113,6 +133,14 @@ async function generateAndPersist(params: {
       { fashionGender: params.fashionGender, season: params.season, year: params.year },
       'Seasonal trends: new profile generated and persisted'
     );
+
+    // Tied to profile generation (once per season), not report views — a
+    // trend that recurs next season reuses its sketch via ensureSketchesForFreshProfile's
+    // name-based matching rather than regenerating.
+    trendSketchService.ensureSketchesForFreshProfile(
+      params.fashionGender,
+      buildTrendReport(parsed.data, false),
+    );
   } catch (error) {
     const { code, message } = describeError(error);
     logger.error(
@@ -148,13 +176,27 @@ export const seasonalTrendsService = {
   /**
    * Human-facing "Fashion Trend Report" — the same three formality-specific
    * lists flattened, deduped, and ranked into a single top-20, using the
-   * exact scoring weights already driving prompt injection. Pure DB read.
+   * exact scoring weights already driving prompt injection. Sorted by
+   * formality (business, then smart casual, then casual) for display, rank
+   * preserved within each group. Attaches each trend's persisted sketch
+   * status/url via a pure read (generation itself is kicked off separately,
+   * tied to profile creation — see generateAndPersist).
    */
   async getTrendReport(fashionGender: FashionGender, hemisphere: Hemisphere) {
     const result = await seasonalTrendsService.getCurrentTrendProfile(fashionGender, hemisphere);
     if (!result) return null;
+
+    const trends = buildTrendReport(result.profile, result.isStale)
+      .sort((a, b) => FORMALITY_SORT_ORDER[a.formality] - FORMALITY_SORT_ORDER[b.formality]);
+
+    const sketchByName = await trendSketchService.getSketchStatuses(fashionGender, trends.map((t) => t.name));
+
     return {
-      trends: buildTrendReport(result.profile, result.isStale),
+      trends: trends.map((trend) => ({
+        ...trend,
+        sketchStatus: sketchByName.get(trend.name)?.sketchStatus ?? null,
+        sketchImageUrl: sketchByName.get(trend.name)?.sketchImageUrl ?? null,
+      })),
       isStale: result.isStale,
       generatedAt: result.profile.generatedAt,
     };

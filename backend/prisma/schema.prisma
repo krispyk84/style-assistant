@@ -477,3 +477,30 @@ model HaircutTrendProfile {
   @@unique([season, year, hemisphere])
   @@index([hemisphere, status, createdAt(sort: Desc)])
 }
+
+// A sketch generated for one seasonal fashion trend, keyed by fashionGender +
+// a normalized trend name so a trend that recurs in a later season's profile
+// (Gemini names it identically because it's genuinely still current) reuses
+// its existing sketch rather than regenerating — "persist through the season
+// and into future seasons if the trend persists". lastSeenAt is refreshed
+// each time a freshly generated profile still contains this trend name.
+model TrendSketch {
+  id               String    @id @default(cuid())
+  fashionGender    String
+  trendNameKey     String
+  trendName        String
+  formality        String
+  status           String    @default("pending")
+  sketchStorageKey String?
+  sketchMimeType   String?
+  sketchImageData  Bytes?
+  errorCode        String?
+  errorMessage     String?
+  firstGeneratedAt DateTime  @default(now())
+  lastSeenAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([fashionGender, trendNameKey])
+  @@index([fashionGender, status])
+}

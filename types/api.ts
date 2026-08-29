@@ -408,6 +408,14 @@ export type SeasonalTrendReportEntry = {
   summary: string;
   formality: LookTierSlug;
   lifecycle: 'emerging' | 'current' | 'established' | 'declining';
+  garmentCategories: string[];
+  silhouettes: string[];
+  colours: string[];
+  materialsOrTextures: string[];
+  footwear: string[];
+  accessories: string[];
+  sketchStatus: 'pending' | 'ready' | 'failed' | null;
+  sketchImageUrl: string | null;
 };
 
 export type GetSeasonalTrendsReportResponse =

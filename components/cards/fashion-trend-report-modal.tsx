@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -78,50 +79,21 @@ export function FashionTrendReportModal({ visible, isLoading, isGenerating, tren
               </AppText>
             ) : null}
             {trends.map((trend, index) => {
-              const isDirectional = trend.lifecycle === 'emerging' || trend.lifecycle === 'current';
+              const showSectionHeader = index === 0 || trends[index - 1]!.formality !== trend.formality;
               return (
-                <View
-                  key={`${trend.name}-${index}`}
-                  style={{
-                    borderTopColor: theme.colors.border,
-                    borderTopWidth: index > 0 ? 1 : 0,
-                    gap: spacing.xs,
-                    paddingTop: index > 0 ? spacing.md : 0,
-                  }}>
-                  <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' }}>
-                    <AppText style={{ flex: 1, fontFamily: theme.fonts.sansMedium, fontSize: 15 }}>{trend.name}</AppText>
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <View
-                        style={{
-                          backgroundColor: theme.colors.subtleSurface,
-                          borderRadius: 999,
-                          paddingHorizontal: spacing.sm,
-                          paddingVertical: 2,
-                        }}>
-                        <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, fontSize: 10, letterSpacing: 1 }}>
-                          {formatTierLabel(trend.formality)}
-                        </AppText>
-                      </View>
-                      <View
-                        style={{
-                          backgroundColor: isDirectional ? theme.colors.accent : theme.colors.subtleSurface,
-                          borderRadius: 999,
-                          paddingHorizontal: spacing.sm,
-                          paddingVertical: 2,
-                        }}>
-                        <AppText
-                          variant="eyebrow"
-                          style={{
-                            color: isDirectional ? theme.colors.inverseText : theme.colors.mutedText,
-                            fontSize: 10,
-                            letterSpacing: 1,
-                          }}>
-                          {LIFECYCLE_LABEL[trend.lifecycle]}
-                        </AppText>
-                      </View>
-                    </View>
-                  </View>
-                  <AppText tone="muted" style={{ fontSize: 13 }}>{trend.summary}</AppText>
+                <View key={`${trend.name}-${index}`} style={{ gap: spacing.md }}>
+                  {showSectionHeader ? (
+                    <AppText
+                      variant="eyebrow"
+                      style={{
+                        color: theme.colors.mutedText,
+                        letterSpacing: 1.8,
+                        marginTop: index > 0 ? spacing.xs : 0,
+                      }}>
+                      {formatTierLabel(trend.formality)}
+                    </AppText>
+                  ) : null}
+                  <TrendRow trend={trend} showDivider={!showSectionHeader} />
                 </View>
               );
             })}
@@ -129,5 +101,58 @@ export function FashionTrendReportModal({ visible, isLoading, isGenerating, tren
         )}
       </View>
     </Modal>
+  );
+}
+
+function TrendRow({ trend, showDivider }: { trend: SeasonalTrendReportEntry; showDivider: boolean }) {
+  const isDirectional = trend.lifecycle === 'emerging' || trend.lifecycle === 'current';
+
+  return (
+    <View
+      style={{
+        borderTopColor: theme.colors.border,
+        borderTopWidth: showDivider ? 1 : 0,
+        flexDirection: 'row',
+        gap: spacing.sm,
+        paddingTop: showDivider ? spacing.md : 0,
+      }}>
+      <View style={{ backgroundColor: theme.colors.card, borderRadius: 12, height: 88, overflow: 'hidden', width: 66 }}>
+        {trend.sketchStatus === 'ready' && trend.sketchImageUrl ? (
+          <Image contentFit="cover" source={{ uri: trend.sketchImageUrl }} style={{ height: '100%', width: '100%' }} />
+        ) : trend.sketchStatus === 'pending' || trend.sketchStatus === null ? (
+          <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+            <ActivityIndicator color={theme.colors.subtleText} size="small" />
+          </View>
+        ) : (
+          <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+            <AppIcon color={theme.colors.subtleText} name="sparkles" size={18} />
+          </View>
+        )}
+      </View>
+
+      <View style={{ flex: 1, gap: spacing.xs }}>
+        <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' }}>
+          <AppText style={{ flex: 1, fontFamily: theme.fonts.sansMedium, fontSize: 15 }}>{trend.name}</AppText>
+          <View
+            style={{
+              backgroundColor: isDirectional ? theme.colors.accent : theme.colors.subtleSurface,
+              borderRadius: 999,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: 2,
+            }}>
+            <AppText
+              variant="eyebrow"
+              style={{
+                color: isDirectional ? theme.colors.inverseText : theme.colors.mutedText,
+                fontSize: 10,
+                letterSpacing: 1,
+              }}>
+              {LIFECYCLE_LABEL[trend.lifecycle]}
+            </AppText>
+          </View>
+        </View>
+        <AppText tone="muted" style={{ fontSize: 13 }}>{trend.summary}</AppText>
+      </View>
+    </View>
   );
 }

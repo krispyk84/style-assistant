@@ -12,6 +12,10 @@ function wait(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
+function hasPendingSketch(trends: SeasonalTrendReportEntry[]) {
+  return trends.some((t) => t.sketchStatus === 'pending' || t.sketchStatus === null);
+}
+
 export function useFashionTrendReport() {
   const { profile } = useAppSession();
   const [isOpen, setIsOpen] = useState(false);
@@ -57,7 +61,14 @@ export function useFashionTrendReport() {
         setIsStale(response.data.isStale);
         setIsLoading(false);
         setIsGenerating(false);
-        return;
+
+        // The list itself is ready — sketches for individual trends may
+        // still be generating in the background. Keep this same loop going
+        // (without blocking the "isLoading" UI any further) so images pop in
+        // progressively as they finish, until none are left pending.
+        if (!hasPendingSketch(response.data.trends)) return;
+        await wait(POLL_INTERVAL_MS);
+        continue;
       }
 
       if (!response.success) {
