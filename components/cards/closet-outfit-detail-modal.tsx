@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { useEffect, useRef } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -17,6 +18,18 @@ export type ClosetOutfitDetailModalProps = {
 
 export function ClosetOutfitDetailModal({ visible, outfit, onClose }: ClosetOutfitDetailModalProps) {
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+
+  // This single modal instance is reused across every outfit the user taps —
+  // the ScrollView's measured content height can stay stuck at a previous
+  // (possibly taller) outfit's extent, letting the user scroll past the
+  // current outfit's actual content into blank space below it. Reset to top
+  // whenever a different outfit is shown, or the sketch finishes loading
+  // (its 3:4 image block adds real height once ready) — same class of stale-
+  // scroll-extent bug as Home/Haircut Planner/Generate Outfits.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [outfit?.id, outfit?.sketchStatus]);
 
   return (
     <Modal animationType="slide" visible={visible} onRequestClose={onClose}>
@@ -45,6 +58,7 @@ export function ClosetOutfitDetailModal({ visible, outfit, onClose }: ClosetOutf
         </View>
 
         <ScrollView
+          ref={scrollRef}
           style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingBottom: insets.bottom + spacing.xl }}>
