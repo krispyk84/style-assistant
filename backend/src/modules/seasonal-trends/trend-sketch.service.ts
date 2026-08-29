@@ -44,6 +44,10 @@ function inputFromRow(row: NonNullable<TrendSketchRow>): TrendSketchInput {
 }
 
 async function generateSketch(id: string, trend: TrendSketchInput) {
+  // Always logged, unconditionally — so a search for "Trend sketch generate"
+  // definitively answers "did this row's generation ever actually start" even
+  // when the call afterwards hangs with no error and no success line.
+  logger.info({ trendSketchId: id, name: trend.name }, 'Trend sketch generate: starting');
   try {
     const prompt = buildTrendSketchPrompt(trend);
     const generatedImage = await openAiClient.generateImage({
@@ -70,6 +74,7 @@ async function generateSketch(id: string, trend: TrendSketchInput) {
       sketchMimeType: generatedImage.mimeType,
       sketchImageData: generatedImage.data,
     });
+    logger.info({ trendSketchId: id, name: trend.name }, 'Trend sketch generate: succeeded');
   } catch (error) {
     const { code, message } = describeError(error);
     logger.error({ trendSketchId: id, name: trend.name, errorCode: code, error }, 'Trend sketch generation failed');
@@ -89,6 +94,7 @@ export const trendSketchService = {
    * Fire-and-forget: never blocks profile persistence on image generation.
    */
   ensureSketchesForFreshProfile(fashionGender: string, trends: TrendSketchInput[]) {
+    logger.info({ fashionGender, count: trends.length }, 'Trend sketch ensure: called for fresh profile');
     trends.forEach((trend, index) => {
       void (async () => {
         try {
@@ -116,8 +122,10 @@ export const trendSketchService = {
    */
   async retryStuckSketches() {
     const stuck = await trendSketchRepository.findStuck(new Date(Date.now() - STALE_MS));
+    // Always logged, unconditionally — the only way to tell "the sweep ran
+    // and found nothing" apart from "the sweep never ran at all" from logs.
+    logger.info({ stuckCount: stuck.length }, 'Trend sketch retry sweep: ran');
     if (stuck.length === 0) return;
-    logger.info({ count: stuck.length }, 'Trend sketch: retrying stuck sketches');
     stuck.forEach((row, index) => {
       void (async () => {
         await new Promise<void>((resolve) => setTimeout(resolve, index * STAGGER_MS));
