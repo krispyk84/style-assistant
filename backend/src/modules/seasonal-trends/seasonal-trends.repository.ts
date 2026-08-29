@@ -28,35 +28,59 @@ export const seasonalTrendsRepository = {
     });
   },
 
+  // Upsert, not create — (season, year, fashionGender, hemisphere) is unique
+  // with no status in the key, so a plain create() throws P2002 the moment
+  // *any* row (valid or invalid) already exists for this key. That includes
+  // the ordinary case of a manual/forced refresh regenerating an already-
+  // current season, which previously crashed generateAndPersist on every
+  // attempt after the season's first successful generation.
   async createValid(key: ProfileKey, region: string | null, profile: SeasonalTrendProfileResponse) {
     const parsedGeneratedAt = new Date(profile.generatedAt);
-    return prisma.seasonalTrendProfile.create({
-      data: {
+    const generatedAt = Number.isNaN(parsedGeneratedAt.getTime()) ? new Date() : parsedGeneratedAt;
+    return prisma.seasonalTrendProfile.upsert({
+      where: { season_year_fashionGender_hemisphere: key },
+      create: {
         ...key,
         region,
         status: 'valid',
         business: profile.business,
         smartCasual: profile.smartCasual,
         casual: profile.casual,
-        generatedAt: Number.isNaN(parsedGeneratedAt.getTime()) ? new Date() : parsedGeneratedAt,
+        generatedAt,
+      },
+      update: {
+        region,
+        status: 'valid',
+        invalidReason: null,
+        business: profile.business,
+        smartCasual: profile.smartCasual,
+        casual: profile.casual,
+        generatedAt,
       },
     });
   },
 
   async createInvalid(key: ProfileKey, region: string | null, reason: string, rawResponse: unknown) {
-    return prisma.seasonalTrendProfile.create({
-      data: {
-        ...key,
-        region,
-        status: 'invalid',
-        invalidReason: reason,
-        // Preserve whatever shape came back (even garbage) for later inspection —
-        // stored as-is in the same Json columns; findCurrent/findMostRecentValid
-        // never return status:'invalid' rows, so this can never get served.
-        business: safeJson(rawResponse, 'business'),
-        smartCasual: safeJson(rawResponse, 'smartCasual'),
-        casual: safeJson(rawResponse, 'casual'),
-      },
+    // Never overwrite a valid profile with a bad one — a stale-but-valid
+    // profile is preferable to Gemini's garbage response for this attempt.
+    const existing = await prisma.seasonalTrendProfile.findUnique({ where: { season_year_fashionGender_hemisphere: key } });
+    if (existing?.status === 'valid') return existing;
+
+    const data = {
+      region,
+      status: 'invalid' as const,
+      invalidReason: reason,
+      // Preserve whatever shape came back (even garbage) for later inspection —
+      // stored as-is in the same Json columns; findCurrent/findMostRecentValid
+      // never return status:'invalid' rows, so this can never get served.
+      business: safeJson(rawResponse, 'business'),
+      smartCasual: safeJson(rawResponse, 'smartCasual'),
+      casual: safeJson(rawResponse, 'casual'),
+    };
+    return prisma.seasonalTrendProfile.upsert({
+      where: { season_year_fashionGender_hemisphere: key },
+      create: { ...key, ...data },
+      update: data,
     });
   },
 };

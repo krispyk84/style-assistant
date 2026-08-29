@@ -25,31 +25,38 @@ export const haircutTrendsRepository = {
     });
   },
 
+  // Upsert, not create — (season, year, hemisphere) is unique with no status
+  // in the key, so a plain create() throws P2002 the moment *any* row (valid
+  // or invalid) already exists for this key, e.g. on a manual/forced refresh
+  // of an already-current season.
   async createValid(key: ProfileKey, region: string | null, profile: HaircutTrendProfileResponse) {
     const parsedGeneratedAt = new Date(profile.generatedAt);
-    return prisma.haircutTrendProfile.create({
-      data: {
-        ...key,
-        region,
-        status: 'valid',
-        styles: profile.styles,
-        generatedAt: Number.isNaN(parsedGeneratedAt.getTime()) ? new Date() : parsedGeneratedAt,
-      },
+    const generatedAt = Number.isNaN(parsedGeneratedAt.getTime()) ? new Date() : parsedGeneratedAt;
+    return prisma.haircutTrendProfile.upsert({
+      where: { season_year_hemisphere: key },
+      create: { ...key, region, status: 'valid', styles: profile.styles, generatedAt },
+      update: { region, status: 'valid', invalidReason: null, styles: profile.styles, generatedAt },
     });
   },
 
   async createInvalid(key: ProfileKey, region: string | null, reason: string, rawResponse: unknown) {
-    return prisma.haircutTrendProfile.create({
-      data: {
-        ...key,
-        region,
-        status: 'invalid',
-        invalidReason: reason,
-        // Preserve whatever shape came back (even garbage) for later inspection —
-        // this row is NEVER returned by findCurrent/findMostRecentValid, so a bad
-        // response can never clobber a good one.
-        styles: safeStyles(rawResponse),
-      },
+    // Never overwrite a valid profile with a bad one.
+    const existing = await prisma.haircutTrendProfile.findUnique({ where: { season_year_hemisphere: key } });
+    if (existing?.status === 'valid') return existing;
+
+    const data = {
+      region,
+      status: 'invalid' as const,
+      invalidReason: reason,
+      // Preserve whatever shape came back (even garbage) for later inspection —
+      // this row is NEVER returned by findCurrent/findMostRecentValid, so a bad
+      // response can never clobber a good one.
+      styles: safeStyles(rawResponse),
+    };
+    return prisma.haircutTrendProfile.upsert({
+      where: { season_year_hemisphere: key },
+      create: { ...key, ...data },
+      update: data,
     });
   },
 };
