@@ -1,6 +1,6 @@
 import { Redirect, router, Tabs } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MoreBottomSheet } from '@/components/more/more-bottom-sheet';
@@ -11,7 +11,13 @@ import { spacing, theme as staticTheme } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
+import { homeReadiness } from '@/lib/home-readiness';
 import { useLogout } from './useLogout';
+
+// Upper bound on how long the splash overlay waits for Home's own data
+// (weather, hero + closet image carousels) before giving up — a stuck
+// network shouldn't be able to trap the user on the splash screen forever.
+const HOME_READY_TIMEOUT_MS = 8000;
 
 const TAB_ICON_SIZE = 22;
 
@@ -50,12 +56,20 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
   );
 }
 
+const SPLASH_MESSAGES = [
+  'Loading your Vesture workspace.',
+  'Checking your saved profile.',
+  'Preparing your styling tools.',
+];
+
 export default function AppTabsLayout() {
   const { hasCompletedOnboarding, isHydrated } = useAppSession();
   const { user } = useAuth();
   const { theme } = useTheme();
   const { handleLogout } = useLogout();
   const [moreSheetVisible, setMoreSheetVisible] = useState(false);
+  const isHomeReady = useSyncExternalStore(homeReadiness.subscribe, homeReadiness.getSnapshot);
+  const [homeReadyTimedOut, setHomeReadyTimedOut] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -63,21 +77,27 @@ export default function AppTabsLayout() {
     }
   }, [user]);
 
+  // Starts counting only once we actually begin waiting on Home, so a slow
+  // session hydration doesn't eat into this budget.
+  useEffect(() => {
+    if (!isHydrated || isHomeReady) return;
+    const timeout = setTimeout(() => setHomeReadyTimedOut(true), HOME_READY_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
+  }, [isHydrated, isHomeReady]);
+
   if (!isHydrated) {
-    return (
-      <BrandSplash
-        messages={[
-          'Loading your Vesture workspace.',
-          'Checking your saved profile.',
-          'Preparing your styling tools.',
-        ]}
-      />
-    );
+    return <BrandSplash messages={SPLASH_MESSAGES} />;
   }
 
   if (!hasCompletedOnboarding) {
     return <Redirect href="/onboarding" />;
   }
+
+  // Tabs (and Home inside it) mount and start loading immediately below —
+  // the splash just visually covers that work as an overlay until Home
+  // reports it's fully ready (or the safety timeout fires), rather than
+  // blocking the mount itself.
+  const showSplashOverlay = !isHomeReady && !homeReadyTimedOut;
 
   return (
     <View style={{ flex: 1 }}>
@@ -198,6 +218,12 @@ export default function AppTabsLayout() {
         <Tabs.Screen name="useTravelPlannerForm"      options={{ href: null }} />
         <Tabs.Screen name="useSavedTripsData"         options={{ href: null }} />
       </Tabs>
+
+      {showSplashOverlay ? (
+        <View style={StyleSheet.absoluteFillObject}>
+          <BrandSplash messages={SPLASH_MESSAGES} />
+        </View>
+      ) : null}
     </View>
   );
 }

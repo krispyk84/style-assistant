@@ -5,6 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { useAppSession } from '@/hooks/use-app-session';
 import { useCurrentWeather } from '@/hooks/use-current-weather';
 import { evaluateClosetReadiness, type ClosetReadiness } from '@/lib/closet-readiness';
+import { homeReadiness } from '@/lib/home-readiness';
 import { loadSavedOutfits } from '@/lib/saved-outfits-storage';
 import {
   buildSavedOutfitPreview,
@@ -127,6 +128,16 @@ export function useHomeData() {
   const hasRealImages = carouselImages.length > 0;
   const currentImageUrl = carouselImages[carouselIndex] ?? null;
   const closetCurrentImageUrl = closetCarouselImages[closetCarouselIndex] ?? null;
+
+  // Publishes to the root layout's splash overlay (lib/home-readiness.ts) —
+  // once every piece of Home's initial content has settled (hero carousel,
+  // closet carousel, weather resolved or failed), the splash can safely hide
+  // without Home visibly popping pieces into place underneath it.
+  useEffect(() => {
+    if (isResolved && isClosetCarouselResolved && !weatherLoading) {
+      homeReadiness.setReady(true);
+    }
+  }, [isResolved, isClosetCarouselResolved, weatherLoading]);
 
   return {
     weather,
