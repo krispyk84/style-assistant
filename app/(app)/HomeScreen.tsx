@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { GenerateOutfitsModal } from '@/components/closet/GenerateOutfitsModal';
@@ -23,8 +24,21 @@ export function HomeScreen() {
   const { theme } = useTheme();
   const generateOutfits = useGenerateOutfits();
 
+  // Home's content height changes at several independent points as async data
+  // resolves (closetReadiness mounting/unmounting the ~320px "Create Outfits
+  // From My Closet" card, the weather card growing from its loading placeholder,
+  // both image carousels swapping in) — including on every refocus, since
+  // closetReadiness is refetched via useFocusEffect each time the user returns
+  // to this tab. A stale scroll offset relative to shorter new content can leave
+  // the viewport stuck past the end with no way to scroll back — same class of
+  // bug fixed on the Haircut Planner and Generate Outfits screens.
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [isResolved, isClosetCarouselResolved, weatherLoading, closetReadiness]);
+
   return (
-    <AppScreen scrollable bounces={false}>
+    <AppScreen scrollable scrollRef={scrollRef} bounces={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
 
         {/* Header */}
