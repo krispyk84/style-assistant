@@ -33,6 +33,8 @@ export const apiOutfitsService: OutfitsService = {
         additionalDetails: request.additionalDetails?.trim() || undefined,
         variantContext: request.variantContext,
         trendiness: request.trendiness,
+        hemisphere: request.hemisphere,
+        region: request.region,
       },
     });
 

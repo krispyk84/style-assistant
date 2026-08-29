@@ -72,6 +72,8 @@ export async function loadCurrentWeather(): Promise<WeatherContext> {
     stylingHint: buildStylingHint(current.apparent_temperature, season, summary),
     locationLabel: formatLocationLabel(address),
     fetchedAt: new Date().toISOString(),
+    hemisphere: latitude < 0 ? 'southern' : 'northern',
+    countryCode: address?.isoCountryCode ?? null,
   };
 }
 

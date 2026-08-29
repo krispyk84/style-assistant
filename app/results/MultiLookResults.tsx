@@ -173,6 +173,8 @@ export function MultiLookResults({
             generateOnlyTier: tier,
             trendiness,
             variantContext,
+            hemisphere: parsedInput.weatherContext?.hemisphere ?? undefined,
+            region: parsedInput.weatherContext?.countryCode ?? undefined,
           },
           { signal: abortController.signal },
         );

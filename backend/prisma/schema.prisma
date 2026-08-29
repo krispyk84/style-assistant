@@ -428,3 +428,29 @@ model ClosetOutfitFeedback {
   @@index([supabaseUserId, createdAt(sort: Desc)])
   @@index([supabaseUserId, feedback])
 }
+
+/// One row per (season, year, fashionGender, hemisphere) — Gemini-sourced
+/// current-trend intelligence, refreshed at most once per season per that
+/// key (see seasonal-trends.service.ts). `status` lets a validation failure
+/// be logged/inspected without ever being served: only "valid" rows are
+/// returned by findCurrent/findMostRecent, so a bad Gemini response can never
+/// clobber a previously-good profile.
+model SeasonalTrendProfile {
+  id            String   @id @default(cuid())
+  season        String
+  year          Int
+  fashionGender String
+  hemisphere    String
+  region        String?
+  schemaVersion Int      @default(1)
+  status        String   @default("valid")
+  business      Json
+  smartCasual   Json
+  casual        Json
+  invalidReason String?
+  generatedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@unique([season, year, fashionGender, hemisphere])
+  @@index([fashionGender, hemisphere, status, createdAt(sort: Desc)])
+}

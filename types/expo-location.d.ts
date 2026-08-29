@@ -15,6 +15,7 @@ declare module 'expo-location' {
     city?: string | null;
     region?: string | null;
     district?: string | null;
+    isoCountryCode?: string | null;
   };
 
   export enum Accuracy {

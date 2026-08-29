@@ -73,7 +73,15 @@ export function useResultsData(stableParams: LookRouteParams & { requestId: stri
       if (controller.signal.aborted) return;
 
       const serviceResponse = await outfitsService.generateOutfits(
-        { ...input, requestId, selectedTiers: tiersInOrder, generateOnlyTier: tier, trendiness },
+        {
+          ...input,
+          requestId,
+          selectedTiers: tiersInOrder,
+          generateOnlyTier: tier,
+          trendiness,
+          hemisphere: input.weatherContext?.hemisphere ?? undefined,
+          region: input.weatherContext?.countryCode ?? undefined,
+        },
         { signal: controller.signal },
       );
 

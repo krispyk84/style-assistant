@@ -57,6 +57,9 @@ export const generateOutfitsSchema = z.object({
     })
     .optional(),
   trendiness: z.number().min(0).max(100).optional(),
+  /** Location-derived, for seasonal fashion trend lookup — separate from weatherContext since it isn't weather data. */
+  hemisphere: z.enum(['northern', 'southern']).optional(),
+  region: z.string().trim().max(200).optional(),
 }).superRefine((value, ctx) => {
   const hasAnchorItems = Boolean(
     value.anchorItems?.some((item) => item.description.trim() || item.imageId || item.imageUrl)

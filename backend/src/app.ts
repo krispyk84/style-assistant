@@ -26,6 +26,7 @@ import { savedTripsRouter } from './modules/trips/saved-trips.routes.js';
 import { tripPlansRouter } from './modules/trips/trip-plans.routes.js';
 import { usageRouter } from './modules/usage/usage.routes.js';
 import { wardrobeScoreRouter } from './modules/wardrobe-score/wardrobe-score.routes.js';
+import { seasonalTrendsRouter } from './modules/seasonal-trends/seasonal-trends.routes.js';
 
 export function createApp() {
   const app = express();
@@ -165,6 +166,7 @@ export function createApp() {
   apiRouter.use(tripPlansRouter);
   apiRouter.use(usageRouter);
   apiRouter.use(wardrobeScoreRouter);
+  apiRouter.use(seasonalTrendsRouter);
 
   app.use(apiRouter);
 

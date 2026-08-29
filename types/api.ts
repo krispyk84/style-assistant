@@ -2,7 +2,7 @@ import type { ClosetItem, ClosetItemFitStatus } from '@/types/closet';
 import type { CreateLookInput, LookRequestResponse, LookTierSlug } from '@/types/look-request';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 import type { PersistedSession, Profile } from '@/types/profile';
-import type { WeatherContext } from '@/types/weather';
+import type { Hemisphere, WeatherContext } from '@/types/weather';
 
 export type ApiError = {
   code: string;
@@ -41,6 +41,9 @@ export type GenerateOutfitsRequest = CreateLookInput & {
     total: number;
     previousVariations?: VariationSummary[];
   };
+  /** Location-derived, for seasonal fashion trend lookup — separate from weatherContext since it isn't weather data. */
+  hemisphere?: Hemisphere;
+  region?: string;
 };
 
 export type GenerateOutfitsResponse = LookRequestResponse;
@@ -367,15 +370,34 @@ export type GenerateClosetOutfitsRequest = {
   formality: LookTierSlug;
   weatherContext?: WeatherContext | null;
   trendiness?: number;
+  /** Location-derived, for seasonal fashion trend lookup — separate from weatherContext since it isn't weather data. */
+  hemisphere?: Hemisphere;
+  region?: string;
 };
 
 export type GenerateClosetOutfitVariationsRequest = {
   formality: LookTierSlug;
   weatherContext?: WeatherContext | null;
   trendiness?: number;
+  hemisphere?: Hemisphere;
+  region?: string;
   baseItemIds: string[];
   /** Item ids to actually swap (1-2) — every other base item is kept unchanged across all 5 variations. */
   swapItemIds: string[];
+};
+
+// ── Seasonal Fashion Trends Intelligence ─────────────────────────────────────
+
+export type FashionGender = 'menswear' | 'womenswear';
+
+export type EnsureSeasonalTrendsRequest = {
+  fashionGender: FashionGender;
+  hemisphere: Hemisphere;
+  region?: string;
+};
+
+export type EnsureSeasonalTrendsResponse = {
+  acknowledged: boolean;
 };
 
 export type GenerateClosetOutfitsResponse = {

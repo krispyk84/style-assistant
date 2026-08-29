@@ -38,6 +38,9 @@ const envSchema = z.object({
   // on a user's uploaded photo via Gemini's multi-image-input generateContent API.
   GEMINI_IMAGE_MODEL: z.string().default('gemini-2.5-flash-image'),
   GEMINI_API_KEY: z.string().optional(),
+  // Gemini text client (seasonal-trends.service.ts) — separate from the image
+  // model above since structured JSON output is a text-generation feature.
+  GEMINI_TEXT_MODEL: z.string().default('gemini-2.5-flash'),
 });
 
 export const env = envSchema.parse(process.env);

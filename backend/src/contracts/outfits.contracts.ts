@@ -63,6 +63,9 @@ export type GenerateOutfitsRequest = {
       accessories: string[];
     }>;
   };
+  /** Location-derived, for seasonal fashion trend lookup — separate from weatherContext since it isn't weather data. */
+  hemisphere?: 'northern' | 'southern';
+  region?: string;
   /**
    * Outfit trendiness 0–100 (lower = safer/classic, higher = trendier).
    * Sourced from the user's app settings on the device.
@@ -104,6 +107,8 @@ export type OutfitResponse = {
     selectedTiers: OutfitTierSlug[];
     weatherContext?: GenerateOutfitsRequest['weatherContext'];
     manualSeason?: GenerateOutfitsRequest['manualSeason'];
+    hemisphere?: GenerateOutfitsRequest['hemisphere'];
+    region?: GenerateOutfitsRequest['region'];
     includeBag?: boolean;
     includeHat?: boolean;
     additionalDetails?: string;

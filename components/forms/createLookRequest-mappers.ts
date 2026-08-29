@@ -102,6 +102,8 @@ export function buildSubmitRouteParams(params: {
           stylingHint: SEASON_HINT[manualSeason],
           locationLabel: null,
           fetchedAt: new Date().toISOString(),
+          hemisphere: null,
+          countryCode: null,
         }
     : weatherContext;
   const requestId = createMockRequestId();

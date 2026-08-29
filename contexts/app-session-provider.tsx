@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 import { useAuth } from '@/contexts/auth-context';
 import { defaultProfile } from '@/lib/default-profile';
 import { loadSession as loadStoredSession, saveProfile as saveStoredProfile } from '@/lib/profile-storage';
+import { ensureSeasonalTrends } from '@/lib/seasonal-trends-ensure';
 import type { Profile } from '@/types/profile';
 import { profileService } from '@/services/profile';
 import { AppSessionContext } from '@/contexts/app-session-context';
@@ -182,6 +183,17 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
     setIsSaving(false);
     return false;
   }, [hasCompletedOnboarding]);
+
+  // Fires once per cold start (once the real profile has hydrated) and again
+  // whenever the gender setting actually changes thereafter — matching the
+  // seasonal-trends spec's "check on launch, and on fashion-gender change"
+  // requirement in a single effect. Never blocks the UI; failures are swallowed
+  // inside ensureSeasonalTrends so this can never surface an error to the user.
+  useEffect(() => {
+    if (!isHydrated) return;
+    ensureSeasonalTrends(profile.gender);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHydrated, profile.gender]);
 
   // Stable context value — only recreated when actual values change, preventing
   // broad consumer re-renders when unrelated session state updates.

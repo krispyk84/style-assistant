@@ -79,6 +79,8 @@ export function buildLookRouteParams(requestId: string, input: CreateLookInput) 
     weatherStylingHint: input.weatherContext?.stylingHint,
     weatherLocationLabel: input.weatherContext?.locationLabel ?? undefined,
     weatherFetchedAt: input.weatherContext?.fetchedAt,
+    weatherHemisphere: input.weatherContext?.hemisphere ?? undefined,
+    weatherCountryCode: input.weatherContext?.countryCode ?? undefined,
     manualSeason: input.manualSeason ?? undefined,
     includeBag: input.includeBag ? 'true' : undefined,
     includeHat: input.includeHat ? 'true' : undefined,

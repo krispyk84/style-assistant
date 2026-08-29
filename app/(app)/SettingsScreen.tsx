@@ -26,6 +26,7 @@ export function SettingsScreen() {
     sensitivity, setSensitivity, persistSensitivity, sensitivityLabel,
     trendiness, setTrendiness, persistTrendiness, trendinessLabel,
     monthlyAiCost, appVersion,
+    isRefreshingTrends, trendsRefreshMessage, refreshSeasonalTrends,
   } = useSettings();
   const { handleLogout } = useLogout();
 
@@ -184,6 +185,37 @@ export function SettingsScreen() {
             <AppText tone="subtle" style={{ fontSize: 12 }}>AI usage this month: ${monthlyAiCost.toFixed(2)}</AppText>
           ) : null}
         </View>
+
+        {/* Debug — advanced/dev-only tools */}
+        {__DEV__ ? (
+          <View style={cardStyle}>
+            <View style={{ gap: spacing.xs }}>
+              <AppText variant="sectionTitle">Debug</AppText>
+              <AppText tone="muted">Developer-only tools. Not shown in production builds.</AppText>
+            </View>
+            <Pressable
+              disabled={isRefreshingTrends}
+              onPress={() => void refreshSeasonalTrends()}
+              style={{
+                alignItems: 'center',
+                backgroundColor: theme.colors.subtleSurface,
+                borderColor: theme.colors.border,
+                borderRadius: 16,
+                borderWidth: 1,
+                justifyContent: 'center',
+                minHeight: 48,
+                opacity: isRefreshingTrends ? 0.6 : 1,
+                paddingHorizontal: spacing.md,
+              }}>
+              <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 13 }}>
+                {isRefreshingTrends ? 'Requesting refresh…' : 'Refresh Seasonal Fashion Trends'}
+              </AppText>
+            </Pressable>
+            {trendsRefreshMessage ? (
+              <AppText tone="muted" style={{ fontSize: 12 }}>{trendsRefreshMessage}</AppText>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* Sign out */}
         <Pressable

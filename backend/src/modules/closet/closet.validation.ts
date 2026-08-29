@@ -109,12 +109,17 @@ export const generateClosetOutfitsSchema = z.object({
   formality: closetOutfitFormalitySchema,
   weatherContext: closetOutfitWeatherContextSchema,
   trendiness: z.number().min(0).max(100).optional(),
+  /** Location-derived, for seasonal fashion trend lookup — separate from weatherContext since it isn't weather data. */
+  hemisphere: z.enum(['northern', 'southern']).optional(),
+  region: z.string().trim().max(200).optional(),
 });
 
 export const generateClosetOutfitVariationsSchema = z.object({
   formality: closetOutfitFormalitySchema,
   weatherContext: closetOutfitWeatherContextSchema,
   trendiness: z.number().min(0).max(100).optional(),
+  hemisphere: z.enum(['northern', 'southern']).optional(),
+  region: z.string().trim().max(200).optional(),
   baseItemIds: z.array(z.string()).min(2),
   swapItemIds: z.array(z.string()).min(1).max(2),
 });

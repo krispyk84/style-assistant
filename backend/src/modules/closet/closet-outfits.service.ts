@@ -14,10 +14,23 @@ import {
 import { buildClosetOutfitSketchPrompt } from '../../ai/prompts/closet-outfit-sketch.prompts.js';
 import { storageProvider } from '../../storage/index.js';
 import { profileRepository } from '../profile/profile.repository.js';
+import { seasonalTrendsService } from '../seasonal-trends/seasonal-trends.service.js';
+import type { FashionGender } from '../seasonal-trends/seasonal-trends.repository.js';
+import type { Hemisphere } from '../seasonal-trends/season-math.js';
 import { closetRepository } from './closet.repository.js';
 import { mapClosetItem } from './closet-response-mapper.js';
 import { CLOSET_OUTFITS_JSON_SCHEMA, closetOutfitsLlmResponseSchema } from './closet.schemas.js';
 import type { GenerateClosetOutfitsPayload, GenerateClosetOutfitVariationsPayload } from './closet.validation.js';
+
+function fashionGenderForProfile(gender: string | null | undefined): FashionGender {
+  return gender === 'woman' ? 'womenswear' : 'menswear';
+}
+
+async function loadSeasonalTrends(supabaseUserId: string, hemisphere?: Hemisphere) {
+  if (!hemisphere) return null;
+  const profile = await profileRepository.findByUserId(supabaseUserId);
+  return seasonalTrendsService.getCurrentTrendProfile(fashionGenderForProfile(profile?.gender), hemisphere);
+}
 
 const MIN_WARDROBE_SIZE = 5;
 const MAX_ATTEMPTS = 4;
@@ -301,7 +314,10 @@ async function attachSketchJobs(
 export const closetOutfitsService = {
   async generateOutfits(payload: GenerateClosetOutfitsPayload, supabaseUserId: string) {
     const { index, itemsById } = await loadIndex(supabaseUserId);
-    const variety = await buildVarietyContext(supabaseUserId, itemsById);
+    const [variety, seasonalTrends] = await Promise.all([
+      buildVarietyContext(supabaseUserId, itemsById),
+      loadSeasonalTrends(supabaseUserId, payload.hemisphere),
+    ]);
 
     const userPrompt = buildClosetOutfitsUserPrompt({
       index,
@@ -311,6 +327,7 @@ export const closetOutfitsService = {
       season: payload.weatherContext?.season,
       trendiness: payload.trendiness,
       variety,
+      seasonalTrends,
     });
 
     const outfits = await requestOutfits({ index, userPrompt, supabaseUserId });
@@ -326,7 +343,10 @@ export const closetOutfitsService = {
 
   async generateOutfitVariations(payload: GenerateClosetOutfitVariationsPayload, supabaseUserId: string) {
     const { index, itemsById } = await loadIndex(supabaseUserId);
-    const variety = await buildVarietyContext(supabaseUserId, itemsById);
+    const [variety, seasonalTrends] = await Promise.all([
+      buildVarietyContext(supabaseUserId, itemsById),
+      loadSeasonalTrends(supabaseUserId, payload.hemisphere),
+    ]);
 
     const validBaseIds = payload.baseItemIds.filter((id) => itemsById.has(id));
     if (validBaseIds.length < 2) {
@@ -349,6 +369,7 @@ export const closetOutfitsService = {
       season: payload.weatherContext?.season,
       trendiness: payload.trendiness,
       variety,
+      seasonalTrends,
     });
 
     const outfits = await requestOutfits({ index, userPrompt, supabaseUserId, mustIncludeItemIds: keepItemIds });

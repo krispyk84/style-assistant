@@ -38,6 +38,8 @@ export function useGenerateOutfitsResults() {
       formality,
       weatherContext,
       trendiness: settings.trendiness,
+      hemisphere: weatherContext?.hemisphere ?? undefined,
+      region: weatherContext?.countryCode ?? undefined,
     });
     if (!response.success || !response.data) {
       setError(response.error?.message ?? 'Could not generate outfits. Please try again.');
@@ -63,6 +65,8 @@ export function useGenerateOutfitsResults() {
       formality,
       weatherContext,
       trendiness: settings.trendiness,
+      hemisphere: weatherContext?.hemisphere ?? undefined,
+      region: weatherContext?.countryCode ?? undefined,
       baseItemIds: outfit.items.map((item) => item.id),
       swapItemIds,
     });

@@ -42,6 +42,8 @@ export type LookRouteParams = {
   weatherStylingHint?: string;
   weatherLocationLabel?: string;
   weatherFetchedAt?: string;
+  weatherHemisphere?: string;
+  weatherCountryCode?: string;
   addAnchorToCloset?: string;
   manualSeason?: string;
   includeBag?: string;

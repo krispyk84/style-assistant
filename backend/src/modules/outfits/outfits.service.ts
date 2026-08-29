@@ -24,6 +24,9 @@ import { outfitsRepository } from './outfits.repository.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
 import { tierSketchService } from './tier-sketch.service.js';
+import { seasonalTrendsService } from '../seasonal-trends/seasonal-trends.service.js';
+import type { FashionGender } from '../seasonal-trends/seasonal-trends.repository.js';
+import type { Hemisphere } from '../seasonal-trends/season-math.js';
 
 const CANONICAL_TIERS: OutfitTierSlug[] = ['business', 'smart-casual', 'casual'];
 
@@ -44,6 +47,15 @@ async function findProfile(supabaseUserId: string, profileId?: string) {
 }
 
 type ProfileLike = Awaited<ReturnType<typeof findProfile>>;
+
+function fashionGenderForProfile(profile: ProfileLike): FashionGender {
+  return profile?.gender === 'woman' ? 'womenswear' : 'menswear';
+}
+
+async function loadSeasonalTrends(profile: ProfileLike, hemisphere?: Hemisphere) {
+  if (!hemisphere) return null;
+  return seasonalTrendsService.getCurrentTrendProfile(fashionGenderForProfile(profile), hemisphere);
+}
 
 function profileToSubject(profile: ProfileLike): SubjectRenderingInput {
   return {
@@ -119,17 +131,20 @@ export const outfitsService = {
     // the prompt (via formatProfileContext — see outfits.prompts.ts).
     const vibeKeywords = input.vibeKeywords?.trim() || null;
 
-    const styleGuideContext = await styleGuideService.retrieveGuidance({
-      task: 'outfit-generation',
-      query: buildOutfitGenerationStyleGuideQuery({
-        profile,
-        anchorItems,
-        tiersToGenerate,
-        manualSeason: input.manualSeason,
-        weatherSeason: input.weatherContext?.season,
-        vibeKeywords,
+    const [styleGuideContext, seasonalTrends] = await Promise.all([
+      styleGuideService.retrieveGuidance({
+        task: 'outfit-generation',
+        query: buildOutfitGenerationStyleGuideQuery({
+          profile,
+          anchorItems,
+          tiersToGenerate,
+          manualSeason: input.manualSeason,
+          weatherSeason: input.weatherContext?.season,
+          vibeKeywords,
+        }),
       }),
-    });
+      loadSeasonalTrends(profile, input.hemisphere),
+    ]);
     const userContent: Array<{ type: 'input_text'; text: string } | { type: 'input_image'; image_url: string; detail?: 'low' | 'high' | 'auto' }> = [
       {
         type: 'input_text',
@@ -141,7 +156,8 @@ export const outfitsService = {
             anchorItemDescription: getCanonicalAnchorDescription(input),
           },
           profile,
-          styleGuideContext?.promptContext
+          styleGuideContext?.promptContext,
+          seasonalTrends
         ),
       },
     ];
@@ -178,6 +194,8 @@ export const outfitsService = {
         selectedTiers,
         weatherContext: input.weatherContext ?? null,
         manualSeason: input.manualSeason ?? null,
+        hemisphere: input.hemisphere,
+        region: input.region,
         includeBag: input.includeBag ?? false,
         includeHat: input.includeHat ?? false,
         additionalDetails: input.additionalDetails?.trim() || undefined,
@@ -223,17 +241,20 @@ export const outfitsService = {
     const uploadedAnchorImages = await Promise.all(
       anchorItems.map(async (item) => (item.imageId ? uploadsRepository.findById(item.imageId) : null))
     );
-    const styleGuideContext = await styleGuideService.retrieveGuidance({
-      task: 'tier-regeneration',
-      query: buildOutfitRegenerationStyleGuideQuery({
-        profile,
-        tier,
-        anchorItems,
-        manualSeason: existing.input.manualSeason,
-        weatherSeason: existing.input.weatherContext?.season,
-        currentStylingDirection: currentRecommendation?.stylingDirection,
+    const [styleGuideContext, seasonalTrends] = await Promise.all([
+      styleGuideService.retrieveGuidance({
+        task: 'tier-regeneration',
+        query: buildOutfitRegenerationStyleGuideQuery({
+          profile,
+          tier,
+          anchorItems,
+          manualSeason: existing.input.manualSeason,
+          weatherSeason: existing.input.weatherContext?.season,
+          currentStylingDirection: currentRecommendation?.stylingDirection,
+        }),
       }),
-    });
+      loadSeasonalTrends(profile, existing.input.hemisphere),
+    ]);
     const userContent: Array<{ type: 'input_text'; text: string } | { type: 'input_image'; image_url: string; detail?: 'low' | 'high' | 'auto' }> = [
       {
         type: 'input_text',
@@ -242,6 +263,7 @@ export const outfitsService = {
           existing,
           tier,
           styleGuideContext: styleGuideContext?.promptContext,
+          seasonalTrends,
         }),
       },
     ];

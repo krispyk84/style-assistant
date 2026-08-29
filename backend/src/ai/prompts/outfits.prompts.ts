@@ -1,8 +1,31 @@
 import type { GenerateOutfitsRequest, OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
 import { buildBaseOutfitRules } from './base-stylist-rules.js';
 import { formatProfileContext } from '../prompt-context.js';
+import { buildSeasonalTrendGuidance } from './seasonal-trend-guidance.js';
 
 type PromptProfile = Parameters<typeof formatProfileContext>[0];
+
+export type OutfitsSeasonalTrendsContext = {
+  profile: { business: unknown; smartCasual: unknown; casual: unknown };
+  isStale: boolean;
+} | null;
+
+/**
+ * Builds one seasonal-trend guidance block per requested tier — generateOutfits
+ * produces all selected tiers in a single call, and trend relevance/weighting
+ * is formality-specific (business/smart-casual/casual each have their own
+ * ranked trend list), so each tier needs its own labeled section.
+ */
+function buildSeasonalTrendsRule(seasonalTrends: OutfitsSeasonalTrendsContext, tiers: OutfitTierSlug[]): string | null {
+  if (!seasonalTrends) return null;
+  const blocks = tiers
+    .map((tier) => {
+      const guidance = buildSeasonalTrendGuidance({ profile: seasonalTrends.profile, formality: tier, isStale: seasonalTrends.isStale });
+      return guidance ? `For the ${tier} tier:\n${guidance}` : null;
+    })
+    .filter((block): block is string => Boolean(block));
+  return blocks.length ? blocks.join('\n\n') : null;
+}
 
 /**
  * Female styling framework drawn from intentional wardrobe-curation principles.
@@ -250,7 +273,8 @@ function buildSeasonInstruction(season: string, isManual: boolean): string {
 export function buildGenerateOutfitsUserPrompt(
   input: GenerateOutfitsRequest,
   profile: PromptProfile,
-  styleGuideContext?: string | null
+  styleGuideContext?: string | null,
+  seasonalTrends?: OutfitsSeasonalTrendsContext
 ) {
   const anchorItems = input.anchorItems?.length
     ? input.anchorItems
@@ -278,6 +302,7 @@ export function buildGenerateOutfitsUserPrompt(
     isManualSeason && effectiveSeason ? buildSeasonInstruction(effectiveSeason, true) : null,
     buildOptionalItemsRule({ includeBag: !!input.includeBag, includeHat: !!input.includeHat, gender: profile?.gender }),
     buildTrendinessRule(input.trendiness),
+    buildSeasonalTrendsRule(seasonalTrends ?? null, input.selectedTiers),
     buildAdditionalDetailsRule(input.additionalDetails),
     buildVariantContextRule(input.variantContext),
     'Styling request:',
@@ -323,6 +348,7 @@ export function buildRegenerateTierUserPrompt(input: {
   existing: OutfitResponse;
   tier: OutfitTierSlug;
   styleGuideContext?: string | null;
+  seasonalTrends?: OutfitsSeasonalTrendsContext;
 }) {
   const previousTier = input.existing.recommendations.find((item) => item.tier === input.tier);
 
@@ -342,6 +368,7 @@ export function buildRegenerateTierUserPrompt(input: {
       gender: input.profile?.gender,
     }),
     buildTrendinessRule(input.existing.input.trendiness),
+    buildSeasonalTrendsRule(input.seasonalTrends ?? null, [input.tier]),
     buildAdditionalDetailsRule(
       (input.existing.input as { additionalDetails?: string }).additionalDetails,
     ),

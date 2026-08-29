@@ -4,6 +4,13 @@
 // index up front and require every returned outfit to be built entirely from
 // those item ids — no invented pieces.
 
+import { buildSeasonalTrendGuidance } from './seasonal-trend-guidance.js';
+
+export type ClosetOutfitSeasonalTrendsContext = {
+  profile: { business: unknown; smartCasual: unknown; casual: unknown };
+  isStale: boolean;
+};
+
 export type ClosetOutfitIndexItem = {
   id: string;
   name: string;
@@ -104,6 +111,18 @@ function buildVarietyAndPreferenceBlock(context?: ClosetOutfitVarietyContext): s
   return lines.length ? lines.join('\n') : null;
 }
 
+function buildSeasonalFashionTrendsRule(
+  formality: string,
+  seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null,
+): string | null {
+  if (!seasonalTrends) return null;
+  return buildSeasonalTrendGuidance({
+    profile: seasonalTrends.profile,
+    formality: formality as 'business' | 'smart-casual' | 'casual',
+    isStale: seasonalTrends.isStale,
+  });
+}
+
 function buildContextBlock(params: {
   formality: string;
   weatherSummary?: string | null;
@@ -111,6 +130,7 @@ function buildContextBlock(params: {
   season?: string | null;
   trendiness?: number | null;
   variety?: ClosetOutfitVarietyContext;
+  seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
 }): string {
   const lines = [
     `Formality: ${FORMALITY_GUIDE[params.formality] ?? params.formality}`,
@@ -118,6 +138,7 @@ function buildContextBlock(params: {
     params.weatherSummary ? `Current weather: ${params.weatherSummary}` : null,
     params.weatherStylingHint ? `Weather styling guidance: ${params.weatherStylingHint}` : null,
     buildTrendinessRule(params.trendiness),
+    buildSeasonalFashionTrendsRule(params.formality, params.seasonalTrends),
     buildVarietyAndPreferenceBlock(params.variety),
   ];
   return lines.filter((line): line is string => line !== null).join('\n');
@@ -131,6 +152,7 @@ export function buildClosetOutfitsUserPrompt(params: {
   season?: string | null;
   trendiness?: number | null;
   variety?: ClosetOutfitVarietyContext;
+  seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
 }): string {
   return [
     buildContextBlock(params),
@@ -153,6 +175,7 @@ export function buildClosetOutfitVariationsUserPrompt(params: {
   season?: string | null;
   trendiness?: number | null;
   variety?: ClosetOutfitVarietyContext;
+  seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
 }): string {
   const keepItemIds = params.baseItemIds.filter((id) => !params.swapItemIds.includes(id));
   const indexById = new Map(params.index.map((item) => [item.id, item]));

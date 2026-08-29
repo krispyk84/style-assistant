@@ -196,6 +196,8 @@ export function parseWeatherContext(params: LookRouteParams): WeatherContext | n
     stylingHint: params.weatherStylingHint ?? '',
     locationLabel: params.weatherLocationLabel ?? null,
     fetchedAt: params.weatherFetchedAt,
+    hemisphere: params.weatherHemisphere === 'northern' || params.weatherHemisphere === 'southern' ? params.weatherHemisphere : null,
+    countryCode: params.weatherCountryCode ?? null,
   };
 }
 
