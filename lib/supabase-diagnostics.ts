@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { supabase } from '@/lib/supabase';
 
 // Checks the frontend's OWN Supabase project directly (same client + project
@@ -28,6 +30,8 @@ export async function checkSupabaseTablesDirectly(): Promise<{
   closetItems: TableCheckResult;
   weekPlan: TableCheckResult;
   supabaseUserId: string | null;
+  unfilteredSavedOutfitsCount: number | string;
+  localSavedOutfitsCount: number | string;
 }> {
   const { data: { session } } = await supabase.auth.getSession();
 
@@ -37,5 +41,35 @@ export async function checkSupabaseTablesDirectly(): Promise<{
     checkTable('week_plan', 'user_id'),
   ]);
 
-  return { savedOutfits, closetItems, weekPlan, supabaseUserId: session?.user?.id ?? null };
+  // Exactly mirrors lib/supabase-data.ts's fetchSavedOutfitsFromSupabase() —
+  // no explicit .eq('user_id', ...), relies purely on RLS — to check whether
+  // that specific (unfiltered) query shape behaves differently from the
+  // explicitly-filtered one above.
+  let unfilteredSavedOutfitsCount: number | string;
+  const { data, error } = await supabase.from('saved_outfits').select('*').order('saved_at', { ascending: false });
+  if (error) {
+    unfilteredSavedOutfitsCount = `error: ${error.code ?? ''} ${error.message}`.trim();
+  } else {
+    unfilteredSavedOutfitsCount = data?.length ?? 0;
+  }
+
+  const localRaw = await AsyncStorage.getItem('style-assistant/saved-outfits');
+  let localSavedOutfitsCount: number | string = 0;
+  if (localRaw) {
+    try {
+      const parsed = JSON.parse(localRaw);
+      localSavedOutfitsCount = Array.isArray(parsed) ? parsed.length : 'stored value is not an array';
+    } catch {
+      localSavedOutfitsCount = 'stored value is not valid JSON';
+    }
+  }
+
+  return {
+    savedOutfits,
+    closetItems,
+    weekPlan,
+    supabaseUserId: session?.user?.id ?? null,
+    unfilteredSavedOutfitsCount,
+    localSavedOutfitsCount,
+  };
 }

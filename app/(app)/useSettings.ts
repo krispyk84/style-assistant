@@ -117,6 +117,8 @@ export function useSettings() {
           describe('Saved outfits', result.savedOutfits),
           describe('Closet items', result.closetItems),
           describe('Week plan', result.weekPlan),
+          `Unfiltered saved_outfits (mirrors production code path): ${result.unfilteredSavedOutfitsCount}`,
+          `Local AsyncStorage saved-outfits count: ${result.localSavedOutfitsCount}`,
         ].join('\n'),
       );
     } catch (error) {
