@@ -41,9 +41,12 @@ export function useAuthSideEffects(): AuthEventCallback {
         setCrashlyticsUserId(session.user.id);
       }
       if (event === 'SIGNED_IN') {
-        void syncUserDataOnSignIn(session.user.id)
-          .then((summaries) => Promise.all(summaries.map((s) => logAuthEvent(`sync: ${s}`, session.user.id))))
-          .catch((error) => logAuthEvent(`sync: ERROR — ${error instanceof Error ? error.message : String(error)}`, session.user.id));
+        // syncUserDataOnSignIn logs each entity's own result as it settles
+        // (lib/user-data-sync.ts) — this catch is only a backstop in case
+        // something throws before any per-entity logging happens.
+        void syncUserDataOnSignIn(session.user.id).catch((error) =>
+          logAuthEvent(`sync: unexpected top-level error — ${error instanceof Error ? error.message : String(error)}`, session.user.id),
+        );
       }
     } else {
       if (event === 'SIGNED_OUT') {
