@@ -442,8 +442,6 @@ function ColorSwatchRow({
   colors: SeasonalColorEntry[];
   onSelectSketch: (sketch: { url: string; name: string }) => void;
 }) {
-  const [hasScrolled, setHasScrolled] = useState(false);
-
   return (
     <View style={{ gap: spacing.md }}>
       <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
@@ -452,16 +450,12 @@ function ColorSwatchRow({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={(e) => {
-          if (!hasScrolled && e.nativeEvent.contentOffset.x > 4) setHasScrolled(true);
-        }}
         contentContainerStyle={{ gap: spacing.md }}>
         {colors.map((color) => (
           <ColorSwatchCard key={color.name} color={color} onSelectSketch={onSelectSketch} />
         ))}
       </ScrollView>
-      {!hasScrolled && colors.length > COLOR_ROW_SCROLL_HINT_THRESHOLD ? (
+      {colors.length > COLOR_ROW_SCROLL_HINT_THRESHOLD ? (
         <View style={{ alignItems: 'center', flexDirection: 'row', gap: 2, justifyContent: 'flex-end' }}>
           <AppText tone="subtle" style={{ fontSize: 11 }}>Scroll for more</AppText>
           <AppIcon color={theme.colors.subtleText} name="chevron-right" size={12} />
