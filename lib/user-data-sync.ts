@@ -14,10 +14,28 @@ const OUTFITS_KEY = 'style-assistant/saved-outfits';
 const WEEK_KEY = 'style-assistant/week-plan';
 const SESSION_KEY = 'style-assistant/session';
 
+// Every other AsyncStorage key any part of the app writes to. None of these
+// are namespaced by user id, so without this sweep they silently carry over
+// to whichever account signs in next on the same device — e.g. Looks
+// "Favourites" showing one account's saved closet outfits inside a
+// different account. Keep this in sync with every lib/*-storage.ts file
+// that calls AsyncStorage.setItem — a new local cache added there needs its
+// key added here too, or it leaks the same way.
+const OTHER_PER_USER_KEYS = [
+  'style-assistant/closet-outfit-favourites', // closet-outfit-storage.ts
+  'style-assistant/closet-outfit-week-plan',  // closet-outfit-storage.ts
+  'style-assistant/match-feedback',           // match-feedback-storage.ts
+  'style-assistant/recommendation-feedback',  // recommendation-feedback-storage.ts
+  'style-assistant/trip-draft',               // trip-draft-storage.ts
+  'style-assistant/trip-outfits',             // trip-outfits-storage.ts
+  'style-assistant/app-settings',             // app-settings-storage.ts
+  'style-assistant/weather-context',          // weather-storage.ts — not identity-bound, but harmless to clear (just refetches)
+];
+
 /** Wipes all per-user local data. Call on sign-out so the next user starts clean. */
 export async function clearAllLocalUserData(): Promise<void> {
   await Promise.all(
-    [CLOSET_KEY, OUTFITS_KEY, WEEK_KEY, SESSION_KEY].map((key) => AsyncStorage.removeItem(key)),
+    [CLOSET_KEY, OUTFITS_KEY, WEEK_KEY, SESSION_KEY, ...OTHER_PER_USER_KEYS].map((key) => AsyncStorage.removeItem(key)),
   );
 }
 
