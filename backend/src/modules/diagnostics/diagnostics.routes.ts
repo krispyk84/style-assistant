@@ -54,12 +54,29 @@ diagnosticsRouter.get(
       countOrError('closet_outfit_week_plan', () => prisma.closetOutfitWeekPlanItem.count({ where: { supabaseUserId: userId } })),
     ]);
 
+    // saved_outfits/closet_items/week_plan came back "relation does not
+    // exist" — list every base table this connection can actually see, so we
+    // can tell whether it's on the wrong schema or simply a different
+    // database/Supabase project than the frontend's supabase-js client hits.
+    let visibleTables: string[] | string;
+    try {
+      const rows = await prisma.$queryRaw<{ table_schema: string; table_name: string }[]>`
+        SELECT table_schema, table_name FROM information_schema.tables
+        WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema')
+        ORDER BY table_schema, table_name
+      `;
+      visibleTables = rows.map((r) => `${r.table_schema}.${r.table_name}`);
+    } catch (error) {
+      visibleTables = `information_schema error: ${error instanceof Error ? error.message : String(error)}`;
+    }
+
     return sendSuccess(response, {
       savedOutfitsInCloud,
       closetItemsInCloud,
       weekPlanInCloud,
       closetOutfitFavouritesInCloud,
       closetOutfitWeekPlanInCloud,
+      visibleTables,
     });
   })
 );

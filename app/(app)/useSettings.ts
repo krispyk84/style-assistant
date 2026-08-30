@@ -91,6 +91,7 @@ export function useSettings() {
             `Week plan: ${s.weekPlanInCloud}`,
             `Closet-outfit favourites: ${s.closetOutfitFavouritesInCloud}`,
             `Closet-outfit week plan: ${s.closetOutfitWeekPlanInCloud}`,
+            `Visible tables: ${Array.isArray(s.visibleTables) ? s.visibleTables.join(', ') : s.visibleTables}`,
           ].join('\n'),
         );
       }

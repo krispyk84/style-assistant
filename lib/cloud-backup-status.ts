@@ -6,6 +6,7 @@ export type CloudBackupStatus = {
   weekPlanInCloud: number | string;
   closetOutfitFavouritesInCloud: number | string;
   closetOutfitWeekPlanInCloud: number | string;
+  visibleTables: string[] | string;
 };
 
 export async function fetchCloudBackupStatus(): Promise<
