@@ -152,7 +152,17 @@ export const seasonalColorsService = {
         const existing = await seasonalColorsRepository.findCurrent({
           season, year, fashionGender: input.fashionGender, hemisphere: input.hemisphere,
         });
-        if (existing) return;
+        if (existing) {
+          // Backfill any missing sketches for the existing palette — e.g.
+          // after a migration cleared ColorSwatchSketch to force a prompt
+          // fix. Without this, a colour whose row was deleted stays without
+          // a sketch forever: nothing else ever re-creates it, since the
+          // palette itself isn't regenerating. ensureSketchesForFreshPalette
+          // is idempotent (skips any colour that already has a row).
+          const colors = existing.colors as unknown as SeasonalColor[];
+          colorSwatchSketchService.ensureSketchesForFreshPalette(input.fashionGender, colors);
+          return;
+        }
 
         await generateAndPersist({
           season, year, fashionGender: input.fashionGender, hemisphere: input.hemisphere, region: input.region,
