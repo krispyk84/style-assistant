@@ -1,3 +1,5 @@
+import { CATEGORY_TO_GROUP, GARMENT_GROUPS } from './closet-match-taxonomy';
+
 // Mirrors backend/src/modules/closet/closet-outfits.service.ts MIN_WARDROBE_SIZE
 // and BOTTOM_CATEGORIES/FOOTWEAR_CATEGORIES. Per-category minimums are set for
 // genuine outfit VARIETY, not just bare coverage — 1 of each category is
@@ -11,12 +13,30 @@ const MIN_TOPS = 3;
 const MIN_BOTTOMS = 2;
 const MIN_FOOTWEAR = 2;
 
-const BOTTOM_CATEGORIES = new Set(['Trousers', 'Denim', 'Shorts', 'Suit']);
-const FOOTWEAR_CATEGORIES = new Set(['Shoes', 'Sneakers', 'Loafers', 'Boots']);
-const TOP_CATEGORIES = new Set([
-  'Shirt', 'T-Shirt', 'Polo', 'Knitwear', 'Sweatshirt', 'Hoodie',
-  'Overshirt', 'Cardigan', 'Blazer', 'Suit', 'Tank Top', 'Vest', 'Coat', 'Outerwear',
-]);
+// Garment-group keys (from closet-match-taxonomy's CATEGORY_TO_GROUP /
+// GARMENT_GROUPS) that count toward each slot.
+const TOP_GROUPS = new Set(['shirt', 'polo', 'tee', 'knitwear', 'cardigan', 'hoodie', 'blazer', 'jacket', 'coat', 'suit']);
+const BOTTOM_GROUPS = new Set(['trousers', 'denim', 'shorts']);
+const FOOTWEAR_GROUPS = new Set(['sneakers', 'loafers', 'boots', 'formal_shoes']);
+
+// New closet items are frequently saved with a generic category ("Clothing",
+// the form's own fallback default when nothing more specific was picked or
+// auto-detected) rather than a garment-specific one — those items are
+// otherwise invisible to every category-aware feature, not just this one.
+// Falling back to keyword-matching the item's own title (the same matching
+// GARMENT_GROUPS already does for the AI closet-matching engine) recovers
+// most of these instead of undercounting a closet that actually has enough
+// variety, just not perfectly categorised.
+function resolveGarmentGroup(item: { category: string; title: string; subcategory?: string | null }): string | null {
+  const directGroup = CATEGORY_TO_GROUP[item.category];
+  if (directGroup) return directGroup;
+
+  const haystack = `${item.title} ${item.subcategory ?? ''} ${item.category}`.toLowerCase();
+  for (const [group, keywords] of Object.entries(GARMENT_GROUPS)) {
+    if (keywords.some((keyword) => haystack.includes(keyword))) return group;
+  }
+  return null;
+}
 
 export type ClosetReadinessProgress = { have: number; need: number };
 
@@ -37,10 +57,11 @@ function pluralize(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
-export function evaluateClosetReadiness(items: { category: string }[]): ClosetReadiness {
-  const tops = items.filter((item) => TOP_CATEGORIES.has(item.category)).length;
-  const bottoms = items.filter((item) => BOTTOM_CATEGORIES.has(item.category)).length;
-  const footwear = items.filter((item) => FOOTWEAR_CATEGORIES.has(item.category)).length;
+export function evaluateClosetReadiness(items: { category: string; title: string; subcategory?: string | null }[]): ClosetReadiness {
+  const groups = items.map(resolveGarmentGroup);
+  const tops = groups.filter((group) => group !== null && TOP_GROUPS.has(group)).length;
+  const bottoms = groups.filter((group) => group !== null && BOTTOM_GROUPS.has(group)).length;
+  const footwear = groups.filter((group) => group !== null && FOOTWEAR_GROUPS.has(group)).length;
 
   const missing: string[] = [];
   if (tops < MIN_TOPS) missing.push(`${pluralize(MIN_TOPS - tops, 'more top')}`);

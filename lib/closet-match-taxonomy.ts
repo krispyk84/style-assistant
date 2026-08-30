@@ -26,7 +26,7 @@ export const GARMENT_GROUPS: Record<string, readonly string[]> = {
   shorts:       ['short'],
   shirt:        ['shirt', 'oxford shirt', 'button-down', 'button down', 'chambray', 'flannel', 'dress shirt', 'spread collar', 'french cuff'],
   polo:         ['polo'],
-  tee:          ['tee', 't-shirt', 'tshirt', 'long sleeve', 'rash guard', 'performance shirt', 'swim shirt', 'base layer'],
+  tee:          ['tee', 't-shirt', 'tshirt', 'long sleeve', 'rash guard', 'performance shirt', 'swim shirt', 'base layer', 'tank', 'camisole', 'cami'],
   // knitwear: garment-type words only — NOT material terms like merino/cashmere/lambswool.
   // Those are materials (already in MATERIAL_GROUPS.wool) and must not cause "black merino
   // wool tie" to classify as knitwear instead of tie.
