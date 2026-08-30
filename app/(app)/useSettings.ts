@@ -79,14 +79,14 @@ export function useSettings() {
     setIsCheckingCloudBackup(true);
     setCloudBackupMessage(null);
     try {
-      const status = await fetchCloudBackupStatus();
+      const result = await fetchCloudBackupStatus();
       setCloudBackupMessage(
-        status
-          ? `Saved outfits: ${status.savedOutfitsInCloud} · Closet items: ${status.closetItemsInCloud} · Week plan: ${status.weekPlanInCloud} · Closet-outfit favourites: ${status.closetOutfitFavouritesInCloud} · Closet-outfit week plan: ${status.closetOutfitWeekPlanInCloud}`
-          : 'Could not reach the server to check cloud backup status.',
+        result.ok
+          ? `Saved outfits: ${result.status.savedOutfitsInCloud} · Closet items: ${result.status.closetItemsInCloud} · Week plan: ${result.status.weekPlanInCloud} · Closet-outfit favourites: ${result.status.closetOutfitFavouritesInCloud} · Closet-outfit week plan: ${result.status.closetOutfitWeekPlanInCloud}`
+          : `Error: ${result.message}`,
       );
-    } catch {
-      setCloudBackupMessage('Could not reach the server to check cloud backup status.');
+    } catch (error) {
+      setCloudBackupMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error.'}`);
     }
     setIsCheckingCloudBackup(false);
   }
