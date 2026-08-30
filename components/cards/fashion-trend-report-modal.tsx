@@ -303,11 +303,21 @@ function ColorPaletteSection({
       <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
         Season&apos;s Hottest Colors
       </AppText>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md }}>
-        {colors.map((color) => (
-          <ColorSwatchCard key={color.name} color={color} onSelectSketch={onSelectSketch} />
-        ))}
-      </ScrollView>
+      <View style={{ position: 'relative' }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md }}>
+          {colors.map((color) => (
+            <ColorSwatchCard key={color.name} color={color} onSelectSketch={onSelectSketch} />
+          ))}
+        </ScrollView>
+        {/* Fade-to-background hint that there's more to scroll — a poor-man's
+            gradient (no gradient library in this project): stacked strips of
+            the modal's own background colour at increasing opacity. */}
+        <View pointerEvents="none" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, flexDirection: 'row', width: 36 }}>
+          {[0, 0.25, 0.55, 0.85].map((opacity, i) => (
+            <View key={i} style={{ flex: 1, backgroundColor: theme.colors.background, opacity }} />
+          ))}
+        </View>
+      </View>
     </View>
   );
 }
@@ -349,6 +359,9 @@ function ColorSwatchCard({
       ) : (
         swatch
       )}
+      <AppText style={{ fontSize: 12, fontFamily: theme.fonts.sansMedium }} numberOfLines={2}>
+        {color.name}
+      </AppText>
       {color.bestSuitedForUser ? (
         <View style={{ alignItems: 'center', flexDirection: 'row', gap: 3 }}>
           <AppIcon color={theme.colors.accent} name="sparkles" size={10} />
@@ -357,9 +370,6 @@ function ColorSwatchCard({
           </AppText>
         </View>
       ) : null}
-      <AppText style={{ fontSize: 12, fontFamily: theme.fonts.sansMedium }} numberOfLines={2}>
-        {color.name}
-      </AppText>
     </View>
   );
 }
