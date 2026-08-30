@@ -27,6 +27,7 @@ import { tripPlansRouter } from './modules/trips/trip-plans.routes.js';
 import { usageRouter } from './modules/usage/usage.routes.js';
 import { wardrobeScoreRouter } from './modules/wardrobe-score/wardrobe-score.routes.js';
 import { seasonalTrendsRouter } from './modules/seasonal-trends/seasonal-trends.routes.js';
+import { seasonalColorsRouter } from './modules/seasonal-colors/seasonal-colors.routes.js';
 import { haircutTrendsRouter } from './modules/haircut-trends/haircut-trends.routes.js';
 
 export function createApp() {
@@ -194,6 +195,7 @@ export function createApp() {
   apiRouter.use(usageRouter);
   apiRouter.use(wardrobeScoreRouter);
   apiRouter.use(seasonalTrendsRouter);
+  apiRouter.use(seasonalColorsRouter);
   apiRouter.use(haircutTrendsRouter);
 
   app.use(apiRouter);

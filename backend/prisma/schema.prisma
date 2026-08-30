@@ -529,3 +529,51 @@ model TrendFeedback {
   @@unique([supabaseUserId, fashionGender, trendNameKey])
   @@index([supabaseUserId, fashionGender])
 }
+
+// Seasonal top-10 colour palette, one profile per fashionGender — mirrors
+// SeasonalTrendProfile's shape/guarantees exactly (shared across all users,
+// generated once per season, status/invalidReason "never overwrite a valid
+// profile with a bad one").
+model SeasonalColorPalette {
+  id            String   @id @default(cuid())
+  season        String
+  year          Int
+  fashionGender String
+  hemisphere    String
+  region        String?
+  schemaVersion Int      @default(1)
+  status        String   @default("valid")
+  colors        Json
+  invalidReason String?
+  generatedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@unique([season, year, fashionGender, hemisphere])
+  @@index([fashionGender, hemisphere, status, createdAt(sort: Desc)])
+}
+
+// A sketch generated for one seasonal colour swatch — mirrors TrendSketch
+// exactly (keyed by fashionGender + normalized colour name, persists through
+// the season and into future seasons if the colour recurs).
+model ColorSwatchSketch {
+  id               String    @id @default(cuid())
+  fashionGender    String
+  colorNameKey     String
+  colorName        String
+  // Full descriptive fields needed to (re)build the swatch prompt, persisted
+  // so a stuck/failed sketch can be retried purely from this row.
+  colorData        Json?
+  status           String    @default("pending")
+  sketchStorageKey String?
+  sketchMimeType   String?
+  sketchImageData  Bytes?
+  errorCode        String?
+  errorMessage     String?
+  firstGeneratedAt DateTime  @default(now())
+  lastSeenAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([fashionGender, colorNameKey])
+  @@index([fashionGender, status])
+}

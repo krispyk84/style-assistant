@@ -1,7 +1,7 @@
 import type { ClosetItem, ClosetItemFitStatus } from '@/types/closet';
 import type { CreateLookInput, LookRequestResponse, LookTierSlug } from '@/types/look-request';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
-import type { PersistedSession, Profile } from '@/types/profile';
+import type { PersistedSession, Profile, SkinTone } from '@/types/profile';
 import type { Hemisphere, WeatherContext } from '@/types/weather';
 
 export type ApiError = {
@@ -439,6 +439,35 @@ export type SetTrendFeedbackResponse = {
 export type GetSeasonalTrendsReportResponse =
   | { available: false }
   | { available: true; isStale: boolean; generatedAt: string; trends: SeasonalTrendReportEntry[] };
+
+// ── Seasonal Colour Palette ────────────────────────────────────────────────────
+
+export type EnsureSeasonalColorsRequest = {
+  fashionGender: FashionGender;
+  hemisphere: Hemisphere;
+  region?: string;
+};
+
+export type EnsureSeasonalColorsResponse = {
+  acknowledged: boolean;
+};
+
+export type SeasonalColorEntry = {
+  rank: number;
+  name: string;
+  hex: string;
+  description: string;
+  /** Skin tones this colour flatters most — a genuine colour-analysis judgement generated alongside the palette, shared across all users. */
+  bestSuitedSkinTones: SkinTone[];
+  sketchStatus: 'pending' | 'ready' | 'failed' | null;
+  sketchImageUrl: string | null;
+  /** True when this user's own profile.skinTone is in bestSuitedSkinTones — computed per-user at read time, not generated per-user. */
+  bestSuitedForUser: boolean;
+};
+
+export type GetSeasonalColorsReportResponse =
+  | { available: false }
+  | { available: true; isStale: boolean; generatedAt: string; colors: SeasonalColorEntry[] };
 
 // ── Seasonal Haircut Trends (Hairstyle Trend Report) ─────────────────────────
 

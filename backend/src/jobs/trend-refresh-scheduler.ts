@@ -1,6 +1,8 @@
 import { logger } from '../config/logger.js';
 import { seasonalTrendsService } from '../modules/seasonal-trends/seasonal-trends.service.js';
 import { trendSketchService } from '../modules/seasonal-trends/trend-sketch.service.js';
+import { seasonalColorsService } from '../modules/seasonal-colors/seasonal-colors.service.js';
+import { colorSwatchSketchService } from '../modules/seasonal-colors/color-swatch-sketch.service.js';
 import { haircutTrendsService } from '../modules/haircut-trends/haircut-trends.service.js';
 import { haircutService } from '../modules/haircut/haircut.service.js';
 
@@ -28,6 +30,8 @@ function runCheck() {
   try {
     seasonalTrendsService.ensureCurrentProfile({ fashionGender: 'menswear', hemisphere: 'northern' });
     seasonalTrendsService.ensureCurrentProfile({ fashionGender: 'womenswear', hemisphere: 'northern' });
+    seasonalColorsService.ensureCurrentProfile({ fashionGender: 'menswear', hemisphere: 'northern' });
+    seasonalColorsService.ensureCurrentProfile({ fashionGender: 'womenswear', hemisphere: 'northern' });
     haircutTrendsService.ensureCurrentProfile({ fashionGender: 'menswear', hemisphere: 'northern' });
     haircutTrendsService.ensureCurrentProfile({ fashionGender: 'womenswear', hemisphere: 'northern' });
   } catch (error) {
@@ -39,6 +43,9 @@ function runCheck() {
   trendSketchService.pruneStaleSketches().catch((error) => {
     logger.error({ error }, 'Trend sketch prune sweep failed to fire');
   });
+  colorSwatchSketchService.pruneStaleSketches().catch((error) => {
+    logger.error({ error }, 'Color swatch prune sweep failed to fire');
+  });
 }
 
 function runSketchRetrySweep() {
@@ -47,6 +54,9 @@ function runSketchRetrySweep() {
   });
   // Same failure mode as trend sketches (a deploy mid-generation orphans the
   // in-flight image edit), same fix — piggyback on the same interval.
+  colorSwatchSketchService.retryStuckSketches().catch((error) => {
+    logger.error({ error }, 'Color swatch retry sweep failed to fire');
+  });
   haircutService.retryStuckAngleShots().catch((error) => {
     logger.error({ error }, 'Haircut angle shot retry sweep failed to fire');
   });

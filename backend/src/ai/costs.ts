@@ -23,7 +23,8 @@ export type AiFeature =
   | 'trip-generation'
   | 'trip-sketch'
   | 'haircut-generation'
-  | 'trend-sketch';
+  | 'trend-sketch'
+  | 'color-swatch-sketch';
 
 const TEXT_INPUT_COST_PER_TOKEN = 0.15 / 1_000_000;
 const TEXT_OUTPUT_COST_PER_TOKEN = 0.60 / 1_000_000;

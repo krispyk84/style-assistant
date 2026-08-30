@@ -169,6 +169,10 @@ export function HomeScreen() {
         error={trendReport.error}
         onClose={trendReport.close}
         onSetTrendFeedback={trendReport.setTrendFeedback}
+        isLoadingColors={trendReport.isLoadingColors}
+        isGeneratingColors={trendReport.isGeneratingColors}
+        colors={trendReport.colors}
+        colorsError={trendReport.colorsError}
       />
     </AppScreen>
   );

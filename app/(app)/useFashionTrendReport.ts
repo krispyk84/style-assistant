@@ -3,7 +3,8 @@ import { useRef, useState } from 'react';
 import { useAppSession } from '@/hooks/use-app-session';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { seasonalTrendsService } from '@/services/seasonal-trends';
-import type { SeasonalTrendReportEntry, TrendFeedbackValue } from '@/types/api';
+import { seasonalColorsService } from '@/services/seasonal-colors';
+import type { SeasonalColorEntry, SeasonalTrendReportEntry, TrendFeedbackValue } from '@/types/api';
 import type { Hemisphere } from '@/types/weather';
 
 const POLL_INTERVAL_MS = 3000;
@@ -12,8 +13,8 @@ function wait(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-function hasPendingSketch(trends: SeasonalTrendReportEntry[]) {
-  return trends.some((t) => t.sketchStatus === 'pending' || t.sketchStatus === null);
+function hasPendingSketch(items: { sketchStatus: 'pending' | 'ready' | 'failed' | null }[]) {
+  return items.some((i) => i.sketchStatus === 'pending' || i.sketchStatus === null);
 }
 
 export function useFashionTrendReport() {
@@ -27,25 +28,19 @@ export function useFashionTrendReport() {
   const [trends, setTrends] = useState<SeasonalTrendReportEntry[] | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Colours load independently of trends — its own loading/generating/error
+  // state so one section's slower generation never blocks the other's.
+  const [isLoadingColors, setIsLoadingColors] = useState(false);
+  const [isGeneratingColors, setIsGeneratingColors] = useState(false);
+  const [colors, setColors] = useState<SeasonalColorEntry[] | null>(null);
+  const [colorsError, setColorsError] = useState<string | null>(null);
   // Bumped on every open()/close() — invalidates any in-flight poll loop from
   // a previous open so it stops touching state once the modal is no longer
   // the one that started it. No attempt cap: generation genuinely can take a
   // while, and the user can always close the modal to stop waiting.
   const generationTokenRef = useRef(0);
 
-  async function open() {
-    const token = ++generationTokenRef.current;
-    setIsOpen(true);
-    setIsLoading(true);
-    setIsGenerating(false);
-    setError(null);
-    setTrends(null);
-
-    const weatherContext = await loadWeatherContext();
-    const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
-    const region = weatherContext?.countryCode ?? undefined;
-    const fashionGender = profile.gender === 'woman' ? 'womenswear' : 'menswear';
-
+  async function pollTrends(token: number, fashionGender: 'menswear' | 'womenswear', hemisphere: Hemisphere, region: string | undefined) {
     // Opening the report is what actually triggers generation if nothing
     // exists yet — ensure() is idempotent, so this is safe even if a
     // background check already fired one on app launch.
@@ -87,6 +82,61 @@ export function useFashionTrendReport() {
     }
   }
 
+  async function pollColors(token: number, fashionGender: 'menswear' | 'womenswear', hemisphere: Hemisphere, region: string | undefined) {
+    void seasonalColorsService.ensure({ fashionGender, hemisphere, region });
+
+    let firstAttempt = true;
+    while (generationTokenRef.current === token) {
+      const response = await seasonalColorsService.getReport(fashionGender, hemisphere);
+      if (generationTokenRef.current !== token) return;
+
+      if (response.success && response.data?.available) {
+        setColors(response.data.colors);
+        setIsLoadingColors(false);
+        setIsGeneratingColors(false);
+
+        if (!hasPendingSketch(response.data.colors)) return;
+        await wait(POLL_INTERVAL_MS);
+        continue;
+      }
+
+      if (!response.success) {
+        setColors(null);
+        setColorsError(response.error?.message ?? 'Could not load the colour palette.');
+        setIsLoadingColors(false);
+        setIsGeneratingColors(false);
+        return;
+      }
+
+      if (!firstAttempt) setIsGeneratingColors(true);
+      firstAttempt = false;
+      await wait(POLL_INTERVAL_MS);
+    }
+  }
+
+  async function open() {
+    const token = ++generationTokenRef.current;
+    setIsOpen(true);
+    setIsLoading(true);
+    setIsGenerating(false);
+    setError(null);
+    setTrends(null);
+    setIsLoadingColors(true);
+    setIsGeneratingColors(false);
+    setColorsError(null);
+    setColors(null);
+
+    const weatherContext = await loadWeatherContext();
+    const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
+    const region = weatherContext?.countryCode ?? undefined;
+    const fashionGender = profile.gender === 'woman' ? 'womenswear' : 'menswear';
+
+    // Independent loops — colours finishing (or failing) never blocks trends
+    // and vice versa.
+    void pollTrends(token, fashionGender, hemisphere, region);
+    void pollColors(token, fashionGender, hemisphere, region);
+  }
+
   function close() {
     generationTokenRef.current++;
     setIsOpen(false);
@@ -113,5 +163,8 @@ export function useFashionTrendReport() {
     }
   }
 
-  return { isOpen, open, close, isLoading, isGenerating, trends, isStale, error, setTrendFeedback };
+  return {
+    isOpen, open, close, isLoading, isGenerating, trends, isStale, error, setTrendFeedback,
+    isLoadingColors, isGeneratingColors, colors, colorsError,
+  };
 }

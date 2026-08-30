@@ -7,7 +7,7 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
 import { formatTierLabel } from '@/lib/outfit-utils';
-import type { SeasonalTrendReportEntry, TrendFeedbackValue } from '@/types/api';
+import type { SeasonalColorEntry, SeasonalTrendReportEntry, TrendFeedbackValue } from '@/types/api';
 
 type FashionTrendReportModalProps = {
   visible: boolean;
@@ -19,6 +19,10 @@ type FashionTrendReportModalProps = {
   onClose: () => void;
   /** Sets (feedback) or clears (null) this user's personal thumbs up/down on a trend. */
   onSetTrendFeedback: (trendName: string, feedback: TrendFeedbackValue | null) => void;
+  isLoadingColors: boolean;
+  isGeneratingColors: boolean;
+  colors: SeasonalColorEntry[] | null;
+  colorsError: string | null;
 };
 
 const LIFECYCLE_LABEL: Record<SeasonalTrendReportEntry['lifecycle'], string> = {
@@ -28,7 +32,10 @@ const LIFECYCLE_LABEL: Record<SeasonalTrendReportEntry['lifecycle'], string> = {
   declining: 'Declining',
 };
 
-export function FashionTrendReportModal({ visible, isLoading, isGenerating, trends, isStale, error, onClose, onSetTrendFeedback }: FashionTrendReportModalProps) {
+export function FashionTrendReportModal({
+  visible, isLoading, isGenerating, trends, isStale, error, onClose, onSetTrendFeedback,
+  isLoadingColors, isGeneratingColors, colors, colorsError,
+}: FashionTrendReportModalProps) {
   const insets = useSafeAreaInsets();
   const [fullscreenSketch, setFullscreenSketch] = useState<{ url: string; name: string } | null>(null);
 
@@ -74,6 +81,13 @@ export function FashionTrendReportModal({ visible, isLoading, isGenerating, tren
             style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ gap: spacing.md, padding: spacing.lg, paddingBottom: insets.bottom + spacing.xl }}>
+            <ColorPaletteSection
+              isLoading={isLoadingColors}
+              isGenerating={isGeneratingColors}
+              colors={colors}
+              error={colorsError}
+              onSelectSketch={setFullscreenSketch}
+            />
             {isStale ? (
               <AppText tone="subtle" style={{ fontSize: 12, fontStyle: 'italic' }}>
                 Showing last season&apos;s report while this season&apos;s is being refreshed.
@@ -251,6 +265,101 @@ function FeedbackButtons({
         }}>
         <AppIcon color={feedback === 'down' ? theme.colors.danger : theme.colors.mutedText} name="thumbs-down" size={14} />
       </Pressable>
+    </View>
+  );
+}
+
+/** "This Season's Hottest Colors" — a horizontal swatch row atop the report. Loads independently of the trend list below it. */
+function ColorPaletteSection({
+  isLoading,
+  isGenerating,
+  colors,
+  error,
+  onSelectSketch,
+}: {
+  isLoading: boolean;
+  isGenerating: boolean;
+  colors: SeasonalColorEntry[] | null;
+  error: string | null;
+  onSelectSketch: (sketch: { url: string; name: string }) => void;
+}) {
+  if (isLoading) {
+    return (
+      <View style={{ alignItems: 'center', gap: spacing.sm }}>
+        <ActivityIndicator color={theme.colors.accent} size="small" />
+        {isGenerating ? (
+          <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>Putting this season&apos;s colours together...</AppText>
+        ) : null}
+      </View>
+    );
+  }
+
+  if (error || !colors) {
+    return null; // Non-critical section — fail quietly rather than block the rest of the report.
+  }
+
+  return (
+    <View style={{ gap: spacing.md }}>
+      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
+        Season&apos;s Hottest Colors
+      </AppText>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md }}>
+        {colors.map((color) => (
+          <ColorSwatchCard key={color.name} color={color} onSelectSketch={onSelectSketch} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function ColorSwatchCard({
+  color,
+  onSelectSketch,
+}: {
+  color: SeasonalColorEntry;
+  onSelectSketch: (sketch: { url: string; name: string }) => void;
+}) {
+  const isSketchReady = color.sketchStatus === 'ready' && !!color.sketchImageUrl;
+
+  const swatch = (
+    <View
+      style={{
+        backgroundColor: color.hex,
+        borderColor: color.bestSuitedForUser ? theme.colors.accent : theme.colors.border,
+        borderRadius: 14,
+        borderWidth: color.bestSuitedForUser ? 2 : 1,
+        height: 84,
+        overflow: 'hidden',
+        width: 84,
+      }}>
+      {isSketchReady ? (
+        <Image contentFit="cover" source={{ uri: color.sketchImageUrl! }} style={{ height: '100%', width: '100%' }} />
+      ) : color.sketchStatus === 'pending' || color.sketchStatus === null ? (
+        <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+          <ActivityIndicator color="#fff" size="small" />
+        </View>
+      ) : null}
+    </View>
+  );
+
+  return (
+    <View style={{ gap: 4, width: 84 }}>
+      {isSketchReady ? (
+        <Pressable onPress={() => onSelectSketch({ url: color.sketchImageUrl!, name: color.name })}>{swatch}</Pressable>
+      ) : (
+        swatch
+      )}
+      {color.bestSuitedForUser ? (
+        <View style={{ alignItems: 'center', flexDirection: 'row', gap: 3 }}>
+          <AppIcon color={theme.colors.accent} name="sparkles" size={10} />
+          <AppText style={{ color: theme.colors.accent, fontSize: 10, fontFamily: theme.fonts.sansMedium }} numberOfLines={1}>
+            Best for you
+          </AppText>
+        </View>
+      ) : null}
+      <AppText style={{ fontSize: 12, fontFamily: theme.fonts.sansMedium }} numberOfLines={2}>
+        {color.name}
+      </AppText>
     </View>
   );
 }
