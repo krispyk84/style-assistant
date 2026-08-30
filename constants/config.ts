@@ -3,9 +3,9 @@ export const appConfig = {
   useMockServices: process.env.EXPO_PUBLIC_USE_MOCK_SERVICES !== 'false',
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
-  // Register a free account at geonames.org and set this env var.
-  // The 'demo' fallback is heavily rate-limited — only for local dev.
-  geonamesUsername: process.env.EXPO_PUBLIC_GEONAMES_USERNAME ?? 'demo',
+  // Free account at mapbox.com — grab the default public token from
+  // Account > Access tokens.
+  mapboxToken: process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '',
 } as const;
 
 export function assertApiBaseUrl() {

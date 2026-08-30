@@ -65,7 +65,7 @@ export function useTravelPlannerForm() {
 
     return () => { cancelled = true; };
   }, [
-    destination?.geonameId,
+    destination?.id,
     destination?.lat,
     destination?.lng,
     departureDate,

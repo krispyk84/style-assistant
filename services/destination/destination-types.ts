@@ -1,7 +1,7 @@
 export type DestinationType = 'city' | 'region' | 'country' | 'place';
 
 export type DestinationResult = {
-  geonameId: number;
+  id: string;
   /** Human-readable: "Cabo San Lucas, Baja California Sur, Mexico" */
   label: string;
   city: string | null;
@@ -9,11 +9,11 @@ export type DestinationResult = {
   region: string | null;
   country: string;
   type: DestinationType;
-  /** Decimal latitude — present for all GeoNames results */
+  /** Decimal latitude */
   lat?: number;
-  /** Decimal longitude — present for all GeoNames results */
+  /** Decimal longitude */
   lng?: number;
-  /** City/place population — used for popularity ranking */
+  /** City/place population — used for popularity ranking, when the provider supplies it */
   population?: number;
 };
 

@@ -80,7 +80,7 @@ export function buildTripDraft({
     country: destination.country,
     lat: destination.lat,
     lng: destination.lng,
-    geonameId: destination.geonameId,
+    destinationId: destination.id,
     departureDate: toTripISODate(departureDate),
     returnDate: toTripISODate(returnDate),
     numDays,

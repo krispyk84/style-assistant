@@ -165,7 +165,7 @@ export function DestinationAutocomplete({ value, onChange }: Props) {
           ) : (
             results.map((result, index) => (
               <Pressable
-                key={result.geonameId}
+                key={result.id}
                 onPress={() => handleSelect(result)}
                 style={({ pressed }) => ({
                   backgroundColor: pressed ? theme.colors.subtleSurface : 'transparent',

@@ -20,7 +20,7 @@ export type TripDraft = {
   country: string;
   lat?: number;
   lng?: number;
-  geonameId?: number;
+  destinationId?: string;
   // Dates
   departureDate: string;   // YYYY-MM-DD
   returnDate: string;      // YYYY-MM-DD
