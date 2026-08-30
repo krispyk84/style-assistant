@@ -1,14 +1,18 @@
 import { useRef, useState } from 'react';
 
-import { useToast } from '@/components/ui/toast-provider';
+import { useUndoableRemove } from '@/hooks/use-undoable-remove';
 import { deleteSavedClosetOutfit, loadSavedClosetOutfits, type SavedClosetOutfit } from '@/lib/closet-outfit-storage';
 import {
   deleteSavedOutfit,
   loadSavedOutfits,
   replaceSavedOutfits,
 } from '@/lib/saved-outfits-storage';
+import { fetchSavedOutfitsFromSupabase } from '@/lib/supabase-data';
+import { withTimeout } from '@/lib/with-timeout';
 import { outfitsService } from '@/services/outfits';
 import type { SavedOutfit } from '@/types/style';
+
+const CLOUD_FALLBACK_TIMEOUT_MS = 10000;
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
@@ -16,15 +20,13 @@ export function useFavouritesData() {
   const [favourites, setFavourites] = useState<SavedOutfit[]>([]);
   const [favouritesLoading, setFavouritesLoading] = useState(true);
   const [favouritesError, setFavouritesError] = useState<string | null>(null);
-  const [deletingFavouriteId, setDeletingFavouriteId] = useState<string | null>(null);
   const [closetFavourites, setClosetFavourites] = useState<SavedClosetOutfit[]>([]);
-  const [deletingClosetFavouriteId, setDeletingClosetFavouriteId] = useState<string | null>(null);
   // Only the genuinely first load shows the full loading state — a refocus
   // with data already on screen refreshes silently in the background so
   // switching back into this tab never flickers back to a loading state.
   const hasLoadedOnceRef = useRef(false);
 
-  const { showToast } = useToast();
+  const { performRemove } = useUndoableRemove();
 
   function load() {
     let isMounted = true;
@@ -36,7 +38,25 @@ export function useFavouritesData() {
 
     void (async () => {
       try {
-        const saved = await loadSavedOutfits();
+        let saved = await loadSavedOutfits();
+
+        // Local storage is only ever populated by the one-shot sync that
+        // runs on SIGNED_IN (lib/user-data-sync.ts) — if that attempt hit a
+        // transient network hiccup, local storage stays empty for the rest
+        // of the session with no other retry. Treat an empty local result
+        // as possibly stale rather than authoritative: fall back to asking
+        // the cloud directly, and self-heal local storage if it has data.
+        if (saved.length === 0) {
+          try {
+            const cloudSaved = await withTimeout(fetchSavedOutfitsFromSupabase(), CLOUD_FALLBACK_TIMEOUT_MS, 'saved-outfits cloud fallback');
+            if (cloudSaved.length > 0) {
+              saved = await replaceSavedOutfits(cloudSaved);
+            }
+          } catch {
+            // Cloud fallback failed too — fall through with the empty local result.
+          }
+        }
+
         if (!isMounted) return;
         setFavourites(saved);
         setFavouritesError(null);
@@ -77,37 +97,35 @@ export function useFavouritesData() {
     return () => { isMounted = false; };
   }
 
-  async function handleDelete(savedOutfitId: string) {
-    setDeletingFavouriteId(savedOutfitId);
-    try {
-      const next = await deleteSavedOutfit(savedOutfitId);
-      setFavourites(next);
-      showToast('Saved outfit removed.');
-    } catch {
-      showToast('Could not remove this saved outfit.', 'error');
-    }
-    setDeletingFavouriteId(null);
+  function handleDelete(savedOutfitId: string) {
+    const removed = favourites.find((f) => f.id === savedOutfitId);
+    if (!removed) return;
+    setFavourites((prev) => prev.filter((f) => f.id !== savedOutfitId));
+    performRemove({
+      message: 'Saved outfit removed.',
+      optimisticRemove: () => {},
+      commitDelete: () => deleteSavedOutfit(savedOutfitId),
+      restore: () => setFavourites((prev) => [removed, ...prev]),
+    });
   }
 
-  async function handleDeleteClosetFavourite(id: string) {
-    setDeletingClosetFavouriteId(id);
-    try {
-      const next = await deleteSavedClosetOutfit(id);
-      setClosetFavourites(next);
-      showToast('Saved outfit removed.');
-    } catch {
-      showToast('Could not remove this saved outfit.', 'error');
-    }
-    setDeletingClosetFavouriteId(null);
+  function handleDeleteClosetFavourite(id: string) {
+    const removed = closetFavourites.find((f) => f.id === id);
+    if (!removed) return;
+    setClosetFavourites((prev) => prev.filter((f) => f.id !== id));
+    performRemove({
+      message: 'Saved outfit removed.',
+      optimisticRemove: () => {},
+      commitDelete: () => deleteSavedClosetOutfit(id),
+      restore: () => setClosetFavourites((prev) => [removed, ...prev]),
+    });
   }
 
   return {
     favourites,
     favouritesLoading,
     favouritesError,
-    deletingFavouriteId,
     closetFavourites,
-    deletingClosetFavouriteId,
     load,
     handleDelete,
     handleDeleteClosetFavourite,

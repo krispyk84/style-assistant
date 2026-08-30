@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { logAuthEvent } from '@/lib/auth-event-log';
+import { withTimeout } from '@/lib/with-timeout';
 import {
   fetchClosetOutfitFavouritesFromBackend,
   fetchClosetOutfitWeekPlanFromBackend,
@@ -51,13 +52,6 @@ export async function clearAllLocalUserData(): Promise<void> {
 }
 
 const ENTITY_TIMEOUT_MS = 10000;
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)),
-  ]);
-}
 
 /**
  * Called once on SIGNED_IN. Pass the userId from the auth event to avoid

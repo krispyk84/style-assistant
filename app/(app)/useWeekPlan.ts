@@ -4,9 +4,13 @@ import { useFocusEffect } from 'expo-router';
 import { loadClosetWeekPlan, loadSavedClosetOutfits, type ClosetWeekPlanItem } from '@/lib/closet-outfit-storage';
 import { loadWeekPlan, replaceWeekPlan } from '@/lib/week-plan-storage';
 import { loadSavedOutfits } from '@/lib/saved-outfits-storage';
+import { fetchWeekPlanFromSupabase } from '@/lib/supabase-data';
+import { withTimeout } from '@/lib/with-timeout';
 import { outfitsService } from '@/services/outfits';
 import { loadNextSevenDayForecast, type WeekForecastDay } from '@/services/weather/current-weather-service';
 import type { WeekPlannedOutfit } from '@/types/style';
+
+const CLOUD_FALLBACK_TIMEOUT_MS = 10000;
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
@@ -32,13 +36,30 @@ export function useWeekPlan() {
     void (async function run() {
       if (!hasLoadedOnceRef.current) setIsLoadingWeek(true);
       try {
-        const [nextItems, savedOutfits, forecast, nextClosetItems, savedClosetOutfits] = await Promise.all([
+        let [nextItems, savedOutfits, forecast, nextClosetItems, savedClosetOutfits] = await Promise.all([
           loadWeekPlan(),
           loadSavedOutfits(),
           loadNextSevenDayForecast().catch(() => [] as WeekForecastDay[]),
           loadClosetWeekPlan(),
           loadSavedClosetOutfits(),
         ]);
+
+        // Local storage is only ever populated by the one-shot sync that
+        // runs on SIGNED_IN (lib/user-data-sync.ts) — if that attempt hit a
+        // transient network hiccup, local storage stays empty for the rest
+        // of the session with no other retry. Treat an empty local result
+        // as possibly stale rather than authoritative: fall back to asking
+        // the cloud directly, and self-heal local storage if it has data.
+        if (nextItems.length === 0) {
+          try {
+            const cloudItems = await withTimeout(fetchWeekPlanFromSupabase(), CLOUD_FALLBACK_TIMEOUT_MS, 'week-plan cloud fallback');
+            if (cloudItems.length > 0) {
+              nextItems = await replaceWeekPlan(cloudItems);
+            }
+          } catch {
+            // Cloud fallback failed too — fall through with the empty local result.
+          }
+        }
 
         const refreshedItems = await Promise.all(
           nextItems.map(async (item) => {
