@@ -109,12 +109,20 @@ export function AppScreen({
   const handleScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       contentOffsetYRef.current = e.nativeEvent.contentOffset.y;
+      // Content that grows shortly after mount (async state resolving into
+      // more cards/rows) can leave a brief window where a scroll gesture
+      // that started before layout settled isn't bounded against the final
+      // content height yet — clamp on every scroll tick, not just on the
+      // layout/content-size-change events, so a gesture already in flight
+      // during that window gets corrected immediately rather than only
+      // after it ends.
+      clampIfOverscrolled();
       if (floatingBack) {
         setShowFloatingBack(e.nativeEvent.contentOffset.y > FLOATING_BACK_THRESHOLD);
       }
       onScroll?.(e);
     },
-    [floatingBack, onScroll],
+    [clampIfOverscrolled, floatingBack, onScroll],
   );
 
   // flex: 1 only makes sense for the non-scrollable case (fill the screen for

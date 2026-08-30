@@ -15,15 +15,24 @@ export type AuthLogEntry = {
   userId: string | null;
 };
 
-export async function logAuthEvent(event: string, userId: string | null): Promise<void> {
-  try {
-    const raw = await AsyncStorage.getItem(LOG_KEY);
-    const entries: AuthLogEntry[] = raw ? JSON.parse(raw) : [];
-    entries.push({ at: new Date().toISOString(), event, userId });
-    await AsyncStorage.setItem(LOG_KEY, JSON.stringify(entries.slice(-MAX_ENTRIES)));
-  } catch {
-    // Non-fatal — this is a debug aid, never let it affect the real auth flow.
-  }
+// syncUserDataOnSignIn logs up to 5 entity summaries roughly concurrently —
+// without serializing, each call's read-modify-write on the same AsyncStorage
+// key can race and clobber the others, silently dropping entries. Chaining
+// onto this promise makes every call wait for the previous one to finish.
+let writeQueue: Promise<void> = Promise.resolve();
+
+export function logAuthEvent(event: string, userId: string | null): Promise<void> {
+  writeQueue = writeQueue.then(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(LOG_KEY);
+      const entries: AuthLogEntry[] = raw ? JSON.parse(raw) : [];
+      entries.push({ at: new Date().toISOString(), event, userId });
+      await AsyncStorage.setItem(LOG_KEY, JSON.stringify(entries.slice(-MAX_ENTRIES)));
+    } catch {
+      // Non-fatal — this is a debug aid, never let it affect the real auth flow.
+    }
+  });
+  return writeQueue;
 }
 
 export async function getAuthEventLog(): Promise<AuthLogEntry[]> {
