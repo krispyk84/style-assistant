@@ -1,5 +1,6 @@
 import { ThemeProvider } from '@react-navigation/native';
 import { router, Stack, useNavigationContainerRef } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { ScrollView, Text } from 'react-native';
@@ -17,6 +18,17 @@ import { installShareHandoffListener, useShareHandoffRouter } from '@/lib/share-
 // Subscribe to incoming share-handoff URLs once per JS instance. The listener
 // also handles the cold-start URL via Linking.getInitialURL.
 installShareHandoffListener();
+
+// Without this, expo-splash-screen auto-hides the native launch screen the
+// instant the RN root has its first paint, using its own built-in transition
+// — which visibly cross-dissolves against our JS BrandSplash underneath even
+// though the two are styled to match exactly, producing a brief dim-then-
+// brighten flicker. Taking explicit control (prevent + zero-duration,
+// no-fade hide once our own matching BrandSplash has painted, in
+// app/index.tsx) makes the handoff an instant swap between two identical-
+// looking screens instead of an animated cross-fade between them.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+SplashScreen.setOptions({ duration: 0, fade: false });
 
 // [BOOT-DIAG] Module evaluated — if you see this, the JS bundle loaded and
 // this file was required successfully. Missing = bundle failed to parse.
