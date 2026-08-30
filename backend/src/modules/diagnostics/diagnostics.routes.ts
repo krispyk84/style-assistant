@@ -13,27 +13,53 @@ export const diagnosticsRouter = Router();
 // to Postgres) so we can tell "never made it to the cloud" apart from "is in
 // the cloud but the client isn't fetching it correctly." Scoped strictly to
 // the requesting user's own id — never exposes any other user's data.
+//
+// Each check runs independently and reports its own error string rather than
+// letting one failure (e.g. a uuid/text type mismatch on a column we don't
+// control the schema of) blank out every other result.
+async function countOrError(label: string, run: () => Promise<number>): Promise<number | string> {
+  try {
+    return await run();
+  } catch (error) {
+    return `${label} error: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
 diagnosticsRouter.get(
   '/diagnostics/cloud-backup-status',
   requireAuth,
   asyncHandler(async (request, response) => {
     const userId = request.userId!;
 
-    const [savedOutfitsRows, closetItemsRows, weekPlanRows] = await Promise.all([
-      prisma.$queryRaw<{ count: bigint }[]>`SELECT count(*) FROM saved_outfits WHERE user_id = ${userId}`,
-      prisma.$queryRaw<{ count: bigint }[]>`SELECT count(*) FROM closet_items WHERE user_id = ${userId}`,
-      prisma.$queryRaw<{ count: bigint }[]>`SELECT count(*) FROM week_plan WHERE user_id = ${userId}`,
+    const [
+      savedOutfitsInCloud,
+      closetItemsInCloud,
+      weekPlanInCloud,
+      closetOutfitFavouritesInCloud,
+      closetOutfitWeekPlanInCloud,
+    ] = await Promise.all([
+      countOrError('saved_outfits', async () => {
+        const rows = await prisma.$queryRaw<{ count: bigint }[]>`SELECT count(*) FROM saved_outfits WHERE user_id = ${userId}::uuid`;
+        return Number(rows[0]?.count ?? 0);
+      }),
+      countOrError('closet_items', async () => {
+        const rows = await prisma.$queryRaw<{ count: bigint }[]>`SELECT count(*) FROM closet_items WHERE user_id = ${userId}::uuid`;
+        return Number(rows[0]?.count ?? 0);
+      }),
+      countOrError('week_plan', async () => {
+        const rows = await prisma.$queryRaw<{ count: bigint }[]>`SELECT count(*) FROM week_plan WHERE user_id = ${userId}::uuid`;
+        return Number(rows[0]?.count ?? 0);
+      }),
+      countOrError('closet_outfit_favourites', () => prisma.closetOutfitFavourite.count({ where: { supabaseUserId: userId } })),
+      countOrError('closet_outfit_week_plan', () => prisma.closetOutfitWeekPlanItem.count({ where: { supabaseUserId: userId } })),
     ]);
 
-    const closetOutfitFavouritesCount = await prisma.closetOutfitFavourite.count({ where: { supabaseUserId: userId } });
-    const closetOutfitWeekPlanCount = await prisma.closetOutfitWeekPlanItem.count({ where: { supabaseUserId: userId } });
-
     return sendSuccess(response, {
-      savedOutfitsInCloud: Number(savedOutfitsRows[0]?.count ?? 0),
-      closetItemsInCloud: Number(closetItemsRows[0]?.count ?? 0),
-      weekPlanInCloud: Number(weekPlanRows[0]?.count ?? 0),
-      closetOutfitFavouritesInCloud: closetOutfitFavouritesCount,
-      closetOutfitWeekPlanInCloud: closetOutfitWeekPlanCount,
+      savedOutfitsInCloud,
+      closetItemsInCloud,
+      weekPlanInCloud,
+      closetOutfitFavouritesInCloud,
+      closetOutfitWeekPlanInCloud,
     });
   })
 );

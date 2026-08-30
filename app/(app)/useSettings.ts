@@ -80,11 +80,20 @@ export function useSettings() {
     setCloudBackupMessage(null);
     try {
       const result = await fetchCloudBackupStatus();
-      setCloudBackupMessage(
-        result.ok
-          ? `Saved outfits: ${result.status.savedOutfitsInCloud} · Closet items: ${result.status.closetItemsInCloud} · Week plan: ${result.status.weekPlanInCloud} · Closet-outfit favourites: ${result.status.closetOutfitFavouritesInCloud} · Closet-outfit week plan: ${result.status.closetOutfitWeekPlanInCloud}`
-          : `Error: ${result.message}`,
-      );
+      if (!result.ok) {
+        setCloudBackupMessage(`Error: ${result.message}`);
+      } else {
+        const s = result.status;
+        setCloudBackupMessage(
+          [
+            `Saved outfits: ${s.savedOutfitsInCloud}`,
+            `Closet items: ${s.closetItemsInCloud}`,
+            `Week plan: ${s.weekPlanInCloud}`,
+            `Closet-outfit favourites: ${s.closetOutfitFavouritesInCloud}`,
+            `Closet-outfit week plan: ${s.closetOutfitWeekPlanInCloud}`,
+          ].join('\n'),
+        );
+      }
     } catch (error) {
       setCloudBackupMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error.'}`);
     }

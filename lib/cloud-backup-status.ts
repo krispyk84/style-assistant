@@ -1,11 +1,11 @@
 import { createApiClient } from '@/lib/api/api-client';
 
 export type CloudBackupStatus = {
-  savedOutfitsInCloud: number;
-  closetItemsInCloud: number;
-  weekPlanInCloud: number;
-  closetOutfitFavouritesInCloud: number;
-  closetOutfitWeekPlanInCloud: number;
+  savedOutfitsInCloud: number | string;
+  closetItemsInCloud: number | string;
+  weekPlanInCloud: number | string;
+  closetOutfitFavouritesInCloud: number | string;
+  closetOutfitWeekPlanInCloud: number | string;
 };
 
 export async function fetchCloudBackupStatus(): Promise<
