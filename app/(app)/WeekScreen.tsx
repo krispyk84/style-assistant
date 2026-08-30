@@ -33,13 +33,7 @@ export function WeekScreen() {
   return (
     <AppScreen scrollable>
       <View style={{ gap: spacing.xl }}>
-        <View style={{ gap: spacing.xs }}>
-          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 2 }}>
-            The Atelier
-          </AppText>
-          <AppText variant="heroSmall">Your Week</AppText>
-          <AppText tone="muted">Plan today and the next 7 days of outfits.</AppText>
-        </View>
+        <AppText variant="heroSmall" style={{ marginTop: spacing.sm }}>Your Week</AppText>
 
         {isLoadingWeek ? <LoadingState label="Loading your week..." /> : null}
 

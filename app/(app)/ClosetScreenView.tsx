@@ -156,13 +156,9 @@ export function ClosetScreenView({
   const listHeaderContent = (
     <View style={{ gap: spacing.xl, paddingBottom: spacing.xs }}>
       {/* Title + search/add buttons (original position) */}
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <View style={{ gap: spacing.sm, flex: 1 }}>
-          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
-            The Atelier
-          </AppText>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: spacing.sm }}>
+        <View style={{ flex: 1 }}>
           <AppText variant="heroSmall">My Closet</AppText>
-          <AppText tone="muted">Your catalogued wardrobe pieces.</AppText>
         </View>
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {itemCount > 0 ? (

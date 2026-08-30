@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 
 import { loadClosetWeekPlan, loadSavedClosetOutfits, type ClosetWeekPlanItem } from '@/lib/closet-outfit-storage';
@@ -26,68 +26,74 @@ export function useWeekPlan() {
   // Previously, useEffect([isFocused]) ran on BOTH focus gain and focus loss, creating
   // two concurrent hydrate() calls with racing isMounted closures that could drop state
   // updates and leave the screen stuck on the loading spinner.
-  useFocusEffect(
-    useCallback(() => {
-      let isMounted = true;
+  const hydrate = useCallback(() => {
+    let isMounted = true;
 
-      void (async function hydrate() {
-        if (!hasLoadedOnceRef.current) setIsLoadingWeek(true);
-        try {
-          const [nextItems, savedOutfits, forecast, nextClosetItems, savedClosetOutfits] = await Promise.all([
-            loadWeekPlan(),
-            loadSavedOutfits(),
-            loadNextSevenDayForecast().catch(() => [] as WeekForecastDay[]),
-            loadClosetWeekPlan(),
-            loadSavedClosetOutfits(),
-          ]);
+    void (async function run() {
+      if (!hasLoadedOnceRef.current) setIsLoadingWeek(true);
+      try {
+        const [nextItems, savedOutfits, forecast, nextClosetItems, savedClosetOutfits] = await Promise.all([
+          loadWeekPlan(),
+          loadSavedOutfits(),
+          loadNextSevenDayForecast().catch(() => [] as WeekForecastDay[]),
+          loadClosetWeekPlan(),
+          loadSavedClosetOutfits(),
+        ]);
 
-          const refreshedItems = await Promise.all(
-            nextItems.map(async (item) => {
-              const response = await outfitsService.getOutfitResult(item.requestId);
+        const refreshedItems = await Promise.all(
+          nextItems.map(async (item) => {
+            const response = await outfitsService.getOutfitResult(item.requestId);
 
-              if (!response.success || !response.data) {
-                return item;
-              }
+            if (!response.success || !response.data) {
+              return item;
+            }
 
-              const latestRecommendation = response.data.recommendations.find(
-                (recommendation) => recommendation.tier === item.recommendation.tier
-              );
+            const latestRecommendation = response.data.recommendations.find(
+              (recommendation) => recommendation.tier === item.recommendation.tier
+            );
 
-              if (!latestRecommendation) {
-                return item;
-              }
+            if (!latestRecommendation) {
+              return item;
+            }
 
-              return {
-                ...item,
-                input: response.data.input,
-                recommendation: latestRecommendation,
-              };
-            })
-          );
+            return {
+              ...item,
+              input: response.data.input,
+              recommendation: latestRecommendation,
+            };
+          })
+        );
 
-          if (isMounted) {
-            setItems(refreshedItems);
-            setSavedOutfitIds(savedOutfits.map((item) => item.id));
-            setForecastByDay(Object.fromEntries(forecast.map((day) => [day.dayKey, day])));
-            setClosetItems(nextClosetItems);
-            setClosetSavedOutfitIds(savedClosetOutfits.map((item) => item.id));
-          }
-
-          // Persist refresh even if the user has navigated away
-          await replaceWeekPlan(refreshedItems);
-        } finally {
-          if (isMounted) {
-            setIsLoadingWeek(false);
-            hasLoadedOnceRef.current = true;
-          }
+        if (isMounted) {
+          setItems(refreshedItems);
+          setSavedOutfitIds(savedOutfits.map((item) => item.id));
+          setForecastByDay(Object.fromEntries(forecast.map((day) => [day.dayKey, day])));
+          setClosetItems(nextClosetItems);
+          setClosetSavedOutfitIds(savedClosetOutfits.map((item) => item.id));
         }
-      })();
 
-      return () => {
-        isMounted = false;
-      };
-    }, [])
-  );
+        // Persist refresh even if the user has navigated away
+        await replaceWeekPlan(refreshedItems);
+      } finally {
+        if (isMounted) {
+          setIsLoadingWeek(false);
+          hasLoadedOnceRef.current = true;
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Fires once as soon as this screen mounts — paired with the Tabs
+  // navigator's lazy:false, every tab mounts immediately at app start, so
+  // this starts loading in the background well before the user actually
+  // switches to Week. By the time they tap the tab, the data is usually
+  // already there instead of popping in after the switch.
+  useEffect(() => hydrate(), [hydrate]);
+  useFocusEffect(hydrate);
 
   return {
     items, setItems, savedOutfitIds, setSavedOutfitIds, forecastByDay, isLoadingWeek,
