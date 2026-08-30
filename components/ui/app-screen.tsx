@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
-import { useCallback, type PropsWithChildren, type RefObject, useState } from 'react';
+import { useCallback, useRef, type PropsWithChildren, type RefObject, useState } from 'react';
 import {
   Pressable,
   ScrollView,
   View,
+  type LayoutChangeEvent,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
   type ScrollViewProps,
@@ -68,8 +69,37 @@ export function AppScreen({
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
 
+  // Falls back to an internally-owned ref when the caller doesn't pass one,
+  // so the overscroll clamp below always has a ScrollView to correct —
+  // screens that DO pass their own scrollRef (for their own reset-on-load
+  // effects) share this same ref; both operate on the identical ScrollView.
+  const internalScrollRef = useRef<ScrollView>(null);
+  const effectiveScrollRef = scrollRef ?? internalScrollRef;
+
+  // General safety net for "scrolled past the end, now showing blank space"
+  // — the same failure mode several screens have hit when their content
+  // height shrinks (async data resolving, a card disappearing) while the
+  // user has already scrolled past where the new, shorter content ends.
+  // Rather than relying on each screen to track every state transition that
+  // could shrink its content (easy to miss — e.g. a refocus-triggered
+  // refetch racing an in-progress scroll gesture), this reacts directly to
+  // the ScrollView's own measured content size: whenever it shrinks, clamp
+  // the current offset back within the new bounds if it now overshoots.
+  const scrollViewHeightRef = useRef(0);
+  const contentOffsetYRef = useRef(0);
+  const handleLayout = useCallback((e: LayoutChangeEvent) => {
+    scrollViewHeightRef.current = e.nativeEvent.layout.height;
+  }, []);
+  const handleContentSizeChange = useCallback((_width: number, height: number) => {
+    const maxOffset = Math.max(0, height - scrollViewHeightRef.current);
+    if (contentOffsetYRef.current > maxOffset) {
+      effectiveScrollRef.current?.scrollTo({ y: maxOffset, animated: false });
+    }
+  }, [effectiveScrollRef]);
+
   const handleScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      contentOffsetYRef.current = e.nativeEvent.contentOffset.y;
       if (floatingBack) {
         setShowFloatingBack(e.nativeEvent.contentOffset.y > FLOATING_BACK_THRESHOLD);
       }
@@ -99,10 +129,6 @@ export function AppScreen({
     </View>
   );
 
-  const scrollProps = floatingBack || onScroll
-    ? { onScroll: handleScroll, scrollEventThrottle: 16 }
-    : {};
-
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: theme.colors.background }}
@@ -124,15 +150,18 @@ export function AppScreen({
       ) : null}
       {scrollable ? (
         <ScrollView
-          ref={scrollRef}
+          ref={effectiveScrollRef}
           automaticallyAdjustKeyboardInsets={avoidsKeyboard}
           bounces={bounces}
           contentContainerStyle={{ flexGrow: 1 }}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
+          onContentSizeChange={handleContentSizeChange}
+          onLayout={handleLayout}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
           refreshControl={refreshControl}
-          showsVerticalScrollIndicator={false}
-          {...scrollProps}>
+          showsVerticalScrollIndicator={false}>
           {content}
         </ScrollView>
       ) : (
