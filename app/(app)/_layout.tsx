@@ -19,7 +19,7 @@ import { useLogout } from './useLogout';
 // (weather, hero + closet image carousels) before giving up — a stuck
 // network shouldn't be able to trap the user on the splash screen forever.
 const HOME_READY_TIMEOUT_MS = 8000;
-const SPLASH_FADE_OUT_MS = 450;
+const SPLASH_FADE_OUT_MS = 900;
 
 const TAB_ICON_SIZE = 22;
 

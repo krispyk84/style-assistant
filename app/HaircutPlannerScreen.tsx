@@ -91,7 +91,11 @@ export function HaircutPlannerScreen() {
               </AppText>
             </Pressable>
 
-            {isLoadingSavedSessions ? null : savedSessions.length > 0 ? (
+            {isLoadingSavedSessions ? (
+              <View style={{ alignItems: 'center', paddingVertical: spacing.md }}>
+                <ActivityIndicator color={theme.colors.accent} size="small" />
+              </View>
+            ) : savedSessions.length > 0 ? (
               <View style={{ gap: spacing.sm }}>
                 <AppText variant="sectionTitle">Saved haircuts</AppText>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
