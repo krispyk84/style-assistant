@@ -30,15 +30,6 @@ export function useClosetData() {
     }
   }, []);
 
-  // Fires once as soon as this screen mounts — paired with the Tabs
-  // navigator's lazy:false, every tab mounts immediately at app start, so
-  // this starts loading in the background well before the user actually
-  // switches to Closet. By the time they tap the tab, the data is usually
-  // already there instead of popping in after the switch.
-  useEffect(() => {
-    void loadItems();
-  }, [loadItems]);
-
   useFocusEffect(
     useCallback(() => {
       if (!hasLoadedOnceRef.current) setIsLoading(true);

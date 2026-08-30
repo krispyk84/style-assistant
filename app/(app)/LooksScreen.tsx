@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
@@ -54,16 +54,6 @@ export function LooksScreen() {
   const actionsHook = useHistoryActions();
 
   const { theme } = useTheme();
-
-  // Fires once as soon as this screen mounts — paired with the Tabs
-  // navigator's lazy:false, every tab mounts immediately at app start, so
-  // this starts loading in the background well before the user actually
-  // switches to Looks. By the time they tap the tab, favourites are usually
-  // already there instead of popping in after the switch.
-  useEffect(() => {
-    favouritesHook.load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Reset to Favourites + reload on every screen focus
   useFocusEffect(

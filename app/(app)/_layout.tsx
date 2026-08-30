@@ -217,10 +217,6 @@ export default function AppTabsLayout() {
           name="week"
           options={{
             title: 'Week',
-            // Mounts immediately at app start (rather than on first visit)
-            // so useWeekPlan's load starts in the background before the
-            // user actually switches to this tab.
-            lazy: false,
             tabBarIcon: ({ color, focused }) => (
               <AppIcon name="calendar" color={color} size={TAB_ICON_SIZE} strokeWidth={focused ? 1.6 : 1.1} />
             ),
@@ -230,8 +226,6 @@ export default function AppTabsLayout() {
           name="history"
           options={{
             title: 'Looks',
-            // Mounts immediately at app start — see "week" above.
-            lazy: false,
             tabBarIcon: ({ color, focused }) => (
               <AppIcon name="clothes-pattern" color={color} size={TAB_ICON_SIZE} strokeWidth={focused ? 1.6 : 1.1} />
             ),
@@ -241,8 +235,6 @@ export default function AppTabsLayout() {
           name="closet"
           options={{
             title: 'Closet',
-            // Mounts immediately at app start — see "week" above.
-            lazy: false,
             tabBarIcon: ({ color, focused }) => (
               <AppIcon name="closet" color={color} size={TAB_ICON_SIZE} strokeWidth={focused ? 1.6 : 1.1} />
             ),
