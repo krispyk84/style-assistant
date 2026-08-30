@@ -1,6 +1,6 @@
 import { Redirect, router, Tabs } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Image, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MoreBottomSheet } from '@/components/more/more-bottom-sheet';
@@ -12,13 +12,14 @@ import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
 import { homeReadiness } from '@/lib/home-readiness';
+import { homeLogoPosition, type LogoRect } from '@/lib/home-logo-position';
 import { useLogout } from './useLogout';
 
 // Upper bound on how long the splash overlay waits for Home's own data
 // (weather, hero + closet image carousels) before giving up — a stuck
 // network shouldn't be able to trap the user on the splash screen forever.
 const HOME_READY_TIMEOUT_MS = 8000;
-const SPLASH_FADE_OUT_MS = 300;
+const SPLASH_FADE_OUT_MS = 450;
 
 const TAB_ICON_SIZE = 22;
 
@@ -76,6 +77,14 @@ export default function AppTabsLayout() {
   // the splash disappear abruptly regardless of the opacity animation.
   const [isSplashMounted, setIsSplashMounted] = useState(true);
   const splashOpacity = useRef(new Animated.Value(1)).current;
+  // Drives the splash logo shrinking into Home's actual logo position on
+  // fade-out (0 = splash size/position, 1 = Home's measured size/position).
+  // Layout properties (not transform) so each box's own resizeMode:'contain'
+  // correctly refits the (non-square) logo artwork as the box's aspect ratio
+  // changes — a pure transform-scale would stretch it unevenly instead.
+  const shrinkProgress = useRef(new Animated.Value(0)).current;
+  const [splashLogoRect, setSplashLogoRect] = useState<LogoRect | null>(null);
+  const homeLogoRect = useSyncExternalStore(homeLogoPosition.subscribe, homeLogoPosition.getSnapshot);
 
   useEffect(() => {
     if (!user) {
@@ -92,20 +101,33 @@ export default function AppTabsLayout() {
   }, [isHydrated, isHomeReady]);
 
   const showSplashOverlay = isHydrated && !isHomeReady && !homeReadyTimedOut;
+  // Only animate the logo shrinking into place when we actually know both
+  // endpoints — otherwise (e.g. Home hasn't measured its logo yet) fall back
+  // to the plain opacity fade with BrandSplash's own logo still visible.
+  const isShrinkingIntoHome = !showSplashOverlay && Boolean(splashLogoRect) && Boolean(homeLogoRect);
 
   useEffect(() => {
     if (showSplashOverlay) {
       // Home became not-ready again (shouldn't normally happen once shown) — snap back visible.
       splashOpacity.setValue(1);
+      shrinkProgress.setValue(0);
       setIsSplashMounted(true);
       return;
     }
     if (!isSplashMounted) return;
-    Animated.timing(splashOpacity, {
-      toValue: 0,
-      duration: SPLASH_FADE_OUT_MS,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
+    Animated.parallel([
+      Animated.timing(splashOpacity, {
+        toValue: 0,
+        duration: SPLASH_FADE_OUT_MS,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shrinkProgress, {
+        toValue: 1,
+        duration: SPLASH_FADE_OUT_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+    ]).start(({ finished }) => {
       if (finished) setIsSplashMounted(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -249,7 +271,21 @@ export default function AppTabsLayout() {
         <Animated.View
           pointerEvents={showSplashOverlay ? 'auto' : 'none'}
           style={[StyleSheet.absoluteFillObject, { opacity: splashOpacity }]}>
-          <BrandSplash messages={SPLASH_MESSAGES} />
+          <BrandSplash messages={SPLASH_MESSAGES} onLogoLayout={setSplashLogoRect} hideLogo={isShrinkingIntoHome} />
+        </Animated.View>
+      ) : null}
+
+      {isSplashMounted && isShrinkingIntoHome && splashLogoRect && homeLogoRect ? (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: shrinkProgress.interpolate({ inputRange: [0, 1], outputRange: [splashLogoRect.x, homeLogoRect.x] }),
+            top: shrinkProgress.interpolate({ inputRange: [0, 1], outputRange: [splashLogoRect.y, homeLogoRect.y] }),
+            width: shrinkProgress.interpolate({ inputRange: [0, 1], outputRange: [splashLogoRect.width, homeLogoRect.width] }),
+            height: shrinkProgress.interpolate({ inputRange: [0, 1], outputRange: [splashLogoRect.height, homeLogoRect.height] }),
+          }}>
+          <Image source={require('../../logo.png')} style={{ height: '100%', resizeMode: 'contain', width: '100%' }} />
         </Animated.View>
       ) : null}
     </View>

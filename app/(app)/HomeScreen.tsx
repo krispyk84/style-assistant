@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, type View as RNView } from 'react-native';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { GenerateOutfitsModal } from '@/components/closet/GenerateOutfitsModal';
@@ -13,6 +13,7 @@ import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import type { ClosetReadiness } from '@/lib/closet-readiness';
+import { homeLogoPosition } from '@/lib/home-logo-position';
 import { useFashionTrendReport } from './useFashionTrendReport';
 import { useHomeData } from './useHomeData';
 
@@ -40,26 +41,24 @@ export function HomeScreen() {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [isResolved, isClosetCarouselResolved, weatherLoading, closetReadiness]);
 
+  // Reports the logo's real on-screen position so the root layout's
+  // splash-to-Home transition can animate the splash logo shrinking into
+  // this exact spot instead of guessing fixed coordinates.
+  const logoWrapRef = useRef<RNView>(null);
+  function handleLogoLayout() {
+    logoWrapRef.current?.measureInWindow((x, y, width, height) => {
+      homeLogoPosition.setRect({ x, y, width, height });
+    });
+  }
+
   return (
     <AppScreen scrollable scrollRef={scrollRef} bounces={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
 
         {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <View
-            style={{
-              alignSelf: 'flex-start',
-              borderColor: theme.colors.accent,
-              borderRadius: 999,
-              borderWidth: 1,
-              paddingHorizontal: spacing.sm,
-              paddingVertical: 3,
-            }}>
-            <AppText
-              variant="eyebrow"
-              style={{ color: theme.colors.accent, letterSpacing: 0.6 }}>
-              Vesture
-            </AppText>
+        <View style={{ height: 40, justifyContent: 'center' }}>
+          <View ref={logoWrapRef} onLayout={handleLogoLayout} style={{ alignSelf: 'center', height: 32, width: 78 }}>
+            <Image contentFit="contain" source={require('../../logo.png')} style={{ height: '100%', width: '100%' }} />
           </View>
           <Pressable
             accessibilityLabel="View and edit your profile"
@@ -72,6 +71,9 @@ export function HomeScreen() {
               borderWidth: 1,
               height: 36,
               justifyContent: 'center',
+              position: 'absolute',
+              right: 0,
+              top: 2,
               width: 36,
             }}>
             <AppIcon color={theme.colors.text} name="person" size={16} />
