@@ -7,8 +7,17 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { FullscreenNavArrows } from '@/components/ui/fullscreen-nav-arrows';
 import { spacing, theme } from '@/constants/theme';
+import { hapticThumbsClear, hapticThumbsDown, hapticThumbsUp } from '@/lib/haptics';
 import { formatTierLabel } from '@/lib/outfit-utils';
 import type { SeasonalColorEntry, SeasonalTrendReportEntry, TrendFeedbackValue } from '@/types/api';
+
+function setThumb(current: TrendFeedbackValue | null, next: 'up' | 'down', onSetFeedback: (feedback: TrendFeedbackValue | null) => void) {
+  const value = current === next ? null : next;
+  if (value === null) hapticThumbsClear();
+  else if (value === 'up') hapticThumbsUp();
+  else hapticThumbsDown();
+  onSetFeedback(value);
+}
 
 type FashionTrendReportModalProps = {
   visible: boolean;
@@ -358,7 +367,7 @@ function FeedbackButtons({
     <View style={{ gap: spacing.xs, justifyContent: 'center' }}>
       <Pressable
         hitSlop={8}
-        onPress={() => onSetFeedback(feedback === 'up' ? null : 'up')}
+        onPress={() => setThumb(feedback, 'up', onSetFeedback)}
         style={{
           alignItems: 'center',
           backgroundColor: feedback === 'up' ? theme.colors.card : 'transparent',
@@ -371,7 +380,7 @@ function FeedbackButtons({
       </Pressable>
       <Pressable
         hitSlop={8}
-        onPress={() => onSetFeedback(feedback === 'down' ? null : 'down')}
+        onPress={() => setThumb(feedback, 'down', onSetFeedback)}
         style={{
           alignItems: 'center',
           backgroundColor: feedback === 'down' ? theme.colors.dangerSurface : 'transparent',
@@ -398,7 +407,7 @@ function FullscreenFeedbackButtons({
     <View style={{ flexDirection: 'row', gap: spacing.md }}>
       <Pressable
         hitSlop={10}
-        onPress={() => onSetFeedback(feedback === 'up' ? null : 'up')}
+        onPress={() => setThumb(feedback, 'up', onSetFeedback)}
         style={{
           alignItems: 'center',
           backgroundColor: feedback === 'up' ? 'rgba(255,255,255,0.16)' : 'transparent',
@@ -411,7 +420,7 @@ function FullscreenFeedbackButtons({
       </Pressable>
       <Pressable
         hitSlop={10}
-        onPress={() => onSetFeedback(feedback === 'down' ? null : 'down')}
+        onPress={() => setThumb(feedback, 'down', onSetFeedback)}
         style={{
           alignItems: 'center',
           backgroundColor: feedback === 'down' ? 'rgba(255,255,255,0.16)' : 'transparent',

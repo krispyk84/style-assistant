@@ -53,7 +53,7 @@ export function WeekScreen() {
                     isSaved={closetSavedOutfitIds.includes(closetAssignment.outfit.id)}
                     isSaving={savingId === closetAssignment.outfit.id}
                     onSave={() => void handleSaveClosetOutfit(closetAssignment)}
-                    onRemove={() => void handleRemoveClosetDay(day.dayKey)}
+                    onRemove={() => handleRemoveClosetDay(closetAssignment)}
                   />
                 );
               }
@@ -71,7 +71,7 @@ export function WeekScreen() {
                   isSaved={savedId ? savedOutfitIds.includes(savedId) : false}
                   isSaving={savedId !== null && savingId === savedId}
                   onSave={() => assignment && void handleSave(assignment)}
-                  onRemove={() => void handleRemove(day.dayKey)}
+                  onRemove={() => assignment && handleRemove(assignment)}
                 />
               );
             })

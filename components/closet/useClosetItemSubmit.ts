@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { useUndoableRemove } from '@/hooks/use-undoable-remove';
 import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
 import type { ClosetEditFields } from './useClosetItemEditor';
@@ -12,11 +13,13 @@ type Params = {
   setIsEditing: (val: boolean) => void;
   onSaved: (item: ClosetItem) => void;
   onDeleted: (id: string) => void;
+  /** Puts the item back if the user taps Undo on the removal toast. */
+  onRestore: (item: ClosetItem) => void;
 };
 
-export function useClosetItemSubmit({ item, setError, setIsEditing, onSaved, onDeleted }: Params) {
+export function useClosetItemSubmit({ item, setError, setIsEditing, onSaved, onDeleted, onRestore }: Params) {
   const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const { performRemove } = useUndoableRemove();
 
   async function handleSave(fields: ClosetEditFields) {
     if (!item || !fields.title.trim()) return;
@@ -51,13 +54,17 @@ export function useClosetItemSubmit({ item, setError, setIsEditing, onSaved, onD
     }
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (!item) return;
-    setIsDeleting(true);
-    await closetService.deleteItem(item.id);
-    setIsDeleting(false);
-    onDeleted(item.id);
+    const toDelete = item;
+    onDeleted(toDelete.id);
+    performRemove({
+      message: `${toDelete.title} removed from your closet.`,
+      optimisticRemove: () => {}, // onDeleted above already did it
+      commitDelete: () => closetService.deleteItem(toDelete.id),
+      restore: () => onRestore(toDelete),
+    });
   }
 
-  return { isSaving, isDeleting, handleSave, handleDelete };
+  return { isSaving, handleSave, handleDelete };
 }

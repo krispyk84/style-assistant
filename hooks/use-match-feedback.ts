@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { findBestClosetMatch } from '@/lib/closet-match';
+import { hapticThumbsDown, hapticThumbsUp } from '@/lib/haptics';
 import {
   buildMatchFeedbackId,
   getExcludedItemIdsForSlot,
@@ -57,6 +58,7 @@ export function useMatchFeedback({
     matchedItemId: string,
     outfitTitle: string,
   ) {
+    hapticThumbsUp();
     setMatchFeedbackMap((prev) => ({ ...prev, [suggestion]: 'up' }));
 
     // For thumbs-up we record approval without loading existing exclusions —
@@ -84,6 +86,7 @@ export function useMatchFeedback({
     // Guard: ignore if a rematch is already in flight for this slot
     if (regeneratingMatches.has(suggestion)) return;
 
+    hapticThumbsDown();
     setMatchFeedbackMap((prev) => ({ ...prev, [suggestion]: 'down' }));
 
     void (async () => {

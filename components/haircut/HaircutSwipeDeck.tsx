@@ -4,6 +4,7 @@ import Swiper from 'react-native-deck-swiper';
 
 import { AppText } from '@/components/ui/app-text';
 import { spacing, theme } from '@/constants/theme';
+import { hapticSwipeDiscard, hapticSwipeLike } from '@/lib/haptics';
 import type { HaircutOption } from '@/types/api';
 
 type HaircutSwipeDeckProps = {
@@ -66,8 +67,8 @@ export function HaircutSwipeDeck({ options, onSwipedRight, onSwipedLeft, onSwipe
             </View>
           </View>
         )}
-        onSwipedRight={onSwipedRight}
-        onSwipedLeft={onSwipedLeft}
+        onSwipedRight={(cardIndex) => { hapticSwipeLike(); onSwipedRight(cardIndex); }}
+        onSwipedLeft={(cardIndex) => { hapticSwipeDiscard(); onSwipedLeft(cardIndex); }}
         onSwipedAll={onSwipedAll}
         cardIndex={0}
         stackSize={3}

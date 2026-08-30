@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { useToast } from '@/components/ui/toast-provider';
+import { useUndoableRemove } from '@/hooks/use-undoable-remove';
 import { removeClosetWeekPlanDay, saveClosetOutfitToFavourites, type ClosetWeekPlanItem } from '@/lib/closet-outfit-storage';
 import { buildSavedOutfitId, saveSavedOutfit } from '@/lib/saved-outfits-storage';
 import { removeWeekPlan } from '@/lib/week-plan-storage';
@@ -23,6 +24,7 @@ export function useWeekPlanActions({
 }: Params) {
   const [savingId, setSavingId] = useState<string | null>(null);
   const { showToast } = useToast();
+  const { performRemove } = useUndoableRemove();
 
   async function handleSave(assignment: WeekPlannedOutfit) {
     const savedId = buildSavedOutfitId(assignment.requestId, assignment.recommendation.tier);
@@ -43,8 +45,15 @@ export function useWeekPlanActions({
     setSavingId(null);
   }
 
-  async function handleRemove(dayKey: string) {
-    setItems(await removeWeekPlan(dayKey));
+  function handleRemove(assignment: WeekPlannedOutfit) {
+    const { dayKey } = assignment;
+    setItems((prev) => prev.filter((item) => item.dayKey !== dayKey));
+    performRemove({
+      message: 'Removed from your week.',
+      optimisticRemove: () => {},
+      commitDelete: () => removeWeekPlan(dayKey),
+      restore: () => setItems((prev) => [assignment, ...prev]),
+    });
   }
 
   async function handleSaveClosetOutfit(assignment: ClosetWeekPlanItem) {
@@ -61,8 +70,15 @@ export function useWeekPlanActions({
     setSavingId(null);
   }
 
-  async function handleRemoveClosetDay(dayKey: string) {
-    setClosetItems(await removeClosetWeekPlanDay(dayKey));
+  function handleRemoveClosetDay(assignment: ClosetWeekPlanItem) {
+    const { dayKey } = assignment;
+    setClosetItems((prev) => prev.filter((item) => item.dayKey !== dayKey));
+    performRemove({
+      message: 'Removed from your week.',
+      optimisticRemove: () => {},
+      commitDelete: () => removeClosetWeekPlanDay(dayKey),
+      restore: () => setClosetItems((prev) => [assignment, ...prev]),
+    });
   }
 
   return { savingId, handleSave, handleRemove, handleSaveClosetOutfit, handleRemoveClosetDay };

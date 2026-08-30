@@ -75,6 +75,13 @@ export default function ClosetScreen() {
     setEditingItem(null);
   }
 
+  // Re-inserts an item removed via handleItemDeleted if the user taps Undo
+  // on the removal toast — position doesn't matter since the grid re-sorts
+  // by category/recency on every render anyway.
+  function handleItemRestored(item: ClosetItem) {
+    setItems((prev) => [item, ...prev]);
+  }
+
   // Critical sequencing — order is non-negotiable:
   // 1. Clear filter (switches list to SectionList)
   // 2. Arm scroll before loadItems resolves (guard absorbs the race)
@@ -138,6 +145,7 @@ export default function ClosetScreen() {
           onClose={() => setEditingItem(null)}
           onSaved={handleItemSaved}
           onDeleted={handleItemDeleted}
+          onRestore={handleItemRestored}
         />
       ) : null}
       <HelpMePickModal

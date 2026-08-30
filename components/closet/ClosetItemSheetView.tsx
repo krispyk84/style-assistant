@@ -35,11 +35,12 @@ export type ClosetItemSheetViewProps = {
   onClose: () => void;
   onSaved: (item: ClosetItem) => void;
   onDeleted: (id: string) => void;
+  onRestore: (item: ClosetItem) => void;
 };
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: ClosetItemSheetViewProps) {
+export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted, onRestore }: ClosetItemSheetViewProps) {
   const { theme } = useTheme();
   const router = useRouter();
   const [cellWidth, setCellWidth] = useState(0);
@@ -105,6 +106,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
     setIsEditing: editor.setIsEditing,
     onSaved,
     onDeleted,
+    onRestore,
   });
 
   function handleAnchorToOutfit() {
@@ -314,9 +316,8 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted }: Close
                 <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                   <PrimaryButton label="Cancel" onPress={() => editor.setConfirmDelete(false)} variant="secondary" style={{ flex: 1 }} />
                   <PrimaryButton
-                    label={submit.isDeleting ? 'Removing...' : 'Remove'}
-                    onPress={() => void submit.handleDelete()}
-                    disabled={submit.isDeleting}
+                    label="Remove"
+                    onPress={() => submit.handleDelete()}
                     style={{ flex: 1, backgroundColor: '#C95F4A' }}
                   />
                 </View>

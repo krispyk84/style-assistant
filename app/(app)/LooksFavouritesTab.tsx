@@ -28,8 +28,8 @@ type LooksFavouritesTabProps = {
 
 export function LooksFavouritesTab({ data, tierFilter, seasonFilter, onAddToWeek }: LooksFavouritesTabProps) {
   const {
-    favourites, favouritesLoading, favouritesError, deletingFavouriteId, handleDelete,
-    closetFavourites, deletingClosetFavouriteId, handleDeleteClosetFavourite,
+    favourites, favouritesLoading, favouritesError, handleDelete,
+    closetFavourites, handleDeleteClosetFavourite,
   } = data;
 
   if (favouritesLoading) return <LoadingState label="Loading saved outfits..." />;
@@ -75,11 +75,7 @@ export function LooksFavouritesTab({ data, tierFilter, seasonFilter, onAddToWeek
           key={result.id}
           result={result}
           onAddToWeek={() => onAddToWeek(result)}
-          onDelete={
-            deletingFavouriteId === result.id
-              ? undefined
-              : () => void handleDelete(result.id)
-          }
+          onDelete={() => handleDelete(result.id)}
         />
       ))}
 
@@ -90,11 +86,7 @@ export function LooksFavouritesTab({ data, tierFilter, seasonFilter, onAddToWeek
             <ClosetOutfitCard
               key={item.id}
               outfit={item.outfit}
-              onDelete={
-                deletingClosetFavouriteId === item.id
-                  ? undefined
-                  : () => void handleDeleteClosetFavourite(item.id)
-              }
+              onDelete={() => handleDeleteClosetFavourite(item.id)}
             />
           ))}
         </View>
