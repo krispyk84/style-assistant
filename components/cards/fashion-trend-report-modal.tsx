@@ -244,8 +244,8 @@ function InfoModal({ visible, onClose }: { visible: boolean; onClose: () => void
             <View style={{ gap: spacing.sm }}>
               <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>Season&apos;s Hottest Colors</AppText>
               <AppText tone="muted" style={{ fontSize: 13, lineHeight: 19 }}>
-                The season&apos;s most significant colours, generated once per season and shared by every Vesture user. A colour marked
-                &quot;Best for you&quot; is a genuine colour-analysis match for your own skin tone.
+                This season&apos;s most significant colours. A colour marked &quot;Best for you&quot; is a genuine colour-analysis match
+                for your own skin tone.
               </AppText>
             </View>
 
@@ -260,9 +260,9 @@ function InfoModal({ visible, onClose }: { visible: boolean; onClose: () => void
             <View style={{ gap: spacing.sm }}>
               <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>The thumbs</AppText>
               <AppText tone="muted" style={{ fontSize: 13, lineHeight: 19 }}>
-                Tap thumbs up or down on any trend or colour to set your own personal bias — private to you, never shared. A thumbs up
-                slightly favours that pick the next time we generate outfits for you; a thumbs down slightly avoids it. Tap an
-                already-set thumb again to clear it back to neutral.
+                Tap thumbs up or down on any trend or colour to set your own personal bias. A thumbs up slightly favours that pick in
+                future outfits we create for you; a thumbs down slightly avoids it. Tap an already-set thumb again to clear it back to
+                neutral.
               </AppText>
             </View>
           </ScrollView>
