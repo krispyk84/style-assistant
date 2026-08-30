@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
 import { homeReadiness } from '@/lib/home-readiness';
+import { splashShrinkOverlay } from '@/lib/splash-shrink-overlay';
 import { useLogout } from './useLogout';
 
 // Upper bound on how long the splash overlay waits for Home's own data
@@ -125,6 +126,12 @@ export default function AppTabsLayout() {
 
   const showSplashOverlay = isHydrated && !isHomeReady && !homeReadyTimedOut;
   const isShrinkingIntoHome = !showSplashOverlay;
+
+  // Home's own header logo stays hidden for as long as this overlay is on
+  // screen animating toward it — otherwise both are visible at once.
+  useEffect(() => {
+    splashShrinkOverlay.setActive(isSplashMounted && isShrinkingIntoHome);
+  }, [isSplashMounted, isShrinkingIntoHome]);
 
   useEffect(() => {
     if (showSplashOverlay) {
@@ -306,7 +313,7 @@ export default function AppTabsLayout() {
             width: shrinkProgress.interpolate({ inputRange: [0, 1], outputRange: [splashLogoRect.width, homeLogoRect.width] }),
             height: shrinkProgress.interpolate({ inputRange: [0, 1], outputRange: [splashLogoRect.height, homeLogoRect.height] }),
           }}>
-          <Image source={require('../../logo.png')} style={{ height: '100%', resizeMode: 'contain', width: '100%' }} />
+          <Image fadeDuration={0} source={require('../../logo.png')} style={{ height: '100%', resizeMode: 'contain', width: '100%' }} />
         </Animated.View>
       ) : null}
     </View>

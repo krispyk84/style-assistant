@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/app-icon';
@@ -13,6 +13,7 @@ import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import type { ClosetReadiness } from '@/lib/closet-readiness';
+import { splashShrinkOverlay } from '@/lib/splash-shrink-overlay';
 import { HOME_HEADER_LOGO_RECT_CONSTANTS } from './home-header-logo-constants';
 import { useFashionTrendReport } from './useFashionTrendReport';
 import { useHomeData } from './useHomeData';
@@ -27,6 +28,9 @@ export function HomeScreen() {
   const { theme } = useTheme();
   const generateOutfits = useGenerateOutfits();
   const trendReport = useFashionTrendReport();
+  // Hidden while the root layout's splash-to-Home shrink overlay is still
+  // animating on top of this exact spot — otherwise both logos show at once.
+  const isShrinkOverlayActive = useSyncExternalStore(splashShrinkOverlay.subscribe, splashShrinkOverlay.getSnapshot);
 
   // Home's content height changes at several independent points as async data
   // resolves (closetReadiness mounting/unmounting the ~320px "Create Outfits
@@ -53,6 +57,7 @@ export function HomeScreen() {
             style={{
               alignSelf: 'center',
               height: HOME_HEADER_LOGO_RECT_CONSTANTS.height,
+              opacity: isShrinkOverlayActive ? 0 : 1,
               width: HOME_HEADER_LOGO_RECT_CONSTANTS.width,
             }}>
             <Image contentFit="contain" source={require('../../logo.png')} style={{ height: '100%', width: '100%' }} />

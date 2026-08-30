@@ -39,6 +39,7 @@ export function BrandSplash({ subtitle, messages, hideLogo }: BrandSplashProps) 
       {/* Logo centered on its own — text is out of flow so it cannot shift the logo. */}
       <View style={{ height: 220, maxWidth: 220, opacity: hideLogo ? 0 : 1, width: '100%' }}>
         <Image
+          fadeDuration={0}
           source={require('../../logo.png')}
           style={{
             height: '100%',
