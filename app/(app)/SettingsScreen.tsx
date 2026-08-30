@@ -29,6 +29,7 @@ export function SettingsScreen() {
     isRefreshingTrends, trendsRefreshMessage, refreshSeasonalTrends,
     isCheckingCloudBackup, cloudBackupMessage, checkCloudBackupStatus,
     isCheckingSupabaseDirect, supabaseDirectMessage, checkSupabaseDirectStatus,
+    authEventLogMessage, viewAuthEventLog, resetAuthEventLog,
   } = useSettings();
   const { handleLogout } = useLogout();
 
@@ -250,6 +251,40 @@ export function SettingsScreen() {
           </Pressable>
           {supabaseDirectMessage ? (
             <AppText tone="muted" style={{ fontSize: 12 }}>{supabaseDirectMessage}</AppText>
+          ) : null}
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Pressable
+              onPress={() => void viewAuthEventLog()}
+              style={{
+                alignItems: 'center',
+                backgroundColor: theme.colors.subtleSurface,
+                borderColor: theme.colors.border,
+                borderRadius: 16,
+                borderWidth: 1,
+                flex: 1,
+                justifyContent: 'center',
+                minHeight: 48,
+                paddingHorizontal: spacing.md,
+              }}>
+              <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 13 }}>View Auth Event Log</AppText>
+            </Pressable>
+            <Pressable
+              onPress={() => void resetAuthEventLog()}
+              style={{
+                alignItems: 'center',
+                backgroundColor: theme.colors.subtleSurface,
+                borderColor: theme.colors.border,
+                borderRadius: 16,
+                borderWidth: 1,
+                justifyContent: 'center',
+                minHeight: 48,
+                paddingHorizontal: spacing.md,
+              }}>
+              <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 13 }}>Clear</AppText>
+            </Pressable>
+          </View>
+          {authEventLogMessage ? (
+            <AppText tone="muted" style={{ fontSize: 12 }}>{authEventLogMessage}</AppText>
           ) : null}
         </View>
 

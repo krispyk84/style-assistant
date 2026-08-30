@@ -56,36 +56,43 @@ export async function clearAllLocalUserData(): Promise<void> {
  * Strategy per entity:
  *   - Cloud has data  → pull to local (cloud wins, covers multi-device sync)
  *   - Cloud is empty  → push local to cloud (one-time migration for existing data)
+ *
+ * Returns a one-line summary per entity — surfaced via the auth-event log
+ * (lib/auth-event-log.ts) so a silent failure here is actually visible.
  */
-export async function syncUserDataOnSignIn(userId: string): Promise<void> {
-  await Promise.all([
-    syncEntity(CLOSET_KEY, fetchClosetItemsFromSupabase, (items) => upsertManyClosetItemsToSupabase(items, userId)),
-    syncEntity(OUTFITS_KEY, fetchSavedOutfitsFromSupabase, (items) => upsertManySavedOutfitsToSupabase(items, userId)),
-    syncEntity(WEEK_KEY, fetchWeekPlanFromSupabase, (items) => upsertManyWeekPlanItemsToSupabase(items, userId)),
-    syncEntity(CLOSET_OUTFIT_FAVOURITES_KEY, fetchClosetOutfitFavouritesFromBackend, upsertManyClosetOutfitFavouritesToBackend),
-    syncEntity(CLOSET_OUTFIT_WEEK_PLAN_KEY, fetchClosetOutfitWeekPlanFromBackend, upsertManyClosetOutfitWeekPlanItemsToBackend),
+export async function syncUserDataOnSignIn(userId: string): Promise<string[]> {
+  return Promise.all([
+    syncEntity('closet', CLOSET_KEY, fetchClosetItemsFromSupabase, (items) => upsertManyClosetItemsToSupabase(items, userId)),
+    syncEntity('saved-outfits', OUTFITS_KEY, fetchSavedOutfitsFromSupabase, (items) => upsertManySavedOutfitsToSupabase(items, userId)),
+    syncEntity('week-plan', WEEK_KEY, fetchWeekPlanFromSupabase, (items) => upsertManyWeekPlanItemsToSupabase(items, userId)),
+    syncEntity('closet-outfit-favourites', CLOSET_OUTFIT_FAVOURITES_KEY, fetchClosetOutfitFavouritesFromBackend, upsertManyClosetOutfitFavouritesToBackend),
+    syncEntity('closet-outfit-week-plan', CLOSET_OUTFIT_WEEK_PLAN_KEY, fetchClosetOutfitWeekPlanFromBackend, upsertManyClosetOutfitWeekPlanItemsToBackend),
   ]);
 }
 
 async function syncEntity<T>(
+  label: string,
   storageKey: string,
   fetchFromCloud: () => Promise<T[]>,
   pushToCloud: (items: T[]) => Promise<void>
-): Promise<void> {
+): Promise<string> {
   try {
     const cloudItems = await fetchFromCloud();
 
     if (cloudItems.length > 0) {
       await AsyncStorage.setItem(storageKey, JSON.stringify(cloudItems));
+      return `${label}: pulled ${cloudItems.length} from cloud`;
     } else {
       const localRaw = await AsyncStorage.getItem(storageKey);
-      if (!localRaw) return;
+      if (!localRaw) return `${label}: cloud empty, no local data either`;
       const localItems = JSON.parse(localRaw) as T[];
       if (Array.isArray(localItems) && localItems.length > 0) {
         await pushToCloud(localItems);
+        return `${label}: cloud empty, pushed ${localItems.length} local items to cloud`;
       }
+      return `${label}: cloud empty, local empty`;
     }
-  } catch {
-    // Non-fatal: local data remains intact
+  } catch (error) {
+    return `${label}: ERROR — ${error instanceof Error ? error.message : String(error)}`;
   }
 }

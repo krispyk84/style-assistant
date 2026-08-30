@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import type { Session } from '@supabase/supabase-js';
 
 import { setApiAuthToken } from '@/lib/api/api-client';
+import { logAuthEvent } from '@/lib/auth-event-log';
 import { clearAllLocalUserData, syncUserDataOnSignIn } from '@/lib/user-data-sync';
 import { setAnalyticsUserId } from '@/lib/analytics';
 import { setCrashlyticsUserId } from '@/lib/crashlytics';
@@ -28,6 +29,8 @@ export type AuthEventCallback = (event: string, session: Session | null) => void
  */
 export function useAuthSideEffects(): AuthEventCallback {
   return useCallback((event: string, session: Session | null) => {
+    void logAuthEvent(event, session?.user?.id ?? null);
+
     // Keep the API client bearer token in sync with the current session.
     // Covers sign-in, sign-out, and automatic token refreshes.
     setApiAuthToken(session?.access_token ?? null);
@@ -38,7 +41,9 @@ export function useAuthSideEffects(): AuthEventCallback {
         setCrashlyticsUserId(session.user.id);
       }
       if (event === 'SIGNED_IN') {
-        void syncUserDataOnSignIn(session.user.id).catch(() => undefined);
+        void syncUserDataOnSignIn(session.user.id)
+          .then((summaries) => Promise.all(summaries.map((s) => logAuthEvent(`sync: ${s}`, session.user.id))))
+          .catch((error) => logAuthEvent(`sync: ERROR — ${error instanceof Error ? error.message : String(error)}`, session.user.id));
       }
     } else {
       if (event === 'SIGNED_OUT') {

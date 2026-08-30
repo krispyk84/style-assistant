@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAppSession } from '@/hooks/use-app-session';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
 import { fetchCloudBackupStatus } from '@/lib/cloud-backup-status';
+import { clearAuthEventLog, getAuthEventLog } from '@/lib/auth-event-log';
 import { checkSupabaseTablesDirectly } from '@/lib/supabase-diagnostics';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { usageService } from '@/services/usage';
@@ -29,6 +30,7 @@ export function useSettings() {
   const [cloudBackupMessage, setCloudBackupMessage] = useState<string | null>(null);
   const [isCheckingSupabaseDirect, setIsCheckingSupabaseDirect] = useState(false);
   const [supabaseDirectMessage, setSupabaseDirectMessage] = useState<string | null>(null);
+  const [authEventLogMessage, setAuthEventLogMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void loadAppSettings().then((s) => {
@@ -127,6 +129,20 @@ export function useSettings() {
     setIsCheckingSupabaseDirect(false);
   }
 
+  async function viewAuthEventLog() {
+    const entries = await getAuthEventLog();
+    setAuthEventLogMessage(
+      entries.length === 0
+        ? 'No auth events logged yet.'
+        : entries.map((e) => `${e.at} — ${e.event}${e.userId ? ` (${e.userId.slice(0, 8)})` : ''}`).join('\n'),
+    );
+  }
+
+  async function resetAuthEventLog() {
+    await clearAuthEventLog();
+    setAuthEventLogMessage('Log cleared.');
+  }
+
   const sensitivityLabel =
     sensitivity >= 67
       ? 'Precise — same color family AND similar shade required'
@@ -148,5 +164,6 @@ export function useSettings() {
     isRefreshingTrends, trendsRefreshMessage, refreshSeasonalTrends,
     isCheckingCloudBackup, cloudBackupMessage, checkCloudBackupStatus,
     isCheckingSupabaseDirect, supabaseDirectMessage, checkSupabaseDirectStatus,
+    authEventLogMessage, viewAuthEventLog, resetAuthEventLog,
   };
 }
