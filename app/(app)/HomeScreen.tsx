@@ -218,11 +218,12 @@ function GenerateFromClosetButton({
           <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
             <AppIcon color={theme.colors.subtleText} name="closet" size={18} />
             <AppText tone="subtle" style={{ fontFamily: theme.fonts.sansMedium, fontSize: 15 }}>
-              Please add more items to your closet so that we can generate good outfits for you.
+              Closet Outfits needs a wider variety first
             </AppText>
           </View>
           <AppText tone="subtle" style={{ fontSize: 12, lineHeight: 17 }}>
-            You need a good collection of a variety of pieces — this app is missing {joinWithAnd(readiness.missing)} before it can start generating outfits.
+            Unlike Create a New Look above — which can suggest new pieces too — this builds looks entirely from what&apos;s already in
+            your closet, so it needs enough to mix and match. You&apos;re missing {joinWithAnd(readiness.missing)}.
           </AppText>
         </View>
         <ClosetReadinessTracker progress={readiness.progress} />
