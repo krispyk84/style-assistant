@@ -105,7 +105,6 @@ function AppNavigation() {
         <Stack.Screen name="packing-list" options={{ headerShown: false }} />
         <Stack.Screen name="camera-capture" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="generate-outfits" options={{ headerShown: false }} />
-        <Stack.Screen name="haircut-planner" options={{ headerShown: false }} />
         {/* Same reasoning as "index" — the handoff from index's BrandSplash
             into this group's own BrandSplash (shown while !isHydrated) is
             visually identical content, so it should never fade. */}

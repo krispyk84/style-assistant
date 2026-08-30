@@ -40,15 +40,9 @@ export function SettingsScreen() {
   } as const;
 
   return (
-    <AppScreen scrollable floatingBack>
+    <AppScreen scrollable>
       <View style={{ gap: spacing.xl }}>
-        <View style={{ gap: spacing.xs }}>
-          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 2 }}>
-            The Atelier
-          </AppText>
-          <AppText variant="heroSmall">Settings</AppText>
-          <AppText tone="muted">App details and preferences.</AppText>
-        </View>
+        <AppText variant="heroSmall">Settings</AppText>
 
         {/* Appearance */}
         <View style={cardStyle}>

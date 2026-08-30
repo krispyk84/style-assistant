@@ -12,7 +12,6 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing, theme } from '@/constants/theme';
 import type { HaircutOption, SavedHaircutSession } from '@/types/api';
 import { useHaircutPlanner } from './useHaircutPlanner';
@@ -55,14 +54,13 @@ export function HaircutPlannerScreen() {
   return (
     <AppScreen scrollable={stage !== 'swipe'} scrollRef={scrollRef} bounces={false} avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
-        <ScreenHeader title="Haircut Planner" showBack onBack={goBack} />
-
+        {/* Tab bar navigates away, so a back button here is only shown where
+            it steps back one stage within this flow (narrowed/guide) rather
+            than just re-exiting the whole screen — see useHaircutPlanner's
+            goBack() for which stages that applies to. */}
         {stage === 'upload' ? (
           <View style={{ gap: spacing.lg }}>
-            <View style={{ gap: spacing.xs }}>
-              <AppText variant="heroSmall">Try on a new haircut</AppText>
-              <AppText tone="muted">Upload a clear, front-facing headshot — we&apos;ll render trendy haircuts on your actual photo.</AppText>
-            </View>
+            <AppText variant="heroSmall">Try on a new haircut</AppText>
             <ImagePickerField
               label="Your headshot"
               hint="A well-lit, front-facing photo works best."
@@ -168,6 +166,7 @@ export function HaircutPlannerScreen() {
 
         {stage === 'narrowed' ? (
           <View style={{ gap: spacing.md }}>
+            <BackChevron onPress={goBack} />
             <View style={{ gap: spacing.xs }}>
               <AppText variant="heroSmall">Your favorites</AppText>
               <AppText tone="muted">Pick one to build your barber guide.</AppText>
@@ -189,6 +188,10 @@ export function HaircutPlannerScreen() {
 
         {stage === 'guide' && selectedOption && guide ? (
           <View style={{ gap: spacing.lg }}>
+            {/* Outside ViewShot — it captures everything inside it for the
+                Save to Photos / Share export, so an app-only back control
+                has no place baked into that exported image. */}
+            <BackChevron onPress={goBack} />
             <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }}>
               <HaircutGuideView
                 option={selectedOption}
@@ -230,6 +233,17 @@ export function HaircutPlannerScreen() {
         onClose={trendReport.close}
       />
     </AppScreen>
+  );
+}
+
+/** Bare back chevron, no label — used only where goBack() steps back one
+ * stage within this flow (narrowed/guide), not to leave the screen (the tab
+ * bar already does that everywhere else in the flow). */
+function BackChevron({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable hitSlop={8} onPress={onPress} style={{ alignSelf: 'flex-start' }}>
+      <AppIcon color={theme.colors.text} name="chevron-left" size={24} />
+    </Pressable>
   );
 }
 

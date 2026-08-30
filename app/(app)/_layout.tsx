@@ -256,6 +256,7 @@ export default function AppTabsLayout() {
           }}
         />
         <Tabs.Screen name="travel-planner"       options={{ href: null }} />
+        <Tabs.Screen name="haircut-planner"      options={{ href: null }} />
         <Tabs.Screen name="wardrobe-score"       options={{ href: null }} />
         <Tabs.Screen name="TripAnchorsScreen"    options={{ href: null }} />
         <Tabs.Screen name="WardrobeScoreScreen"  options={{ href: null }} />
@@ -280,6 +281,9 @@ export default function AppTabsLayout() {
         <Tabs.Screen name="useSettings"         options={{ href: null }} />
         <Tabs.Screen name="useWeekPlan"         options={{ href: null }} />
         <Tabs.Screen name="useWeekPlanActions"  options={{ href: null }} />
+        <Tabs.Screen name="HaircutPlannerScreen"     options={{ href: null }} />
+        <Tabs.Screen name="useHaircutPlanner"        options={{ href: null }} />
+        <Tabs.Screen name="useHairstyleTrendReport"  options={{ href: null }} />
         {/* ── Hidden: session refactor artifacts ──────────────────────── */}
         <Tabs.Screen name="HomeScreen"                options={{ href: null }} />
         <Tabs.Screen name="LooksFavouritesTab"        options={{ href: null }} />

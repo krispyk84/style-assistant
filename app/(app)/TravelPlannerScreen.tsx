@@ -56,13 +56,10 @@ export function TravelPlannerScreen() {
   }
 
   return (
-    <AppScreen scrollable backButton topInset>
+    <AppScreen scrollable topInset>
       <View style={{ gap: spacing.xl }}>
         {/* Header */}
-        <View style={{ gap: spacing.xs }}>
-          <AppText variant="heroSmall">Travel Planner</AppText>
-          <AppText tone="muted">Pack smart for every trip.</AppText>
-        </View>
+        <AppText variant="heroSmall">Travel Planner</AppText>
 
         {/* Segmented control */}
         <View
