@@ -15,6 +15,7 @@ import { closetRouter } from './modules/closet/closet.routes.js';
 import { closetFitCheckRouter } from './modules/closet-fit-check/closet-fit-check.routes.js';
 import { closetOutfitSyncRouter } from './modules/closet-outfit-sync/closet-outfit-sync.routes.js';
 import { compatibilityRouter } from './modules/compatibility/compatibility.routes.js';
+import { diagnosticsRouter } from './modules/diagnostics/diagnostics.routes.js';
 import { haircutRouter } from './modules/haircut/haircut.routes.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { outfitsRouter } from './modules/outfits/outfits.routes.js';
@@ -214,6 +215,7 @@ export function createApp() {
   apiRouter.use(closetRouter);
   apiRouter.use(closetFitCheckRouter);
   apiRouter.use(closetOutfitSyncRouter);
+  apiRouter.use(diagnosticsRouter);
   apiRouter.use(compatibilityRouter);
   apiRouter.use(haircutRouter);
   apiRouter.use(selfieReviewRouter);

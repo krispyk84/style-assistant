@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useAppSession } from '@/hooks/use-app-session';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
+import { fetchCloudBackupStatus } from '@/lib/cloud-backup-status';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { usageService } from '@/services/usage';
 import { seasonalTrendsService } from '@/services/seasonal-trends';
@@ -23,6 +24,8 @@ export function useSettings() {
   const [monthlyAiCost, setMonthlyAiCost] = useState<number | null>(null);
   const [isRefreshingTrends, setIsRefreshingTrends] = useState(false);
   const [trendsRefreshMessage, setTrendsRefreshMessage] = useState<string | null>(null);
+  const [isCheckingCloudBackup, setIsCheckingCloudBackup] = useState(false);
+  const [cloudBackupMessage, setCloudBackupMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void loadAppSettings().then((s) => {
@@ -72,6 +75,22 @@ export function useSettings() {
     setIsRefreshingTrends(false);
   }
 
+  async function checkCloudBackupStatus() {
+    setIsCheckingCloudBackup(true);
+    setCloudBackupMessage(null);
+    try {
+      const status = await fetchCloudBackupStatus();
+      setCloudBackupMessage(
+        status
+          ? `Saved outfits: ${status.savedOutfitsInCloud} · Closet items: ${status.closetItemsInCloud} · Week plan: ${status.weekPlanInCloud} · Closet-outfit favourites: ${status.closetOutfitFavouritesInCloud} · Closet-outfit week plan: ${status.closetOutfitWeekPlanInCloud}`
+          : 'Could not reach the server to check cloud backup status.',
+      );
+    } catch {
+      setCloudBackupMessage('Could not reach the server to check cloud backup status.');
+    }
+    setIsCheckingCloudBackup(false);
+  }
+
   const sensitivityLabel =
     sensitivity >= 67
       ? 'Precise — same color family AND similar shade required'
@@ -91,5 +110,6 @@ export function useSettings() {
     trendiness, setTrendiness, persistTrendiness, trendinessLabel,
     monthlyAiCost, appVersion,
     isRefreshingTrends, trendsRefreshMessage, refreshSeasonalTrends,
+    isCheckingCloudBackup, cloudBackupMessage, checkCloudBackupStatus,
   };
 }

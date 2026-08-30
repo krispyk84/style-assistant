@@ -27,6 +27,7 @@ export function SettingsScreen() {
     trendiness, setTrendiness, persistTrendiness, trendinessLabel,
     monthlyAiCost, appVersion,
     isRefreshingTrends, trendsRefreshMessage, refreshSeasonalTrends,
+    isCheckingCloudBackup, cloudBackupMessage, checkCloudBackupStatus,
   } = useSettings();
   const { handleLogout } = useLogout();
 
@@ -206,6 +207,27 @@ export function SettingsScreen() {
           </Pressable>
           {trendsRefreshMessage ? (
             <AppText tone="muted" style={{ fontSize: 12 }}>{trendsRefreshMessage}</AppText>
+          ) : null}
+          <Pressable
+            disabled={isCheckingCloudBackup}
+            onPress={() => void checkCloudBackupStatus()}
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.colors.subtleSurface,
+              borderColor: theme.colors.border,
+              borderRadius: 16,
+              borderWidth: 1,
+              justifyContent: 'center',
+              minHeight: 48,
+              opacity: isCheckingCloudBackup ? 0.6 : 1,
+              paddingHorizontal: spacing.md,
+            }}>
+            <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 13 }}>
+              {isCheckingCloudBackup ? 'Checking…' : 'Check Cloud Backup Status'}
+            </AppText>
+          </Pressable>
+          {cloudBackupMessage ? (
+            <AppText tone="muted" style={{ fontSize: 12 }}>{cloudBackupMessage}</AppText>
           ) : null}
         </View>
 
