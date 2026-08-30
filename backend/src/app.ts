@@ -13,6 +13,7 @@ import { notFoundHandler } from './middleware/not-found.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { closetRouter } from './modules/closet/closet.routes.js';
 import { closetFitCheckRouter } from './modules/closet-fit-check/closet-fit-check.routes.js';
+import { closetOutfitSyncRouter } from './modules/closet-outfit-sync/closet-outfit-sync.routes.js';
 import { compatibilityRouter } from './modules/compatibility/compatibility.routes.js';
 import { haircutRouter } from './modules/haircut/haircut.routes.js';
 import { healthRouter } from './modules/health/health.routes.js';
@@ -212,6 +213,7 @@ export function createApp() {
   apiRouter.use(outfitsRouter);
   apiRouter.use(closetRouter);
   apiRouter.use(closetFitCheckRouter);
+  apiRouter.use(closetOutfitSyncRouter);
   apiRouter.use(compatibilityRouter);
   apiRouter.use(haircutRouter);
   apiRouter.use(selfieReviewRouter);

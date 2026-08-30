@@ -593,3 +593,35 @@ model ColorFeedback {
   @@unique([supabaseUserId, fashionGender, colorNameKey])
   @@index([supabaseUserId, fashionGender])
 }
+
+// Cloud backup for "Create Outfits From My Closet" favourites — this data
+// previously lived ONLY in on-device AsyncStorage with no server copy at
+// all, so clearing local storage (e.g. on sign-out) permanently destroyed
+// it. id is the outfit's own client-generated id (matches the existing
+// local-storage shape), not scoped into the primary key by user — reads/
+// writes are scoped by supabaseUserId in application code instead.
+model ClosetOutfitFavourite {
+  id             String   @id
+  supabaseUserId String
+  formality      String
+  outfit         Json
+  savedAt        DateTime @default(now())
+
+  @@index([supabaseUserId])
+}
+
+// Cloud backup for the closet-outfit week plan — same reasoning as
+// ClosetOutfitFavourite above. One row per (user, day): assigning a new
+// outfit to an already-planned day replaces that day's row.
+model ClosetOutfitWeekPlanItem {
+  id             String   @id @default(cuid())
+  supabaseUserId String
+  dayKey         String
+  dayLabel       String
+  formality      String
+  outfit         Json
+  assignedAt     DateTime @default(now())
+
+  @@unique([supabaseUserId, dayKey])
+  @@index([supabaseUserId])
+}

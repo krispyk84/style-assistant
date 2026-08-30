@@ -1,6 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  fetchClosetOutfitFavouritesFromBackend,
+  fetchClosetOutfitWeekPlanFromBackend,
+  upsertManyClosetOutfitFavouritesToBackend,
+  upsertManyClosetOutfitWeekPlanItemsToBackend,
+} from '@/lib/closet-outfit-sync';
+import {
   fetchClosetItemsFromSupabase,
   upsertManyClosetItemsToSupabase,
   fetchSavedOutfitsFromSupabase,
@@ -13,6 +19,8 @@ const CLOSET_KEY = 'style-assistant/closet-items';
 const OUTFITS_KEY = 'style-assistant/saved-outfits';
 const WEEK_KEY = 'style-assistant/week-plan';
 const SESSION_KEY = 'style-assistant/session';
+const CLOSET_OUTFIT_FAVOURITES_KEY = 'style-assistant/closet-outfit-favourites';
+const CLOSET_OUTFIT_WEEK_PLAN_KEY = 'style-assistant/closet-outfit-week-plan';
 
 // Every other AsyncStorage key any part of the app writes to. None of these
 // are namespaced by user id, so without this sweep they silently carry over
@@ -22,8 +30,6 @@ const SESSION_KEY = 'style-assistant/session';
 // that calls AsyncStorage.setItem — a new local cache added there needs its
 // key added here too, or it leaks the same way.
 const OTHER_PER_USER_KEYS = [
-  'style-assistant/closet-outfit-favourites', // closet-outfit-storage.ts
-  'style-assistant/closet-outfit-week-plan',  // closet-outfit-storage.ts
   'style-assistant/match-feedback',           // match-feedback-storage.ts
   'style-assistant/recommendation-feedback',  // recommendation-feedback-storage.ts
   'style-assistant/trip-draft',               // trip-draft-storage.ts
@@ -35,7 +41,11 @@ const OTHER_PER_USER_KEYS = [
 /** Wipes all per-user local data. Call on sign-out so the next user starts clean. */
 export async function clearAllLocalUserData(): Promise<void> {
   await Promise.all(
-    [CLOSET_KEY, OUTFITS_KEY, WEEK_KEY, SESSION_KEY, ...OTHER_PER_USER_KEYS].map((key) => AsyncStorage.removeItem(key)),
+    [
+      CLOSET_KEY, OUTFITS_KEY, WEEK_KEY, SESSION_KEY,
+      CLOSET_OUTFIT_FAVOURITES_KEY, CLOSET_OUTFIT_WEEK_PLAN_KEY,
+      ...OTHER_PER_USER_KEYS,
+    ].map((key) => AsyncStorage.removeItem(key)),
   );
 }
 
@@ -52,6 +62,8 @@ export async function syncUserDataOnSignIn(userId: string): Promise<void> {
     syncEntity(CLOSET_KEY, fetchClosetItemsFromSupabase, (items) => upsertManyClosetItemsToSupabase(items, userId)),
     syncEntity(OUTFITS_KEY, fetchSavedOutfitsFromSupabase, (items) => upsertManySavedOutfitsToSupabase(items, userId)),
     syncEntity(WEEK_KEY, fetchWeekPlanFromSupabase, (items) => upsertManyWeekPlanItemsToSupabase(items, userId)),
+    syncEntity(CLOSET_OUTFIT_FAVOURITES_KEY, fetchClosetOutfitFavouritesFromBackend, upsertManyClosetOutfitFavouritesToBackend),
+    syncEntity(CLOSET_OUTFIT_WEEK_PLAN_KEY, fetchClosetOutfitWeekPlanFromBackend, upsertManyClosetOutfitWeekPlanItemsToBackend),
   ]);
 }
 

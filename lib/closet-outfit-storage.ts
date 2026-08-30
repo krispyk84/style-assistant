@@ -1,5 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {
+  deleteClosetOutfitFavouriteFromBackend,
+  deleteClosetOutfitWeekPlanItemFromBackend,
+  upsertClosetOutfitFavouriteToBackend,
+  upsertClosetOutfitWeekPlanItemToBackend,
+} from '@/lib/closet-outfit-sync';
 import { getNextSevenDays } from '@/lib/week-plan-storage';
 import type { ClosetGeneratedOutfit } from '@/types/api';
 import type { LookTierSlug } from '@/types/look-request';
@@ -64,6 +70,7 @@ export async function saveClosetOutfitToFavourites(formality: LookTierSlug, outf
   const next: SavedClosetOutfit = { id, formality, outfit, savedAt: new Date().toISOString() };
   const nextList = [next, ...current.filter((item) => item.id !== id)];
   await AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(nextList));
+  void upsertClosetOutfitFavouriteToBackend(next).catch(() => undefined);
   return next;
 }
 
@@ -71,6 +78,7 @@ export async function deleteSavedClosetOutfit(id: string) {
   const current = await loadSavedClosetOutfits();
   const nextList = current.filter((item) => item.id !== id);
   await AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(nextList));
+  void deleteClosetOutfitFavouriteFromBackend(id).catch(() => undefined);
   return nextList;
 }
 
@@ -118,6 +126,7 @@ export async function assignClosetOutfitToWeekDay(
   const next: ClosetWeekPlanItem = { dayKey, dayLabel, formality, outfit, assignedAt: new Date().toISOString() };
   const nextItems = [next, ...current.filter((item) => item.dayKey !== dayKey)];
   await AsyncStorage.setItem(WEEK_PLAN_KEY, JSON.stringify(nextItems));
+  void upsertClosetOutfitWeekPlanItemToBackend(next).catch(() => undefined);
   return next;
 }
 
@@ -125,5 +134,6 @@ export async function removeClosetWeekPlanDay(dayKey: string) {
   const current = await loadClosetWeekPlan();
   const nextItems = current.filter((item) => item.dayKey !== dayKey);
   await AsyncStorage.setItem(WEEK_PLAN_KEY, JSON.stringify(nextItems));
+  void deleteClosetOutfitWeekPlanItemFromBackend(dayKey).catch(() => undefined);
   return nextItems;
 }
