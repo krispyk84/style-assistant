@@ -83,7 +83,13 @@ function AppNavigation() {
             fontSize: 16,
           },
         }}>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
+        {/* No animation — this route only ever shows a BrandSplash that looks
+            identical to whatever screen it hands off to (native launch
+            screen, or (app)'s own splash), so any enter/exit transition here
+            is a visible fade between two near-identical frames rather than a
+            real content change. That fade (not the native splash-hide) was
+            the actual cause of the remaining post-launch flicker. */}
+        <Stack.Screen name="index" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="auth" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="review-request" options={{ headerShown: false }} />
@@ -100,7 +106,10 @@ function AppNavigation() {
         <Stack.Screen name="camera-capture" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="generate-outfits" options={{ headerShown: false }} />
         <Stack.Screen name="haircut-planner" options={{ headerShown: false }} />
-        <Stack.Screen name="(app)" options={{ headerShown: false }} />
+        {/* Same reasoning as "index" — the handoff from index's BrandSplash
+            into this group's own BrandSplash (shown while !isHydrated) is
+            visually identical content, so it should never fade. */}
+        <Stack.Screen name="(app)" options={{ headerShown: false, animation: 'none' }} />
       </Stack>
       <StatusBar style={theme.dark ? 'light' : 'dark'} />
     </ThemeProvider>
