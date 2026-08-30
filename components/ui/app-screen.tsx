@@ -86,16 +86,25 @@ export function AppScreen({
   // the ScrollView's own measured content size: whenever it shrinks, clamp
   // the current offset back within the new bounds if it now overshoots.
   const scrollViewHeightRef = useRef(0);
+  const contentHeightRef = useRef(0);
   const contentOffsetYRef = useRef(0);
-  const handleLayout = useCallback((e: LayoutChangeEvent) => {
-    scrollViewHeightRef.current = e.nativeEvent.layout.height;
-  }, []);
-  const handleContentSizeChange = useCallback((_width: number, height: number) => {
-    const maxOffset = Math.max(0, height - scrollViewHeightRef.current);
+  const clampIfOverscrolled = useCallback(() => {
+    const maxOffset = Math.max(0, contentHeightRef.current - scrollViewHeightRef.current);
     if (contentOffsetYRef.current > maxOffset) {
       effectiveScrollRef.current?.scrollTo({ y: maxOffset, animated: false });
     }
   }, [effectiveScrollRef]);
+  const handleLayout = useCallback((e: LayoutChangeEvent) => {
+    // The ScrollView's own viewport can also change size independent of its
+    // content — e.g. a safe-area/insets recalculation on app resume — and
+    // that alone can leave a previously-valid offset now overshooting too.
+    scrollViewHeightRef.current = e.nativeEvent.layout.height;
+    clampIfOverscrolled();
+  }, [clampIfOverscrolled]);
+  const handleContentSizeChange = useCallback((_width: number, height: number) => {
+    contentHeightRef.current = height;
+    clampIfOverscrolled();
+  }, [clampIfOverscrolled]);
 
   const handleScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
