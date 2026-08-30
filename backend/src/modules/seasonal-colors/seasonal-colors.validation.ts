@@ -10,3 +10,9 @@ export const getSeasonalColorsReportSchema = z.object({
   fashionGender: z.enum(['menswear', 'womenswear']),
   hemisphere: z.enum(['northern', 'southern']).default('northern'),
 });
+
+export const setColorFeedbackSchema = z.object({
+  fashionGender: z.enum(['menswear', 'womenswear']),
+  colorName: z.string().trim().min(1).max(200),
+  feedback: z.enum(['up', 'down']).nullable(),
+});

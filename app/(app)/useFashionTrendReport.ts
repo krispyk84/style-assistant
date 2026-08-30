@@ -163,8 +163,27 @@ export function useFashionTrendReport() {
     }
   }
 
+  // Mirrors setTrendFeedback exactly, operating on the colors array instead.
+  async function setColorFeedback(colorName: string, feedback: TrendFeedbackValue | null) {
+    const fashionGender = profile.gender === 'woman' ? 'womenswear' : 'menswear';
+    let previous: TrendFeedbackValue | null = null;
+    setColors((prev) => {
+      if (!prev) return prev;
+      return prev.map((c) => {
+        if (c.name !== colorName) return c;
+        previous = c.userFeedback;
+        return { ...c, userFeedback: feedback };
+      });
+    });
+
+    const response = await seasonalColorsService.setFeedback({ fashionGender, colorName, feedback });
+    if (!response.success) {
+      setColors((prev) => prev?.map((c) => (c.name === colorName ? { ...c, userFeedback: previous } : c)) ?? prev);
+    }
+  }
+
   return {
     isOpen, open, close, isLoading, isGenerating, trends, isStale, error, setTrendFeedback,
-    isLoadingColors, isGeneratingColors, colors, colorsError,
+    isLoadingColors, isGeneratingColors, colors, colorsError, setColorFeedback,
   };
 }

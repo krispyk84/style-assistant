@@ -5,6 +5,8 @@ import { buildSeasonalColorsInstructions, buildSeasonalColorsUserPrompt } from '
 import { profileRepository } from '../profile/profile.repository.js';
 import { getFashionSeason, type Hemisphere } from '../seasonal-trends/season-math.js';
 import type { FashionGender } from '../seasonal-trends/seasonal-trends.repository.js';
+import { colorFeedbackService } from './color-feedback.service.js';
+import { colorSwatchSketchRepository } from './color-swatch-sketch.repository.js';
 import { colorSwatchSketchService } from './color-swatch-sketch.service.js';
 import { seasonalColorsRepository } from './seasonal-colors.repository.js';
 import { SEASONAL_COLORS_GEMINI_SCHEMA, seasonalColorPaletteResponseSchema, type SeasonalColor } from './seasonal-colors.schemas.js';
@@ -114,9 +116,10 @@ export const seasonalColorsService = {
     if (!result) return null;
 
     const colors = (result.palette.colors as unknown as SeasonalColor[]).sort((a, b) => a.rank - b.rank);
-    const [sketchByName, profile] = await Promise.all([
+    const [sketchByName, profile, feedbackMap] = await Promise.all([
       colorSwatchSketchService.getSketchStatuses(fashionGender, colors.map((c) => c.name)),
       profileRepository.findByUserId(supabaseUserId),
+      colorFeedbackService.getFeedbackMap(supabaseUserId, fashionGender),
     ]);
     const userSkinTone = profile?.skinTone ?? null;
 
@@ -126,6 +129,7 @@ export const seasonalColorsService = {
         sketchStatus: sketchByName.get(color.name)?.sketchStatus ?? null,
         sketchImageUrl: sketchByName.get(color.name)?.sketchImageUrl ?? null,
         bestSuitedForUser: userSkinTone !== null && color.bestSuitedSkinTones.includes(userSkinTone as SeasonalColor['bestSuitedSkinTones'][number]),
+        userFeedback: feedbackMap.get(colorSwatchSketchRepository.normalizeColorKey(color.name)) ?? null,
       })),
       isStale: result.isStale,
       generatedAt: result.palette.generatedAt,

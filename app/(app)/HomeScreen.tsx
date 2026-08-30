@@ -173,6 +173,7 @@ export function HomeScreen() {
         isGeneratingColors={trendReport.isGeneratingColors}
         colors={trendReport.colors}
         colorsError={trendReport.colorsError}
+        onSetColorFeedback={trendReport.setColorFeedback}
       />
     </AppScreen>
   );

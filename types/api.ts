@@ -463,11 +463,24 @@ export type SeasonalColorEntry = {
   sketchImageUrl: string | null;
   /** True when this user's own profile.skinTone is in bestSuitedSkinTones — computed per-user at read time, not generated per-user. */
   bestSuitedForUser: boolean;
+  /** This user's personal thumbs up/down on this colour — null means neutral, no opinion set. */
+  userFeedback: TrendFeedbackValue | null;
 };
 
 export type GetSeasonalColorsReportResponse =
   | { available: false }
   | { available: true; isStale: boolean; generatedAt: string; colors: SeasonalColorEntry[] };
+
+export type SetColorFeedbackRequest = {
+  fashionGender: FashionGender;
+  colorName: string;
+  /** null clears any existing feedback for this colour, back to neutral. */
+  feedback: TrendFeedbackValue | null;
+};
+
+export type SetColorFeedbackResponse = {
+  acknowledged: boolean;
+};
 
 // ── Seasonal Haircut Trends (Hairstyle Trend Report) ─────────────────────────
 

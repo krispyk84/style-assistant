@@ -23,7 +23,11 @@ type FashionTrendReportModalProps = {
   isGeneratingColors: boolean;
   colors: SeasonalColorEntry[] | null;
   colorsError: string | null;
+  /** Sets (feedback) or clears (null) this user's personal thumbs up/down on a colour. */
+  onSetColorFeedback: (colorName: string, feedback: TrendFeedbackValue | null) => void;
 };
+
+type FullscreenItem = { kind: 'trend' | 'color'; url: string; name: string };
 
 const LIFECYCLE_LABEL: Record<SeasonalTrendReportEntry['lifecycle'], string> = {
   emerging: 'Emerging',
@@ -34,10 +38,27 @@ const LIFECYCLE_LABEL: Record<SeasonalTrendReportEntry['lifecycle'], string> = {
 
 export function FashionTrendReportModal({
   visible, isLoading, isGenerating, trends, isStale, error, onClose, onSetTrendFeedback,
-  isLoadingColors, isGeneratingColors, colors, colorsError,
+  isLoadingColors, isGeneratingColors, colors, colorsError, onSetColorFeedback,
 }: FashionTrendReportModalProps) {
   const insets = useSafeAreaInsets();
-  const [fullscreenSketch, setFullscreenSketch] = useState<{ url: string; name: string } | null>(null);
+  const [fullscreenItem, setFullscreenItem] = useState<FullscreenItem | null>(null);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+
+  // Always looked up live from the current trends/colors arrays (rather than
+  // snapshotted into fullscreenItem) so the fullscreen thumbs reflect the
+  // latest state immediately after tapping them.
+  const fullscreenFeedback =
+    fullscreenItem?.kind === 'trend'
+      ? trends?.find((t) => t.name === fullscreenItem.name)?.userFeedback ?? null
+      : fullscreenItem?.kind === 'color'
+        ? colors?.find((c) => c.name === fullscreenItem.name)?.userFeedback ?? null
+        : null;
+
+  function handleFullscreenFeedback(feedback: TrendFeedbackValue | null) {
+    if (!fullscreenItem) return;
+    if (fullscreenItem.kind === 'trend') onSetTrendFeedback(fullscreenItem.name, feedback);
+    else onSetColorFeedback(fullscreenItem.name, feedback);
+  }
 
   return (
     <Modal animationType="slide" visible={visible} onRequestClose={onClose}>
@@ -51,12 +72,15 @@ export function FashionTrendReportModal({
             // Modal content renders outside the normal safe-area tree on iOS, so
             // insets.top can read as 0 here even though content draws under the
             // status bar — fall back to a fixed clearance if insets look unset.
-            paddingTop: Math.max(insets.top, 50),
+            paddingTop: Math.max(insets.top, 50) + spacing.lg,
             paddingHorizontal: spacing.lg,
             paddingBottom: spacing.md,
           }}>
-          <View style={{ flex: 1 }}>
+          <View style={{ alignItems: 'center', flex: 1, flexDirection: 'row', gap: spacing.xs }}>
             <AppText variant="heroSmall">Fashion Trend Report</AppText>
+            <Pressable hitSlop={10} onPress={() => setIsInfoOpen(true)}>
+              <AppIcon color={theme.colors.mutedText} name="info" size={18} />
+            </Pressable>
           </View>
           <Pressable hitSlop={12} onPress={onClose}>
             <AppIcon color={theme.colors.subtleText} name="close" size={24} />
@@ -86,7 +110,7 @@ export function FashionTrendReportModal({
               isGenerating={isGeneratingColors}
               colors={colors}
               error={colorsError}
-              onSelectSketch={setFullscreenSketch}
+              onSelectSketch={(sketch) => setFullscreenItem({ kind: 'color', ...sketch })}
             />
             {isStale ? (
               <AppText tone="subtle" style={{ fontSize: 12, fontStyle: 'italic' }}>
@@ -111,7 +135,7 @@ export function FashionTrendReportModal({
                   <TrendRow
                     trend={trend}
                     showDivider={!showSectionHeader}
-                    onSelectSketch={setFullscreenSketch}
+                    onSelectSketch={(sketch) => setFullscreenItem({ kind: 'trend', ...sketch })}
                     onSetFeedback={(feedback) => onSetTrendFeedback(trend.name, feedback)}
                   />
                 </View>
@@ -124,12 +148,12 @@ export function FashionTrendReportModal({
       <Modal
         animationType="fade"
         transparent
-        visible={fullscreenSketch !== null}
-        onRequestClose={() => setFullscreenSketch(null)}>
+        visible={fullscreenItem !== null}
+        onRequestClose={() => setFullscreenItem(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)' }}>
           <Pressable
             hitSlop={12}
-            onPress={() => setFullscreenSketch(null)}
+            onPress={() => setFullscreenItem(null)}
             style={{
               alignSelf: 'flex-end',
               // Modal content renders outside the normal safe-area tree on iOS, so
@@ -141,16 +165,81 @@ export function FashionTrendReportModal({
             }}>
             <AppIcon color="#fff" name="close" size={28} />
           </Pressable>
-          {fullscreenSketch ? (
+          {fullscreenItem ? (
             <>
-              <Image contentFit="contain" source={{ uri: fullscreenSketch.url }} style={{ flex: 1, width: '100%' }} />
-              <AppText style={{ color: '#fff', fontSize: 15, paddingBottom: insets.bottom + spacing.lg, paddingHorizontal: spacing.lg, textAlign: 'center' }}>
-                {fullscreenSketch.name}
-              </AppText>
+              <Image contentFit="contain" source={{ uri: fullscreenItem.url }} style={{ flex: 1, width: '100%' }} />
+              <View style={{ alignItems: 'center', gap: spacing.md, paddingBottom: insets.bottom + spacing.lg, paddingHorizontal: spacing.lg }}>
+                <AppText style={{ color: '#fff', fontSize: 15, textAlign: 'center' }}>
+                  {fullscreenItem.name}
+                </AppText>
+                <FullscreenFeedbackButtons feedback={fullscreenFeedback} onSetFeedback={handleFullscreenFeedback} />
+              </View>
             </>
           ) : null}
         </View>
       </Modal>
+
+      <InfoModal visible={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
+    </Modal>
+  );
+}
+
+/** Explains what the report shows and what the thumbs do — mirrors GenerateOutfitsModal's sheet style. */
+function InfoModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  return (
+    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+      <Pressable
+        onPress={onClose}
+        style={{
+          alignItems: 'center',
+          backgroundColor: 'rgba(24, 18, 14, 0.5)',
+          flex: 1,
+          justifyContent: 'center',
+          padding: spacing.lg,
+        }}>
+        <Pressable
+          onPress={() => undefined}
+          style={{
+            backgroundColor: theme.colors.surface,
+            borderRadius: 28,
+            maxWidth: 440,
+            width: '100%',
+          }}>
+          <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg }}>
+            <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+              <AppText variant="sectionTitle">About this report</AppText>
+              <Pressable hitSlop={8} onPress={onClose}>
+                <AppIcon color={theme.colors.mutedText} name="close" size={22} />
+              </Pressable>
+            </View>
+
+            <View style={{ gap: spacing.sm }}>
+              <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>Season&apos;s Hottest Colors</AppText>
+              <AppText tone="muted" style={{ fontSize: 13, lineHeight: 19 }}>
+                The season&apos;s most significant colours, generated once per season and shared by every Vesture user. A colour marked
+                &quot;Best for you&quot; is a genuine colour-analysis match for your own skin tone.
+              </AppText>
+            </View>
+
+            <View style={{ gap: spacing.sm }}>
+              <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>Trends</AppText>
+              <AppText tone="muted" style={{ fontSize: 13, lineHeight: 19 }}>
+                This season&apos;s most influential trends across Business, Smart Casual, and Casual dressing, each illustrated with a
+                single hero piece.
+              </AppText>
+            </View>
+
+            <View style={{ gap: spacing.sm }}>
+              <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>The thumbs</AppText>
+              <AppText tone="muted" style={{ fontSize: 13, lineHeight: 19 }}>
+                Tap thumbs up or down on any trend or colour to set your own personal bias — private to you, never shared. A thumbs up
+                slightly favours that pick the next time we generate outfits for you; a thumbs down slightly avoids it. Tap an
+                already-set thumb again to clear it back to neutral.
+              </AppText>
+            </View>
+          </ScrollView>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -269,6 +358,46 @@ function FeedbackButtons({
   );
 }
 
+/** Same thumbs up/down, styled for the black fullscreen viewer — horizontal, larger, light on dark. */
+function FullscreenFeedbackButtons({
+  feedback,
+  onSetFeedback,
+}: {
+  feedback: TrendFeedbackValue | null;
+  onSetFeedback: (feedback: TrendFeedbackValue | null) => void;
+}) {
+  return (
+    <View style={{ flexDirection: 'row', gap: spacing.md }}>
+      <Pressable
+        hitSlop={10}
+        onPress={() => onSetFeedback(feedback === 'up' ? null : 'up')}
+        style={{
+          alignItems: 'center',
+          backgroundColor: feedback === 'up' ? 'rgba(255,255,255,0.16)' : 'transparent',
+          borderColor: feedback === 'up' ? '#fff' : 'rgba(255,255,255,0.4)',
+          borderRadius: 999,
+          borderWidth: 1,
+          padding: spacing.sm,
+        }}>
+        <AppIcon color="#fff" name="thumbs-up" size={20} />
+      </Pressable>
+      <Pressable
+        hitSlop={10}
+        onPress={() => onSetFeedback(feedback === 'down' ? null : 'down')}
+        style={{
+          alignItems: 'center',
+          backgroundColor: feedback === 'down' ? 'rgba(255,255,255,0.16)' : 'transparent',
+          borderColor: feedback === 'down' ? '#fff' : 'rgba(255,255,255,0.4)',
+          borderRadius: 999,
+          borderWidth: 1,
+          padding: spacing.sm,
+        }}>
+        <AppIcon color="#fff" name="thumbs-down" size={20} />
+      </Pressable>
+    </View>
+  );
+}
+
 /** "This Season's Hottest Colors" — a horizontal swatch row atop the report. Loads independently of the trend list below it. */
 function ColorPaletteSection({
   isLoading,
@@ -298,26 +427,46 @@ function ColorPaletteSection({
     return null; // Non-critical section — fail quietly rather than block the rest of the report.
   }
 
+  return <ColorSwatchRow colors={colors} onSelectSketch={onSelectSketch} />;
+}
+
+// Rough threshold for "probably more than fits on one screen" — good enough
+// to decide whether the scroll hint is worth showing at all; exact per-device
+// fit doesn't matter since the hint disappears the moment the user scrolls.
+const COLOR_ROW_SCROLL_HINT_THRESHOLD = 4;
+
+function ColorSwatchRow({
+  colors,
+  onSelectSketch,
+}: {
+  colors: SeasonalColorEntry[];
+  onSelectSketch: (sketch: { url: string; name: string }) => void;
+}) {
+  const [hasScrolled, setHasScrolled] = useState(false);
+
   return (
     <View style={{ gap: spacing.md }}>
       <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
         Season&apos;s Hottest Colors
       </AppText>
-      <View style={{ position: 'relative' }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md }}>
-          {colors.map((color) => (
-            <ColorSwatchCard key={color.name} color={color} onSelectSketch={onSelectSketch} />
-          ))}
-        </ScrollView>
-        {/* Fade-to-background hint that there's more to scroll — a poor-man's
-            gradient (no gradient library in this project): stacked strips of
-            the modal's own background colour at increasing opacity. */}
-        <View pointerEvents="none" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, flexDirection: 'row', width: 36 }}>
-          {[0, 0.25, 0.55, 0.85].map((opacity, i) => (
-            <View key={i} style={{ flex: 1, backgroundColor: theme.colors.background, opacity }} />
-          ))}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          if (!hasScrolled && e.nativeEvent.contentOffset.x > 4) setHasScrolled(true);
+        }}
+        contentContainerStyle={{ gap: spacing.md }}>
+        {colors.map((color) => (
+          <ColorSwatchCard key={color.name} color={color} onSelectSketch={onSelectSketch} />
+        ))}
+      </ScrollView>
+      {!hasScrolled && colors.length > COLOR_ROW_SCROLL_HINT_THRESHOLD ? (
+        <View style={{ alignItems: 'center', flexDirection: 'row', gap: 2, justifyContent: 'flex-end' }}>
+          <AppText tone="subtle" style={{ fontSize: 11 }}>Scroll for more</AppText>
+          <AppIcon color={theme.colors.subtleText} name="chevron-right" size={12} />
         </View>
-      </View>
+      ) : null}
     </View>
   );
 }

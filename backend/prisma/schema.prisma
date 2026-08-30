@@ -577,3 +577,19 @@ model ColorSwatchSketch {
   @@unique([fashionGender, colorNameKey])
   @@index([fashionGender, status])
 }
+
+// Per-user thumbs up/down on a seasonal colour — mirrors TrendFeedback
+// exactly. Deliberately NOT shared across users: a personal preference, not
+// a correction to the shared colour data itself.
+model ColorFeedback {
+  id             String   @id @default(cuid())
+  supabaseUserId String
+  fashionGender  String
+  colorNameKey   String
+  feedback       String // 'up' | 'down'
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([supabaseUserId, fashionGender, colorNameKey])
+  @@index([supabaseUserId, fashionGender])
+}

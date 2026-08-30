@@ -4,8 +4,9 @@ import { sendSuccess } from '../../lib/api-response.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { parseWithSchema } from '../../lib/validation.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { colorFeedbackService } from './color-feedback.service.js';
 import { seasonalColorsService } from './seasonal-colors.service.js';
-import { ensureSeasonalColorsSchema, getSeasonalColorsReportSchema } from './seasonal-colors.validation.js';
+import { ensureSeasonalColorsSchema, getSeasonalColorsReportSchema, setColorFeedbackSchema } from './seasonal-colors.validation.js';
 
 export const seasonalColorsRouter = Router();
 
@@ -52,5 +53,17 @@ seasonalColorsRouter.get(
       generatedAt: result.generatedAt.toISOString(),
       colors: result.colors,
     });
+  })
+);
+
+// User's personal thumbs up/down on a colour — a soft per-user bias, not a
+// correction shared globally. Mirrors /seasonal-trends/feedback.
+seasonalColorsRouter.post(
+  '/seasonal-colors/feedback',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(setColorFeedbackSchema, request.body);
+    await colorFeedbackService.setFeedback(request.userId!, payload.fashionGender, payload.colorName, payload.feedback);
+    return sendSuccess(response, { acknowledged: true });
   })
 );

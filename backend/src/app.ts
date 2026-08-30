@@ -153,6 +153,34 @@ export function createApp() {
     }
   });
 
+  // Seasonal colour swatch images are stored in the DB, keyed by
+  // ColorSwatchSketch — shared across all users for a given
+  // fashionGender/colour, not per-request. Mirrors the trend-sketch route
+  // above exactly.
+  app.get('/media/color-swatch-sketch/:filename', async (req, res, next) => {
+    const filename = req.params.filename as string;
+    const filePath = path.join(storageConfig.localDirectory, 'color-swatch-sketch', filename);
+    try {
+      await fs.access(filePath);
+      next(); // file exists on disk, let express.static handle it below
+      return;
+    } catch {
+      try {
+        const storageKey = `color-swatch-sketch/${filename}`;
+        const sketch = await prisma.colorSwatchSketch.findFirst({ where: { sketchStorageKey: storageKey } });
+        if (!sketch?.sketchImageData) { res.status(404).end(); return; }
+        res.setHeader('Content-Type', sketch.sketchMimeType ?? 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.send(sketch.sketchImageData);
+      } catch (err) {
+        console.error(`[color-swatch-sketch] DB query failed for filename=${filename}`, err);
+        res.status(500).end();
+      }
+    }
+  });
+
   app.use(
     '/media',
     express.static(storageConfig.localDirectory, {
