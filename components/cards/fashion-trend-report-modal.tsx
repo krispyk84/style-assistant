@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
+import { FullscreenNavArrows } from '@/components/ui/fullscreen-nav-arrows';
 import { spacing, theme } from '@/constants/theme';
 import { formatTierLabel } from '@/lib/outfit-utils';
 import type { SeasonalColorEntry, SeasonalTrendReportEntry, TrendFeedbackValue } from '@/types/api';
@@ -27,7 +28,10 @@ type FashionTrendReportModalProps = {
   onSetColorFeedback: (colorName: string, feedback: TrendFeedbackValue | null) => void;
 };
 
-type FullscreenItem = { kind: 'trend' | 'color'; url: string; name: string };
+// Only kind + name are stored — the url and index are always looked up live
+// against the current trends/colors arrays (see viewableTrends/viewableColors
+// below), so prev/next and the feedback thumbs all reflect the latest state.
+type FullscreenItem = { kind: 'trend' | 'color'; name: string };
 
 const LIFECYCLE_LABEL: Record<SeasonalTrendReportEntry['lifecycle'], string> = {
   emerging: 'Emerging',
@@ -44,6 +48,15 @@ export function FashionTrendReportModal({
   const [fullscreenItem, setFullscreenItem] = useState<FullscreenItem | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
 
+  // Only sketches that are actually viewable belong in the prev/next cycle —
+  // skipping straight over any still-pending or failed entries.
+  const viewableTrends = trends?.filter((t) => t.sketchStatus === 'ready' && !!t.sketchImageUrl) ?? [];
+  const viewableColors = colors?.filter((c) => c.sketchStatus === 'ready' && !!c.sketchImageUrl) ?? [];
+  const activeList: { name: string; sketchImageUrl: string | null }[] =
+    fullscreenItem?.kind === 'trend' ? viewableTrends : fullscreenItem?.kind === 'color' ? viewableColors : [];
+  const activeIndex = fullscreenItem ? activeList.findIndex((item) => item.name === fullscreenItem.name) : -1;
+  const activeEntry = activeIndex >= 0 ? activeList[activeIndex] : null;
+
   // Always looked up live from the current trends/colors arrays (rather than
   // snapshotted into fullscreenItem) so the fullscreen thumbs reflect the
   // latest state immediately after tapping them.
@@ -58,6 +71,13 @@ export function FashionTrendReportModal({
     if (!fullscreenItem) return;
     if (fullscreenItem.kind === 'trend') onSetTrendFeedback(fullscreenItem.name, feedback);
     else onSetColorFeedback(fullscreenItem.name, feedback);
+  }
+
+  function goToFullscreenOffset(offset: number) {
+    if (!fullscreenItem || activeIndex < 0) return;
+    const nextEntry = activeList[activeIndex + offset];
+    if (!nextEntry) return;
+    setFullscreenItem({ kind: fullscreenItem.kind, name: nextEntry.name });
   }
 
   return (
@@ -110,7 +130,7 @@ export function FashionTrendReportModal({
               isGenerating={isGeneratingColors}
               colors={colors}
               error={colorsError}
-              onSelectSketch={(sketch) => setFullscreenItem({ kind: 'color', ...sketch })}
+              onSelectSketch={(name) => setFullscreenItem({ kind: 'color', name })}
             />
             {isStale ? (
               <AppText tone="subtle" style={{ fontSize: 12, fontStyle: 'italic' }}>
@@ -135,7 +155,7 @@ export function FashionTrendReportModal({
                   <TrendRow
                     trend={trend}
                     showDivider={!showSectionHeader}
-                    onSelectSketch={(sketch) => setFullscreenItem({ kind: 'trend', ...sketch })}
+                    onSelectSketch={(name) => setFullscreenItem({ kind: 'trend', name })}
                     onSetFeedback={(feedback) => onSetTrendFeedback(trend.name, feedback)}
                   />
                 </View>
@@ -165,12 +185,20 @@ export function FashionTrendReportModal({
             }}>
             <AppIcon color="#fff" name="close" size={28} />
           </Pressable>
-          {fullscreenItem ? (
+          {fullscreenItem && activeEntry ? (
             <>
-              <Image contentFit="contain" source={{ uri: fullscreenItem.url }} style={{ flex: 1, width: '100%' }} />
+              <View style={{ flex: 1 }}>
+                <Image contentFit="contain" source={{ uri: activeEntry.sketchImageUrl! }} style={{ flex: 1, width: '100%' }} />
+                <FullscreenNavArrows
+                  canGoPrev={activeIndex > 0}
+                  canGoNext={activeIndex >= 0 && activeIndex < activeList.length - 1}
+                  onPrev={() => goToFullscreenOffset(-1)}
+                  onNext={() => goToFullscreenOffset(1)}
+                />
+              </View>
               <View style={{ alignItems: 'center', gap: spacing.md, paddingBottom: insets.bottom + spacing.lg, paddingHorizontal: spacing.lg }}>
                 <AppText style={{ color: '#fff', fontSize: 15, textAlign: 'center' }}>
-                  {fullscreenItem.name}
+                  {activeEntry.name}
                 </AppText>
                 <FullscreenFeedbackButtons feedback={fullscreenFeedback} onSetFeedback={handleFullscreenFeedback} />
               </View>
@@ -252,7 +280,7 @@ function TrendRow({
 }: {
   trend: SeasonalTrendReportEntry;
   showDivider: boolean;
-  onSelectSketch: (sketch: { url: string; name: string }) => void;
+  onSelectSketch: (name: string) => void;
   onSetFeedback: (feedback: TrendFeedbackValue | null) => void;
 }) {
   const isDirectional = trend.lifecycle === 'emerging' || trend.lifecycle === 'current';
@@ -284,7 +312,7 @@ function TrendRow({
         paddingTop: showDivider ? spacing.md : 0,
       }}>
       {isSketchReady ? (
-        <Pressable onPress={() => onSelectSketch({ url: trend.sketchImageUrl!, name: trend.name })}>{thumbnail}</Pressable>
+        <Pressable onPress={() => onSelectSketch(trend.name)}>{thumbnail}</Pressable>
       ) : (
         thumbnail
       )}
@@ -410,7 +438,7 @@ function ColorPaletteSection({
   isGenerating: boolean;
   colors: SeasonalColorEntry[] | null;
   error: string | null;
-  onSelectSketch: (sketch: { url: string; name: string }) => void;
+  onSelectSketch: (name: string) => void;
 }) {
   if (isLoading) {
     return (
@@ -440,7 +468,7 @@ function ColorSwatchRow({
   onSelectSketch,
 }: {
   colors: SeasonalColorEntry[];
-  onSelectSketch: (sketch: { url: string; name: string }) => void;
+  onSelectSketch: (name: string) => void;
 }) {
   return (
     <View style={{ gap: spacing.md }}>
@@ -470,7 +498,7 @@ function ColorSwatchCard({
   onSelectSketch,
 }: {
   color: SeasonalColorEntry;
-  onSelectSketch: (sketch: { url: string; name: string }) => void;
+  onSelectSketch: (name: string) => void;
 }) {
   const isSketchReady = color.sketchStatus === 'ready' && !!color.sketchImageUrl;
 
@@ -498,7 +526,7 @@ function ColorSwatchCard({
   return (
     <View style={{ gap: 4, width: 84 }}>
       {isSketchReady ? (
-        <Pressable onPress={() => onSelectSketch({ url: color.sketchImageUrl!, name: color.name })}>{swatch}</Pressable>
+        <Pressable onPress={() => onSelectSketch(color.name)}>{swatch}</Pressable>
       ) : (
         swatch
       )}

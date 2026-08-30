@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
+import { FullscreenNavArrows } from '@/components/ui/fullscreen-nav-arrows';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
 import type { HaircutAngleShots, HaircutGuideResponse, HaircutOption } from '@/types/api';
@@ -93,6 +94,15 @@ export function HaircutGuideView({ option, guide, angleShots, isLoadingAngleShot
   const selectedPhoto = photos.find((photo) => photo.key === selectedKey) ?? photos[0]!;
   const mainReady = selectedPhoto.option?.status === 'ready' && !!selectedPhoto.option.imageUrl;
 
+  // Prev/next in the fullscreen viewer cycles through whichever angles are
+  // actually ready — skipping over any still-pending or failed shots.
+  const readyPhotos = photos.filter((photo) => photo.option?.status === 'ready' && !!photo.option.imageUrl);
+  const readyIndex = readyPhotos.findIndex((photo) => photo.key === selectedKey);
+  function goToReadyOffset(offset: number) {
+    const next = readyPhotos[readyIndex + offset];
+    if (next) setSelectedKey(next.key);
+  }
+
   return (
     <View style={{ alignSelf: 'center', backgroundColor: theme.colors.background, gap: spacing.lg, padding: spacing.lg, width: 360 }}>
       <View style={{ alignItems: 'center', gap: 2 }}>
@@ -150,11 +160,19 @@ export function HaircutGuideView({ option, guide, angleShots, isLoadingAngleShot
             <AppIcon color="#fff" name="close" size={28} />
           </Pressable>
           {mainReady ? (
-            <Image
-              contentFit="contain"
-              source={{ uri: selectedPhoto.option!.imageUrl! }}
-              style={{ flex: 1, width: '100%' }}
-            />
+            <View style={{ flex: 1 }}>
+              <Image
+                contentFit="contain"
+                source={{ uri: selectedPhoto.option!.imageUrl! }}
+                style={{ flex: 1, width: '100%' }}
+              />
+              <FullscreenNavArrows
+                canGoPrev={readyIndex > 0}
+                canGoNext={readyIndex >= 0 && readyIndex < readyPhotos.length - 1}
+                onPrev={() => goToReadyOffset(-1)}
+                onNext={() => goToReadyOffset(1)}
+              />
+            </View>
           ) : null}
         </View>
       </Modal>

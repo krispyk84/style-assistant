@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/toast-provider';
 import { deleteSavedClosetOutfit, loadSavedClosetOutfits, type SavedClosetOutfit } from '@/lib/closet-outfit-storage';
@@ -19,12 +19,16 @@ export function useFavouritesData() {
   const [deletingFavouriteId, setDeletingFavouriteId] = useState<string | null>(null);
   const [closetFavourites, setClosetFavourites] = useState<SavedClosetOutfit[]>([]);
   const [deletingClosetFavouriteId, setDeletingClosetFavouriteId] = useState<string | null>(null);
+  // Only the genuinely first load shows the full loading state — a refocus
+  // with data already on screen refreshes silently in the background so
+  // switching back into this tab never flickers back to a loading state.
+  const hasLoadedOnceRef = useRef(false);
 
   const { showToast } = useToast();
 
   function load() {
     let isMounted = true;
-    setFavouritesLoading(true);
+    if (!hasLoadedOnceRef.current) setFavouritesLoading(true);
 
     void loadSavedClosetOutfits().then((saved) => {
       if (isMounted) setClosetFavourites(saved);
@@ -37,6 +41,7 @@ export function useFavouritesData() {
         setFavourites(saved);
         setFavouritesError(null);
         setFavouritesLoading(false);
+        hasLoadedOnceRef.current = true;
 
         // Hydrate any outfits whose sketch was still pending at save time
         const hydrated = await Promise.all(
@@ -65,6 +70,7 @@ export function useFavouritesData() {
         setFavourites([]);
         setFavouritesError('Failed to load saved outfits.');
         setFavouritesLoading(false);
+        hasLoadedOnceRef.current = true;
       }
     })();
 

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 
 import { loadClosetWeekPlan, loadSavedClosetOutfits, type ClosetWeekPlanItem } from '@/lib/closet-outfit-storage';
@@ -17,6 +17,10 @@ export function useWeekPlan() {
   const [isLoadingWeek, setIsLoadingWeek] = useState(true);
   const [closetItems, setClosetItems] = useState<ClosetWeekPlanItem[]>([]);
   const [closetSavedOutfitIds, setClosetSavedOutfitIds] = useState<string[]>([]);
+  // Only the genuinely first load shows the full loading state — a refocus
+  // with data already on screen refreshes silently in the background so
+  // switching back into this tab never flickers back to a loading state.
+  const hasLoadedOnceRef = useRef(false);
 
   // useFocusEffect runs ONLY when this screen gains focus, never when losing it.
   // Previously, useEffect([isFocused]) ran on BOTH focus gain and focus loss, creating
@@ -27,7 +31,7 @@ export function useWeekPlan() {
       let isMounted = true;
 
       void (async function hydrate() {
-        setIsLoadingWeek(true);
+        if (!hasLoadedOnceRef.current) setIsLoadingWeek(true);
         try {
           const [nextItems, savedOutfits, forecast, nextClosetItems, savedClosetOutfits] = await Promise.all([
             loadWeekPlan(),
@@ -74,6 +78,7 @@ export function useWeekPlan() {
         } finally {
           if (isMounted) {
             setIsLoadingWeek(false);
+            hasLoadedOnceRef.current = true;
           }
         }
       })();

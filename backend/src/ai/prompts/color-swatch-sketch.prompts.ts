@@ -22,10 +22,12 @@ export function buildColorSwatchSketchPrompt(input: ColorSwatchSketchInput): str
   ].join('\n');
 
   const compositionRules =
-    'The subject is a single rectangular fabric swatch card, not a garment, not an outfit, not an accessory, not a person. ' +
-    'Render one physical textile swatch filling most of the frame — a soft-cornered rectangle of cloth in exactly this colour, with visible woven fabric texture, subtle threading, and natural light falloff across the surface so it reads as a real physical material sample, not a flat digital colour chip. ' +
+    'The subject is a single fabric swatch card, not a garment, not an outfit, not an accessory, not a person. ' +
+    'Render one physical textile swatch with visible woven fabric texture, subtle threading, and natural light falloff across the surface so it reads as a real physical material sample, not a flat digital colour chip. ' +
     'The swatch should feel tactile and premium, like a fabric card from a tailor\'s or designer\'s swatch book. ' +
-    'Centre the swatch with a small margin of paper visible on all sides — the swatch itself must be fully visible and never cropped or touching the frame edge. ' +
+    'EDGE STYLE (must match exactly, every time): all four edges of the swatch are cut with pinking shears — a continuous zigzag of small sharp triangular notches all the way around the border, like a tailor\'s cloth sample. Never render smooth edges, rounded corners, straight-cut edges, or a soft torn/deckle edge — the pinked zigzag is the only acceptable edge treatment. ' +
+    'SHAPE AND SIZE (must match exactly, every time): the swatch is a portrait-oriented rectangle, taller than it is wide, at roughly a 4:5 width-to-height ratio. It fills a consistent, generous portion of the frame — about 70% of the frame\'s width and 80% of its height — with an even margin of plain background paper visible on all sides. Every colour in this series must render at this same shape, size, and framing, differing only in the colour and texture of the cloth itself. ' +
+    'Centre the swatch — it must be fully visible and never cropped or touching the frame edge. ' +
     'No text, no labels, no hex codes, no logos rendered in the image. No garments, no accessories, no body, no mannequin, no additional objects — the fabric swatch is the ONLY subject.';
 
   const parts = [

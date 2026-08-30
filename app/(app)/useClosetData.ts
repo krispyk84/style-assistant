@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 
 import { closetService } from '@/services/closet';
@@ -13,6 +13,10 @@ const POLL_INTERVAL_MS = 5000;
 export function useClosetData() {
   const [items, setItems] = useState<ClosetItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Only the genuinely first load shows the full loading bar — a refocus
+  // with data already on screen refreshes silently in the background so
+  // switching back into this tab never flickers back to a loading state.
+  const hasLoadedOnceRef = useRef(false);
 
   const loadItems = useCallback(async () => {
     try {
@@ -22,12 +26,13 @@ export function useClosetData() {
       }
     } finally {
       setIsLoading(false);
+      hasLoadedOnceRef.current = true;
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      setIsLoading(true);
+      if (!hasLoadedOnceRef.current) setIsLoading(true);
       void loadItems();
     }, [loadItems]),
   );

@@ -28,19 +28,15 @@ export function HairstyleTrendReportModal({ visible, isLoading, isGenerating, st
             flexDirection: 'row',
             gap: spacing.sm,
             justifyContent: 'space-between',
-            // Modal content renders outside the normal safe-area tree on iOS, so
-            // insets.top can read as 0 here even though content draws under the
-            // status bar — fall back to a fixed clearance if insets look unset.
-            paddingTop: Math.max(insets.top, 50),
+            // Matches FashionTrendReportModal's header exactly — modal content
+            // renders outside the normal safe-area tree on iOS, so insets.top
+            // can read as 0 here even though content draws under the status
+            // bar — fall back to a fixed clearance if insets look unset.
+            paddingTop: Math.max(insets.top, 50) + spacing.lg,
             paddingHorizontal: spacing.lg,
             paddingBottom: spacing.md,
           }}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <AppText variant="sectionTitle">Hairstyle Trend Report</AppText>
-            <AppText tone="muted" style={{ fontSize: 13 }}>
-              This season&apos;s top 20 — a mix of current trends and timeless classics.
-            </AppText>
-          </View>
+          <AppText variant="heroSmall" style={{ flex: 1 }}>Hairstyle Trend Report</AppText>
           <Pressable hitSlop={12} onPress={onClose}>
             <AppIcon color={theme.colors.subtleText} name="close" size={24} />
           </Pressable>
