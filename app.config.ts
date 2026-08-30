@@ -86,9 +86,15 @@ const config: ExpoConfig = {
       'expo-splash-screen',
       {
         image: './logo.png',
-        imageWidth: 200,
+        // Matches BrandSplash's rendered logo size exactly (height:220,
+        // maxWidth:220, same 990:415 source aspect ratio resolves to an
+        // effective 220-wide render) and the app's real background colour
+        // (theme.colors.background) — any mismatch between the native
+        // launch splash and the JS BrandSplash it hands off to shows up as
+        // a visible pop/flicker at that handoff instant.
+        imageWidth: 220,
         resizeMode: 'contain',
-        backgroundColor: '#FCFAF7',
+        backgroundColor: '#FAF6EF',
       },
     ],
   ],
