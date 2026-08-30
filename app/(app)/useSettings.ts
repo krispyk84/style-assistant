@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAppSession } from '@/hooks/use-app-session';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
 import { fetchCloudBackupStatus } from '@/lib/cloud-backup-status';
+import { checkSupabaseTablesDirectly } from '@/lib/supabase-diagnostics';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { usageService } from '@/services/usage';
 import { seasonalTrendsService } from '@/services/seasonal-trends';
@@ -26,6 +27,8 @@ export function useSettings() {
   const [trendsRefreshMessage, setTrendsRefreshMessage] = useState<string | null>(null);
   const [isCheckingCloudBackup, setIsCheckingCloudBackup] = useState(false);
   const [cloudBackupMessage, setCloudBackupMessage] = useState<string | null>(null);
+  const [isCheckingSupabaseDirect, setIsCheckingSupabaseDirect] = useState(false);
+  const [supabaseDirectMessage, setSupabaseDirectMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void loadAppSettings().then((s) => {
@@ -101,6 +104,27 @@ export function useSettings() {
     setIsCheckingCloudBackup(false);
   }
 
+  async function checkSupabaseDirectStatus() {
+    setIsCheckingSupabaseDirect(true);
+    setSupabaseDirectMessage(null);
+    try {
+      const result = await checkSupabaseTablesDirectly();
+      const describe = (label: string, r: { count: number | null; error: string | null }) =>
+        r.error ? `${label}: error — ${r.error}` : `${label}: ${r.count ?? 0}`;
+      setSupabaseDirectMessage(
+        [
+          `Supabase user id: ${result.supabaseUserId ?? 'none'}`,
+          describe('Saved outfits', result.savedOutfits),
+          describe('Closet items', result.closetItems),
+          describe('Week plan', result.weekPlan),
+        ].join('\n'),
+      );
+    } catch (error) {
+      setSupabaseDirectMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error.'}`);
+    }
+    setIsCheckingSupabaseDirect(false);
+  }
+
   const sensitivityLabel =
     sensitivity >= 67
       ? 'Precise — same color family AND similar shade required'
@@ -121,5 +145,6 @@ export function useSettings() {
     monthlyAiCost, appVersion,
     isRefreshingTrends, trendsRefreshMessage, refreshSeasonalTrends,
     isCheckingCloudBackup, cloudBackupMessage, checkCloudBackupStatus,
+    isCheckingSupabaseDirect, supabaseDirectMessage, checkSupabaseDirectStatus,
   };
 }

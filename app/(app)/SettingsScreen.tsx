@@ -28,6 +28,7 @@ export function SettingsScreen() {
     monthlyAiCost, appVersion,
     isRefreshingTrends, trendsRefreshMessage, refreshSeasonalTrends,
     isCheckingCloudBackup, cloudBackupMessage, checkCloudBackupStatus,
+    isCheckingSupabaseDirect, supabaseDirectMessage, checkSupabaseDirectStatus,
   } = useSettings();
   const { handleLogout } = useLogout();
 
@@ -41,7 +42,7 @@ export function SettingsScreen() {
   } as const;
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable bounces={false}>
       <View style={{ gap: spacing.xl }}>
         <AppText variant="heroSmall">Settings</AppText>
 
@@ -228,6 +229,27 @@ export function SettingsScreen() {
           </Pressable>
           {cloudBackupMessage ? (
             <AppText tone="muted" style={{ fontSize: 12 }}>{cloudBackupMessage}</AppText>
+          ) : null}
+          <Pressable
+            disabled={isCheckingSupabaseDirect}
+            onPress={() => void checkSupabaseDirectStatus()}
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.colors.subtleSurface,
+              borderColor: theme.colors.border,
+              borderRadius: 16,
+              borderWidth: 1,
+              justifyContent: 'center',
+              minHeight: 48,
+              opacity: isCheckingSupabaseDirect ? 0.6 : 1,
+              paddingHorizontal: spacing.md,
+            }}>
+            <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 13 }}>
+              {isCheckingSupabaseDirect ? 'Checking…' : 'Check Supabase Directly'}
+            </AppText>
+          </Pressable>
+          {supabaseDirectMessage ? (
+            <AppText tone="muted" style={{ fontSize: 12 }}>{supabaseDirectMessage}</AppText>
           ) : null}
         </View>
 
