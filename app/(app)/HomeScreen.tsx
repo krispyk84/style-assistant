@@ -12,7 +12,7 @@ import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import type { ClosetReadiness } from '@/lib/closet-readiness';
+import type { ClosetReadiness, ClosetReadinessProgress } from '@/lib/closet-readiness';
 import { splashShrinkOverlay } from '@/lib/splash-shrink-overlay';
 import { HOME_HEADER_LOGO_RECT_CONSTANTS } from './home-header-logo-constants';
 import { useFashionTrendReport } from './useFashionTrendReport';
@@ -211,18 +211,21 @@ function GenerateFromClosetButton({
           borderColor: theme.colors.border,
           borderRadius: 20,
           borderWidth: 1,
-          gap: spacing.xs,
+          gap: spacing.md,
           padding: spacing.lg,
         }}>
-        <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-          <AppIcon color={theme.colors.subtleText} name="closet" size={18} />
-          <AppText tone="subtle" style={{ fontFamily: theme.fonts.sansMedium, fontSize: 15 }}>
-            Please add more items to your closet so that we can generate good outfits for you.
+        <View style={{ gap: spacing.xs }}>
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+            <AppIcon color={theme.colors.subtleText} name="closet" size={18} />
+            <AppText tone="subtle" style={{ fontFamily: theme.fonts.sansMedium, fontSize: 15 }}>
+              Please add more items to your closet so that we can generate good outfits for you.
+            </AppText>
+          </View>
+          <AppText tone="subtle" style={{ fontSize: 12, lineHeight: 17 }}>
+            You need a good collection of a variety of pieces — this app is missing {joinWithAnd(readiness.missing)} before it can start generating outfits.
           </AppText>
         </View>
-        <AppText tone="subtle" style={{ fontSize: 12, lineHeight: 17 }}>
-          You need a good collection of a variety of pieces — this app is missing {joinWithAnd(readiness.missing)} before it can start generating outfits.
-        </AppText>
+        <ClosetReadinessTracker progress={readiness.progress} />
       </View>
     );
   }
@@ -281,6 +284,48 @@ function GenerateFromClosetButton({
         </View>
       </View>
     </Pressable>
+  );
+}
+
+/** Per-category "have / need" progress toward unlocking closet outfit generation. */
+function ClosetReadinessTracker({
+  progress,
+}: {
+  progress: { total: ClosetReadinessProgress; tops: ClosetReadinessProgress; bottoms: ClosetReadinessProgress; footwear: ClosetReadinessProgress };
+}) {
+  const rows: { label: string; value: ClosetReadinessProgress }[] = [
+    { label: 'Tops', value: progress.tops },
+    { label: 'Bottoms', value: progress.bottoms },
+    { label: 'Footwear', value: progress.footwear },
+  ];
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      {rows.map((row) => (
+        <ClosetReadinessRow key={row.label} label={row.label} value={row.value} />
+      ))}
+      <ClosetReadinessRow label="Total items" value={progress.total} />
+    </View>
+  );
+}
+
+function ClosetReadinessRow({ label, value }: { label: string; value: ClosetReadinessProgress }) {
+  const { theme } = useTheme();
+  const met = value.have >= value.need;
+  const ratio = Math.min(1, value.need > 0 ? value.have / value.need : 1);
+
+  return (
+    <View style={{ gap: 4 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <AppText tone="subtle" style={{ fontSize: 12 }}>{label}</AppText>
+        <AppText tone={met ? undefined : 'subtle'} style={{ color: met ? theme.colors.accent : undefined, fontSize: 12, fontFamily: theme.fonts.sansMedium }}>
+          {value.have}/{value.need}
+        </AppText>
+      </View>
+      <View style={{ backgroundColor: theme.colors.border, borderRadius: 999, height: 5, overflow: 'hidden' }}>
+        <View style={{ backgroundColor: met ? theme.colors.accent : theme.colors.subtleText, borderRadius: 999, height: '100%', width: `${ratio * 100}%` }} />
+      </View>
+    </View>
   );
 }
 

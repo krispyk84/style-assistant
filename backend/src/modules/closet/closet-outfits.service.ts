@@ -40,7 +40,10 @@ async function loadSeasonalTrends(supabaseUserId: string, hemisphere?: Hemispher
   return { ...result, feedbackMap };
 }
 
-const MIN_WARDROBE_SIZE = 5;
+// Mirrors lib/closet-readiness.ts's MIN_TOTAL_ITEMS — that client-side gate
+// is what actually stops a request from being made with an unusable closet;
+// this is a server-side backstop in case a client ever skips that check.
+const MIN_WARDROBE_SIZE = 10;
 const MAX_ATTEMPTS = 4;
 const TARGET_OUTFIT_COUNT = 5;
 // Bounds actual concurrent generations (not just start times) — each
