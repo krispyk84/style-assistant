@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, type View as RNView } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { GenerateOutfitsModal } from '@/components/closet/GenerateOutfitsModal';
@@ -13,7 +13,7 @@ import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import type { ClosetReadiness } from '@/lib/closet-readiness';
-import { homeLogoPosition } from '@/lib/home-logo-position';
+import { HOME_HEADER_LOGO_RECT_CONSTANTS } from './home-header-logo-constants';
 import { useFashionTrendReport } from './useFashionTrendReport';
 import { useHomeData } from './useHomeData';
 
@@ -41,23 +41,20 @@ export function HomeScreen() {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [isResolved, isClosetCarouselResolved, weatherLoading, closetReadiness]);
 
-  // Reports the logo's real on-screen position so the root layout's
-  // splash-to-Home transition can animate the splash logo shrinking into
-  // this exact spot instead of guessing fixed coordinates.
-  const logoWrapRef = useRef<RNView>(null);
-  function handleLogoLayout() {
-    logoWrapRef.current?.measureInWindow((x, y, width, height) => {
-      homeLogoPosition.setRect({ x, y, width, height });
-    });
-  }
-
   return (
     <AppScreen scrollable scrollRef={scrollRef} bounces={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
 
-        {/* Header */}
-        <View style={{ height: 40, justifyContent: 'center' }}>
-          <View ref={logoWrapRef} onLayout={handleLogoLayout} style={{ alignSelf: 'center', height: 32, width: 78 }}>
+        {/* Header — logo size/position kept in lockstep with the root
+            layout's splash-to-Home shrink transition via shared constants
+            (home-header-logo-constants.ts), not a runtime measurement. */}
+        <View style={{ height: HOME_HEADER_LOGO_RECT_CONSTANTS.rowHeight, justifyContent: 'center' }}>
+          <View
+            style={{
+              alignSelf: 'center',
+              height: HOME_HEADER_LOGO_RECT_CONSTANTS.height,
+              width: HOME_HEADER_LOGO_RECT_CONSTANTS.width,
+            }}>
             <Image contentFit="contain" source={require('../../logo.png')} style={{ height: '100%', width: '100%' }} />
           </View>
           <Pressable

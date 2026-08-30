@@ -1,23 +1,19 @@
-import { Image, View, type LayoutChangeEvent, type View as RNView } from 'react-native';
-import { useEffect, useRef, useState } from 'react';
+import { Image, View } from 'react-native';
+import { useEffect, useState } from 'react';
 
 import { spacing, theme } from '@/constants/theme';
 import { AppText } from '@/components/ui/app-text';
-import type { LogoRect } from '@/lib/home-logo-position';
 
 type BrandSplashProps = {
   subtitle?: string;
   messages?: string[];
-  /** Reports the logo's rendered window position/size once laid out — used by the root layout's splash-to-Home shrink transition. */
-  onLogoLayout?: (rect: LogoRect) => void;
-  /** Hides this instance's own logo — used once the shrink-transition overlay logo has taken over, so there's no doubled logo. */
+  /** Hides this instance's own logo — used once the root layout's shrink-transition overlay logo has taken over, so there's no doubled logo. */
   hideLogo?: boolean;
 };
 
-export function BrandSplash({ subtitle, messages, onLogoLayout, hideLogo }: BrandSplashProps) {
+export function BrandSplash({ subtitle, messages, hideLogo }: BrandSplashProps) {
   const [messageIndex, setMessageIndex] = useState(0);
   const activeSubtitle = messages?.length ? messages[Math.min(messageIndex, messages.length - 1)] : subtitle;
-  const logoWrapRef = useRef<RNView>(null);
 
   useEffect(() => {
     if (!messages?.length || messages.length === 1) {
@@ -31,13 +27,6 @@ export function BrandSplash({ subtitle, messages, onLogoLayout, hideLogo }: Bran
     return () => clearInterval(timeout);
   }, [messages]);
 
-  function handleLogoLayout(_event: LayoutChangeEvent) {
-    if (!onLogoLayout) return;
-    logoWrapRef.current?.measureInWindow((x, y, width, height) => {
-      onLogoLayout({ x, y, width, height });
-    });
-  }
-
   return (
     <View
       style={{
@@ -47,11 +36,8 @@ export function BrandSplash({ subtitle, messages, onLogoLayout, hideLogo }: Bran
         justifyContent: 'center',
         paddingHorizontal: spacing.xl,
       }}>
-      {/* Logo centered on its own — text is out of flow so it cannot shift the logo.
-          The wrapper (not the Image) carries the deterministic box size, since
-          that's what gets measured for the splash-to-Home shrink transition —
-          the Image itself just fills it. */}
-      <View ref={logoWrapRef} onLayout={handleLogoLayout} style={{ height: 220, maxWidth: 220, opacity: hideLogo ? 0 : 1, width: '100%' }}>
+      {/* Logo centered on its own — text is out of flow so it cannot shift the logo. */}
+      <View style={{ height: 220, maxWidth: 220, opacity: hideLogo ? 0 : 1, width: '100%' }}>
         <Image
           source={require('../../logo.png')}
           style={{

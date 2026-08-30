@@ -1,18 +1,18 @@
 import { Redirect, router, Tabs } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Animated, Easing, Image, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Animated, Easing, Image, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MoreBottomSheet } from '@/components/more/more-bottom-sheet';
 import { AppIcon } from '@/components/ui/app-icon';
 import { BrandSplash } from '@/components/ui/brand-splash';
 import { AppText } from '@/components/ui/app-text';
+import { HOME_HEADER_LOGO_RECT_CONSTANTS } from '@/app/(app)/home-header-logo-constants';
 import { spacing, theme as staticTheme } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/contexts/theme-context';
 import { useAppSession } from '@/hooks/use-app-session';
 import { homeReadiness } from '@/lib/home-readiness';
-import { homeLogoPosition, type LogoRect } from '@/lib/home-logo-position';
 import { useLogout } from './useLogout';
 
 // Upper bound on how long the splash overlay waits for Home's own data
@@ -20,6 +20,10 @@ import { useLogout } from './useLogout';
 // network shouldn't be able to trap the user on the splash screen forever.
 const HOME_READY_TIMEOUT_MS = 8000;
 const SPLASH_FADE_OUT_MS = 900;
+// The splash logo's own box: BrandSplash centers it (height 220, capped at
+// maxWidth 220) in the middle of the screen.
+const SPLASH_LOGO_SIZE = 220;
+const SPLASH_LOGO_HORIZONTAL_PADDING = spacing.xl;
 
 const TAB_ICON_SIZE = 22;
 
@@ -72,19 +76,38 @@ export default function AppTabsLayout() {
   const [moreSheetVisible, setMoreSheetVisible] = useState(false);
   const isHomeReady = useSyncExternalStore(homeReadiness.subscribe, homeReadiness.getSnapshot);
   const [homeReadyTimedOut, setHomeReadyTimedOut] = useState(false);
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   // Kept mounted slightly past showSplashOverlay flipping false so the fade-out
   // animation below has time to actually play — an instant unmount would make
   // the splash disappear abruptly regardless of the opacity animation.
   const [isSplashMounted, setIsSplashMounted] = useState(true);
   const splashOpacity = useRef(new Animated.Value(1)).current;
   // Drives the splash logo shrinking into Home's actual logo position on
-  // fade-out (0 = splash size/position, 1 = Home's measured size/position).
-  // Layout properties (not transform) so each box's own resizeMode:'contain'
-  // correctly refits the (non-square) logo artwork as the box's aspect ratio
-  // changes — a pure transform-scale would stretch it unevenly instead.
+  // fade-out (0 = splash rect, 1 = Home header logo rect). Layout properties
+  // (not transform) so each box's own resizeMode:'contain' correctly refits
+  // the (non-square) logo artwork as the box's aspect ratio changes — a pure
+  // transform-scale would stretch it unevenly instead.
   const shrinkProgress = useRef(new Animated.Value(0)).current;
-  const [splashLogoRect, setSplashLogoRect] = useState<LogoRect | null>(null);
-  const homeLogoRect = useSyncExternalStore(homeLogoPosition.subscribe, homeLogoPosition.getSnapshot);
+
+  // Both endpoints computed analytically (not measured at runtime) so the
+  // landing spot always exactly matches HomeScreen's actual header layout by
+  // construction — a cross-component runtime measurement here previously
+  // landed the animation in the wrong place.
+  const splashLogoSize = Math.min(SPLASH_LOGO_SIZE, windowWidth - SPLASH_LOGO_HORIZONTAL_PADDING * 2);
+  const splashLogoRect = {
+    x: (windowWidth - splashLogoSize) / 2,
+    y: (windowHeight - splashLogoSize) / 2,
+    width: splashLogoSize,
+    height: splashLogoSize,
+  };
+  const homeLogoRect = {
+    x: (windowWidth - HOME_HEADER_LOGO_RECT_CONSTANTS.width) / 2,
+    y: insets.top + HOME_HEADER_LOGO_RECT_CONSTANTS.topPadding
+      + (HOME_HEADER_LOGO_RECT_CONSTANTS.rowHeight - HOME_HEADER_LOGO_RECT_CONSTANTS.height) / 2,
+    width: HOME_HEADER_LOGO_RECT_CONSTANTS.width,
+    height: HOME_HEADER_LOGO_RECT_CONSTANTS.height,
+  };
 
   useEffect(() => {
     if (!user) {
@@ -101,10 +124,7 @@ export default function AppTabsLayout() {
   }, [isHydrated, isHomeReady]);
 
   const showSplashOverlay = isHydrated && !isHomeReady && !homeReadyTimedOut;
-  // Only animate the logo shrinking into place when we actually know both
-  // endpoints — otherwise (e.g. Home hasn't measured its logo yet) fall back
-  // to the plain opacity fade with BrandSplash's own logo still visible.
-  const isShrinkingIntoHome = !showSplashOverlay && Boolean(splashLogoRect) && Boolean(homeLogoRect);
+  const isShrinkingIntoHome = !showSplashOverlay;
 
   useEffect(() => {
     if (showSplashOverlay) {
@@ -248,6 +268,7 @@ export default function AppTabsLayout() {
         <Tabs.Screen name="useHistoryActions"   options={{ href: null }} />
         <Tabs.Screen name="useFashionTrendReport" options={{ href: null }} />
         <Tabs.Screen name="useHomeData"         options={{ href: null }} />
+        <Tabs.Screen name="home-header-logo-constants" options={{ href: null }} />
         <Tabs.Screen name="useLogout"           options={{ href: null }} />
         <Tabs.Screen name="useSettings"         options={{ href: null }} />
         <Tabs.Screen name="useWeekPlan"         options={{ href: null }} />
@@ -271,11 +292,11 @@ export default function AppTabsLayout() {
         <Animated.View
           pointerEvents={showSplashOverlay ? 'auto' : 'none'}
           style={[StyleSheet.absoluteFillObject, { opacity: splashOpacity }]}>
-          <BrandSplash messages={SPLASH_MESSAGES} onLogoLayout={setSplashLogoRect} hideLogo={isShrinkingIntoHome} />
+          <BrandSplash messages={SPLASH_MESSAGES} hideLogo={isShrinkingIntoHome} />
         </Animated.View>
       ) : null}
 
-      {isSplashMounted && isShrinkingIntoHome && splashLogoRect && homeLogoRect ? (
+      {isSplashMounted && isShrinkingIntoHome ? (
         <Animated.View
           pointerEvents="none"
           style={{
