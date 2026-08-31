@@ -363,6 +363,7 @@ export function WardrobeScoreScreen() {
       scrollable
       backButton
       topInset
+      avoidsKeyboard={false}
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}

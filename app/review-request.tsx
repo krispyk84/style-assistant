@@ -54,7 +54,7 @@ export default function ReviewRequestScreen() {
   }
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Confirm Brief" showBack />
 

@@ -12,6 +12,7 @@ import { loadNextSevenDayForecast, type WeekForecastDay } from '@/services/weath
 import type { WeekPlannedOutfit } from '@/types/style';
 
 const CLOUD_FALLBACK_TIMEOUT_MS = 10000;
+const OUTFIT_REFRESH_TIMEOUT_MS = 8000;
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
@@ -66,45 +67,67 @@ export function useWeekPlan() {
           }
         }
 
+        // Show what's already known immediately — the per-item network refresh
+        // below (each outfit's latest sketch/recommendation) is a background
+        // nice-to-have, not something worth blocking the screen on. Previously
+        // isLoadingWeek only cleared in a `finally` AFTER that refresh finished,
+        // so a single slow/stalled outfit request (no timeout on the fetch
+        // itself) could leave the screen stuck on "Loading your week..."
+        // indefinitely. Mirrors the same fix already applied in useFavouritesData.
+        if (isMounted) {
+          setItems(nextItems);
+          setSavedOutfitIds(savedOutfits.map((item) => item.id));
+          setForecastByDay(Object.fromEntries(forecast.map((day) => [day.dayKey, day])));
+          setClosetItems(nextClosetItems);
+          setClosetSavedOutfitIds(savedClosetOutfits.map((item) => item.id));
+          setIsLoadingWeek(false);
+          hasLoadedOnceRef.current = true;
+        }
+
         const refreshedItems = await Promise.all(
           nextItems.map(async (item) => {
-            const response = await outfitsService.getOutfitResult(item.requestId);
+            try {
+              const response = await withTimeout(
+                outfitsService.getOutfitResult(item.requestId),
+                OUTFIT_REFRESH_TIMEOUT_MS,
+                `week-plan outfit refresh (${item.requestId})`,
+              );
 
-            if (!response.success || !response.data) {
+              if (!response.success || !response.data) {
+                return item;
+              }
+
+              const latestRecommendation = response.data.recommendations.find(
+                (recommendation) => recommendation.tier === item.recommendation.tier
+              );
+
+              if (!latestRecommendation) {
+                return item;
+              }
+
+              return {
+                ...item,
+                input: response.data.input,
+                recommendation: latestRecommendation,
+              };
+            } catch {
               return item;
             }
-
-            const latestRecommendation = response.data.recommendations.find(
-              (recommendation) => recommendation.tier === item.recommendation.tier
-            );
-
-            if (!latestRecommendation) {
-              return item;
-            }
-
-            return {
-              ...item,
-              input: response.data.input,
-              recommendation: latestRecommendation,
-            };
           })
         );
 
         if (isMounted) {
           setItems(refreshedItems);
-          setSavedOutfitIds(savedOutfits.map((item) => item.id));
-          setForecastByDay(Object.fromEntries(forecast.map((day) => [day.dayKey, day])));
-          setClosetItems(nextClosetItems);
-          setClosetSavedOutfitIds(savedClosetOutfits.map((item) => item.id));
         }
 
         // Persist refresh even if the user has navigated away
         await replaceWeekPlan(refreshedItems);
-      } finally {
+      } catch (error) {
         if (isMounted) {
           setIsLoadingWeek(false);
           hasLoadedOnceRef.current = true;
         }
+        void logAuthEvent(`week-load ERROR — ${error instanceof Error ? error.message : String(error)}`, null);
       }
     })();
 

@@ -42,7 +42,7 @@ export function TravelPlannerScreen() {
   }
 
   return (
-    <AppScreen scrollable topInset>
+    <AppScreen scrollable topInset avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl }}>
         <AppText variant="heroSmall">Travel Planner</AppText>
 

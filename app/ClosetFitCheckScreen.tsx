@@ -216,7 +216,7 @@ function ReportView({
     .filter((item): item is ClosetItem => !!item);
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Closet Fit Check" showBack />
 

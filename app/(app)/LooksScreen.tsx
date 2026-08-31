@@ -93,7 +93,7 @@ export function LooksScreen() {
   const setSeasonFilter = activeTab === 'favourites' ? setFavouritesSeasonFilter : setHistorySeasonFilter;
 
   return (
-    <AppScreen scrollable onScroll={handleScroll}>
+    <AppScreen scrollable onScroll={handleScroll} avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl }}>
 
         {/* Header */}

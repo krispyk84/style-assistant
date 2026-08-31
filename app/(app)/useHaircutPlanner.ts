@@ -72,6 +72,7 @@ export function useHaircutPlanner() {
   const [isLoadingSavedSessions, setIsLoadingSavedSessions] = useState(true);
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isCurrentSessionSaved, setIsCurrentSessionSaved] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   // True when the guide stage is showing a previously-saved session opened
   // directly from the upload screen, rather than one just reached by swiping —
   // there's no swipe/favorites context to step back into, so goBack() treats
@@ -382,6 +383,21 @@ export function useHaircutPlanner() {
     setSavedSessions((prev) => prev.filter((saved) => saved.sessionId !== activeSessionId));
   }
 
+  async function deleteSavedSession(sessionId: string) {
+    if (deletingSessionId) return;
+    setDeletingSessionId(sessionId);
+    const response = await haircutService.unsaveSession(sessionId);
+    setDeletingSessionId(null);
+    if (!response.success) {
+      setError(response.error?.message ?? 'Could not remove this saved haircut. Please try again.');
+      return;
+    }
+    setSavedSessions((prev) => prev.filter((saved) => saved.sessionId !== sessionId));
+    if (activeSessionId === sessionId) {
+      setIsCurrentSessionSaved(false);
+    }
+  }
+
   function openSavedSession(saved: SavedHaircutSession) {
     setActiveSessionId(saved.sessionId);
     setSelectedOption(saved.option);
@@ -402,8 +418,9 @@ export function useHaircutPlanner() {
     currentBatch, batchIndex, likedOptions,
     selectedOption, guide, angleShots, angleShotsError, isLoadingAngleShots,
     savedSessions, isLoadingSavedSessions, isSavingSession, isCurrentSessionSaved,
+    deletingSessionId,
     startSession, handleSwipedRight, handleSwipedLeft, handleSwipedAll,
     reviewFavorites, requestMoreHaircuts, selectFinal, reset, goBack,
-    saveHaircut, unsaveHaircut, openSavedSession,
+    saveHaircut, unsaveHaircut, openSavedSession, deleteSavedSession,
   };
 }

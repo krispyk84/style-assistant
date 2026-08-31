@@ -76,7 +76,7 @@ export function CheckPieceScreen() {
   const canAnalyze = canAnalyzePhoto || canAnalyzeCloset;
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Check Piece" showBack />
 

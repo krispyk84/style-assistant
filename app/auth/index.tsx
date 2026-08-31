@@ -38,7 +38,7 @@ export default function AuthWelcomeScreen() {
   const logoSize = (width - 48) * 0.75;
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable avoidsKeyboard={false}>
       <View style={{ flex: 1, gap: spacing.xl, paddingBottom: spacing.xl }}>
 
         {/* Brand header */}

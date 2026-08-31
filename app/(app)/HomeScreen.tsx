@@ -47,7 +47,7 @@ export function HomeScreen() {
   }, [isResolved, isClosetCarouselResolved, weatherLoading, closetReadiness]);
 
   return (
-    <AppScreen scrollable scrollRef={scrollRef} bounces={false}>
+    <AppScreen scrollable scrollRef={scrollRef} bounces={false} avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
 
         {/* Header — logo size/position kept in lockstep with the root

@@ -46,7 +46,7 @@ export default function SelfieReviewScreen() {
   const sketchImageUrl = params.sketchImageUrl || null;
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Selfie Review" showBack />
 

@@ -25,9 +25,10 @@ export function HaircutPlannerScreen() {
     currentBatch, batchIndex, likedOptions,
     selectedOption, guide, angleShots, angleShotsError, isLoadingAngleShots,
     savedSessions, isLoadingSavedSessions, isSavingSession, isCurrentSessionSaved,
+    deletingSessionId,
     startSession, handleSwipedRight, handleSwipedLeft, handleSwipedAll,
     reviewFavorites, requestMoreHaircuts, selectFinal, reset, goBack,
-    saveHaircut, unsaveHaircut, openSavedSession,
+    saveHaircut, unsaveHaircut, openSavedSession, deleteSavedSession,
   } = useHaircutPlanner();
 
   const trendReport = useHairstyleTrendReport();
@@ -60,7 +61,7 @@ export function HaircutPlannerScreen() {
             goBack() for which stages that applies to. */}
         {stage === 'upload' ? (
           <View style={{ gap: spacing.lg }}>
-            <AppText variant="heroSmall">Try on a new haircut</AppText>
+            <AppText variant="heroSmall">Haircut Planner</AppText>
             <ImagePickerField
               label="Your headshot"
               hint="A well-lit, front-facing photo works best."
@@ -98,7 +99,13 @@ export function HaircutPlannerScreen() {
                 <AppText variant="sectionTitle">Saved haircuts</AppText>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
                   {savedSessions.map((saved) => (
-                    <SavedHaircutCard key={saved.sessionId} saved={saved} onPress={() => openSavedSession(saved)} />
+                    <SavedHaircutCard
+                      key={saved.sessionId}
+                      saved={saved}
+                      onPress={() => openSavedSession(saved)}
+                      onDelete={() => void deleteSavedSession(saved.sessionId)}
+                      isDeleting={deletingSessionId === saved.sessionId}
+                    />
                   ))}
                 </ScrollView>
               </View>
@@ -247,7 +254,14 @@ function BackChevron({ onPress }: { onPress: () => void }) {
   );
 }
 
-function SavedHaircutCard({ saved, onPress }: { saved: SavedHaircutSession; onPress: () => void }) {
+function SavedHaircutCard({
+  saved, onPress, onDelete, isDeleting,
+}: {
+  saved: SavedHaircutSession;
+  onPress: () => void;
+  onDelete: () => void;
+  isDeleting: boolean;
+}) {
   return (
     <Pressable
       onPress={onPress}
@@ -266,6 +280,32 @@ function SavedHaircutCard({ saved, onPress }: { saved: SavedHaircutSession; onPr
         ) : (
           <AppIcon color={theme.colors.subtleText} name="person" size={24} />
         )}
+        <Pressable
+          accessibilityLabel="Delete saved haircut"
+          disabled={isDeleting}
+          hitSlop={8}
+          onPress={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+          style={{
+            alignItems: 'center',
+            backgroundColor: theme.colors.surface,
+            borderRadius: 999,
+            height: 24,
+            justifyContent: 'center',
+            opacity: isDeleting ? 0.5 : 1,
+            position: 'absolute',
+            right: 4,
+            top: 4,
+            width: 24,
+          }}>
+          {isDeleting ? (
+            <ActivityIndicator color={theme.colors.danger} size="small" />
+          ) : (
+            <AppIcon color={theme.colors.danger} name="trash" size={13} />
+          )}
+        </Pressable>
       </View>
       <AppText style={{ fontSize: 12, fontFamily: theme.fonts.sansMedium, paddingHorizontal: spacing.xs, paddingBottom: spacing.xs }} numberOfLines={1}>
         {saved.styleLabel}
