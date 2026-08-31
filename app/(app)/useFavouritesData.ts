@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 
 import { useUndoableRemove } from '@/hooks/use-undoable-remove';
+import { logAuthEvent } from '@/lib/auth-event-log';
 import { deleteSavedClosetOutfit, loadSavedClosetOutfits, type SavedClosetOutfit } from '@/lib/closet-outfit-storage';
 import {
   deleteSavedOutfit,
@@ -47,13 +48,17 @@ export function useFavouritesData() {
         // as possibly stale rather than authoritative: fall back to asking
         // the cloud directly, and self-heal local storage if it has data.
         if (saved.length === 0) {
+          void logAuthEvent('favourites-load: local empty, trying cloud fallback', null);
           try {
             const cloudSaved = await withTimeout(fetchSavedOutfitsFromSupabase(), CLOUD_FALLBACK_TIMEOUT_MS, 'saved-outfits cloud fallback');
             if (cloudSaved.length > 0) {
               saved = await replaceSavedOutfits(cloudSaved);
+              void logAuthEvent(`favourites-load: cloud fallback pulled ${cloudSaved.length}`, null);
+            } else {
+              void logAuthEvent('favourites-load: cloud fallback returned 0', null);
             }
-          } catch {
-            // Cloud fallback failed too — fall through with the empty local result.
+          } catch (error) {
+            void logAuthEvent(`favourites-load: cloud fallback ERROR — ${error instanceof Error ? error.message : String(error)}`, null);
           }
         }
 

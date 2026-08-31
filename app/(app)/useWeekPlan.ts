@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 
+import { logAuthEvent } from '@/lib/auth-event-log';
 import { loadClosetWeekPlan, loadSavedClosetOutfits, type ClosetWeekPlanItem } from '@/lib/closet-outfit-storage';
 import { loadWeekPlan, replaceWeekPlan } from '@/lib/week-plan-storage';
 import { loadSavedOutfits } from '@/lib/saved-outfits-storage';
@@ -51,13 +52,17 @@ export function useWeekPlan() {
         // as possibly stale rather than authoritative: fall back to asking
         // the cloud directly, and self-heal local storage if it has data.
         if (nextItems.length === 0) {
+          void logAuthEvent('week-load: local empty, trying cloud fallback', null);
           try {
             const cloudItems = await withTimeout(fetchWeekPlanFromSupabase(), CLOUD_FALLBACK_TIMEOUT_MS, 'week-plan cloud fallback');
             if (cloudItems.length > 0) {
               nextItems = await replaceWeekPlan(cloudItems);
+              void logAuthEvent(`week-load: cloud fallback pulled ${cloudItems.length}`, null);
+            } else {
+              void logAuthEvent('week-load: cloud fallback returned 0', null);
             }
-          } catch {
-            // Cloud fallback failed too — fall through with the empty local result.
+          } catch (error) {
+            void logAuthEvent(`week-load: cloud fallback ERROR — ${error instanceof Error ? error.message : String(error)}`, null);
           }
         }
 
