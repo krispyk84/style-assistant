@@ -2,6 +2,7 @@ import type { TripDraft } from '@/lib/trip-draft-storage';
 import type { DestinationResult } from '@/services/destination';
 import type { TravelClimateProfile } from '@/services/travel-climate';
 import type {
+  JacketCount,
   ShoeCount,
   StyleVibe,
   TravelParty,
@@ -50,6 +51,7 @@ type BuildTripDraftParams = {
   workoutClothes: YesNo;
   laundryAccess: YesNoUnsure;
   shoesCount: ShoeCount;
+  jacketsCount: JacketCount;
   carryOnOnly: YesNo;
   rewearOk: YesNo;
   specialNeeds: string;
@@ -72,6 +74,7 @@ export function buildTripDraft({
   workoutClothes,
   laundryAccess,
   shoesCount,
+  jacketsCount,
   carryOnOnly,
   rewearOk,
   specialNeeds,
@@ -103,6 +106,7 @@ export function buildTripDraft({
     workoutClothes: workoutClothes === 'Yes',
     laundryAccess,
     shoesCount,
+    jacketsCount,
     carryOnOnly: carryOnOnly === 'Yes',
     rewearOk: rewearOk === 'Yes',
     specialNeeds: specialNeeds.trim() || undefined,

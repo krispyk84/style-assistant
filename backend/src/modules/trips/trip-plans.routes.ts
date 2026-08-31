@@ -28,6 +28,7 @@ const createTripPlanSchema = z.object({
   workoutClothes: z.boolean(),
   laundryAccess:  z.string().min(1),
   shoesCount:     z.string().min(1),
+  jacketsCount:   z.string().optional(),
   carryOnOnly:    z.boolean(),
   rewearOk:       z.boolean().optional(),
   activities:     z.string().optional(),

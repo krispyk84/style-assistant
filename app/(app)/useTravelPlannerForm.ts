@@ -7,6 +7,7 @@ import { inferTravelClimate } from '@/services/travel-climate';
 import type { ClosetItem } from '@/types/closet';
 import { buildTripDraft, calculateTripDays } from './travel-planner-mappers';
 import type {
+  JacketCount,
   ShoeCount,
   StyleVibe,
   TravelParty,
@@ -37,6 +38,7 @@ export function useTravelPlannerForm() {
   const [workoutClothes, setWorkoutClothes] = useState<YesNo>('No');
   const [laundryAccess, setLaundryAccess] = useState<YesNoUnsure>('Unsure');
   const [shoesCount, setShoesCount] = useState<ShoeCount>('2');
+  const [jacketsCount, setJacketsCount] = useState<JacketCount>('1');
   const [carryOnOnly, setCarryOnOnly] = useState<YesNo>('No');
   const [rewearOk, setRewearOk] = useState<YesNo>('No');
   const [specialNeeds, setSpecialNeeds] = useState('');
@@ -116,6 +118,7 @@ export function useTravelPlannerForm() {
     setWorkoutClothes('No');
     setLaundryAccess('Unsure');
     setShoesCount('2');
+    setJacketsCount('1');
     setCarryOnOnly('No');
     setRewearOk('No');
     setSpecialNeeds('');
@@ -158,6 +161,7 @@ export function useTravelPlannerForm() {
         workoutClothes,
         laundryAccess,
         shoesCount,
+        jacketsCount,
         carryOnOnly,
         rewearOk,
         specialNeeds,
@@ -195,6 +199,7 @@ export function useTravelPlannerForm() {
     purposes,
     returnDate,
     shoesCount,
+    jacketsCount,
     specialNeeds,
     styleVibe,
     travelParty,
@@ -234,6 +239,8 @@ export function useTravelPlannerForm() {
     setLaundryAccess,
     shoesCount,
     setShoesCount,
+    jacketsCount,
+    setJacketsCount,
     carryOnOnly,
     setCarryOnOnly,
     rewearOk,

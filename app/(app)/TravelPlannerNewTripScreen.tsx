@@ -17,7 +17,7 @@ import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
 import { Card, ChipGrid, FieldLabel } from './travel-planner-primitives';
 import { useTravelPlannerForm } from './useTravelPlannerForm';
-import { PURPOSES, type ShoeCount, type TravelParty, type YesNo, type YesNoUnsure } from './travel-planner-types';
+import { PURPOSES, type JacketCount, type ShoeCount, type TravelParty, type YesNo, type YesNoUnsure } from './travel-planner-types';
 
 const STEP_TITLES: Record<1 | 2 | 3, string> = {
   1: 'Trip',
@@ -37,6 +37,7 @@ export function TravelPlannerNewTripScreen() {
     climate, climateAutoFilled, climateLoading, handleClimateRefresh,
     laundryAccess, setLaundryAccess,
     shoesCount, setShoesCount,
+    jacketsCount, setJacketsCount,
     carryOnOnly, setCarryOnOnly,
     rewearOk, setRewearOk,
     numDays, canContinueStep1, isSubmitting, submitError,
@@ -144,6 +145,8 @@ export function TravelPlannerNewTripScreen() {
             setRewearOk={setRewearOk}
             shoesCount={shoesCount}
             setShoesCount={setShoesCount}
+            jacketsCount={jacketsCount}
+            setJacketsCount={setJacketsCount}
             wantToBring={wantToBring}
             onAddWantToBring={openClosetPicker}
             onRemoveWantToBring={removeWantToBring}
@@ -271,6 +274,8 @@ function Step3Context({
   setRewearOk,
   shoesCount,
   setShoesCount,
+  jacketsCount,
+  setJacketsCount,
   wantToBring,
   onAddWantToBring,
   onRemoveWantToBring,
@@ -292,6 +297,8 @@ function Step3Context({
   setRewearOk: (v: YesNo) => void;
   shoesCount: ShoeCount;
   setShoesCount: (v: ShoeCount) => void;
+  jacketsCount: JacketCount;
+  setJacketsCount: (v: JacketCount) => void;
   wantToBring: ClosetItem[];
   onAddWantToBring: () => void;
   onRemoveWantToBring: (id: string) => void;
@@ -355,6 +362,11 @@ function Step3Context({
         <View style={{ gap: spacing.xs }}>
           <FieldLabel>Shoes willing to bring</FieldLabel>
           <SegmentedControl<ShoeCount> options={['1', '2', '3', '4+']} value={shoesCount} onChange={setShoesCount} />
+        </View>
+
+        <View style={{ gap: spacing.xs }}>
+          <FieldLabel>Jackets / outerwear willing to bring</FieldLabel>
+          <SegmentedControl<JacketCount> options={['0', '1', '2', '3']} value={jacketsCount} onChange={setJacketsCount} />
         </View>
       </Card>
 

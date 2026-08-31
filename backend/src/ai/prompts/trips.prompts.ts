@@ -65,6 +65,7 @@ function buildTripContext(req: GenerateTripOutfitsRequest): string {
   lines.push(`  Carry-on only: ${req.carryOnOnly ? 'YES — re-use pieces and plan capsule wardrobe' : 'No checked bag restrictions'}`);
   lines.push(`  Laundry access: ${req.laundryAccess}`);
   lines.push(`  Max shoes willing to pack: ${req.shoesCount}`);
+  lines.push(`  Max jackets/outerwear willing to pack: ${req.jacketsCount ?? '1'} — this is a HARD CAP on the number of DISTINCT jacket/coat/blazer/outerwear pieces across the ENTIRE trip, not per day. Reuse the exact same outerwear piece (identical wording) across as many days as needed rather than describing a "new" one each day — outerwear is bulky to pack, so treat it as a small fixed rotation, unlike shirts or accessories which can vary more freely. If the cap is 0, do not include any jacket/coat/blazer in any day's pieces.`);
   lines.push(`  Swimming: ${req.willSwim ? 'Yes — include a swimwear day' : 'No'}`);
   lines.push(`  Fancy nights out: ${req.fancyNights ? 'Yes — include at least one elevated evening outfit' : 'No'}`);
   lines.push(`  Workout clothes needed: ${req.workoutClothes ? 'Yes — include at least one activewear day' : 'No'}`);
@@ -72,7 +73,10 @@ function buildTripContext(req: GenerateTripOutfitsRequest): string {
 
   // Previously generated days — for progressive (per-day) generation coherence
   if (req.previousDaysSummary && req.previousDaysSummary.length > 0) {
-    lines.push('', 'ALREADY-PLANNED DAYS (vary garments — do NOT reuse identical pieces):');
+    lines.push('', 'ALREADY-PLANNED DAYS:');
+    lines.push('  Vary the overall look day to day (don\'t repeat an identical full outfit) — but this does NOT apply to');
+    lines.push('  jackets/outerwear: if a previous day already used a jacket/coat/blazer, REUSE that exact same piece here');
+    lines.push('  (word it identically) rather than inventing a different one, staying within the outerwear cap above.');
     for (const summary of req.previousDaysSummary) {
       lines.push(`  ${summary}`);
     }
@@ -180,6 +184,7 @@ export function buildTripOutfitsPrompt(
         ]
       : []),
     '- pieces: list each main garment with color + fabric hint (e.g. "Slim navy linen trousers"). Min 2, max 5.',
+    `- If any piece is a jacket/coat/blazer/outerwear layer, treat it as a strictly limited, reusable resource — see the outerwear cap in PACKING CONSTRAINTS below. Do not describe a different jacket for each day; reuse the same one(s), worded identically, across the trip.`,
     '- shoes: one specific footwear choice.',
     ...TRIP_DAY_BAG_RULE_LINES,
     '- accessories: 0–3 items.',

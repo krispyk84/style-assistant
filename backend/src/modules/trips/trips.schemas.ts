@@ -59,6 +59,7 @@ export const generateTripOutfitsSchema = z.object({
   workoutClothes: z.boolean(),
   laundryAccess: z.enum(['Yes', 'No', 'Unsure']),
   shoesCount:   z.string().min(1),
+  jacketsCount: z.string().optional(),
   carryOnOnly:  z.boolean(),
   rewearOk:     z.boolean().optional(),
   specialNeeds: z.string().optional(),

@@ -52,6 +52,7 @@ export type GenerateTripOutfitsRequest = {
   workoutClothes: boolean;
   laundryAccess: 'Yes' | 'No' | 'Unsure';
   shoesCount: string;        // 1 | 2 | 3 | 4+
+  jacketsCount?: string;     // 0 | 1 | 2 | 3
   carryOnOnly: boolean;
   rewearOk?: boolean;
   specialNeeds?: string;

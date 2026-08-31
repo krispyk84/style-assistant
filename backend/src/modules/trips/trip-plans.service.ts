@@ -16,6 +16,7 @@ export type CreateTripPlanParams = {
   workoutClothes: boolean;
   laundryAccess: string;
   shoesCount: string;
+  jacketsCount?: string;
   carryOnOnly: boolean;
   rewearOk?: boolean;
   activities?: string;
@@ -56,6 +57,7 @@ export const tripPlansService = {
         workoutClothes: params.workoutClothes,
         laundryAccess:  params.laundryAccess,
         shoesCount:     params.shoesCount,
+        jacketsCount:   params.jacketsCount ?? '1',
         carryOnOnly:    params.carryOnOnly,
         rewearOk:       params.rewearOk ?? false,
         activities:     params.activities ?? null,

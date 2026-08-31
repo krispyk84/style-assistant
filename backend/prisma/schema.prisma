@@ -331,6 +331,7 @@ model TripPlan {
   workoutClothes Boolean      @default(false)
   laundryAccess  String       @default("Unsure")
   shoesCount     String       @default("2")
+  jacketsCount   String       @default("1")
   carryOnOnly    Boolean      @default(false)
   rewearOk       Boolean      @default(false)
   activities     String?

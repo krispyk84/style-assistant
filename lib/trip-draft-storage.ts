@@ -46,6 +46,7 @@ export type TripDraft = {
   workoutClothes: boolean;
   laundryAccess: 'Yes' | 'No' | 'Unsure';
   shoesCount: string;
+  jacketsCount?: string;
   carryOnOnly: boolean;
   rewearOk?: boolean;
   specialNeeds?: string;
