@@ -1,1 +1,0 @@
-ALTER TABLE "TripPlan" ADD COLUMN "rewearOk" BOOLEAN NOT NULL DEFAULT false;
