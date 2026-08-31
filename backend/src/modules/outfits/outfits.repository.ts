@@ -120,7 +120,13 @@ function mapToOutfitResponse(result: OutfitResultWithRequest): OutfitResponse {
       sketchImageUrl: tier.sketchImageUrl ?? null,
       sketchStorageKey: tier.sketchStorageKey ?? null,
       sketchMimeType: tier.sketchMimeType ?? null,
-      sketchImageData: tier.sketchImageData ?? null,
+      // Deliberately NOT included: sketchImageData is the raw DB blob, only
+      // ever needed by the dedicated sketch-image endpoint (getTierSketch).
+      // Including it here used to leak the raw binary into every outfit
+      // JSON response — serialized as a JSON number array it's ~3-4x the
+      // actual image size, and the frontend blindly persists whatever it
+      // receives when saving an outfit to favourites/week-plan, so this
+      // alone bloated saved_outfits/week_plan rows to ~800KB+ each.
       variantIndex: tier.variantIndex,
     })),
   };

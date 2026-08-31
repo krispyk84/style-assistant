@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { appConfig } from '@/constants/config';
+import { stripLegacySketchImageData } from '@/lib/outfit-utils';
 import {
   deleteSavedOutfitFromSupabase,
   upsertSavedOutfitToSupabase,
@@ -102,7 +103,7 @@ export async function saveSavedOutfit(input: CreateLookInput, recommendation: Lo
     savedAt: new Date().toISOString(),
     input,
     recommendation: {
-      ...recommendation,
+      ...stripLegacySketchImageData(recommendation),
       sketchImageUrl: buildStableSavedSketchUri(requestId, recommendation.tier)
         ?? recommendation.sketchImageUrl ?? null,
     },

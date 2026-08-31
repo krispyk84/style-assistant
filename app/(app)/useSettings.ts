@@ -6,6 +6,7 @@ import { useAppSession } from '@/hooks/use-app-session';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
 import { fetchCloudBackupStatus } from '@/lib/cloud-backup-status';
 import { clearAuthEventLog, getAuthEventLog } from '@/lib/auth-event-log';
+import { cleanupLegacySketchData } from '@/lib/legacy-sketch-cleanup';
 import { checkSupabaseTablesDirectly, measureSavedOutfitsPayload } from '@/lib/supabase-diagnostics';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { usageService } from '@/services/usage';
@@ -140,6 +141,20 @@ export function useSettings() {
     setIsCheckingSupabaseDirect(false);
   }
 
+  async function cleanupLegacySketches() {
+    setIsCheckingSupabaseDirect(true);
+    setSupabaseDirectMessage('Cleaning up — this can take a little while (one row at a time)…');
+    try {
+      const result = await cleanupLegacySketchData();
+      const describe = (label: string, r: { scanned: number; cleaned: number; errors: string[] }) =>
+        `${label}: scanned ${r.scanned}, cleaned ${r.cleaned}${r.errors.length > 0 ? `, ${r.errors.length} errors — ${r.errors.slice(0, 3).join('; ')}` : ''}`;
+      setSupabaseDirectMessage([describe('Saved outfits', result.savedOutfits), describe('Week plan', result.weekPlan)].join('\n'));
+    } catch (error) {
+      setSupabaseDirectMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error.'}`);
+    }
+    setIsCheckingSupabaseDirect(false);
+  }
+
   async function viewAuthEventLog() {
     const entries = await getAuthEventLog();
     setAuthEventLogMessage(
@@ -174,7 +189,7 @@ export function useSettings() {
     monthlyAiCost, appVersion,
     isRefreshingTrends, trendsRefreshMessage, refreshSeasonalTrends,
     isCheckingCloudBackup, cloudBackupMessage, checkCloudBackupStatus,
-    isCheckingSupabaseDirect, supabaseDirectMessage, checkSupabaseDirectStatus, checkPayloadSize,
+    isCheckingSupabaseDirect, supabaseDirectMessage, checkSupabaseDirectStatus, checkPayloadSize, cleanupLegacySketches,
     authEventLogMessage, viewAuthEventLog, resetAuthEventLog,
   };
 }

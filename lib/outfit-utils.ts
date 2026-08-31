@@ -1,6 +1,20 @@
 import type { SecondOpinionSubject } from '@/types/api';
 import type { LookRecommendation, LookTierSlug } from '@/types/look-request';
 
+/**
+ * Backend responses previously (bug, now fixed server-side) carried a raw
+ * `sketchImageData` blob alongside the real `sketchImageUrl` — the frontend
+ * only ever needs the URL, but blindly spreading the recommendation object
+ * when saving to Supabase let that blob ride along, bloating saved_outfits/
+ * week_plan rows to ~800KB+ each. Strip it defensively before persisting so
+ * a future backend regression can't reintroduce the same bloat.
+ */
+export function stripLegacySketchImageData<T extends object>(recommendation: T): T {
+  if (!('sketchImageData' in recommendation)) return recommendation;
+  const { sketchImageData: _sketchImageData, ...rest } = recommendation as T & { sketchImageData?: unknown };
+  return rest as T;
+}
+
 export function formatTierLabel(tier: LookTierSlug): string {
   if (tier === 'smart-casual') {
     return 'Smart Casual';

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { appConfig } from '@/constants/config';
+import { stripLegacySketchImageData } from '@/lib/outfit-utils';
 import {
   deleteWeekPlanItemFromSupabase,
   upsertWeekPlanItemToSupabase,
@@ -34,7 +35,7 @@ function normalizeWeekPlannedOutfit(item: WeekPlannedOutfit): WeekPlannedOutfit 
   return {
     ...item,
     recommendation: {
-      ...item.recommendation,
+      ...stripLegacySketchImageData(item.recommendation),
       sketchImageUrl:
         item.recommendation.sketchStatus === 'ready'
           ? buildStableSketchUri(item.requestId, item.recommendation.tier)
