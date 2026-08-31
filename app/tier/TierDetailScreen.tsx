@@ -79,7 +79,7 @@ export function TierDetailScreen() {
   const tierSlug = stableParams.tier ?? '';
 
   return (
-    <AppScreen scrollable floatingBack>
+    <AppScreen scrollable floatingBack bounces={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title={matchedTier.label} showBack />
         <View style={{ gap: spacing.xs }}>

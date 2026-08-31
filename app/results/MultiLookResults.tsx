@@ -363,7 +363,7 @@ export function MultiLookResults({
   const reviewInput = reviewResponse?.input ?? parsedInput;
 
   return (
-    <AppScreen scrollable floatingBack>
+    <AppScreen scrollable floatingBack bounces={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Outfit Results" showBack />
         <View style={{ gap: spacing.xs }}>
