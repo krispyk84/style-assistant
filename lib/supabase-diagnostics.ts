@@ -103,22 +103,32 @@ export async function measureSavedOutfitsPayload(): Promise<string> {
     const wideStart = Date.now();
     const { data: wideData, error: wideError } = await supabase
       .from('saved_outfits')
-      .select('id, recommendation')
+      .select('id, input, recommendation')
       .order('saved_at', { ascending: false })
       .limit(1);
     if (wideError) {
-      lines.push(`single-row full recommendation — ERROR: ${wideError.code ?? ''} ${wideError.message}`.trim());
+      lines.push(`single-row full row — ERROR: ${wideError.code ?? ''} ${wideError.message}`.trim());
     } else if (wideData && wideData.length > 0) {
-      const raw = JSON.stringify(wideData[0].recommendation ?? {});
-      const sketchUrl = (wideData[0].recommendation as { sketchImageUrl?: string } | null)?.sketchImageUrl ?? '';
+      const row = wideData[0] as { input: unknown; recommendation: Record<string, unknown> | null };
+      const recRaw = JSON.stringify(row.recommendation ?? {});
+      const inputRaw = JSON.stringify(row.input ?? {});
+      const sketchUrl = (row.recommendation as { sketchImageUrl?: string } | null)?.sketchImageUrl ?? '';
       lines.push(
-        `single-row full recommendation — ${Date.now() - wideStart}ms, ~${Math.round(raw.length / 1024)}KB, sketchImageUrl starts with: ${sketchUrl.slice(0, 30) || '(none)'}`,
+        `single-row full fetch — ${Date.now() - wideStart}ms, recommendation ~${Math.round(recRaw.length / 1024)}KB, input ~${Math.round(inputRaw.length / 1024)}KB, sketchImageUrl starts with: ${sketchUrl.slice(0, 30) || '(none)'}`,
       );
+
+      // Break recommendation down field-by-field to find what's actually bloated.
+      if (row.recommendation) {
+        const fieldSizes = Object.entries(row.recommendation)
+          .map(([key, value]) => [key, JSON.stringify(value ?? null).length] as const)
+          .sort((a, b) => b[1] - a[1]);
+        lines.push(`recommendation field sizes (bytes): ${fieldSizes.map(([k, n]) => `${k}=${n}`).join(', ')}`);
+      }
     } else {
-      lines.push('single-row full recommendation — 0 rows returned');
+      lines.push('single-row full fetch — 0 rows returned');
     }
   } catch (error) {
-    lines.push(`single-row full recommendation — ERROR: ${error instanceof Error ? error.message : String(error)}`);
+    lines.push(`single-row full fetch — ERROR: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   lines.push(`total elapsed: ${Date.now() - start}ms`);
