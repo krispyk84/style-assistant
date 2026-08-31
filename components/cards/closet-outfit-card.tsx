@@ -48,21 +48,23 @@ export function ClosetOutfitCard({
     });
   }
 
+  const quietButtonStyle = { alignItems: 'center' as const, backgroundColor: theme.colors.subtleSurface, borderRadius: 999, flex: 1, justifyContent: 'center' as const, minHeight: 44, paddingHorizontal: spacing.sm };
+
   return (
     <View
       style={{
         backgroundColor: theme.colors.surface,
         borderColor: theme.colors.border,
-        borderRadius: 20,
+        borderRadius: 28,
         borderWidth: 1,
-        gap: spacing.sm,
-        padding: spacing.md,
+        overflow: 'hidden',
       }}>
-      <AppText variant="sectionTitle">{outfit.title}</AppText>
+      <View style={{ gap: 2, paddingBottom: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+        <AppText variant="eyebrow" style={{ color: theme.colors.accent }}>From Your Closet</AppText>
+        <AppText variant="display">{outfit.title}</AppText>
+      </View>
 
-      <AppText tone="muted" style={{ fontSize: 13, fontStyle: 'italic' }}>{outfit.whyItWorks}</AppText>
-
-      <Pressable onPress={() => setIsDetailOpen(true)} style={{ backgroundColor: theme.colors.card, borderRadius: 16, overflow: 'hidden' }}>
+      <Pressable onPress={() => setIsDetailOpen(true)}>
         <GeneratedSketchPanel
           mode="compact"
           status={outfit.sketchStatus}
@@ -75,6 +77,14 @@ export function ClosetOutfitCard({
 
       <ClosetOutfitDetailModal visible={isDetailOpen} outfit={outfit} onClose={() => setIsDetailOpen(false)} />
 
+      <View style={{ gap: spacing.lg, padding: spacing.lg }}>
+      <View style={{ gap: spacing.xs }}>
+        <AppText variant="eyebrow" style={{ color: theme.colors.mutedText }}>Why This Works</AppText>
+        <AppText tone="muted">{outfit.whyItWorks}</AppText>
+      </View>
+
+      <View style={{ gap: spacing.sm }}>
+      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText }}>The Pieces</AppText>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
         {outfit.items.map((item) => {
           const imageUri = item.sketchImageUrl ?? item.uploadedImageUrl;
@@ -136,6 +146,7 @@ export function ClosetOutfitCard({
           );
         })}
       </View>
+      </View>
 
       {onGenerateVariants ? (
         <View style={{ gap: spacing.xs }}>
@@ -156,10 +167,10 @@ export function ClosetOutfitCard({
       {showActions ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {onDelete ? (
-            <Pressable onPress={onDelete} style={actionButtonStyle}>
+            <Pressable onPress={onDelete} style={quietButtonStyle}>
               <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
                 <AppIcon color={theme.colors.danger} name="trash" size={16} />
-                <AppText style={{ color: theme.colors.danger }}>Remove</AppText>
+                <AppText style={{ color: theme.colors.danger, fontSize: 13 }}>Remove</AppText>
               </View>
             </Pressable>
           ) : (
@@ -168,18 +179,18 @@ export function ClosetOutfitCard({
                 <Pressable
                   disabled={isSaved || isSaving}
                   onPress={onSave}
-                  style={[actionButtonStyle, { backgroundColor: isSaved ? theme.colors.card : theme.colors.surface }]}>
+                  style={[quietButtonStyle, isSaved ? { backgroundColor: theme.colors.border } : null]}>
                   <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
                     <AppIcon color={theme.colors.text} name={isSaved ? 'bookmark-filled' : 'bookmark'} size={16} />
-                    <AppText>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save'}</AppText>
+                    <AppText style={{ fontSize: 13 }}>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save'}</AppText>
                   </View>
                 </Pressable>
               ) : null}
               {onAddToWeek ? (
-                <Pressable onPress={onAddToWeek} style={actionButtonStyle}>
+                <Pressable onPress={onAddToWeek} style={quietButtonStyle}>
                   <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
                     <AppIcon color={theme.colors.text} name="calendar" size={16} />
-                    <AppText>Add to week</AppText>
+                    <AppText style={{ fontSize: 13 }}>Add to week</AppText>
                   </View>
                 </Pressable>
               ) : null}
@@ -199,10 +210,10 @@ export function ClosetOutfitCard({
             flexDirection: 'row',
             gap: spacing.xs,
             justifyContent: 'center',
-            minHeight: 44,
+            minHeight: 50,
             paddingHorizontal: spacing.md,
           }}>
-          <AppIcon color={theme.colors.accent} name="chat" size={16} />
+          <AppIcon color={theme.colors.accent} name="chat" size={18} />
           <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
         </Pressable>
       ) : null}
@@ -211,53 +222,35 @@ export function ClosetOutfitCard({
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <Pressable
             onPress={() => onFeedback('love')}
-            style={[
-              actionButtonStyle,
-              outfit.feedback === 'love' ? { backgroundColor: theme.colors.accent, borderColor: theme.colors.accent } : null,
-            ]}>
+            style={[quietButtonStyle, outfit.feedback === 'love' ? { backgroundColor: theme.colors.text } : null]}>
             <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
               <AppIcon
                 color={outfit.feedback === 'love' ? theme.colors.inverseText : theme.colors.text}
                 name="heart"
                 size={16}
               />
-              <AppText style={{ color: outfit.feedback === 'love' ? theme.colors.inverseText : theme.colors.text }}>
+              <AppText style={{ color: outfit.feedback === 'love' ? theme.colors.inverseText : theme.colors.text, fontSize: 13 }}>
                 Love it
               </AppText>
             </View>
           </Pressable>
           <Pressable
             onPress={() => onFeedback('hate')}
-            style={[
-              actionButtonStyle,
-              outfit.feedback === 'hate' ? { backgroundColor: theme.colors.danger, borderColor: theme.colors.danger } : null,
-            ]}>
+            style={[quietButtonStyle, outfit.feedback === 'hate' ? { backgroundColor: theme.colors.text } : null]}>
             <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
               <AppIcon
                 color={outfit.feedback === 'hate' ? theme.colors.inverseText : theme.colors.text}
                 name="thumbs-down"
                 size={16}
               />
-              <AppText style={{ color: outfit.feedback === 'hate' ? theme.colors.inverseText : theme.colors.text }}>
+              <AppText style={{ color: outfit.feedback === 'hate' ? theme.colors.inverseText : theme.colors.text, fontSize: 13 }}>
                 Hate it
               </AppText>
             </View>
           </Pressable>
         </View>
       ) : null}
+      </View>
     </View>
   );
 }
-
-const actionButtonStyle = {
-  alignItems: 'center' as const,
-  backgroundColor: theme.colors.surface,
-  borderColor: theme.colors.border,
-  borderRadius: 999,
-  borderWidth: 1,
-  flex: 1,
-  justifyContent: 'center' as const,
-  minHeight: 44,
-  paddingHorizontal: spacing.sm,
-  paddingVertical: spacing.xs,
-};

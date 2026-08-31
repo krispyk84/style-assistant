@@ -30,6 +30,8 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: O
     result.recommendation
   );
 
+  const quietButtonStyle = { alignItems: 'center', backgroundColor: theme.colors.subtleSurface, borderRadius: 999, flexDirection: 'row', gap: spacing.xs, justifyContent: 'center', minHeight: 46, paddingHorizontal: spacing.md } as const;
+
   return (
     <View
       style={{
@@ -37,31 +39,17 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: O
         borderColor: theme.colors.border,
         borderRadius: 28,
         borderWidth: 1,
-        padding: spacing.lg,
-        gap: spacing.md,
+        overflow: 'hidden',
       }}>
-      <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md, justifyContent: 'space-between' }}>
-        <View style={{ flex: 1, gap: spacing.xs }}>
+      <View style={{ flexDirection: 'row', gap: spacing.md, paddingBottom: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+        <View style={{ flex: 1, gap: 2 }}>
           <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-            <AppText variant="meta">
-              {formatTierLabel(result.recommendation.tier)} tier
+            <AppText variant="eyebrow" style={{ color: theme.colors.accent }}>
+              {formatTierLabel(result.recommendation.tier)}
+              {result.input.weatherContext?.season ? ` · ${result.input.weatherContext.season}` : ''}
             </AppText>
-            {result.input.weatherContext?.season ? (
-              <View style={{
-                backgroundColor: theme.colors.subtleSurface,
-                borderColor: theme.colors.border,
-                borderRadius: 999,
-                borderWidth: 1,
-                paddingHorizontal: spacing.sm,
-                paddingVertical: 2,
-              }}>
-                <AppText style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'capitalize', color: theme.colors.mutedText }}>
-                  {result.input.weatherContext.season}
-                </AppText>
-              </View>
-            ) : null}
           </View>
-          <AppText tone="subtle">{dateLabel ?? `Saved ${formatSavedPreviewDate(preview.savedAt)}`}</AppText>
+          <AppText tone="subtle" style={{ fontSize: 12 }}>{dateLabel ?? `Saved ${formatSavedPreviewDate(preview.savedAt)}`}</AppText>
         </View>
         {onDelete ? (
           <Pressable
@@ -80,49 +68,35 @@ export function OutfitResultCard({ result, onDelete, onAddToWeek, dateLabel }: O
       </View>
 
       <Link href={detailHref} asChild>
-        <Pressable
-        style={{
-          gap: spacing.md,
-          width: '100%',
-        }}>
-        {sketchUri ? (
-          <RemoteImagePanel
-            uri={sketchUri}
-            aspectRatio={SKETCH_ASPECT_RATIO}
-            minHeight={400}
-            resizeMode="contain"
-            fallbackTitle="Sketch unavailable"
-            fallbackMessage="The saved illustration could not be displayed."
-          />
-        ) : null}
-        <View style={{ gap: spacing.xs }}>
-          <AppText style={{ flexShrink: 1, width: '100%' }} variant="title">
-            {preview.title}
-          </AppText>
-          <AppText numberOfLines={1} tone="muted">
-            {preview.subtitle}
-          </AppText>
-        </View>
+        <Pressable style={{ gap: spacing.md, width: '100%' }}>
+          {sketchUri ? (
+            <RemoteImagePanel
+              uri={sketchUri}
+              aspectRatio={SKETCH_ASPECT_RATIO}
+              minHeight={400}
+              resizeMode="contain"
+              borderRadius={0}
+              fallbackTitle="Sketch unavailable"
+              fallbackMessage="The saved illustration could not be displayed."
+            />
+          ) : null}
+          <View style={{ gap: spacing.xs, paddingHorizontal: spacing.lg }}>
+            <AppText style={{ flexShrink: 1, width: '100%' }} variant="display">
+              {preview.title}
+            </AppText>
+            <AppText numberOfLines={1} tone="muted">
+              {preview.subtitle}
+            </AppText>
+          </View>
         </Pressable>
       </Link>
       {onAddToWeek ? (
-        <Pressable
-          onPress={onAddToWeek}
-          style={{
-            alignItems: 'center',
-            backgroundColor: theme.colors.card,
-            borderColor: theme.colors.border,
-            borderRadius: 999,
-            borderWidth: 1,
-            flexDirection: 'row',
-            gap: spacing.xs,
-            justifyContent: 'center',
-            minHeight: 48,
-            paddingHorizontal: spacing.md,
-          }}>
-          <AppIcon color={theme.colors.text} name="calendar" size={18} />
-          <AppText>Add to week</AppText>
-        </Pressable>
+        <View style={{ padding: spacing.lg, paddingTop: spacing.md }}>
+          <Pressable onPress={onAddToWeek} style={quietButtonStyle}>
+            <AppIcon color={theme.colors.text} name="calendar" size={16} />
+            <AppText style={{ fontSize: 13 }}>Add to week</AppText>
+          </Pressable>
+        </View>
       ) : null}
     </View>
   );
