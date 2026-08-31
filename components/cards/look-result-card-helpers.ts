@@ -81,7 +81,6 @@ export function buildLabeledPieces(
         value: normalized.display_name,
         matchedClosetItem: item,
         confidencePercent,
-        color: normalized.metadata?.color,
       };
     }));
 
@@ -93,7 +92,6 @@ export function buildLabeledPieces(
       value: normalized.display_name,
       matchedClosetItem: item,
       confidencePercent,
-      color: normalized.metadata?.color,
     });
   });
 
@@ -105,7 +103,6 @@ export function buildLabeledPieces(
       value: normalized.display_name,
       matchedClosetItem: item,
       confidencePercent,
-      color: normalized.metadata?.color,
     });
   });
 

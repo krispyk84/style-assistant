@@ -37,13 +37,14 @@ const variantStyles: Record<TextVariant, TextStyle> = {
     fontSize: 28,
     lineHeight: 32,
   },
-  // Editorial "look title" scale — a magazine feature headline pairing
-  // with an `eyebrow` category label above it (result card, tier detail).
-  // Distinct from `hero`/`heroSmall`, which are screen-level headers.
+  // Editorial "look title" scale — a serif sub-heading pairing with an
+  // `eyebrow` category label above it (result card, tier detail, saved
+  // cards). Smaller than `hero`/`heroSmall`, which are screen-level
+  // headers — this reads as a card heading, not a page title.
   display: {
     fontFamily: theme.fonts.serif,
-    fontSize: 34,
-    lineHeight: 39,
+    fontSize: 22,
+    lineHeight: 26,
   },
   title: {
     fontFamily: theme.fonts.sansMedium,

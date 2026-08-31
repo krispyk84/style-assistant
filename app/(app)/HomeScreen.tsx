@@ -76,7 +76,7 @@ export function HomeScreen() {
               justifyContent: 'center',
               position: 'absolute',
               right: 0,
-              top: 2,
+              top: (HOME_HEADER_LOGO_RECT_CONSTANTS.rowHeight - 36) / 2,
               width: 36,
             }}>
             <AppIcon color={theme.colors.text} name="person" size={16} />
