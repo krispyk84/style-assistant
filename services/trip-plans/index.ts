@@ -17,10 +17,11 @@ export type TripPlanDraft = {
   laundryAccess: 'Yes' | 'No' | 'Unsure';
   shoesCount: string;
   carryOnOnly: boolean;
+  rewearOk?: boolean;
   activities?: string;
   dressCode?: string;
   specialNeeds?: string;
-  anchorMode?: 'guided' | 'auto' | 'manual';
+  anchorMode?: 'guided' | 'auto' | 'manual' | 'fullCloset';
 };
 
 export type TripAnchorRecord = TripAnchorInput & {
@@ -46,7 +47,7 @@ export async function saveTripPlanDraft(draft: TripPlanDraft): Promise<string | 
 /** Save final anchor selections for a plan (called before generation). */
 export async function saveTripPlanAnchors(
   planId: string,
-  anchorMode: 'guided' | 'auto' | 'manual',
+  anchorMode: 'guided' | 'auto' | 'manual' | 'fullCloset',
   anchors: TripAnchorRecord[],
 ): Promise<boolean> {
   try {

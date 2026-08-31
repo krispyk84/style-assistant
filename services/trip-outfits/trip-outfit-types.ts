@@ -23,6 +23,8 @@ export type TripOutfitDay = {
   bag: string | null;
   accessories: string[];
   contextTags: string[];
+  /** Set only for "From My Closet" (fullCloset) days — real closet item ids the pieces above resolve to. */
+  closetItemIds?: string[];
   sketchStatus: 'not_started' | 'loading' | 'ready' | 'failed';
   sketchUrl?: string;
   sketchJobId?: string;
@@ -62,7 +64,7 @@ export type GenerateTripOutfitsParams = {
   tripId: string;
   /** Anchor pieces to build outfits around (optional). */
   anchors?: TripAnchorInput[];
-  anchorMode?: 'guided' | 'auto' | 'manual';
+  anchorMode?: 'guided' | 'auto' | 'manual' | 'fullCloset';
   destination: string;
   country: string;
   departureDate: string;   // YYYY-MM-DD
@@ -85,6 +87,7 @@ export type GenerateTripOutfitsParams = {
   laundryAccess: 'Yes' | 'No' | 'Unsure';
   shoesCount: string;
   carryOnOnly: boolean;
+  rewearOk?: boolean;
   specialNeeds?: string;
   generateOnlyDayIndex?: number;
   previousDaysSummary?: string[];

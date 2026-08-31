@@ -11,6 +11,9 @@ export const tripDaySchema = z.object({
   bag:         z.string().nullable(),
   accessories: z.array(z.string().min(1)).max(3),
   contextTags: z.array(z.string().min(1)).min(1).max(4),
+  // Set only for "From My Closet" (fullCloset) days — real closet item ids
+  // the pieces above resolve to. Absent for guided/anchors days.
+  closetItemIds: z.array(z.string()).optional(),
 });
 
 export const tripOutfitsResponseSchema = z.object({
@@ -34,7 +37,7 @@ export const generateTripOutfitsSchema = z.object({
   tripId:       z.string().min(1),
   profileId:    z.string().optional(),
   anchors:      z.array(tripAnchorInputSchema).optional(),
-  anchorMode:   z.enum(['guided', 'auto', 'manual']).optional(),
+  anchorMode:   z.enum(['guided', 'auto', 'manual', 'fullCloset']).optional(),
   destination:  z.string().min(1),
   country:      z.string().min(1),
   departureDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -57,6 +60,7 @@ export const generateTripOutfitsSchema = z.object({
   laundryAccess: z.enum(['Yes', 'No', 'Unsure']),
   shoesCount:   z.string().min(1),
   carryOnOnly:  z.boolean(),
+  rewearOk:     z.boolean().optional(),
   specialNeeds: z.string().optional(),
   generateOnlyDayIndex: z.number().int().min(0).optional(),
   previousDaysSummary: z.array(z.string()).optional(),

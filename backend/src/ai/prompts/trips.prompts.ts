@@ -137,12 +137,27 @@ export type TripOutfitsPrompt = {
   };
 };
 
+export type TripWardrobeIndexItem = {
+  id: string;
+  name: string;
+  category: string;
+  color_family?: string | null;
+  formality?: string | null;
+  silhouette?: string | null;
+  season?: string | null;
+  material?: string | null;
+  brand?: string | null;
+};
+
 export function buildTripOutfitsPrompt(
   req: GenerateTripOutfitsRequest,
   profile: PromptProfile,
   styleGuideContext?: string | null,
+  /** Present only for "From My Closet" (fullCloset) requests — the full wardrobe index the model must build every day from. */
+  closetIndex?: TripWardrobeIndexItem[],
 ): TripOutfitsPrompt {
   const totalDays = Math.min(14, daysBetween(req.departureDate, req.returnDate));
+  const isFullCloset = closetIndex !== undefined;
 
   const instructions = [
     'You are an expert travel stylist. Generate a practical, stylish, day-by-day outfit plan for a trip.',
@@ -155,6 +170,15 @@ export function buildTripOutfitsPrompt(
     '- If laundry access is No, avoid outfits that require laundering every day.',
     '- title should be a short evocative label for the day (e.g. "Arrival in Kyoto", "Temple District Morning", "Black-Tie Gala").',
     '- rationale explains why this outfit works for this specific day (climate, activity, formality).',
+    ...(isFullCloset
+      ? [
+          '- FULL-CLOSET MODE: you must build every day ENTIRELY from the WARDROBE INDEX provided below. Never invent a piece that is not in the index — if the wardrobe genuinely has no good option for a slot, choose the closest available item rather than fabricating one.',
+          '- closetItemIds: the exact ids (from the wardrobe index) used to build this day\'s outfit. Every id must exist in the index. 2–6 ids per day.',
+          '- pieces/shoes/accessories text must describe the ACTUAL chosen items by their real name, not generic placeholders.',
+          '- Prefer reusing the same versatile pieces across multiple days over picking a fully different item for every single day — treat the wardrobe as one coherent travel capsule, not one outfit per day in isolation.',
+          '- If "happy to rewear pieces" is not enabled, still favor reuse across days but bias toward less repetition where the wardrobe allows it.',
+        ]
+      : []),
     '- pieces: list each main garment with color + fabric hint (e.g. "Slim navy linen trousers"). Min 2, max 5.',
     '- shoes: one specific footwear choice.',
     ...TRIP_DAY_BAG_RULE_LINES,
@@ -173,10 +197,41 @@ export function buildTripOutfitsPrompt(
   const userText = [
     buildTripContext(req),
     '',
+    ...(isFullCloset
+      ? [`Rewear pieces OK: ${req.rewearOk ? 'Yes' : 'No'}`, '', 'WARDROBE INDEX (every item you may use — reference by exact id):', JSON.stringify(closetIndex, null, 2), '']
+      : []),
     buildDayList(req),
     '',
     generateInstruction,
   ].join('\n');
+
+  const baseDayProperties: Record<string, unknown> = {
+    dayIndex:     { type: 'integer', description: '0-based day index' },
+    date:         { type: 'string',  description: 'YYYY-MM-DD' },
+    title:        { type: 'string',  description: 'Short evocative day title' },
+    dayType:      { type: 'string',  enum: ['travel_day', 'sightseeing', 'business', 'meeting', 'dinner_out', 'beach_pool', 'adventure', 'wedding_event', 'relaxed', 'conference'] },
+    rationale:    { type: 'string',  description: 'Why this outfit for this day (1-2 sentences)' },
+    pieces:       { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 5, description: 'Main garment pieces (color + fabric hint)' },
+    shoes:        { type: 'string',  description: 'Footwear choice' },
+    bag:          { type: ['string', 'null'], description: 'Bag or null' },
+    accessories:  { type: 'array', items: { type: 'string' }, maxItems: 3 },
+    contextTags:  { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 },
+  };
+  const baseRequired = ['dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags'];
+
+  const dayProperties = isFullCloset
+    ? {
+        ...baseDayProperties,
+        closetItemIds: {
+          type: 'array',
+          items: { type: 'string' },
+          minItems: 2,
+          maxItems: 6,
+          description: 'Real closet item ids (from the wardrobe index) used to build this day\'s outfit',
+        },
+      }
+    : baseDayProperties;
+  const dayRequired = isFullCloset ? [...baseRequired, 'closetItemIds'] : baseRequired;
 
   const jsonSchema: TripOutfitsPrompt['jsonSchema'] = {
     name: 'trip_outfits',
@@ -189,19 +244,8 @@ export function buildTripOutfitsPrompt(
           description: 'One outfit object per day, in chronological order',
           items: {
             type: 'object',
-            properties: {
-              dayIndex:     { type: 'integer', description: '0-based day index' },
-              date:         { type: 'string',  description: 'YYYY-MM-DD' },
-              title:        { type: 'string',  description: 'Short evocative day title' },
-              dayType:      { type: 'string',  enum: ['travel_day', 'sightseeing', 'business', 'meeting', 'dinner_out', 'beach_pool', 'adventure', 'wedding_event', 'relaxed', 'conference'] },
-              rationale:    { type: 'string',  description: 'Why this outfit for this day (1-2 sentences)' },
-              pieces:       { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 5, description: 'Main garment pieces (color + fabric hint)' },
-              shoes:        { type: 'string',  description: 'Footwear choice' },
-              bag:          { type: ['string', 'null'], description: 'Bag or null' },
-              accessories:  { type: 'array', items: { type: 'string' }, maxItems: 3 },
-              contextTags:  { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 },
-            },
-            required: ['dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags'],
+            properties: dayProperties,
+            required: dayRequired,
             additionalProperties: false,
           },
           minItems: 1,

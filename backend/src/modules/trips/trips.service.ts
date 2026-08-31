@@ -7,6 +7,7 @@ import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { describeError } from '../../lib/http-error.js';
 import { profileRepository } from '../profile/profile.repository.js';
+import { buildClosetIndex } from '../closet/closet-index.js';
 import { closetRepository } from '../closet/closet.repository.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
@@ -27,10 +28,18 @@ export const tripsService = {
       task: 'trip-generation',
       query: buildTripGenerationStyleGuideQuery(request, profile),
     });
+
+    // "From My Closet" hands the model the full wardrobe index and requires
+    // every day to be built from real ids — mirrors closet-outfits.service.ts's
+    // "never let the model invent inventory" pattern.
+    const isFullCloset = request.anchorMode === 'fullCloset';
+    const closetIndex = isFullCloset ? await buildClosetIndex(supabaseUserId) : null;
+
     const { instructions, userContent, jsonSchema } = buildTripOutfitsPrompt(
       request,
       profile,
       styleGuideContext?.promptContext,
+      closetIndex?.index,
     );
     const anchorImageContent = await buildTripAnchorImageContent(request);
 
@@ -49,6 +58,12 @@ export const tripsService = {
       tripId: request.tripId,
       bag: day.bag ?? null,
       accessories: day.accessories ?? [],
+      // Never trust the model's ids at face value — drop any id that isn't
+      // actually in the wardrobe index rather than pretending the user owns
+      // an item that doesn't exist.
+      closetItemIds: closetIndex
+        ? (day.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id))
+        : undefined,
     }));
 
     return { tripId: request.tripId, days };

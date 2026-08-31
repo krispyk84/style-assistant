@@ -256,6 +256,7 @@ export default function AppTabsLayout() {
           }}
         />
         <Tabs.Screen name="travel-planner"       options={{ href: null }} />
+        <Tabs.Screen name="travel-planner-new-trip" options={{ href: null }} />
         <Tabs.Screen name="haircut-planner"      options={{ href: null }} />
         <Tabs.Screen name="wardrobe-score"       options={{ href: null }} />
         <Tabs.Screen name="TripAnchorsScreen"    options={{ href: null }} />
@@ -290,7 +291,7 @@ export default function AppTabsLayout() {
         <Tabs.Screen name="LooksFilterPills"          options={{ href: null }} />
         <Tabs.Screen name="LooksHistoryTab"           options={{ href: null }} />
         <Tabs.Screen name="TravelPlannerScreen"       options={{ href: null }} />
-        <Tabs.Screen name="TravelPlannerNewTripForm"  options={{ href: null }} />
+        <Tabs.Screen name="TravelPlannerNewTripScreen" options={{ href: null }} />
         <Tabs.Screen name="TravelPlannerSavedTab"     options={{ href: null }} />
         <Tabs.Screen name="travel-planner-primitives" options={{ href: null }} />
         <Tabs.Screen name="travel-planner-types"      options={{ href: null }} />

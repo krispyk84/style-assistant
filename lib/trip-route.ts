@@ -1,4 +1,4 @@
-export type TripAnchorMode = 'guided' | 'auto' | 'manual';
+export type TripAnchorMode = 'guided' | 'auto' | 'manual' | 'fullCloset';
 
 export type TripResultsRouteParams = {
   tripId: string;
@@ -13,12 +13,16 @@ export function createTripId(now = Date.now()): string {
 
 export function parseTripAnchorMode(mode?: string | string[] | null): TripAnchorMode {
   const value = Array.isArray(mode) ? mode[0] : mode;
-  if (value === 'auto' || value === 'manual') return value;
+  if (value === 'auto' || value === 'manual' || value === 'fullCloset') return value;
   return 'guided';
 }
 
 export function buildTripModeHref() {
   return { pathname: '/trip-mode' as const };
+}
+
+export function buildTravelPlannerNewTripHref() {
+  return { pathname: '/travel-planner-new-trip' as const };
 }
 
 export function buildTripAnchorsHref(mode: TripAnchorMode) {

@@ -249,7 +249,7 @@ export function TripAnchorsScreen() {
             letterSpacing: 0.6,
             textTransform: 'uppercase',
           }}>
-            {isGenerating ? 'Building Your Plan…' : 'Continue to Outfit Plan'}
+            {isGenerating ? 'Building Your Wardrobe…' : 'Build My Travel Wardrobe'}
           </AppText>
         </Pressable>
       </View>

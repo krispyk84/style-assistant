@@ -49,10 +49,6 @@ function nightsLabel(dep: Date, ret: Date): string {
   return nights === 1 ? '1 night' : `${nights} nights`;
 }
 
-function tripDays(dep: Date, ret: Date): number {
-  return Math.round((ret.getTime() - dep.getTime()) / 86_400_000) + 1;
-}
-
 /** Latest allowed return date given a departure (inclusive, MAX_TRIP_DAYS total). */
 function maxReturnDate(dep: Date): Date {
   return new Date(dep.getTime() + (MAX_TRIP_DAYS - 1) * 86_400_000);
@@ -87,9 +83,6 @@ export function TravelDatePicker({ departureDate, returnDate, onDepartureChange,
 
   const rangeHighlight = theme.dark ? 'rgba(165,106,31,0.22)' : 'rgba(165,106,31,0.11)';
   const weeks = useMemo(() => buildCalendarWeeks(viewYear, viewMonth), [viewYear, viewMonth]);
-
-  const isDepartureActive = isOpen && mode === 'departure';
-  const isReturnActive = isOpen && mode === 'return';
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -242,90 +235,35 @@ export function TravelDatePicker({ departureDate, returnDate, onDepartureChange,
   return (
     <View style={{ gap: spacing.sm }}>
 
-      {/* Date card row */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        {/* Departure card */}
-        <Pressable
-          onPress={() => openFor('departure')}
+      {/* Single compact date-range control — replaces the separate Departure/Return cards */}
+      <Pressable
+        onPress={() => openFor(dep && !ret ? 'return' : 'departure')}
+        style={{
+          alignItems: 'center',
+          backgroundColor: isOpen ? theme.colors.subtleSurface : theme.colors.surface,
+          borderColor: isOpen ? theme.colors.accent : theme.colors.border,
+          borderRadius: 16,
+          borderWidth: 1,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm + 4,
+        }}>
+        <AppText
           style={{
-            flex: 1,
-            backgroundColor: isDepartureActive ? theme.colors.subtleSurface : theme.colors.surface,
-            borderColor: isDepartureActive ? theme.colors.accent : theme.colors.border,
-            borderRadius: 16,
-            borderWidth: 1,
-            paddingHorizontal: spacing.md,
-            paddingVertical: spacing.sm + 2,
+            color: dep ? theme.colors.text : theme.colors.subtleText,
+            fontFamily: dep ? theme.fonts.sansMedium : theme.fonts.sans,
+            fontSize: 14,
           }}>
-          <AppText
-            style={{
-              color: theme.colors.mutedText,
-              fontFamily: theme.fonts.sansMedium,
-              fontSize: 10,
-              letterSpacing: 1.4,
-              marginBottom: 4,
-              textTransform: 'uppercase',
-            }}>
-            Departure
-          </AppText>
-          <AppText
-            style={{
-              color: dep ? theme.colors.text : theme.colors.subtleText,
-              fontFamily: dep ? theme.fonts.sansMedium : theme.fonts.sans,
-              fontSize: 14,
-            }}>
-            {dep ? formatDisplayDate(dep) : 'Select date'}
-          </AppText>
-        </Pressable>
-
-        <AppIcon color={theme.colors.subtleText} name="arrow-right" size={12} />
-
-        {/* Return card */}
-        <Pressable
-          onPress={() => openFor('return')}
-          style={{
-            flex: 1,
-            backgroundColor: isReturnActive ? theme.colors.subtleSurface : theme.colors.surface,
-            borderColor: isReturnActive ? theme.colors.accent : theme.colors.border,
-            borderRadius: 16,
-            borderWidth: 1,
-            paddingHorizontal: spacing.md,
-            paddingVertical: spacing.sm + 2,
-          }}>
-          <AppText
-            style={{
-              color: theme.colors.mutedText,
-              fontFamily: theme.fonts.sansMedium,
-              fontSize: 10,
-              letterSpacing: 1.4,
-              marginBottom: 4,
-              textTransform: 'uppercase',
-            }}>
-            Return
-          </AppText>
-          <AppText
-            style={{
-              color: ret ? theme.colors.text : theme.colors.subtleText,
-              fontFamily: ret ? theme.fonts.sansMedium : theme.fonts.sans,
-              fontSize: 14,
-            }}>
-            {ret ? formatDisplayDate(ret) : 'Select date'}
-          </AppText>
-        </Pressable>
-      </View>
-
-      {/* Duration + change hint — shown only when both dates are set and calendar is closed */}
-      {hasBothEnds && !isOpen ? (
-        <View style={{ gap: 4 }}>
-          <AppText style={{ color: theme.colors.mutedText, fontSize: 13, textAlign: 'center' }}>
-            {nightsLabel(dep!, ret!)} · Tap a date to change
-          </AppText>
-          {tripDays(dep!, ret!) >= MAX_TRIP_DAYS && (
-            <AppText style={{ color: theme.colors.accent, fontSize: 11, textAlign: 'center' }}>
-              Max trip length reached ({MAX_TRIP_DAYS} days)
-            </AppText>
-          )}
-        </View>
-      ) : null}
+          {dep ? formatDisplayDate(dep) : 'Select dates'}
+          {dep ? `  →  ${ret ? formatDisplayDate(ret) : 'Select return'}` : ''}
+        </AppText>
+        {hasBothEnds ? (
+          <AppText style={{ color: theme.colors.mutedText, fontSize: 12 }}>{nightsLabel(dep!, ret!)}</AppText>
+        ) : (
+          <AppIcon color={theme.colors.subtleText} name="chevron-right" size={14} />
+        )}
+      </Pressable>
 
       {/* Return mode: show max return date hint */}
       {isOpen && mode === 'return' && dep && (

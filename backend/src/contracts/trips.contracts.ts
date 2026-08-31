@@ -11,6 +11,8 @@ export type TripOutfitDayDto = {
   bag: string | null;
   accessories: string[];
   contextTags: string[];  // e.g. ["layered", "beach-ready", "wrinkle-resistant"]
+  /** Set only for "From My Closet" (fullCloset) days — real closet item ids the pieces above resolve to. */
+  closetItemIds?: string[];
 };
 
 export type TripAnchorInputDto = {
@@ -28,7 +30,7 @@ export type GenerateTripOutfitsRequest = {
   tripId: string;
   profileId?: string;
   anchors?: TripAnchorInputDto[];
-  anchorMode?: 'guided' | 'auto' | 'manual';
+  anchorMode?: 'guided' | 'auto' | 'manual' | 'fullCloset';
   destination: string;       // human-readable label
   country: string;
   departureDate: string;     // YYYY-MM-DD
@@ -51,6 +53,7 @@ export type GenerateTripOutfitsRequest = {
   laundryAccess: 'Yes' | 'No' | 'Unsure';
   shoesCount: string;        // 1 | 2 | 3 | 4+
   carryOnOnly: boolean;
+  rewearOk?: boolean;
   specialNeeds?: string;
   /** Progressive generation: generate only this day (0-based index). */
   generateOnlyDayIndex?: number;

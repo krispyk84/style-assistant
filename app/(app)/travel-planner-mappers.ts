@@ -51,6 +51,7 @@ type BuildTripDraftParams = {
   laundryAccess: YesNoUnsure;
   shoesCount: ShoeCount;
   carryOnOnly: YesNo;
+  rewearOk: YesNo;
   specialNeeds: string;
 };
 
@@ -72,6 +73,7 @@ export function buildTripDraft({
   laundryAccess,
   shoesCount,
   carryOnOnly,
+  rewearOk,
   specialNeeds,
 }: BuildTripDraftParams): TripDraft {
   return {
@@ -102,6 +104,7 @@ export function buildTripDraft({
     laundryAccess,
     shoesCount,
     carryOnOnly: carryOnOnly === 'Yes',
+    rewearOk: rewearOk === 'Yes',
     specialNeeds: specialNeeds.trim() || undefined,
     createdAt: new Date().toISOString(),
   };

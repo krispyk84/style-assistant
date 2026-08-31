@@ -4,6 +4,7 @@ import { tripDraftStorage } from '@/lib/trip-draft-storage';
 import type { DestinationResult } from '@/services/destination';
 import type { TravelClimateProfile } from '@/services/travel-climate';
 import { inferTravelClimate } from '@/services/travel-climate';
+import type { ClosetItem } from '@/types/closet';
 import { buildTripDraft, calculateTripDays } from './travel-planner-mappers';
 import type {
   ShoeCount,
@@ -37,10 +38,18 @@ export function useTravelPlannerForm() {
   const [laundryAccess, setLaundryAccess] = useState<YesNoUnsure>('Unsure');
   const [shoesCount, setShoesCount] = useState<ShoeCount>('2');
   const [carryOnOnly, setCarryOnOnly] = useState<YesNo>('No');
+  const [rewearOk, setRewearOk] = useState<YesNo>('No');
   const [specialNeeds, setSpecialNeeds] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Wizard step (1: Trip, 2: Plans, 3: Context + Packing) — plain in-memory
+  // state, not routed, so nothing unmounts and partial input survives normal
+  // back/forward navigation within the creation flow.
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const goNext = useCallback(() => setStep((s) => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s)), []);
+  const goBack = useCallback(() => setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s)), []);
 
   useEffect(() => {
     const lat = destination?.lat;
@@ -108,15 +117,19 @@ export function useTravelPlannerForm() {
     setLaundryAccess('Unsure');
     setShoesCount('2');
     setCarryOnOnly('No');
+    setRewearOk('No');
     setSpecialNeeds('');
     setSubmitError(null);
+    setStep(1);
   }, []);
 
   const numDays = calculateTripDays(departureDate, returnDate);
   const exceedsMaxDays = numDays > 8;
   const canSubmit = destination !== null && departureDate !== null && returnDate !== null && !isSubmitting && !exceedsMaxDays;
+  // Step 1's own Continue gate — only destination + dates are required; travelling-with has a default.
+  const canContinueStep1 = destination !== null && departureDate !== null && returnDate !== null && !exceedsMaxDays;
 
-  const saveDraft = useCallback(async () => {
+  const saveDraft = useCallback(async (options?: { wantToBring?: ClosetItem[] }) => {
     if (!destination || !departureDate || !returnDate) return false;
 
     if (exceedsMaxDays) {
@@ -128,7 +141,7 @@ export function useTravelPlannerForm() {
     setSubmitError(null);
 
     try {
-      await tripDraftStorage.save(buildTripDraft({
+      const draft = buildTripDraft({
         destination,
         departureDate,
         returnDate,
@@ -146,8 +159,19 @@ export function useTravelPlannerForm() {
         laundryAccess,
         shoesCount,
         carryOnOnly,
+        rewearOk,
         specialNeeds,
-      }));
+      });
+      if (options?.wantToBring && options.wantToBring.length > 0) {
+        draft.pendingAnchors = options.wantToBring.map((item) => ({
+          label: item.title,
+          category: item.category,
+          source: 'closet' as const,
+          closetItemId: item.id,
+          rationale: 'Selected as a must-bring piece',
+        }));
+      }
+      await tripDraftStorage.save(draft);
       return true;
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -158,6 +182,7 @@ export function useTravelPlannerForm() {
   }, [
     activities,
     carryOnOnly,
+    rewearOk,
     climate,
     climateProfile,
     departureDate,
@@ -211,6 +236,8 @@ export function useTravelPlannerForm() {
     setShoesCount,
     carryOnOnly,
     setCarryOnOnly,
+    rewearOk,
+    setRewearOk,
     specialNeeds,
     setSpecialNeeds,
     isSubmitting,
@@ -218,6 +245,10 @@ export function useTravelPlannerForm() {
     numDays,
     exceedsMaxDays,
     canSubmit,
+    canContinueStep1,
+    step,
+    goNext,
+    goBack,
     resetForm,
     saveDraft,
   };

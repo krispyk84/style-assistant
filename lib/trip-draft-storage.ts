@@ -47,10 +47,11 @@ export type TripDraft = {
   laundryAccess: 'Yes' | 'No' | 'Unsure';
   shoesCount: string;
   carryOnOnly: boolean;
+  rewearOk?: boolean;
   specialNeeds?: string;
   // Anchors saved just before progressive generation starts
   pendingAnchors?: PendingAnchorInput[];
-  pendingAnchorMode?: 'guided' | 'auto' | 'manual';
+  pendingAnchorMode?: 'guided' | 'auto' | 'manual' | 'fullCloset';
   // Meta
   createdAt: string;
 };

@@ -1,9 +1,9 @@
-import { Pressable, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import type { TripPurpose } from './travel-planner-types';
 
 // ── Card wrapper ──────────────────────────────────────────────────────────────
 
@@ -37,19 +37,40 @@ export function FieldLabel({ children }: { children: string }) {
   );
 }
 
-// ── Trip-purpose chip grid ────────────────────────────────────────────────────
+// ── Multi-select chip grid ────────────────────────────────────────────────────
+// Genericized from a trip-purpose-specific component: values are plain
+// strings, so it doubles as the "What will you be doing?" activity picker
+// (with an optional "+ Add something else" custom-entry affordance) as well
+// as any other chip-based multi-select.
 
 type ChipGridProps = {
-  options: readonly TripPurpose[];
-  values: TripPurpose[];
-  onChange: (v: TripPurpose) => void;
+  options: readonly string[];
+  values: string[];
+  onChange: (v: string) => void;
+  /** When provided, renders a trailing "+ Add something else" chip that reveals an inline text entry. */
+  onAddCustom?: (value: string) => void;
 };
 
-export function ChipGrid({ options, values, onChange }: ChipGridProps) {
+export function ChipGrid({ options, values, onChange, onAddCustom }: ChipGridProps) {
   const { theme } = useTheme();
+  const [isAddingCustom, setIsAddingCustom] = useState(false);
+  const [customText, setCustomText] = useState('');
+
+  function submitCustom() {
+    const trimmed = customText.trim();
+    if (trimmed) onAddCustom?.(trimmed);
+    setCustomText('');
+    setIsAddingCustom(false);
+  }
+
+  // Values the caller added via onAddCustom (or that arrived from elsewhere,
+  // e.g. a legacy stored purpose) don't appear in `options` — render them too,
+  // always active, so they're visible and can be tapped off again.
+  const customValues = values.filter((v) => !options.includes(v));
+
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-      {options.map((opt) => {
+      {[...options, ...customValues].map((opt) => {
         const active = values.includes(opt);
         return (
           <Pressable
@@ -72,6 +93,45 @@ export function ChipGrid({ options, values, onChange }: ChipGridProps) {
           </Pressable>
         );
       })}
+      {onAddCustom ? (
+        isAddingCustom ? (
+          <TextInput
+            autoFocus
+            value={customText}
+            onChangeText={setCustomText}
+            onSubmitEditing={submitCustom}
+            onBlur={submitCustom}
+            placeholder="Add something else…"
+            placeholderTextColor={theme.colors.subtleText}
+            returnKeyType="done"
+            style={{
+              backgroundColor: theme.colors.subtleSurface,
+              borderRadius: 999,
+              color: theme.colors.text,
+              fontFamily: theme.fonts.sans,
+              fontSize: 13,
+              minWidth: 160,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm - 2,
+            }}
+          />
+        ) : (
+          <Pressable
+            onPress={() => setIsAddingCustom(true)}
+            style={{
+              backgroundColor: 'transparent',
+              borderColor: theme.colors.border,
+              borderRadius: 999,
+              borderWidth: 1,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm - 2,
+            }}>
+            <AppText style={{ color: theme.colors.subtleText, fontFamily: theme.fonts.sansMedium, fontSize: 13 }}>
+              + Add something else
+            </AppText>
+          </Pressable>
+        )
+      ) : null}
     </View>
   );
 }

@@ -332,11 +332,12 @@ model TripPlan {
   laundryAccess  String       @default("Unsure")
   shoesCount     String       @default("2")
   carryOnOnly    Boolean      @default(false)
+  rewearOk       Boolean      @default(false)
   activities     String?
   dressCode      String?
   specialNeeds   String?
   // Anchor selection
-  anchorMode     String?                   // guided | auto | manual
+  anchorMode     String?                   // guided | auto | manual | fullCloset
   // Lifecycle
   status         String       @default("draft")  // draft | generating | generated
   tripId         String?                   // set after generation

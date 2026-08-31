@@ -1,6 +1,6 @@
 import type { ScoredAnchorCandidate } from '@/lib/trip-anchor-recommender';
 
-export type AnchorMode = 'guided' | 'auto' | 'manual';
+export type AnchorMode = 'guided' | 'auto' | 'manual' | 'fullCloset';
 
 export type SelectedAnchor = {
   id: string;

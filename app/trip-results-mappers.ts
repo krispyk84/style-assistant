@@ -82,6 +82,7 @@ export function buildTripDayGenerationParams({
     laundryAccess: draft.laundryAccess,
     shoesCount: draft.shoesCount,
     carryOnOnly: draft.carryOnOnly,
+    rewearOk: draft.rewearOk,
     specialNeeds: draft.specialNeeds,
     anchors: draft.pendingAnchors,
     anchorMode: draft.pendingAnchorMode,

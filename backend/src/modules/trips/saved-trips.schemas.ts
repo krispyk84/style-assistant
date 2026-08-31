@@ -15,6 +15,10 @@ const savedTripDaySchema = z.object({
   bag:          z.string().nullable(),
   accessories:  z.array(z.string()),
   contextTags:  z.array(z.string()),
+  // Only present for "From My Closet" (fullCloset) days — real closet item
+  // ids the pieces above resolve to. Absent on older saved trips and on
+  // guided/anchors days; treat as optional everywhere it's read.
+  closetItemIds: z.array(z.string()).optional(),
   sketchStatus: z.string().optional(),
   sketchUrl:    z.string().optional(),
   sketchJobId:  z.string().optional(),

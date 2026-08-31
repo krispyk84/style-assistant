@@ -29,10 +29,11 @@ const createTripPlanSchema = z.object({
   laundryAccess:  z.string().min(1),
   shoesCount:     z.string().min(1),
   carryOnOnly:    z.boolean(),
+  rewearOk:       z.boolean().optional(),
   activities:     z.string().optional(),
   dressCode:      z.string().optional(),
   specialNeeds:   z.string().optional(),
-  anchorMode:     z.enum(['guided', 'auto', 'manual']).optional(),
+  anchorMode:     z.enum(['guided', 'auto', 'manual', 'fullCloset']).optional(),
 });
 
 const tripAnchorSchema = z.object({
@@ -48,7 +49,7 @@ const tripAnchorSchema = z.object({
 });
 
 const setAnchorsSchema = z.object({
-  anchorMode: z.enum(['guided', 'auto', 'manual']),
+  anchorMode: z.enum(['guided', 'auto', 'manual', 'fullCloset']),
   anchors:    z.array(tripAnchorSchema),
 });
 

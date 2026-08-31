@@ -19,6 +19,7 @@ import { seasonalTrendsService } from '../seasonal-trends/seasonal-trends.servic
 import { trendFeedbackService } from '../seasonal-trends/trend-feedback.service.js';
 import type { FashionGender } from '../seasonal-trends/seasonal-trends.repository.js';
 import type { Hemisphere } from '../seasonal-trends/season-math.js';
+import { buildClosetIndex } from './closet-index.js';
 import { closetRepository } from './closet.repository.js';
 import { mapClosetItem } from './closet-response-mapper.js';
 import { CLOSET_OUTFITS_JSON_SCHEMA, closetOutfitsLlmResponseSchema } from './closet.schemas.js';
@@ -81,35 +82,14 @@ type ResolvedOutfit = {
 };
 
 async function loadIndex(supabaseUserId: string) {
-  const items = await closetRepository.getItems(supabaseUserId);
-  if (items.length < MIN_WARDROBE_SIZE) {
+  const { index, itemsById } = await buildClosetIndex(supabaseUserId);
+  if (index.length < MIN_WARDROBE_SIZE) {
     throw new HttpError(
       422,
       'INSUFFICIENT_ITEMS',
       `Add at least ${MIN_WARDROBE_SIZE} closet items before generating full outfits.`,
     );
   }
-
-  // Shuffled per request — LLMs skew toward items earlier in a long list, so
-  // sending the same order every time compounds that bias into the same
-  // handful of items getting picked call after call regardless of prompt
-  // instructions.
-  const shuffled = [...items].sort(() => Math.random() - 0.5);
-
-  const index: ClosetOutfitIndexItem[] = shuffled.map((item) => ({
-    id: item.id,
-    name: item.title,
-    category: item.category,
-    color_family: item.colorFamily ?? null,
-    formality: item.formality ?? null,
-    silhouette: item.silhouette ?? null,
-    season: item.season ?? null,
-    material: item.material ?? null,
-    brand: item.brand || null,
-  }));
-
-  const itemsById = new Map(items.map((item) => [item.id, item]));
-
   return { index, itemsById };
 }
 
