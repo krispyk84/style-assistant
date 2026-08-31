@@ -15,6 +15,61 @@ import { regenerateDayResponseSchema, tripOutfitsResponseSchema } from './trips.
 import type { GenerateTripOutfitsRequest, GenerateTripOutfitsResponse, RegenerateTripDayRequest, TripOutfitDayDto } from '../../contracts/trips.contracts.js';
 import type { InputContent } from '../../ai/openai-request-builder.js';
 
+// Mirrors lib/outfit-piece-display.ts's CATEGORY_KEYWORDS['Outerwear'] on the
+// frontend — kept as a separate constant here since that file isn't shared
+// with the backend. Used to enforce the outerwear cap programmatically:
+// pure prompt instructions weren't reliable enough across ~8 separate,
+// stateless per-day generation calls (each day is its own API request with
+// no real memory of prior turns beyond a text summary) — the model kept
+// inventing a new jacket per day despite being told not to.
+const OUTERWEAR_KEYWORDS = ['jacket', 'coat', 'blazer', 'cardigan', 'hoodie', 'windbreaker', 'parka', 'vest', 'puffer', 'trench', 'overcoat', 'jumper', 'overshirt'];
+
+function isOuterwearPiece(piece: string): boolean {
+  const lower = piece.toLowerCase();
+  return OUTERWEAR_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
+
+/**
+ * Walks a day's pieces and rewrites any outerwear piece that would exceed
+ * the trip's outerwear cap, forcing reuse of an already-used piece (or
+ * dropping it entirely when the cap is 0) instead of trusting the model to
+ * have self-limited. `usedOuterwear` is threaded through call to call so a
+ * multi-day batch (or a progressive per-day loop, via the caller re-passing
+ * the accumulated list each request) converges on the same cap regardless
+ * of how many separate days/requests are involved.
+ */
+function enforceOuterwearCap(
+  pieces: string[],
+  usedOuterwear: string[],
+  cap: number,
+): { pieces: string[]; usedOuterwear: string[] } {
+  const updatedUsed = [...usedOuterwear];
+  const newPieces = pieces.reduce<string[]>((acc, piece) => {
+    if (!isOuterwearPiece(piece)) {
+      acc.push(piece);
+      return acc;
+    }
+    if (cap <= 0) return acc; // drop outerwear entirely — user asked to pack none
+
+    const existingMatch = updatedUsed.find((used) => used.toLowerCase() === piece.toLowerCase());
+    if (existingMatch) {
+      acc.push(existingMatch); // normalize wording to the canonical already-used string
+      return acc;
+    }
+    if (updatedUsed.length < cap) {
+      updatedUsed.push(piece);
+      acc.push(piece);
+      return acc;
+    }
+    // Cap already reached with a genuinely new piece — force reuse instead
+    // of letting a new distinct jacket slip through.
+    acc.push(updatedUsed[0]!);
+    return acc;
+  }, []);
+
+  return { pieces: newPieces, usedOuterwear: updatedUsed };
+}
+
 export const tripsService = {
   async generateTripOutfits(
     request: GenerateTripOutfitsRequest,
@@ -52,19 +107,28 @@ export const tripsService = {
       feature: 'trip-generation',
     });
 
-    const days: TripOutfitDayDto[] = result.days.map((day) => ({
-      ...day,
-      id: `${request.tripId}-day-${day.dayIndex}`,
-      tripId: request.tripId,
-      bag: day.bag ?? null,
-      accessories: day.accessories ?? [],
-      // Never trust the model's ids at face value — drop any id that isn't
-      // actually in the wardrobe index rather than pretending the user owns
-      // an item that doesn't exist.
-      closetItemIds: closetIndex
-        ? (day.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id))
-        : undefined,
-    }));
+    const jacketsCap = Number(request.jacketsCount ?? '1');
+    let usedOuterwear = request.usedOuterwear ?? [];
+
+    const days: TripOutfitDayDto[] = result.days.map((day) => {
+      const { pieces, usedOuterwear: nextUsed } = enforceOuterwearCap(day.pieces, usedOuterwear, jacketsCap);
+      usedOuterwear = nextUsed;
+
+      return {
+        ...day,
+        pieces,
+        id: `${request.tripId}-day-${day.dayIndex}`,
+        tripId: request.tripId,
+        bag: day.bag ?? null,
+        accessories: day.accessories ?? [],
+        // Never trust the model's ids at face value — drop any id that isn't
+        // actually in the wardrobe index rather than pretending the user owns
+        // an item that doesn't exist.
+        closetItemIds: closetIndex
+          ? (day.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id))
+          : undefined,
+      };
+    });
 
     return { tripId: request.tripId, days };
   },

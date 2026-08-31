@@ -1,5 +1,6 @@
 import type { TripDraft } from '@/lib/trip-draft-storage';
 import type { StoredTripPlan } from '@/lib/trip-outfits-storage';
+import { categorizeTripItem } from '@/lib/outfit-piece-display';
 import type { SavedTripDetail } from '@/services/saved-trips';
 import type { GenerateTripOutfitsParams, TripOutfitDay } from '@/services/trip-outfits';
 
@@ -47,16 +48,34 @@ export function buildPreviousTripDaysSummary(days: TripOutfitDay[]): string[] {
   );
 }
 
+/** Distinct outerwear pieces (jacket/coat/blazer/etc.) already used on earlier days — threaded into each subsequent generation request so the outerwear cap holds across the whole trip, not just within one day. */
+export function collectUsedOuterwear(days: TripOutfitDay[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const day of days) {
+    for (const piece of day.pieces ?? []) {
+      if (categorizeTripItem(piece) !== 'Outerwear') continue;
+      const key = piece.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(piece);
+    }
+  }
+  return result;
+}
+
 export function buildTripDayGenerationParams({
   tripId,
   draft,
   dayIndex,
   previousDaysSummary,
+  usedOuterwear,
 }: {
   tripId: string;
   draft: TripDraft;
   dayIndex: number;
   previousDaysSummary: string[];
+  usedOuterwear: string[];
 }): GenerateTripOutfitsParams {
   return {
     tripId,
@@ -89,5 +108,6 @@ export function buildTripDayGenerationParams({
     anchorMode: draft.pendingAnchorMode,
     generateOnlyDayIndex: dayIndex,
     previousDaysSummary,
+    usedOuterwear,
   };
 }

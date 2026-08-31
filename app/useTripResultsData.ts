@@ -13,6 +13,7 @@ import {
   buildStoredTripPlanFromDraft,
   buildStoredTripPlanFromSavedTrip,
   buildTripDayGenerationParams,
+  collectUsedOuterwear,
 } from './trip-results-mappers';
 
 type UseTripResultsDataParams = {
@@ -84,6 +85,7 @@ export function useTripResultsData({
           draft,
           dayIndex: index,
           previousDaysSummary: buildPreviousTripDaysSummary(generatedDays),
+          usedOuterwear: collectUsedOuterwear(generatedDays),
         }));
       } catch (err) {
         setErrorMessage(err instanceof Error ? err.message : 'Generation failed. Please go back and try again.');

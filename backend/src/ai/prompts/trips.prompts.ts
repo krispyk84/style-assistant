@@ -66,6 +66,16 @@ function buildTripContext(req: GenerateTripOutfitsRequest): string {
   lines.push(`  Laundry access: ${req.laundryAccess}`);
   lines.push(`  Max shoes willing to pack: ${req.shoesCount}`);
   lines.push(`  Max jackets/outerwear willing to pack: ${req.jacketsCount ?? '1'} — this is a HARD CAP on the number of DISTINCT jacket/coat/blazer/outerwear pieces across the ENTIRE trip, not per day. Reuse the exact same outerwear piece (identical wording) across as many days as needed rather than describing a "new" one each day — outerwear is bulky to pack, so treat it as a small fixed rotation, unlike shirts or accessories which can vary more freely. If the cap is 0, do not include any jacket/coat/blazer in any day's pieces.`);
+  if (req.usedOuterwear && req.usedOuterwear.length > 0) {
+    const capNum = Number(req.jacketsCount ?? '1');
+    const capReached = req.usedOuterwear.length >= capNum;
+    lines.push(`  Outerwear already used on earlier days: ${req.usedOuterwear.map((o) => `"${o}"`).join(', ')}.`);
+    lines.push(
+      capReached
+        ? '  The outerwear cap has been reached — you MUST reuse one of the pieces above (worded identically) for any jacket/coat/blazer in this day, or omit outerwear entirely. Do NOT introduce a new one.'
+        : `  Prefer reusing one of the pieces above; you may introduce at most ${capNum - req.usedOuterwear.length} more new distinct outerwear piece(s) if none of the above genuinely fits.`,
+    );
+  }
   lines.push(`  Swimming: ${req.willSwim ? 'Yes — include a swimwear day' : 'No'}`);
   lines.push(`  Fancy nights out: ${req.fancyNights ? 'Yes — include at least one elevated evening outfit' : 'No'}`);
   lines.push(`  Workout clothes needed: ${req.workoutClothes ? 'Yes — include at least one activewear day' : 'No'}`);

@@ -87,6 +87,8 @@ export type GenerateTripOutfitsParams = {
   laundryAccess: 'Yes' | 'No' | 'Unsure';
   shoesCount: string;
   jacketsCount?: string;
+  /** Outerwear pieces already used on earlier days of this trip — threaded through so the cap holds across separate per-day requests. */
+  usedOuterwear?: string[];
   carryOnOnly: boolean;
   rewearOk?: boolean;
   specialNeeds?: string;
