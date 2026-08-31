@@ -73,3 +73,54 @@ export async function checkSupabaseTablesDirectly(): Promise<{
     localSavedOutfitsCount,
   };
 }
+
+// The full saved_outfits select (all columns, all rows) has repeatedly timed
+// out at 10s while a count-only query on the same table stays instant —
+// pointing at oversized row payloads rather than RLS/auth. This measures
+// narrow-column fetch speed vs. actual row byte size directly, to confirm
+// (or rule out) embedded base64 image data in older rows' recommendation
+// JSONB column (pre-dating the switch to stable sketch URLs).
+export async function measureSavedOutfitsPayload(): Promise<string> {
+  const lines: string[] = [];
+  const start = Date.now();
+
+  try {
+    const narrowStart = Date.now();
+    const { data: narrowData, error: narrowError } = await supabase
+      .from('saved_outfits')
+      .select('id, saved_at')
+      .order('saved_at', { ascending: false });
+    if (narrowError) {
+      lines.push(`narrow select (id, saved_at) — ERROR: ${narrowError.code ?? ''} ${narrowError.message}`.trim());
+    } else {
+      lines.push(`narrow select (id, saved_at), ${narrowData?.length ?? 0} rows — ${Date.now() - narrowStart}ms`);
+    }
+  } catch (error) {
+    lines.push(`narrow select — ERROR: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  try {
+    const wideStart = Date.now();
+    const { data: wideData, error: wideError } = await supabase
+      .from('saved_outfits')
+      .select('id, recommendation')
+      .order('saved_at', { ascending: false })
+      .limit(1);
+    if (wideError) {
+      lines.push(`single-row full recommendation — ERROR: ${wideError.code ?? ''} ${wideError.message}`.trim());
+    } else if (wideData && wideData.length > 0) {
+      const raw = JSON.stringify(wideData[0].recommendation ?? {});
+      const sketchUrl = (wideData[0].recommendation as { sketchImageUrl?: string } | null)?.sketchImageUrl ?? '';
+      lines.push(
+        `single-row full recommendation — ${Date.now() - wideStart}ms, ~${Math.round(raw.length / 1024)}KB, sketchImageUrl starts with: ${sketchUrl.slice(0, 30) || '(none)'}`,
+      );
+    } else {
+      lines.push('single-row full recommendation — 0 rows returned');
+    }
+  } catch (error) {
+    lines.push(`single-row full recommendation — ERROR: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  lines.push(`total elapsed: ${Date.now() - start}ms`);
+  return lines.join('\n');
+}

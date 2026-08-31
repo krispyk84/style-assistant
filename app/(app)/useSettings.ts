@@ -6,7 +6,7 @@ import { useAppSession } from '@/hooks/use-app-session';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
 import { fetchCloudBackupStatus } from '@/lib/cloud-backup-status';
 import { clearAuthEventLog, getAuthEventLog } from '@/lib/auth-event-log';
-import { checkSupabaseTablesDirectly } from '@/lib/supabase-diagnostics';
+import { checkSupabaseTablesDirectly, measureSavedOutfitsPayload } from '@/lib/supabase-diagnostics';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { usageService } from '@/services/usage';
 import { seasonalTrendsService } from '@/services/seasonal-trends';
@@ -129,6 +129,17 @@ export function useSettings() {
     setIsCheckingSupabaseDirect(false);
   }
 
+  async function checkPayloadSize() {
+    setIsCheckingSupabaseDirect(true);
+    setSupabaseDirectMessage(null);
+    try {
+      setSupabaseDirectMessage(await measureSavedOutfitsPayload());
+    } catch (error) {
+      setSupabaseDirectMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error.'}`);
+    }
+    setIsCheckingSupabaseDirect(false);
+  }
+
   async function viewAuthEventLog() {
     const entries = await getAuthEventLog();
     setAuthEventLogMessage(
@@ -163,7 +174,7 @@ export function useSettings() {
     monthlyAiCost, appVersion,
     isRefreshingTrends, trendsRefreshMessage, refreshSeasonalTrends,
     isCheckingCloudBackup, cloudBackupMessage, checkCloudBackupStatus,
-    isCheckingSupabaseDirect, supabaseDirectMessage, checkSupabaseDirectStatus,
+    isCheckingSupabaseDirect, supabaseDirectMessage, checkSupabaseDirectStatus, checkPayloadSize,
     authEventLogMessage, viewAuthEventLog, resetAuthEventLog,
   };
 }

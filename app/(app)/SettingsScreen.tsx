@@ -28,7 +28,7 @@ export function SettingsScreen() {
     monthlyAiCost, appVersion,
     isRefreshingTrends, trendsRefreshMessage, refreshSeasonalTrends,
     isCheckingCloudBackup, cloudBackupMessage, checkCloudBackupStatus,
-    isCheckingSupabaseDirect, supabaseDirectMessage, checkSupabaseDirectStatus,
+    isCheckingSupabaseDirect, supabaseDirectMessage, checkSupabaseDirectStatus, checkPayloadSize,
     authEventLogMessage, viewAuthEventLog, resetAuthEventLog,
   } = useSettings();
   const { handleLogout } = useLogout();
@@ -252,6 +252,24 @@ export function SettingsScreen() {
           {supabaseDirectMessage ? (
             <AppText tone="muted" style={{ fontSize: 12 }}>{supabaseDirectMessage}</AppText>
           ) : null}
+          <Pressable
+            disabled={isCheckingSupabaseDirect}
+            onPress={() => void checkPayloadSize()}
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.colors.subtleSurface,
+              borderColor: theme.colors.border,
+              borderRadius: 16,
+              borderWidth: 1,
+              justifyContent: 'center',
+              minHeight: 48,
+              opacity: isCheckingSupabaseDirect ? 0.6 : 1,
+              paddingHorizontal: spacing.md,
+            }}>
+            <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 13 }}>
+              {isCheckingSupabaseDirect ? 'Checking…' : 'Check Saved-Outfits Payload Size'}
+            </AppText>
+          </Pressable>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Pressable
               onPress={() => void viewAuthEventLog()}
