@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/app-icon';
+import { FloatingGlass } from '@/components/ui/floating-glass';
 import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPanel';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
@@ -73,15 +74,24 @@ export function LookResultCardView({
     [recommendation, closetItems, matchMap, anchorDescription],
   );
 
-  const actionButtonStyle = {
+  const nonAnchorPieces = labeledPieces.filter((p) => !p.isAnchor);
+  const ownedCount = nonAnchorPieces.filter((p) => p.matchedClosetItem).length;
+
+  const quietButtonStyle = {
     alignItems: 'center',
-    backgroundColor: theme.colors.card,
-    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.subtleSurface,
     borderRadius: 999,
-    borderWidth: 1,
     flex: 1,
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 46,
+    paddingHorizontal: spacing.md,
+  } as const;
+
+  const primaryButtonStyle = {
+    alignItems: 'center',
+    borderRadius: 999,
+    justifyContent: 'center',
+    minHeight: 50,
     paddingHorizontal: spacing.md,
   } as const;
 
@@ -92,134 +102,134 @@ export function LookResultCardView({
         borderColor: theme.colors.border,
         borderRadius: 28,
         borderWidth: 1,
-        gap: spacing.lg,
-        padding: spacing.lg,
+        overflow: 'hidden',
       }}>
-      <View style={{ gap: spacing.xs }}>
-        <AppText variant="title">{formatTierLabel(recommendation.tier)}</AppText>
-        <AppText tone="muted">{recommendation.title}</AppText>
-      </View>
-
-      <GeneratedSketchPanel status={recommendation.sketchStatus} imageUrl={recommendation.sketchImageUrl} />
-
-      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-        {(['love', 'hate'] as const).map((thumb) => {
-          const isSelected = outfitFeedback === thumb;
-          return (
-            <Pressable
-              key={thumb}
-              onPress={() => onOutfitFeedback?.(thumb)}
-              style={[
-                actionButtonStyle,
-                {
-                  backgroundColor: isSelected ? theme.colors.text : 'transparent',
-                  borderColor: isSelected ? theme.colors.text : theme.colors.border,
-                  flexDirection: 'row',
-                  gap: spacing.xs,
-                },
-              ]}>
-              <AppIcon
-                color={isSelected ? theme.colors.background : theme.colors.mutedText}
-                name={thumb === 'love' ? 'heart' : 'thumbs-down'}
-                size={16}
-              />
-              <AppText style={{ color: isSelected ? theme.colors.background : theme.colors.mutedText }}>
-                {thumb === 'love' ? 'Love it' : 'Hate it'}
-              </AppText>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <OutfitPieceListView
-        pieces={labeledPieces}
-        display="labeled"
-        regeneratingMatches={regeneratingMatches}
-        matchFeedbackMap={matchFeedbackMap}
-        onMatchThumbsUp={onMatchThumbsUp}
-        onMatchThumbsDown={onMatchThumbsDown}
-      />
-
-      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-        <Pressable
-          disabled={isSaved || isSaving || !onSave}
-          onPress={onSave}
-          style={[
-            actionButtonStyle,
-            { backgroundColor: isSaved ? theme.colors.border : theme.colors.card },
-          ]}>
-          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-            <AppIcon
-              color={theme.colors.text}
-              name="bookmark"
-              size={18}
-            />
-            <AppText>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}</AppText>
-          </View>
-        </Pressable>
-        <Pressable disabled={!onAddToWeek} onPress={onAddToWeek} style={actionButtonStyle}>
-          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-            <AppIcon color={theme.colors.text} name="calendar" size={18} />
-            <AppText>Add to week</AppText>
-          </View>
-        </Pressable>
-      </View>
-
-      <CardSection title="Fit notes" items={recommendation.fitNotes} />
-
-      <View style={{ gap: spacing.xs }}>
-        <AppText variant="sectionTitle">Why it works</AppText>
-        <AppText tone="muted">{recommendation.whyItWorks}</AppText>
-      </View>
-
-      <View style={{ gap: spacing.sm }}>
-        <Pressable
-          onPress={() => router.push(detailHref)}
-          style={[
-            actionButtonStyle,
-            {
-              backgroundColor: theme.colors.text,
-              flex: undefined,
-              flexDirection: 'row',
-              gap: spacing.xs,
-              width: '100%',
-            },
-          ]}>
-          <AppIcon color={theme.colors.inverseText} name="check-circle" size={18} />
-          <AppText style={{ color: theme.colors.inverseText }}>Check Look</AppText>
-        </Pressable>
-
-        <Pressable
-          onPress={onSecondOpinion}
-          style={[
-            actionButtonStyle,
-            {
-              flexDirection: 'row',
-              gap: spacing.xs,
-              flex: undefined,
-              width: '100%',
-              borderColor: theme.colors.accent,
-            },
-          ]}>
-          <AppIcon color={theme.colors.accent} name="chat" size={18} />
-          <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-// ── Private sub-components ─────────────────────────────────────────────────────
-
-function CardSection({ title, items }: { title: string; items: string[] }) {
-  return (
-    <View style={{ gap: spacing.xs }}>
-      <AppText variant="sectionTitle">{title}</AppText>
-      {items.map((item) => (
-        <AppText key={item} tone="muted">
-          • {item}
+      {/* Editorial header — category eyebrow + the outfit's own name as the headline */}
+      <View style={{ gap: 2, paddingBottom: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+        <AppText variant="eyebrow" style={{ color: theme.colors.accent }}>
+          {formatTierLabel(recommendation.tier)}
         </AppText>
-      ))}
+        <AppText variant="display">{recommendation.title}</AppText>
+      </View>
+
+      {/* Illustration — edge to edge, no inner framing; floating actions sit over it */}
+      <View>
+        <GeneratedSketchPanel
+          status={recommendation.sketchStatus}
+          imageUrl={recommendation.sketchImageUrl}
+          borderRadius={0}
+        />
+        <View
+          style={{
+            bottom: spacing.md,
+            flexDirection: 'row',
+            justifyContent: 'center',
+            left: 0,
+            position: 'absolute',
+            right: 0,
+          }}>
+          <FloatingGlass contentStyle={{ flexDirection: 'row' }}>
+            {(['love', 'hate'] as const).map((thumb, index) => {
+              const isSelected = outfitFeedback === thumb;
+              return (
+                <Pressable
+                  key={thumb}
+                  onPress={() => onOutfitFeedback?.(thumb)}
+                  style={{
+                    alignItems: 'center',
+                    borderLeftColor: index === 1 ? 'rgba(120,110,95,0.25)' : undefined,
+                    borderLeftWidth: index === 1 ? 1 : 0,
+                    flexDirection: 'row',
+                    gap: spacing.xs,
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.sm + 2,
+                  }}>
+                  <AppIcon
+                    color={isSelected ? theme.colors.accent : theme.colors.text}
+                    name={thumb === 'love' ? 'heart' : 'thumbs-down'}
+                    size={16}
+                  />
+                  <AppText style={{ color: isSelected ? theme.colors.accent : theme.colors.text, fontSize: 13 }}>
+                    {thumb === 'love' ? 'Love this' : 'Not for me'}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </FloatingGlass>
+        </View>
+      </View>
+
+      <View style={{ gap: spacing.lg, padding: spacing.lg }}>
+        {/* Stylist rationale — comes before the itemized breakdown, matching how a stylist actually explains a look */}
+        <View style={{ gap: spacing.xs }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText }}>Why This Works</AppText>
+          <AppText tone="muted">{recommendation.whyItWorks}</AppText>
+        </View>
+
+        <View style={{ gap: spacing.sm }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText }}>The Look</AppText>
+          <OutfitPieceListView
+            pieces={labeledPieces}
+            display="labeled"
+            regeneratingMatches={regeneratingMatches}
+            matchFeedbackMap={matchFeedbackMap}
+            onMatchThumbsUp={onMatchThumbsUp}
+            onMatchThumbsDown={onMatchThumbsDown}
+          />
+          {nonAnchorPieces.length > 0 ? (
+            <AppText tone="subtle" style={{ fontSize: 12 }}>
+              You own {ownedCount} of {nonAnchorPieces.length} pieces
+            </AppText>
+          ) : null}
+        </View>
+
+        {recommendation.fitNotes.length > 0 ? (
+          <View style={{ gap: spacing.xs }}>
+            <AppText variant="eyebrow" style={{ color: theme.colors.mutedText }}>Fit Notes</AppText>
+            {recommendation.fitNotes.map((note) => (
+              <AppText key={note} tone="muted">• {note}</AppText>
+            ))}
+          </View>
+        ) : null}
+
+        {/* Quieter, lower-emphasis actions — these support the look, they aren't the point of the card */}
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <Pressable
+            disabled={isSaved || isSaving || !onSave}
+            onPress={onSave}
+            style={[quietButtonStyle, isSaved ? { backgroundColor: theme.colors.border } : null]}>
+            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+              <AppIcon color={theme.colors.text} name="bookmark" size={16} />
+              <AppText style={{ fontSize: 13 }}>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}</AppText>
+            </View>
+          </Pressable>
+          <Pressable disabled={!onAddToWeek} onPress={onAddToWeek} style={quietButtonStyle}>
+            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+              <AppIcon color={theme.colors.text} name="calendar" size={16} />
+              <AppText style={{ fontSize: 13 }}>Add to week</AppText>
+            </View>
+          </Pressable>
+        </View>
+
+        <View style={{ gap: spacing.sm }}>
+          <Pressable
+            onPress={() => router.push(detailHref)}
+            style={[primaryButtonStyle, { backgroundColor: theme.colors.text, flexDirection: 'row', gap: spacing.xs }]}>
+            <AppIcon color={theme.colors.inverseText} name="check-circle" size={18} />
+            <AppText style={{ color: theme.colors.inverseText }}>Check Look</AppText>
+          </Pressable>
+
+          <Pressable
+            onPress={onSecondOpinion}
+            style={[
+              primaryButtonStyle,
+              { borderColor: theme.colors.accent, borderWidth: 1, flexDirection: 'row', gap: spacing.xs },
+            ]}>
+            <AppIcon color={theme.colors.accent} name="chat" size={18} />
+            <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
+          </Pressable>
+        </View>
+      </View>
     </View>
   );
 }

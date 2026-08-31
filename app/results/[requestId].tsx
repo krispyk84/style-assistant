@@ -205,8 +205,15 @@ export default function ResultDetailsScreen() {
         {LOOK_TIER_OPTIONS.filter((tier) => response.input.selectedTiers.includes(tier)).map((tier) => {
           const recommendation = response.recommendations.find((r) => r.tier === tier);
           if (!recommendation) {
-            // Tier is still being generated — show a loading placeholder.
-            return <LoadingState key={tier} label={formatTierLabel(tier)} />;
+            // Tier is still being generated — show a loading placeholder with
+            // real progress (N of M tiers ready), not a fabricated percentage.
+            return (
+              <LoadingState
+                key={tier}
+                label={formatTierLabel(tier)}
+                progress={{ current: response.recommendations.length, total: response.input.selectedTiers.length }}
+              />
+            );
           }
           return (
             <LookResultCard

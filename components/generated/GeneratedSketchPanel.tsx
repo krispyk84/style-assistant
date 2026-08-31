@@ -23,6 +23,8 @@ type GeneratedSketchPanelProps = {
   minHeight?: number;
   unavailableMinHeight?: number;
   aspectRatio?: number;
+  /** 0 for edge-to-edge hero placements (e.g. the result card) whose outer container already rounds/clips. Defaults to the existing boxed look everywhere else. */
+  borderRadius?: number;
   resizeMode?: 'cover' | 'contain' | 'stretch' | 'center';
   pendingTitle?: string;
   pendingMessage?: string;
@@ -45,6 +47,7 @@ export function GeneratedSketchPanel({
   minHeight = 400,
   unavailableMinHeight = 180,
   aspectRatio = SKETCH_ASPECT_RATIO,
+  borderRadius = 22,
   resizeMode = 'contain',
   pendingTitle = 'Rendering sketch...',
   pendingMessage = 'This illustration will appear automatically when it is ready.',
@@ -157,11 +160,16 @@ export function GeneratedSketchPanel({
         aspectRatio={aspectRatio}
         minHeight={minHeight}
         resizeMode={resizeMode}
+        borderRadius={borderRadius}
         fallbackTitle={fallbackTitle}
         fallbackMessage="The illustration could not be displayed on this device."
       />
     );
   }
+
+  // Pending/fallback states still get a visible border when boxed (borderRadius > 0);
+  // an edge-to-edge hero placement (borderRadius=0) omits it since the outer container already frames it.
+  const boxed = borderRadius > 0;
 
   if (status === 'pending' || status === 'loading' || !status) {
     return (
@@ -169,9 +177,9 @@ export function GeneratedSketchPanel({
         style={{
           alignItems: 'center',
           backgroundColor: theme.colors.card,
-          borderColor: theme.colors.border,
-          borderRadius: 22,
-          borderWidth: 1,
+          borderColor: boxed ? theme.colors.border : undefined,
+          borderRadius,
+          borderWidth: boxed ? 1 : 0,
           justifyContent: 'center',
           minHeight,
           padding: spacing.lg,
@@ -194,9 +202,9 @@ export function GeneratedSketchPanel({
       style={{
         alignItems: 'center',
         backgroundColor: theme.colors.card,
-        borderColor: theme.colors.border,
-        borderRadius: 22,
-        borderWidth: 1,
+        borderColor: boxed ? theme.colors.border : undefined,
+        borderRadius,
+        borderWidth: boxed ? 1 : 0,
         justifyContent: 'center',
         minHeight: unavailableMinHeight,
         padding: spacing.lg,

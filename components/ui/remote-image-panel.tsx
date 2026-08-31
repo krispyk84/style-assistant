@@ -15,6 +15,8 @@ type RemoteImagePanelProps = {
   fallbackMessage: string;
   style?: StyleProp<ImageStyle>;
   resizeMode?: 'cover' | 'contain' | 'stretch' | 'center';
+  /** 0 for edge-to-edge hero placements whose OUTER container already clips/rounds — every other caller keeps the default. */
+  borderRadius?: number;
 };
 
 export function RemoteImagePanel({
@@ -25,6 +27,7 @@ export function RemoteImagePanel({
   fallbackMessage,
   style,
   resizeMode = 'cover',
+  borderRadius = 22,
 }: RemoteImagePanelProps) {
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(uri));
@@ -62,7 +65,7 @@ export function RemoteImagePanel({
       style={{
         alignItems: 'center',
         backgroundColor: theme.colors.card,
-        borderRadius: 22,
+        borderRadius,
         justifyContent: 'center',
         minHeight,
         overflow: 'hidden',
@@ -79,7 +82,7 @@ export function RemoteImagePanel({
           {
             aspectRatio,
             backgroundColor: theme.colors.card,
-            borderRadius: 22,
+            borderRadius,
             width: '100%',
           },
           style,

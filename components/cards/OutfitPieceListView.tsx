@@ -12,6 +12,7 @@ import {
   type LabeledPiece,
   type TripItemCategory,
 } from '@/lib/outfit-piece-display';
+import { colorSwatchHex } from '@/lib/color-swatch';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -143,6 +144,7 @@ function LabeledList({ pieces, regeneratingMatches, onPiecePress }: ListChildPro
 
       {pieces.map((piece) => {
         const isRematching = (!piece.isAnchor && regeneratingMatches?.has(piece.value)) ?? false;
+        const swatch = colorSwatchHex(piece.color);
         return (
           <View
             key={`${piece.label}-${piece.value}`}
@@ -156,7 +158,12 @@ function LabeledList({ pieces, regeneratingMatches, onPiecePress }: ListChildPro
             }}>
             <View style={{ flex: 1, gap: spacing.xs }}>
               <AppText variant="sectionTitle">{piece.label}</AppText>
-              <AppText tone="muted">{piece.value}</AppText>
+              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
+                {swatch ? (
+                  <View style={{ backgroundColor: swatch, borderRadius: 4, height: 8, width: 8 }} />
+                ) : null}
+                <AppText tone="muted">{piece.value}</AppText>
+              </View>
             </View>
             {!piece.isAnchor && isRematching ? (
               <ActivityIndicator color={theme.colors.accent} size="small" style={{ paddingTop: 2 }} />

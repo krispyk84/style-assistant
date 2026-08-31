@@ -385,7 +385,7 @@ export function MultiLookResults({
                 <AppText variant="eyebrow" style={{ color: themeCtx.colors.mutedText, letterSpacing: 1.6 }}>
                   Look {index + 1} of {totalLooks}
                 </AppText>
-                <LoadingState label="Generating outfit..." />
+                <LoadingState label="Generating outfit..." progress={{ current: index, total: totalLooks }} />
               </View>
             );
           }

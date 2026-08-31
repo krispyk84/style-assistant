@@ -4,7 +4,7 @@ import { StyleProp, Text, TextProps, TextStyle } from 'react-native';
 import { theme } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 
-type TextVariant = 'body' | 'eyebrow' | 'hero' | 'heroSmall' | 'title' | 'sectionTitle' | 'meta' | 'link';
+type TextVariant = 'body' | 'eyebrow' | 'hero' | 'heroSmall' | 'display' | 'title' | 'sectionTitle' | 'meta' | 'link';
 type TextTone = 'default' | 'muted' | 'subtle';
 
 type AppTextProps = PropsWithChildren<{
@@ -36,6 +36,14 @@ const variantStyles: Record<TextVariant, TextStyle> = {
     fontFamily: theme.fonts.serif,
     fontSize: 28,
     lineHeight: 32,
+  },
+  // Editorial "look title" scale — a magazine feature headline pairing
+  // with an `eyebrow` category label above it (result card, tier detail).
+  // Distinct from `hero`/`heroSmall`, which are screen-level headers.
+  display: {
+    fontFamily: theme.fonts.serif,
+    fontSize: 34,
+    lineHeight: 39,
   },
   title: {
     fontFamily: theme.fonts.sansMedium,

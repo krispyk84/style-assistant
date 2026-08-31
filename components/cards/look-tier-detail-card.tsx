@@ -18,18 +18,19 @@ export function LookTierDetailCard({ definition, recommendation }: LookTierDetai
         borderColor: theme.colors.border,
         borderRadius: 28,
         borderWidth: 1,
-        gap: spacing.lg,
-        padding: spacing.lg,
+        overflow: 'hidden',
       }}>
-      <View style={{ gap: spacing.xs }}>
-        <AppText variant="eyebrow">{definition.label}</AppText>
-        <AppText variant="title">{recommendation.title}</AppText>
+      <View style={{ gap: 2, paddingBottom: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+        <AppText variant="eyebrow" style={{ color: theme.colors.accent }}>{definition.label}</AppText>
+        <AppText variant="display">{recommendation.title}</AppText>
       </View>
 
       <TierSketch recommendation={recommendation} />
 
-      <Section title="Best for" body={definition.bestFor.join(' • ')} />
-      <Section title="Palette cues" body={definition.palette.join(' • ')} />
+      <View style={{ gap: spacing.lg, padding: spacing.lg }}>
+        <Section title="Best for" body={definition.bestFor.join(' • ')} />
+        <Section title="Palette cues" body={definition.palette.join(' • ')} />
+      </View>
     </View>
   );
 }
@@ -40,6 +41,7 @@ function TierSketch({ recommendation }: { recommendation: LookRecommendation }) 
       status={recommendation.sketchStatus}
       imageUrl={recommendation.sketchImageUrl}
       minHeight={280}
+      borderRadius={0}
       pendingMessage="This tier illustration will appear automatically when it is ready."
     />
   );
@@ -48,7 +50,7 @@ function TierSketch({ recommendation }: { recommendation: LookRecommendation }) 
 function Section({ title, body }: { title: string; body: string }) {
   return (
     <View style={{ gap: spacing.xs }}>
-      <AppText variant="sectionTitle">{title}</AppText>
+      <AppText variant="eyebrow" style={{ color: theme.colors.mutedText }}>{title}</AppText>
       <AppText tone="muted">{body}</AppText>
     </View>
   );

@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { TripDayCard } from '@/components/cards/trip-day-card';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
+import { LoadingState } from '@/components/ui/loading-state';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { buildPackingListHref } from '@/lib/trip-route';
@@ -125,18 +126,11 @@ export function TripResultsScreen() {
         </View>
 
         {isLoading ? (
-          <View style={{ alignItems: 'center', paddingVertical: spacing.xxl, gap: spacing.md }}>
-            <ActivityIndicator size="large" color={theme.colors.accent} />
-            {isProgressive && (
-              <>
-                <AppText variant="sectionTitle">Building your plan…</AppText>
-                {totalProgressDays > 0 && (
-                  <AppText tone="muted">
-                    Day {progressDay + 1} of {totalProgressDays}
-                  </AppText>
-                )}
-              </>
-            )}
+          <View style={{ paddingVertical: spacing.md }}>
+            <LoadingState
+              label="Building your travel wardrobe…"
+              progress={isProgressive && totalProgressDays > 0 ? { current: progressDay, total: totalProgressDays } : undefined}
+            />
           </View>
         ) : errorMessage ? (
           <AppText tone="muted" style={{ textAlign: 'center', paddingVertical: spacing.xl }}>
@@ -158,12 +152,10 @@ export function TripResultsScreen() {
 
             {/* Progressive generation "still building" footer */}
             {isStillGenerating && (
-              <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md }}>
-                <ActivityIndicator color={theme.colors.accent} />
-                <AppText tone="muted" style={{ fontSize: 13 }}>
-                  Day {progressDay + 1} of {totalProgressDays}…
-                </AppText>
-              </View>
+              <LoadingState
+                label="Styling the next day…"
+                progress={{ current: progressDay, total: totalProgressDays }}
+              />
             )}
           </>
         )}

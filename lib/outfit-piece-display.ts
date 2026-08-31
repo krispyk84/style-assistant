@@ -40,6 +40,8 @@ export type LabeledPiece = {
   confidencePercent: number;
   isAnchor?: boolean;
   category?: TripItemCategory;
+  /** Free-text color descriptor from the piece's structured metadata, when available (e.g. "navy"). */
+  color?: string | null;
 };
 
 // ── Trip categorisation ────────────────────────────────────────────────────────
