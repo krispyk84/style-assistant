@@ -239,10 +239,13 @@ const ICONS: Record<AppIconName, Render> = {
   ),
 
   image: (c, sw) => (
-    // photo/image with lens circle
+    // photo/picture — rounded frame, sun, mountain peaks (was previously an
+    // exact duplicate of the camera icon, so "Library"/"Choose photo" and
+    // "Camera" buttons rendered the identical glyph side by side)
     <G {...S} stroke={c} strokeWidth={sw}>
-      <Path d="M13.5 5a1 1 0 0 0-1-1h-2L9 2H5L3.5 4h-2a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1Z" />
-      <Circle cx={7} cy={7.5} r={2.25} />
+      <Rect x={0.75} y={1.75} width={12.5} height={10.5} rx={1.5} />
+      <Circle cx={4.5} cy={5.25} r={1.15} />
+      <Path d="M1 10.75l3.5-3.5 2.5 2.5 3-3.5 3.5 3.5" />
     </G>
   ),
 
