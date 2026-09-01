@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useAppSession } from '@/hooks/use-app-session';
 import { loadWeatherContext } from '@/lib/weather-storage';
@@ -8,6 +8,7 @@ import type { SeasonalColorEntry, SeasonalTrendReportEntry, TrendFeedbackValue }
 import type { Hemisphere } from '@/types/weather';
 
 const POLL_INTERVAL_MS = 3000;
+const NEW_REPORT_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
 function wait(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -39,6 +40,26 @@ export function useFashionTrendReport() {
   // the one that started it. No attempt cap: generation genuinely can take a
   // while, and the user can always close the modal to stop waiting.
   const generationTokenRef = useRef(0);
+
+  // Read-only peek at the current report's age — separate from open()/
+  // pollTrends, which is what actually triggers generation (via .ensure())
+  // and drives the modal's own loading state. This runs once on mount so
+  // Home can show a "new" indicator on the entry point without opening it.
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const weatherContext = await loadWeatherContext();
+      const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
+      const fashionGender = profile.gender === 'woman' ? 'womenswear' : 'menswear';
+      const response = await seasonalTrendsService.getReport(fashionGender, hemisphere);
+      if (!cancelled && response.success && response.data?.available) {
+        setGeneratedAt(response.data.generatedAt);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile.gender]);
+  const isNewReport = generatedAt !== null && Date.now() - new Date(generatedAt).getTime() < NEW_REPORT_WINDOW_MS;
 
   async function pollTrends(token: number, fashionGender: 'menswear' | 'womenswear', hemisphere: Hemisphere, region: string | undefined) {
     // Opening the report is what actually triggers generation if nothing
@@ -185,5 +206,6 @@ export function useFashionTrendReport() {
   return {
     isOpen, open, close, isLoading, isGenerating, trends, isStale, error, setTrendFeedback,
     isLoadingColors, isGeneratingColors, colors, colorsError, setColorFeedback,
+    isNewReport,
   };
 }

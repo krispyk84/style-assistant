@@ -149,7 +149,22 @@ export function HomeScreen() {
           <Pressable
             onPress={() => void trendReport.open()}
             style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center', paddingVertical: spacing.xs }}>
-            <AppIcon color={theme.colors.accent} name="sparkles" size={16} />
+            <View>
+              <AppIcon color={theme.colors.accent} name="sparkles" size={16} />
+              {trendReport.isNewReport ? (
+                <View
+                  style={{
+                    backgroundColor: theme.colors.accent,
+                    borderRadius: 999,
+                    height: 6,
+                    position: 'absolute',
+                    right: -2,
+                    top: -2,
+                    width: 6,
+                  }}
+                />
+              ) : null}
+            </View>
             <AppText style={{ color: theme.colors.accent, fontFamily: theme.fonts.sansMedium, fontSize: 14 }}>
               Fashion Trend Report
             </AppText>
