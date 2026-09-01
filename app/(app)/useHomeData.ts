@@ -27,12 +27,14 @@ export function useHomeData() {
 
   const [carouselImages, setCarouselImages] = useState<string[]>([]);
   const [savedPreviews, setSavedPreviews] = useState<SavedStylePreview[]>([]);
-  const [carouselIndex, setCarouselIndex] = useState(0);
   const [isResolved, setIsResolved] = useState(false);
   const [closetReadiness, setClosetReadiness] = useState<ClosetReadiness | null>(null);
   const [closetCarouselImages, setClosetCarouselImages] = useState<string[]>([]);
-  const [closetCarouselIndex, setClosetCarouselIndex] = useState(0);
   const [isClosetCarouselResolved, setIsClosetCarouselResolved] = useState(false);
+  // Single shared tick drives both carousels so the hero card and the closet
+  // card change on the exact same beat, rather than each running its own
+  // interval started whenever ITS OWN image list happened to resolve.
+  const [carouselTick, setCarouselTick] = useState(0);
   // Track focus so the carousel is skipped when on another tab
   const isFocusedRef = useRef(true);
 
@@ -103,31 +105,24 @@ export function useHomeData() {
     void loadImages().catch(() => setIsResolved(true));
   }, []);
 
+  // One interval, started once, ticking for the lifetime of the screen —
+  // each carousel just indexes into its own (possibly differently-sized)
+  // image list with `tick % length`, so both stay in lockstep regardless of
+  // which list resolved first or how long either one is.
   useEffect(() => {
-    if (carouselImages.length <= 1) return;
-
     const interval = setInterval(() => {
       if (!isFocusedRef.current) return;
-      setCarouselIndex((i) => (i + 1) % carouselImages.length);
+      setCarouselTick((t) => t + 1);
     }, CAROUSEL_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [carouselImages]);
-
-  useEffect(() => {
-    if (closetCarouselImages.length <= 1) return;
-
-    const interval = setInterval(() => {
-      if (!isFocusedRef.current) return;
-      setClosetCarouselIndex((i) => (i + 1) % closetCarouselImages.length);
-    }, CAROUSEL_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [closetCarouselImages]);
+  }, []);
 
   const hasRealImages = carouselImages.length > 0;
-  const currentImageUrl = carouselImages[carouselIndex] ?? null;
-  const closetCurrentImageUrl = closetCarouselImages[closetCarouselIndex] ?? null;
+  const currentImageUrl = carouselImages.length ? carouselImages[carouselTick % carouselImages.length]! : null;
+  const closetCurrentImageUrl = closetCarouselImages.length
+    ? closetCarouselImages[carouselTick % closetCarouselImages.length]!
+    : null;
 
   // Publishes to the root layout's splash overlay (lib/home-readiness.ts) —
   // once every piece of Home's initial content has settled (hero carousel,

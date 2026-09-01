@@ -106,12 +106,14 @@ export function HomeScreen() {
               />
             )}
 
-            {/* Carousel image — already prefetched when isResolved=true, so no fade needed */}
+            {/* Carousel image — already prefetched when isResolved=true, so the
+                transition only plays on later cycling, not the initial appearance */}
             {isResolved && currentImageUrl ? (
               <Image
                 contentFit="cover"
                 source={{ uri: currentImageUrl }}
                 style={StyleSheet.absoluteFillObject}
+                transition={600}
               />
             ) : null}
 
@@ -261,6 +263,7 @@ function GenerateFromClosetButton({
             contentFit="cover"
             source={{ uri: currentImageUrl }}
             style={StyleSheet.absoluteFillObject}
+            transition={600}
           />
         ) : null}
 
