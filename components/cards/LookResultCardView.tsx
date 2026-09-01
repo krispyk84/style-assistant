@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/app-icon';
-import { FloatingGlass } from '@/components/ui/floating-glass';
 import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPanel';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
@@ -112,50 +111,42 @@ export function LookResultCardView({
         <AppText variant="display">{recommendation.title}</AppText>
       </View>
 
-      {/* Illustration — edge to edge, no inner framing; floating actions sit over it */}
-      <View>
-        <GeneratedSketchPanel
-          status={recommendation.sketchStatus}
-          imageUrl={recommendation.sketchImageUrl}
-          borderRadius={0}
-        />
-        <View
-          style={{
-            bottom: spacing.md,
-            flexDirection: 'row',
-            justifyContent: 'center',
-            left: 0,
-            position: 'absolute',
-            right: 0,
-          }}>
-          <FloatingGlass contentStyle={{ flexDirection: 'row' }}>
-            {(['love', 'hate'] as const).map((thumb, index) => {
-              const isSelected = outfitFeedback === thumb;
-              return (
-                <Pressable
-                  key={thumb}
-                  onPress={() => onOutfitFeedback?.(thumb)}
-                  style={{
-                    alignItems: 'center',
-                    borderLeftColor: index === 1 ? 'rgba(120,110,95,0.25)' : undefined,
-                    borderLeftWidth: index === 1 ? 1 : 0,
-                    flexDirection: 'row',
-                    gap: spacing.xs,
-                    paddingHorizontal: spacing.md,
-                    paddingVertical: spacing.sm + 2,
-                  }}>
-                  <AppIcon
-                    color={isSelected ? theme.colors.accent : theme.colors.text}
-                    name={thumb === 'love' ? 'heart' : 'thumbs-down'}
-                    size={16}
-                  />
-                  <AppText style={{ color: isSelected ? theme.colors.accent : theme.colors.text, fontSize: 13 }}>
-                    {thumb === 'love' ? 'Love this' : 'Not for me'}
-                  </AppText>
-                </Pressable>
-              );
-            })}
-          </FloatingGlass>
+      {/* Illustration — edge to edge, no inner framing */}
+      <GeneratedSketchPanel
+        status={recommendation.sketchStatus}
+        imageUrl={recommendation.sketchImageUrl}
+        borderRadius={0}
+      />
+
+      {/* Love / Not for me — sits directly below the image, not floating over it */}
+      <View style={{ alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
+        <View style={{ backgroundColor: theme.colors.subtleSurface, borderRadius: 999, flexDirection: 'row', overflow: 'hidden' }}>
+          {(['love', 'hate'] as const).map((thumb, index) => {
+            const isSelected = outfitFeedback === thumb;
+            return (
+              <Pressable
+                key={thumb}
+                onPress={() => onOutfitFeedback?.(thumb)}
+                style={{
+                  alignItems: 'center',
+                  borderLeftColor: index === 1 ? theme.colors.border : undefined,
+                  borderLeftWidth: index === 1 ? 1 : 0,
+                  flexDirection: 'row',
+                  gap: spacing.xs,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.sm + 2,
+                }}>
+                <AppIcon
+                  color={isSelected ? theme.colors.accent : theme.colors.text}
+                  name={thumb === 'love' ? 'heart' : 'thumbs-down'}
+                  size={16}
+                />
+                <AppText style={{ color: isSelected ? theme.colors.accent : theme.colors.text, fontSize: 13 }}>
+                  {thumb === 'love' ? 'Love this' : 'Not for me'}
+                </AppText>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
