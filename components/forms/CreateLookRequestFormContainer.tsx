@@ -37,8 +37,15 @@ export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE }: 
 
     const weatherContext = await loadWeatherContext();
 
+    // Was previously a two-step flow (push to /review-request, which minted
+    // its own fresh requestId and re-derived these same params just to show
+    // a read-only summary before pushing again to /results/[requestId]).
+    // That confirm screen added a step without adding a decision — every
+    // value on it was already fixed by this form — so it's skipped now;
+    // buildSubmitRouteParams already returns everything /results/[requestId]
+    // needs, including the requestId itself.
     router.push({
-      pathname: '/review-request',
+      pathname: '/results/[requestId]',
       params: buildSubmitRouteParams({
         populatedAnchorItems: anchorForm.populatedAnchorItems,
         vibeKeywords: lookForm.vibeKeywords,

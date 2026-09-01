@@ -92,7 +92,6 @@ function AppNavigation() {
         <Stack.Screen name="index" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="auth" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
-        <Stack.Screen name="review-request" options={{ headerShown: false }} />
         <Stack.Screen name="check-piece" options={{ headerShown: false }} />
         <Stack.Screen name="closet-fit-check" options={{ headerShown: false }} />
         <Stack.Screen name="selfie-review" options={{ headerShown: false }} />
