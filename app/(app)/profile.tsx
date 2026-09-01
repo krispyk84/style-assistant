@@ -38,7 +38,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <AppScreen scrollable floatingBack>
+    <AppScreen scrollable floatingBack avoidsKeyboard>
       <View style={{ gap: spacing.xl }}>
         <SectionHeader
           title="Profile"

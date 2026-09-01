@@ -43,7 +43,7 @@ export function SettingsScreen() {
   } as const;
 
   return (
-    <AppScreen scrollable bounces={false}>
+    <AppScreen scrollable avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl }}>
         <AppText variant="heroSmall">Settings</AppText>
 

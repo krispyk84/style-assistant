@@ -1,6 +1,7 @@
-import { router } from 'expo-router';
-import { useCallback, useRef, type PropsWithChildren, type RefObject, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, type PropsWithChildren, type RefObject, useState } from 'react';
 import {
+  AppState,
   Pressable,
   ScrollView,
   View,
@@ -15,6 +16,11 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+
+// How far past the computed native max offset (contentSize - viewport +
+// contentInset.bottom) counts as a real overscroll for diagnostic purposes,
+// vs. float/rounding noise from Yoga layout.
+const OVERSCROLL_LOG_TOLERANCE = 2;
 
 type AppScreenProps = PropsWithChildren<{
   scrollable?: boolean;
@@ -39,14 +45,18 @@ type AppScreenProps = PropsWithChildren<{
    */
   bounces?: boolean;
   /**
-   * When false, disables automaticallyAdjustKeyboardInsets on the ScrollView
-   * (default true). That prop pads content to dodge the keyboard on show/hide,
-   * tracked via native geometry-change notifications — on screens with no text
-   * inputs (so no real keyboard interaction is possible), a dismissing system
-   * sheet (e.g. the photo picker) can fire a similar geometry-change notification
-   * that gets misread as a keyboard appearing, adding a large bottom inset that
-   * never gets cleared since no real keyboard-hide event follows. Turn off on
-   * screens with no text inputs to rule this out entirely.
+   * When true, enables automaticallyAdjustKeyboardInsets on the ScrollView so
+   * content scrolls clear of the keyboard as it opens. Default FALSE — opt in
+   * only on screens with a real text input. That prop pads content based on
+   * native keyboard-geometry-change notifications, and on screens with no
+   * text input (so no real keyboard interaction is possible), a dismissing
+   * system sheet (e.g. a photo picker) can fire a similar geometry-change
+   * notification that gets misread as a keyboard appearing — adding a bottom
+   * content inset that never clears, since no real keyboard-hide event
+   * follows it. This was the actual root cause of a recurring "scrolls past
+   * the real end into blank space" bug across the app; defaulting this to
+   * false (rather than defaulting on and special-casing every non-form
+   * screen) means a newly added screen can't silently reintroduce it.
    */
   avoidsKeyboard?: boolean;
 }>;
@@ -63,52 +73,80 @@ export function AppScreen({
   onScroll,
   refreshControl,
   bounces = true,
-  avoidsKeyboard = true,
+  avoidsKeyboard = false,
 }: AppScreenProps) {
   const [showFloatingBack, setShowFloatingBack] = useState(false);
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
 
-  // Falls back to an internally-owned ref when the caller doesn't pass one,
-  // so the overscroll clamp below always has a ScrollView to correct —
-  // screens that DO pass their own scrollRef (for their own reset-on-load
-  // effects) share this same ref; both operate on the identical ScrollView.
+  // Falls back to an internally-owned ref when the caller doesn't pass one —
+  // screens that DO pass their own scrollRef (for their own intentional
+  // reset-to-top effects on real content changes) share this same ref; both
+  // operate on the identical ScrollView.
   const internalScrollRef = useRef<ScrollView>(null);
   const effectiveScrollRef = scrollRef ?? internalScrollRef;
 
-  // General safety net for "scrolled past the end, now showing blank space"
-  // — the same failure mode several screens have hit when their content
-  // height shrinks (async data resolving, a card disappearing) while the
-  // user has already scrolled past where the new, shorter content ends.
-  // Rather than relying on each screen to track every state transition that
-  // could shrink its content (easy to miss — e.g. a refocus-triggered
-  // refetch racing an in-progress scroll gesture), this reacts directly to
-  // the ScrollView's own measured content size: whenever it shrinks, clamp
-  // the current offset back within the new bounds if it now overshoots.
+  // Diagnostics only — no corrective scrollTo(). An earlier version of this
+  // component imperatively clamped the scroll offset back on every content
+  // resize, which both (a) didn't account for contentInset.bottom in its max-
+  // offset math, so it could clamp to the wrong position, and (b) risked
+  // fighting native momentum/gesture handling (a related per-onScroll variant
+  // of this pattern once made buttons across the app untappable). The actual
+  // root cause of "scrolled past the end into blank space" was AppScreen
+  // defaulting avoidsKeyboard to true (see that prop's doc comment) — with
+  // that fixed and normal iOS bounce left on, native UIScrollView already
+  // self-corrects an offset that outlives a content shrink (that's what
+  // elastic bounce is for) without any JS involvement. These refs + logs are
+  // kept as a lightweight, temporary way to confirm that in the field; they
+  // never call scrollTo.
   const scrollViewHeightRef = useRef(0);
   const contentHeightRef = useRef(0);
   const contentOffsetYRef = useRef(0);
-  const clampIfOverscrolled = useCallback(() => {
-    const maxOffset = Math.max(0, contentHeightRef.current - scrollViewHeightRef.current);
-    if (contentOffsetYRef.current > maxOffset) {
-      effectiveScrollRef.current?.scrollTo({ y: maxOffset, animated: false });
-    }
-  }, [effectiveScrollRef]);
+  const contentInsetBottomRef = useRef(0);
+  const logScrollDiagnostics = useCallback((event: string) => {
+    if (!__DEV__) return;
+    const maxOffset = Math.max(
+      0,
+      contentHeightRef.current - scrollViewHeightRef.current + contentInsetBottomRef.current,
+    );
+    const overscrolled = contentOffsetYRef.current > maxOffset + OVERSCROLL_LOG_TOLERANCE;
+    console.log(`[AppScreen:${event}]`, {
+      offsetY: contentOffsetYRef.current,
+      contentHeight: contentHeightRef.current,
+      viewportHeight: scrollViewHeightRef.current,
+      contentInsetBottom: contentInsetBottomRef.current,
+      maxOffset,
+      overscrolled,
+    });
+  }, []);
+
   const handleLayout = useCallback((e: LayoutChangeEvent) => {
-    // The ScrollView's own viewport can also change size independent of its
-    // content — e.g. a safe-area/insets recalculation on app resume — and
-    // that alone can leave a previously-valid offset now overshooting too.
     scrollViewHeightRef.current = e.nativeEvent.layout.height;
-    clampIfOverscrolled();
-  }, [clampIfOverscrolled]);
+    logScrollDiagnostics('layout');
+  }, [logScrollDiagnostics]);
   const handleContentSizeChange = useCallback((_width: number, height: number) => {
     contentHeightRef.current = height;
-    clampIfOverscrolled();
-  }, [clampIfOverscrolled]);
+    logScrollDiagnostics('contentSizeChange');
+  }, [logScrollDiagnostics]);
+  const handleMomentumScrollEnd = useCallback(() => {
+    logScrollDiagnostics('momentumScrollEnd');
+  }, [logScrollDiagnostics]);
+
+  useFocusEffect(useCallback(() => {
+    logScrollDiagnostics('focus');
+  }, [logScrollDiagnostics]));
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') logScrollDiagnostics('resume');
+    });
+    return () => subscription.remove();
+  }, [logScrollDiagnostics]);
 
   const handleScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       contentOffsetYRef.current = e.nativeEvent.contentOffset.y;
+      contentInsetBottomRef.current = e.nativeEvent.contentInset?.bottom ?? 0;
       if (floatingBack) {
         setShowFloatingBack(e.nativeEvent.contentOffset.y > FLOATING_BACK_THRESHOLD);
       }
@@ -162,11 +200,17 @@ export function AppScreen({
           ref={effectiveScrollRef}
           automaticallyAdjustKeyboardInsets={avoidsKeyboard}
           bounces={bounces}
+          // SafeAreaView (above) already handles safe-area insets explicitly
+          // via its `edges` prop + this component's own paddingTop; letting
+          // iOS ALSO auto-adjust contentInset for safe area on top of that
+          // double-counts it.
+          contentInsetAdjustmentBehavior="never"
           contentContainerStyle={{ flexGrow: 1 }}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           onContentSizeChange={handleContentSizeChange}
           onLayout={handleLayout}
+          onMomentumScrollEnd={handleMomentumScrollEnd}
           onScroll={handleScroll}
           scrollEventThrottle={16}
           refreshControl={refreshControl}

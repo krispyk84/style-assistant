@@ -29,7 +29,7 @@ export default function CreateLookScreen() {
   });
 
   return (
-    <AppScreen scrollable floatingBack>
+    <AppScreen scrollable floatingBack avoidsKeyboard>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
 
         <ScreenHeader title="New Style Brief" showBack />

@@ -68,7 +68,7 @@ export default function SignUpScreen() {
 
   if (successMessage) {
     return (
-      <AppScreen scrollable>
+      <AppScreen scrollable avoidsKeyboard={false}>
         <View style={{ flex: 1, gap: spacing.xl, paddingTop: spacing.xl }}>
           <View style={{ gap: spacing.xs }}>
             <AppText variant="eyebrow" style={{ color: theme.colors.accent, letterSpacing: 2 }}>
@@ -105,7 +105,7 @@ export default function SignUpScreen() {
   }
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable avoidsKeyboard>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
 
         {/* Header */}

@@ -84,7 +84,7 @@ export function TravelPlannerNewTripScreen() {
   const canContinueCurrentStep = step === 1 ? canContinueStep1 : true;
 
   return (
-    <AppScreen scrollable bounces={false}>
+    <AppScreen scrollable avoidsKeyboard>
       <View style={{ gap: spacing.xl }}>
         {/* Header: back chevron + step progress */}
         <View style={{ gap: spacing.sm }}>

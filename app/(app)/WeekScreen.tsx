@@ -31,7 +31,7 @@ export function WeekScreen() {
   const days = getNextSevenDays();
 
   return (
-    <AppScreen scrollable bounces={false} avoidsKeyboard={false}>
+    <AppScreen scrollable avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl }}>
         <AppText variant="heroSmall" style={{ marginTop: spacing.sm }}>Your Week</AppText>
 

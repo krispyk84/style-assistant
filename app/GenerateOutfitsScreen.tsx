@@ -35,7 +35,7 @@ export function GenerateOutfitsScreen() {
   }, [stage]);
 
   return (
-    <AppScreen scrollable floatingBack scrollRef={scrollRef} bounces={false} avoidsKeyboard={false}>
+    <AppScreen scrollable floatingBack scrollRef={scrollRef} avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title={isVariations ? 'Outfit Variations' : 'Outfit Ideas'} showBack />
 

@@ -53,7 +53,7 @@ export default function SignInScreen() {
   }
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable avoidsKeyboard>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
 
         {/* Back */}

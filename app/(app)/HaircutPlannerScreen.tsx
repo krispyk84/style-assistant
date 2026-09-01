@@ -53,7 +53,7 @@ export function HaircutPlannerScreen() {
   }, [stage, image]);
 
   return (
-    <AppScreen scrollable={stage !== 'swipe'} scrollRef={scrollRef} bounces={false} avoidsKeyboard={false}>
+    <AppScreen scrollable={stage !== 'swipe'} scrollRef={scrollRef} avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         {/* Tab bar navigates away, so a back button here is only shown where
             it steps back one stage within this flow (narrowed/guide) rather

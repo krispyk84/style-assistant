@@ -68,7 +68,7 @@ export function ClosetFitCheckScreen() {
   }
 
   return (
-    <AppScreen scrollable>
+    <AppScreen scrollable avoidsKeyboard>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Closet Fit Check" showBack />
 

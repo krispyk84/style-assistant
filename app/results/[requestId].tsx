@@ -157,7 +157,7 @@ export default function ResultDetailsScreen() {
   }
 
   return (
-    <AppScreen scrollable floatingBack bounces={false}>
+    <AppScreen scrollable floatingBack avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Outfit Results" showBack />
         <View style={{ gap: spacing.xs }}>
