@@ -51,9 +51,11 @@ type ActionPillProps = {
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
+  /** Equal-width, centered in its row — use when a row of pills should read as one symmetrical group (e.g. Library/Camera/Closet) rather than left-aligned, differently-sized buttons. */
+  fullWidth?: boolean;
 };
 
-export function ActionPill({ label, icon, onPress, disabled = false, loading = false }: ActionPillProps) {
+export function ActionPill({ label, icon, onPress, disabled = false, loading = false, fullWidth = false }: ActionPillProps) {
   return (
     <Pressable
       disabled={disabled || loading}
@@ -64,6 +66,7 @@ export function ActionPill({ label, icon, onPress, disabled = false, loading = f
         borderColor: loading ? theme.colors.accent : theme.colors.border,
         borderRadius: 999,
         borderWidth: 1,
+        flex: fullWidth ? 1 : undefined,
         flexDirection: 'row',
         gap: spacing.xs,
         justifyContent: 'center',

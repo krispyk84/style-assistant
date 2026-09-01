@@ -1,10 +1,11 @@
 import { Image } from 'expo-image';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { spacing, theme } from '@/constants/theme';
 import type { LocalImageAsset } from '@/types/media';
 import { AppText } from '@/components/ui/app-text';
 import { FormField } from '@/components/ui/form-field';
+import { ActionPill } from './look-form-primitives';
 
 type ImagePickerFieldProps = {
   label?: string;
@@ -57,9 +58,9 @@ export function ImagePickerField({
               </AppText>
               {statusMessage ? <AppText tone="muted">{statusMessage}</AppText> : null}
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                <ActionPill label={isPicking ? 'Replacing...' : 'Replace'} onPress={onPick} />
-                {onTakePhoto ? <ActionPill label={isPicking ? 'Opening camera...' : cameraLabel} onPress={onTakePhoto} /> : null}
-                <ActionPill label="Remove" onPress={onRemove} />
+                <ActionPill fullWidth icon="image" label={isPicking ? 'Replacing...' : 'Replace'} onPress={onPick} />
+                {onTakePhoto ? <ActionPill fullWidth icon="camera" label={isPicking ? 'Opening camera...' : cameraLabel} onPress={onTakePhoto} /> : null}
+                <ActionPill fullWidth icon="trash" label="Remove" onPress={onRemove} />
               </View>
             </View>
           </>
@@ -71,33 +72,12 @@ export function ImagePickerField({
               {statusMessage ? <AppText tone="muted">{statusMessage}</AppText> : null}
             </View>
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-              <ActionPill label={isPicking ? 'Opening...' : pickLabel} onPress={onPick} />
-              {onTakePhoto ? <ActionPill label={isPicking ? 'Opening camera...' : cameraLabel} onPress={onTakePhoto} /> : null}
+              <ActionPill fullWidth icon="image" label={isPicking ? 'Opening...' : pickLabel} onPress={onPick} />
+              {onTakePhoto ? <ActionPill fullWidth icon="camera" label={isPicking ? 'Opening camera...' : cameraLabel} onPress={onTakePhoto} /> : null}
             </View>
           </>
         )}
       </View>
     </FormField>
-  );
-}
-
-function ActionPill({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
-  return (
-    <Pressable
-      disabled={disabled}
-      onPress={onPress}
-      style={{
-        alignItems: 'center',
-        backgroundColor: disabled ? theme.colors.card : theme.colors.subtleSurface,
-        borderColor: theme.colors.border,
-        borderRadius: 999,
-        borderWidth: 1,
-        justifyContent: 'center',
-        minHeight: 44,
-        opacity: disabled ? 0.5 : 1,
-        paddingHorizontal: spacing.md,
-      }}>
-      <AppText>{label}</AppText>
-    </Pressable>
   );
 }

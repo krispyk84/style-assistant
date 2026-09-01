@@ -71,39 +71,24 @@ export function AnchorItemCard({
         overflow: 'hidden',
       }}>
 
-      {/* Badge row */}
+      {/* Badge row — plain eyebrow caption instead of bordered pills, echoing
+          the "Wardrobe Anchors" section header just above this card, rather
+          than introducing a separate pill-chrome visual language. */}
       <View
         style={{
           alignItems: 'center',
           flexDirection: 'row',
-          gap: spacing.xs,
+          justifyContent: 'space-between',
           padding: spacing.md,
           paddingBottom: 0,
         }}>
-        <View
-          style={{
-            borderColor: theme.colors.accent,
-            borderRadius: 999,
-            borderWidth: 1,
-            paddingHorizontal: spacing.sm,
-            paddingVertical: 3,
-          }}>
+        <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>
           <AppText variant="eyebrow" style={{ color: theme.colors.accent, letterSpacing: 1.4 }}>
             {isPrimary ? 'Primary Anchor' : 'Anchor Item'}
           </AppText>
-        </View>
-        {isPrimary ? (
-          <View
-            style={{
-              borderColor: theme.colors.text,
-              borderRadius: 999,
-              borderWidth: 1,
-              paddingHorizontal: spacing.sm,
-              paddingVertical: 3,
-            }}>
-            <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>Fixed</AppText>
-          </View>
-        ) : removable ? (
+          {isPrimary ? <AppText variant="eyebrow" tone="subtle" style={{ letterSpacing: 1.4 }}> · Fixed</AppText> : null}
+        </AppText>
+        {!isPrimary && removable ? (
           <Pressable
             hitSlop={8}
             onPress={async () => {
@@ -111,8 +96,7 @@ export function AnchorItemCard({
                 await removeImage();
               }
               onRemove();
-            }}
-            style={{ marginLeft: 'auto' }}>
+            }}>
             <AppIcon color={theme.colors.subtleText} name="close" size={20} />
           </Pressable>
         ) : null}
@@ -148,15 +132,17 @@ export function AnchorItemCard({
           <AppText tone="muted">{uploadSuccessMessage ?? 'Upload complete.'}</AppText>
         ) : null}
 
-        {/* Photo buttons — labels are always stable to prevent row reflow */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+        {/* Photo buttons — equal width and centered, whether there are 2 or 3 */}
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <ActionPill
+            fullWidth
             icon="image"
             label="Library"
             loading={isPickingLibrary}
             onPress={pickFromLibrary}
           />
           <ActionPill
+            fullWidth
             icon="camera"
             label="Camera"
             loading={isPickingCamera}
@@ -164,6 +150,7 @@ export function AnchorItemCard({
           />
           {onPickFromCloset ? (
             <ActionPill
+              fullWidth
               icon="shirt"
               label="Closet"
               onPress={onPickFromCloset}
