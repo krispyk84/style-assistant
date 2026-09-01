@@ -1,6 +1,7 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
+import { Keyboard } from 'react-native';
 
 import { normalizePickedImage } from '@/lib/media-utils';
 import type { LocalImageAsset } from '@/types/media';
@@ -67,6 +68,13 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
   const isPickingCamera = pickingSource === 'camera';
 
   async function pickFromLibrary() {
+    // On screens that also have real text inputs (avoidsKeyboard on), the
+    // system picker sheet dismissing can misfire a keyboard-geometry-change
+    // notification if a text field still holds keyboard-affinity — that's
+    // what was leaving a phantom bottom scroll inset after picking a photo.
+    // Blurring first means there's no keyboard state for that dismissal to
+    // spuriously "restore".
+    Keyboard.dismiss();
     setPickingSource('library');
     setError(null);
 
@@ -100,6 +108,7 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
    * Returns all selected images without setting internal single-image state.
    */
   async function pickMultipleFromLibrary(): Promise<LocalImageAsset[]> {
+    Keyboard.dismiss();
     setPickingSource('library');
     setError(null);
 
@@ -130,6 +139,7 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
   }
 
   async function takePhoto() {
+    Keyboard.dismiss();
     setPickingSource('camera');
     setError(null);
 
