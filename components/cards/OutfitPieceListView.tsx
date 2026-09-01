@@ -144,25 +144,25 @@ function LabeledList({ pieces, regeneratingMatches, onPiecePress }: ListChildPro
       {pieces.map((piece) => {
         const isRematching = (!piece.isAnchor && regeneratingMatches?.has(piece.value)) ?? false;
         return (
-          <View
-            key={`${piece.label}-${piece.value}`}
-            style={{ alignItems: 'flex-start', flexDirection: 'row', gap: spacing.xs }}>
-            <View style={{ flex: 1, gap: spacing.xs }}>
-              <AppText variant="sectionTitle">{piece.label}</AppText>
-              <AppText tone="muted">{piece.value}</AppText>
+          <View key={`${piece.label}-${piece.value}`} style={{ gap: spacing.xs }}>
+            <AppText variant="sectionTitle">{piece.label}</AppText>
+            {/* Match checkmark sits inline right after the description it confirms,
+                rather than floating in its own right-aligned column. */}
+            <View style={{ alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap' }}>
+              <AppText tone="muted" style={{ flexShrink: 1 }}>{piece.value}</AppText>
+              {!piece.isAnchor && isRematching ? (
+                <ActivityIndicator color={theme.colors.accent} size="small" style={{ marginLeft: spacing.xs }} />
+              ) : !piece.isAnchor && piece.matchedClosetItem ? (
+                <Pressable
+                  accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view and rate.`}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={() => onPiecePress(piece.value, piece.confidencePercent)}
+                  style={{ marginLeft: spacing.xs }}>
+                  <AppIcon color={theme.colors.accent} name="check-circle" size={16} />
+                </Pressable>
+              ) : null}
             </View>
-            {!piece.isAnchor && isRematching ? (
-              <ActivityIndicator color={theme.colors.accent} size="small" style={{ paddingTop: 2 }} />
-            ) : !piece.isAnchor && piece.matchedClosetItem ? (
-              <Pressable
-                accessibilityLabel={`You own a similar piece: ${piece.matchedClosetItem.title}. Tap to view and rate.`}
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={() => onPiecePress(piece.value, piece.confidencePercent)}
-                style={{ paddingTop: 2 }}>
-                <AppIcon color={theme.colors.accent} name="check-circle" size={22} />
-              </Pressable>
-            ) : null}
           </View>
         );
       })}
