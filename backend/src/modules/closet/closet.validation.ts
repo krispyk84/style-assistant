@@ -98,6 +98,9 @@ const closetOutfitFormalitySchema = z.enum(['business', 'smart-casual', 'casual'
 const closetOutfitWeatherContextSchema = z
   .object({
     temperatureC: z.number(),
+    apparentTemperatureC: z.number().optional(),
+    /** Open-Meteo WMO weather code — drives rain/snow-aware material guidance. */
+    weatherCode: z.number().optional(),
     season: z.enum(['winter', 'spring', 'summer', 'fall']).optional(),
     summary: z.string().optional(),
     stylingHint: z.string().optional(),
