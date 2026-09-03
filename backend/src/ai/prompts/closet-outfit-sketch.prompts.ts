@@ -69,9 +69,19 @@ export function buildClosetOutfitSketchPrompt(input: {
     'Do not add any garment, layer, or accessory that is not explicitly listed — no extra jacket, blazer, coat, cardigan, vest, undershirt, scarf, hat, bag, jewelry, or any other piece, no matter how much more "complete" or "editorial" the look would feel with one. ' +
     'If a category (e.g. outerwear, accessories) has no items listed above, the figure must NOT wear or carry anything from that category.';
 
-  const outerwearRule = outerwear.length === 0
-    ? 'OUTERWEAR: FORBIDDEN. No jacket, blazer, coat, or third layer of any kind — the figure wears only the listed top(s), nothing over them.'
-    : null;
+  // Two distinct failure modes need separate hard rules: when there's no
+  // outerwear listed, the model sometimes adds one anyway (handled below).
+  // When outerwear IS listed, the model instead tends to invent an EXTRA
+  // layer underneath it (a shirt/sweater collar or placket peeking out)
+  // that isn't in the garments list, to make an open jacket read as more
+  // "complete" — this was the actual reported bug (jacket + trousers + one
+  // top rendered with a second, unlisted top visible underneath the jacket).
+  const outerwearRule =
+    outerwear.length === 0
+      ? 'OUTERWEAR: FORBIDDEN. No jacket, blazer, coat, or third layer of any kind — the figure wears only the listed top(s), nothing over them.'
+      : garments.length > 0
+        ? `LAYERING UNDER OUTERWEAR — HARD CONSTRAINT: underneath ${outerwear.map(describeItem).join(', ')}, the figure wears ONLY ${garments.map(describeItem).join(', ')} — nothing else. Do not render a second top, undershirt, sweater, or any other layer beneath the outerwear, and do not show so much as a sliver of collar, placket, or cuff from any garment not in that list. Whatever is visible under the outerwear (whether worn open or closed) must be exactly the garment(s) named above, never an invented additional layer.`
+        : null;
 
   const parts = [
     HEADLESS_GUARD,
