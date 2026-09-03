@@ -70,6 +70,37 @@ function enforceOuterwearCap(
   return { pieces: newPieces, usedOuterwear: updatedUsed };
 }
 
+/**
+ * Same reasoning as enforceOuterwearCap — the "max shoes willing to pack"
+ * instruction wasn't reliably holding across ~8 separate, stateless per-day
+ * generation calls, so the model would invent a new pair most days. Unlike
+ * outerwear, shoes are never dropped even when the cap is reached (or 0) —
+ * every day genuinely needs a pair — so this always forces reuse of an
+ * already-used pair rather than ever omitting footwear.
+ */
+function enforceFootwearCap(
+  shoes: string,
+  usedFootwear: string[],
+  cap: number,
+): { shoes: string; usedFootwear: string[] } {
+  const updatedUsed = [...usedFootwear];
+  const existingMatch = updatedUsed.find((used) => used.toLowerCase() === shoes.toLowerCase());
+  if (existingMatch) {
+    return { shoes: existingMatch, usedFootwear: updatedUsed };
+  }
+  if (updatedUsed.length < Math.max(1, cap)) {
+    updatedUsed.push(shoes);
+    return { shoes, usedFootwear: updatedUsed };
+  }
+  return { shoes: updatedUsed[0]!, usedFootwear: updatedUsed };
+}
+
+function parseShoesCap(shoesCount: string | undefined): number {
+  if (shoesCount === '4+') return 4;
+  const n = Number(shoesCount ?? '2');
+  return Number.isFinite(n) && n > 0 ? n : 2;
+}
+
 export const tripsService = {
   async generateTripOutfits(
     request: GenerateTripOutfitsRequest,
@@ -109,14 +140,19 @@ export const tripsService = {
 
     const jacketsCap = Number(request.jacketsCount ?? '1');
     let usedOuterwear = request.usedOuterwear ?? [];
+    const shoesCap = parseShoesCap(request.shoesCount);
+    let usedFootwear = request.usedFootwear ?? [];
 
     const days: TripOutfitDayDto[] = result.days.map((day) => {
-      const { pieces, usedOuterwear: nextUsed } = enforceOuterwearCap(day.pieces, usedOuterwear, jacketsCap);
-      usedOuterwear = nextUsed;
+      const { pieces, usedOuterwear: nextUsedOuterwear } = enforceOuterwearCap(day.pieces, usedOuterwear, jacketsCap);
+      usedOuterwear = nextUsedOuterwear;
+      const { shoes, usedFootwear: nextUsedFootwear } = enforceFootwearCap(day.shoes, usedFootwear, shoesCap);
+      usedFootwear = nextUsedFootwear;
 
       return {
         ...day,
         pieces,
+        shoes,
         id: `${request.tripId}-day-${day.dayIndex}`,
         tripId: request.tripId,
         bag: day.bag ?? null,

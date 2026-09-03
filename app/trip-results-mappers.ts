@@ -64,18 +64,34 @@ export function collectUsedOuterwear(days: TripOutfitDay[]): string[] {
   return result;
 }
 
+/** Distinct shoes already used on earlier days — same purpose as collectUsedOuterwear, for the shoes cap. */
+export function collectUsedFootwear(days: TripOutfitDay[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const day of days) {
+    if (!day.shoes) continue;
+    const key = day.shoes.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(day.shoes);
+  }
+  return result;
+}
+
 export function buildTripDayGenerationParams({
   tripId,
   draft,
   dayIndex,
   previousDaysSummary,
   usedOuterwear,
+  usedFootwear,
 }: {
   tripId: string;
   draft: TripDraft;
   dayIndex: number;
   previousDaysSummary: string[];
   usedOuterwear: string[];
+  usedFootwear: string[];
 }): GenerateTripOutfitsParams {
   return {
     tripId,
@@ -109,5 +125,6 @@ export function buildTripDayGenerationParams({
     generateOnlyDayIndex: dayIndex,
     previousDaysSummary,
     usedOuterwear,
+    usedFootwear,
   };
 }

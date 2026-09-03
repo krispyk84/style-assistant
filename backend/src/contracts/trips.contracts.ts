@@ -55,6 +55,8 @@ export type GenerateTripOutfitsRequest = {
   jacketsCount?: string;     // 0 | 1 | 2 | 3
   /** Outerwear pieces already used on earlier days of this trip — threaded through so the cap is enforced across separate per-day requests. */
   usedOuterwear?: string[];
+  /** Shoes already used on earlier days of this trip — same purpose as usedOuterwear, for the shoes cap. */
+  usedFootwear?: string[];
   carryOnOnly: boolean;
   rewearOk?: boolean;
   specialNeeds?: string;

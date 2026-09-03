@@ -64,7 +64,17 @@ function buildTripContext(req: GenerateTripOutfitsRequest): string {
   lines.push('', 'PACKING CONSTRAINTS:');
   lines.push(`  Carry-on only: ${req.carryOnOnly ? 'YES — re-use pieces and plan capsule wardrobe' : 'No checked bag restrictions'}`);
   lines.push(`  Laundry access: ${req.laundryAccess}`);
-  lines.push(`  Max shoes willing to pack: ${req.shoesCount}`);
+  lines.push(`  Max shoes willing to pack: ${req.shoesCount} — this is a HARD CAP on the number of DISTINCT pairs of shoes across the ENTIRE trip, not per day. Reuse the exact same pair (identical wording) across as many days as needed rather than describing a "new" pair each day.`);
+  if (req.usedFootwear && req.usedFootwear.length > 0) {
+    const shoesCapNum = req.shoesCount === '4+' ? 4 : Number(req.shoesCount ?? '2');
+    const shoesCapReached = req.usedFootwear.length >= shoesCapNum;
+    lines.push(`  Shoes already used on earlier days: ${req.usedFootwear.map((s) => `"${s}"`).join(', ')}.`);
+    lines.push(
+      shoesCapReached
+        ? '  The shoes cap has been reached — you MUST reuse one of the pairs above (worded identically) for this day. Do NOT introduce a new pair.'
+        : `  Prefer reusing one of the pairs above; you may introduce at most ${shoesCapNum - req.usedFootwear.length} more new distinct pair(s) if none of the above genuinely fits.`,
+    );
+  }
   lines.push(`  Max jackets/outerwear willing to pack: ${req.jacketsCount ?? '1'} — this is a HARD CAP on the number of DISTINCT jacket/coat/blazer/outerwear pieces across the ENTIRE trip, not per day. Reuse the exact same outerwear piece (identical wording) across as many days as needed rather than describing a "new" one each day — outerwear is bulky to pack, so treat it as a small fixed rotation, unlike shirts or accessories which can vary more freely. If the cap is 0, do not include any jacket/coat/blazer in any day's pieces.`);
   if (req.usedOuterwear && req.usedOuterwear.length > 0) {
     const capNum = Number(req.jacketsCount ?? '1');
