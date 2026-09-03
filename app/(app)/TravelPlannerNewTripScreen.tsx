@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { DestinationAutocomplete } from '@/components/forms/destination-autocomplete';
@@ -40,6 +40,7 @@ export function TravelPlannerNewTripScreen() {
     jacketsCount, setJacketsCount,
     carryOnOnly, setCarryOnOnly,
     rewearOk, setRewearOk,
+    specialNeeds, setSpecialNeeds,
     numDays, canContinueStep1, isSubmitting, submitError,
     step, goNext, goBack,
     saveDraft,
@@ -147,6 +148,8 @@ export function TravelPlannerNewTripScreen() {
             setShoesCount={setShoesCount}
             jacketsCount={jacketsCount}
             setJacketsCount={setJacketsCount}
+            specialNeeds={specialNeeds}
+            setSpecialNeeds={setSpecialNeeds}
             wantToBring={wantToBring}
             onAddWantToBring={openClosetPicker}
             onRemoveWantToBring={removeWantToBring}
@@ -276,6 +279,8 @@ function Step3Context({
   setShoesCount,
   jacketsCount,
   setJacketsCount,
+  specialNeeds,
+  setSpecialNeeds,
   wantToBring,
   onAddWantToBring,
   onRemoveWantToBring,
@@ -299,11 +304,14 @@ function Step3Context({
   setShoesCount: (v: ShoeCount) => void;
   jacketsCount: JacketCount;
   setJacketsCount: (v: JacketCount) => void;
+  specialNeeds: string;
+  setSpecialNeeds: (v: string) => void;
   wantToBring: ClosetItem[];
   onAddWantToBring: () => void;
   onRemoveWantToBring: (id: string) => void;
 }) {
   const { theme } = useTheme();
+  const [notesExpanded, setNotesExpanded] = useState(specialNeeds.trim().length > 0);
   const dateRangeLabel =
     departureDate && returnDate
       ? `${departureDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}–${returnDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${numDays} day${numDays === 1 ? '' : 's'}`
@@ -368,6 +376,46 @@ function Step3Context({
           <FieldLabel>Jackets / outerwear willing to bring</FieldLabel>
           <SegmentedControl<JacketCount> options={['0', '1', '2', '3']} value={jacketsCount} onChange={setJacketsCount} />
         </View>
+      </Card>
+
+      {/* Anything else to note — collapsed by default; tap to reveal a free-text
+          field for things a fixed field can't capture, e.g. "conference is
+          days 2-3, days 1 and 4 are just travel" or "need one smart-casual
+          outfit for a client dinner." Feeds the stylist as a note alongside
+          the other packing preferences. */}
+      <Card>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: notesExpanded }}
+          onPress={() => setNotesExpanded((v) => !v)}
+          style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+          <FieldLabel>Anything else to note?</FieldLabel>
+          <AppIcon color={theme.colors.subtleText} name={notesExpanded ? 'chevron-up' : 'chevron-down'} size={16} />
+        </Pressable>
+        {notesExpanded ? (
+          <View style={{ gap: spacing.xs }}>
+            <AppText tone="muted" style={{ fontSize: 12, lineHeight: 17 }}>
+              e.g. which days are the conference vs. just travel, an event the stylist should plan around, or anything specific you want factored in.
+            </AppText>
+            <TextInput
+              multiline
+              value={specialNeeds}
+              onChangeText={setSpecialNeeds}
+              placeholder="Add any details for the stylist..."
+              placeholderTextColor={theme.colors.subtleText}
+              style={{
+                backgroundColor: theme.colors.subtleSurface,
+                borderRadius: 14,
+                color: theme.colors.text,
+                fontFamily: theme.fonts.sans,
+                fontSize: 15,
+                minHeight: 84,
+                padding: spacing.md,
+                textAlignVertical: 'top',
+              }}
+            />
+          </View>
+        ) : null}
       </Card>
 
       {/* Anything you definitely want to bring */}

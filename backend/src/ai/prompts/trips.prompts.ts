@@ -79,7 +79,15 @@ function buildTripContext(req: GenerateTripOutfitsRequest): string {
   lines.push(`  Swimming: ${req.willSwim ? 'Yes — include a swimwear day' : 'No'}`);
   lines.push(`  Fancy nights out: ${req.fancyNights ? 'Yes — include at least one elevated evening outfit' : 'No'}`);
   lines.push(`  Workout clothes needed: ${req.workoutClothes ? 'Yes — include at least one activewear day' : 'No'}`);
-  if (req.specialNeeds?.trim()) lines.push(`  Special needs: ${req.specialNeeds.trim()}`);
+
+  if (req.specialNeeds?.trim()) {
+    lines.push(
+      '',
+      'ADDITIONAL USER DETAILS — a user-supplied directive. Treat this as a HARD constraint that must visibly shape the relevant day(s), not a hint to skim:',
+      `"${req.specialNeeds.trim()}"`,
+      'If it references specific days (e.g. "the conference is days 2-3"), cross-reference against DAY TO PLAN / DAYS TO PLAN below to apply it to the right day(s) — e.g. a travel day it describes should stay comfortable/practical even if other days it calls out need to be more polished. If it specifies an event, audience, or activity, let that inform formality and piece selection for the day(s) it applies to.',
+    );
+  }
 
   // Previously generated days — for progressive (per-day) generation coherence
   if (req.previousDaysSummary && req.previousDaysSummary.length > 0) {
