@@ -46,6 +46,15 @@ export function buildClosetItemPairSketchPrompt(input: {
   items: ClosetItemPairPiece[];
   /** True when the two source items' own existing photos/sketches are attached as reference images to this request. */
   hasReferenceImages?: boolean;
+  /**
+   * When set, both pieces are rendered in this single shade as a genuine
+   * coordinated set, overriding any color mismatch between the two source
+   * items (a real suit's jacket and trousers are cut from one matching
+   * fabric, even if the two closet items photographed slightly differently).
+   * Used for suit pairs; everything else about each reference image (pattern,
+   * material, construction, silhouette) still applies.
+   */
+  matchColor?: string | null;
 }): string {
   const itemLines = input.items
     .map((item, index) => `- piece ${index + 1} (${item.category}): ${describeItem(item)}`)
@@ -53,8 +62,13 @@ export function buildClosetItemPairSketchPrompt(input: {
 
   const referenceRule = input.hasReferenceImages
     ? 'REFERENCE IMAGES — GROUND TRUTH: the attached images show the two ACTUAL pieces this set is made from, in order (image 1 = piece 1, image 2 = piece 2, matching the list below). ' +
-      'Render each piece true to its reference image — exact color, pattern, silhouette, construction detail, and material — reinterpreted only in the watercolor-sketch treatment, never redesigned or genericized. ' +
+      'Render each piece true to its reference image — pattern, silhouette, construction detail, and material — reinterpreted only in the watercolor-sketch treatment, never redesigned or genericized. ' +
+      (input.matchColor ? 'Color is the one exception to this — see the COLOR rule below. ' : 'Match each piece\'s exact color from its reference image. ') +
       'The text descriptions below are supplementary context, not a substitute for what the reference images show.'
+    : null;
+
+  const colorMatchRule = input.matchColor
+    ? `COLOR — HARD CONSTRAINT: this is a genuine matching set, cut from one coordinated fabric color. Render BOTH pieces in the exact same true "${input.matchColor}" shade, even where the reference images show the two source items in slightly different actual shades — a real suit's jacket and trousers never mismatch. Keep pattern, material texture, construction detail, and silhouette faithful to each piece's own reference image; override ONLY the color so both pieces read as one unified fabric.`
     : null;
 
   const exclusivityRule =
@@ -64,6 +78,7 @@ export function buildClosetItemPairSketchPrompt(input: {
   const parts = [
     PAIR_STYLE_PREAMBLE,
     referenceRule,
+    colorMatchRule,
     `Set "${input.setTitle}":\n${itemLines}`,
     exclusivityRule,
     CLOSET_ITEM_QUALITY_ADDENDUM,

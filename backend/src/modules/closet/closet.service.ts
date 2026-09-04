@@ -171,7 +171,9 @@ export const closetService = {
       sketchStatus: 'pending',
     });
 
-    void generatePairedItemSketch(created.id, [item1, item2], supabaseUserId);
+    void generatePairedItemSketch(created.id, [item1, item2], supabaseUserId, {
+      matchColor: isSuitPair ? suitColor : null,
+    });
 
     return mapClosetItem(created);
   },
@@ -436,6 +438,7 @@ async function generatePairedItemSketch(
   itemId: string,
   sourceItems: [ClosetItemRow, ClosetItemRow],
   supabaseUserId: string,
+  options?: { matchColor?: string | null },
 ): Promise<void> {
   try {
     const [item1, item2] = sourceItems;
@@ -453,6 +456,7 @@ async function generatePairedItemSketch(
       setTitle: item1.title === item2.title ? item1.title : `${item1.title} & ${item2.title}`,
       items: sourceItems.map(toPairSketchPiece),
       hasReferenceImages: styleRefImageUrls.length > 0,
+      matchColor: options?.matchColor,
     });
 
     const generatedImage = await openAiClient.generateImage({
