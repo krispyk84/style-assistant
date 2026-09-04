@@ -136,7 +136,7 @@ export const openAiClient = {
         ? dispatch(
             `${env.OPENAI_BASE_URL}/v1/responses`,
             buildImageWithRefRequestBody({
-              model: env.OPENAI_RESPONSES_MODEL, // Responses API requires a chat model; image models (gpt-image-1) are not supported
+              model: env.OPENAI_IMAGE_REF_MODEL, // The image_generation TOOL needs a model that supports it — gpt-4o-mini (OPENAI_RESPONSES_MODEL) does not; image models like gpt-image-1 aren't valid here either, since this is a chat-completion-style Responses API call
               prompt: input.prompt,
               styleRefImageUrls: input.styleRefImageUrls!,
               size,

@@ -104,8 +104,12 @@ export function parseImageResponse(raw: RawHttpResponse, logContext?: Record<str
 }
 
 // ── Image-with-reference response parser ─────────────────────────────────────
-// Parses the Responses API format used when a style-reference image is passed.
-// The generated image is in output[0].result (base64).
+// Parses the Responses API format used when 1+ reference images are passed.
+// The generated image comes back as an "image_generation_call" item inside
+// the `output` array — NOT necessarily at index 0: the model can (and with
+// multiple input images, often does) emit a preceding reasoning/message item
+// first. Search the array for the actual image-bearing item rather than
+// assuming position.
 
 export function parseImageWithRefResponse(raw: RawHttpResponse): { imageBase64: string } {
   const payload = raw.payload as any;
@@ -121,7 +125,12 @@ export function parseImageWithRefResponse(raw: RawHttpResponse): { imageBase64: 
     throw new HttpError(502, 'OPENAI_IMAGE_FAILED', 'The AI provider could not generate the sketch.');
   }
 
-  const imageBase64 = payload?.output?.[0]?.result;
+  const output = Array.isArray(payload?.output) ? payload.output : [];
+  const imageItem = output.find(
+    (item: any) => item?.type === 'image_generation_call' && typeof item?.result === 'string' && item.result,
+  ) ?? output.find((item: any) => typeof item?.result === 'string' && item.result);
+  const imageBase64 = imageItem?.result;
+
   if (typeof imageBase64 !== 'string' || !imageBase64) {
     logger.error({ payload }, 'OpenAI Responses API image generation did not include image data');
     throw new HttpError(502, 'OPENAI_IMAGE_INVALID', 'The AI provider returned an invalid sketch response.');

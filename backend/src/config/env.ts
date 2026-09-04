@@ -12,6 +12,8 @@ const envSchema = z.object({
   API_PREFIX: z.string().default('/api'),
   OPENAI_API_KEY: z.string().min(1),
   OPENAI_RESPONSES_MODEL: z.string().min(1).default('gpt-4o-mini'),
+  /** Model for the Responses API's image_generation TOOL (used when generating an image conditioned on 1+ reference images) — a different capability than OPENAI_RESPONSES_MODEL's plain structured-JSON usage, and gpt-4o-mini does not support this tool. */
+  OPENAI_IMAGE_REF_MODEL: z.string().min(1).default('gpt-4.1'),
   OPENAI_IMAGE_MODEL: z.string().min(1).default('gpt-image-1'),
   OPENAI_OUTFIT_SKETCH_MODEL: z.string().min(1).default('gpt-image-1-mini'),
   OPENAI_OUTFIT_SKETCH_QUALITY: z.enum(['low', 'medium', 'high', 'auto']).default('medium'),
