@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { useWindowDimensions } from 'react-native';
 
@@ -50,6 +50,19 @@ export default function ClosetScreen() {
   // Only the sheet opened right after creating a pair should start in edit
   // mode — a normal tap on any other item should still open read-only.
   const [openInEditMode, setOpenInEditMode] = useState(false);
+
+  // Keep the open item sheet in sync with useClosetData's background poll.
+  // editingItem is a separate snapshot taken once, on open — without this,
+  // a sketch finishing (sketchStatus flipping pending -> ready/failed) while
+  // the sheet is open would update the grid behind it but never reach the
+  // open modal, which would just sit on "Sketch generating..." forever even
+  // though generation had actually finished.
+  useEffect(() => {
+    setEditingItem((current) => {
+      if (!current) return current;
+      return items.find((i) => i.id === current.id) ?? current;
+    });
+  }, [items, setEditingItem]);
 
   // ── Step 3: Animation — consumes only isLoading from step 1 ──────────────
   const { translateX } = useClosetAnimations(isLoading);

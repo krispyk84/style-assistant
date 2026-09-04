@@ -493,18 +493,6 @@ export function ClosetItemSheetView({ item, startInEditMode, onClose, onSaved, o
                   { label: 'Personal Fit', value: CLOSET_FIT_STATUS_OPTIONS.find((o) => o.value === item?.fitStatus)?.label },
                 ]} />
                 {item?.notes ? <LabelRow label="Notes" value={item.notes} /> : null}
-
-                {/* Usage counters */}
-                {(item?.anchorCount !== undefined || item?.matchCount !== undefined) ? (
-                  <View style={{ borderTopColor: theme.colors.border, borderTopWidth: 1, paddingTop: spacing.md, flexDirection: 'row', gap: spacing.sm }}>
-                    <View style={{ flex: 1 }}>
-                      <LabelRow label="Anchored" value={String(item?.anchorCount ?? 0)} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <LabelRow label="Matched" value={String(item?.matchCount ?? 0)} />
-                    </View>
-                  </View>
-                ) : null}
               </View>
             )}
           </ScrollView>
