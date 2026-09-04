@@ -39,6 +39,9 @@ export const outfitRecommendationSchema = z.object({
   whyItWorks: z.string().min(1),
   stylingDirection: z.string().min(1),
   detailNotes: z.array(z.string().min(1)).min(2).max(5),
+  // Set only when the request was closetOnly — real closet item ids
+  // this recommendation's keyPieces/shoes/accessories resolve to.
+  closetItemIds: z.array(z.string()).optional(),
 });
 
 export const tieredOutfitGenerationSchema = z.object({
@@ -91,83 +94,103 @@ const outfitPieceJsonSchema = {
   required: ['display_name', 'metadata'],
 } as const;
 
-const outfitRecommendationJsonSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    tier: {
-      type: 'string',
-      enum: tierEnum.options,
+function buildOutfitRecommendationJsonSchema(closetOnly: boolean) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      tier: {
+        type: 'string',
+        enum: tierEnum.options,
+      },
+      title: {
+        type: 'string',
+      },
+      anchorItem: {
+        type: 'string',
+      },
+      anchorPiece: {
+        ...outfitPieceJsonSchema,
+        description: 'The anchor item as a structured piece — display_name matches anchorItem text, metadata reflects the anchor\'s category, dominant color, material, and formality.',
+      },
+      keyPieces: {
+        type: 'array',
+        items: outfitPieceJsonSchema,
+        minItems: 2,
+        maxItems: 5,
+      },
+      shoes: {
+        type: 'array',
+        items: outfitPieceJsonSchema,
+        minItems: 1,
+        maxItems: 3,
+      },
+      accessories: {
+        type: 'array',
+        items: outfitPieceJsonSchema,
+        minItems: 1,
+        maxItems: 4,
+      },
+      fitNotes: {
+        type: 'array',
+        items: { type: 'string' },
+        minItems: 2,
+        maxItems: 5,
+      },
+      whyItWorks: {
+        type: 'string',
+      },
+      stylingDirection: {
+        type: 'string',
+      },
+      detailNotes: {
+        type: 'array',
+        items: { type: 'string' },
+        minItems: 2,
+        maxItems: 5,
+      },
+      ...(closetOnly
+        ? {
+            closetItemIds: {
+              type: 'array',
+              items: { type: 'string' },
+              minItems: 2,
+              maxItems: 8,
+              description: 'Real closet item ids (from the wardrobe index) used to build keyPieces/shoes/accessories/anchorPiece for this tier',
+            },
+          }
+        : {}),
     },
-    title: {
-      type: 'string',
-    },
-    anchorItem: {
-      type: 'string',
-    },
-    anchorPiece: {
-      ...outfitPieceJsonSchema,
-      description: 'The anchor item as a structured piece — display_name matches anchorItem text, metadata reflects the anchor\'s category, dominant color, material, and formality.',
-    },
-    keyPieces: {
-      type: 'array',
-      items: outfitPieceJsonSchema,
-      minItems: 2,
-      maxItems: 5,
-    },
-    shoes: {
-      type: 'array',
-      items: outfitPieceJsonSchema,
-      minItems: 1,
-      maxItems: 3,
-    },
-    accessories: {
-      type: 'array',
-      items: outfitPieceJsonSchema,
-      minItems: 1,
-      maxItems: 4,
-    },
-    fitNotes: {
-      type: 'array',
-      items: { type: 'string' },
-      minItems: 2,
-      maxItems: 5,
-    },
-    whyItWorks: {
-      type: 'string',
-    },
-    stylingDirection: {
-      type: 'string',
-    },
-    detailNotes: {
-      type: 'array',
-      items: { type: 'string' },
-      minItems: 2,
-      maxItems: 5,
-    },
-  },
-  required: ['tier', 'title', 'anchorItem', 'anchorPiece', 'keyPieces', 'shoes', 'accessories', 'fitNotes', 'whyItWorks', 'stylingDirection', 'detailNotes'],
-} as const;
+    required: [
+      'tier', 'title', 'anchorItem', 'anchorPiece', 'keyPieces', 'shoes', 'accessories', 'fitNotes', 'whyItWorks', 'stylingDirection', 'detailNotes',
+      ...(closetOnly ? ['closetItemIds'] : []),
+    ],
+  } as const;
+}
 
-export const tieredOutfitGenerationJsonSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    recommendations: {
-      type: 'array',
-      items: outfitRecommendationJsonSchema,
-      minItems: 1,
-      maxItems: 3,
+export function buildTieredOutfitGenerationJsonSchema(closetOnly: boolean) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      recommendations: {
+        type: 'array',
+        items: buildOutfitRecommendationJsonSchema(closetOnly),
+        minItems: 1,
+        maxItems: 3,
+      },
     },
-  },
-  required: ['recommendations'],
-} as const;
+    required: ['recommendations'],
+  } as const;
+}
 
-export const singleTierRegenerationJsonSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    recommendation: outfitRecommendationJsonSchema,
-  },
-  required: ['recommendation'],
-} as const;
+export function buildSingleTierRegenerationJsonSchema(closetOnly: boolean) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      recommendation: buildOutfitRecommendationJsonSchema(closetOnly),
+    },
+    required: ['recommendation'],
+  } as const;
+}

@@ -38,6 +38,7 @@ export const generateOutfitsSchema = z.object({
   manualSeason: z.enum(['winter', 'spring', 'summer', 'fall']).nullable().optional(),
   includeBag: z.boolean().optional(),
   includeHat: z.boolean().optional(),
+  closetOnly: z.boolean().optional(),
   additionalDetails: z.string().trim().max(500).optional(),
   variantContext: z
     .object({

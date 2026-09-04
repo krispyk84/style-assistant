@@ -15,6 +15,7 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
   const [isSeasonExpanded, setIsSeasonExpanded] = useState(false);
   const [includeBag, setIncludeBag] = useState<boolean>(initialValue.includeBag ?? false);
   const [includeHat, setIncludeHat] = useState<boolean>(initialValue.includeHat ?? false);
+  const [closetOnly, setClosetOnly] = useState<boolean>(initialValue.closetOnly ?? false);
   // Auto-expand if the form was pre-filled with an optional item already selected
   const [isOptionalItemsExpanded, setIsOptionalItemsExpanded] = useState(() =>
     !!(initialValue.includeBag || initialValue.includeHat),
@@ -69,6 +70,7 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
     isSeasonExpanded,
     includeBag,
     includeHat,
+    closetOnly,
     isOptionalItemsExpanded,
     additionalDetails,
     isAdditionalDetailsExpanded,
@@ -88,5 +90,6 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
     toggleVibeKeyword,
     toggleIncludeBag: () => setIncludeBag((v) => !v),
     toggleIncludeHat: () => setIncludeHat((v) => !v),
+    toggleClosetOnly: () => setClosetOnly((v) => !v),
   };
 }

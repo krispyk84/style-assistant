@@ -48,6 +48,8 @@ export type GenerateOutfitsRequest = {
   includeHat?: boolean;
   /** Freeform additional guidance to steer the outfit. */
   additionalDetails?: string;
+  /** When set, every recommendation is built entirely from the user's real closet items — mirrors trips' fullCloset mode. */
+  closetOnly?: boolean;
   /** Variation context — set when generating multiple looks of the same tier from the same anchors. */
   variantContext?: {
     /** 1-based index of this variation within the batch. */
@@ -90,6 +92,8 @@ export type TierRecommendationDto = {
   sketchMimeType: string | null;
   sketchImageData?: Buffer | null;
   variantIndex: number;
+  /** Set only when the request was closetOnly — real closet item ids this recommendation's pieces resolve to. */
+  closetItemIds?: string[];
 };
 
 export type OutfitResponse = {
@@ -111,6 +115,7 @@ export type OutfitResponse = {
     region?: GenerateOutfitsRequest['region'];
     includeBag?: boolean;
     includeHat?: boolean;
+    closetOnly?: boolean;
     additionalDetails?: string;
     trendiness?: number;
   };

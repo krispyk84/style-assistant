@@ -55,6 +55,7 @@ export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE }: 
         manualSeason: lookForm.selectedSeason,
         includeBag: lookForm.includeBag,
         includeHat: lookForm.includeHat,
+        closetOnly: lookForm.closetOnly,
         additionalDetails: lookForm.additionalDetails,
         lookCount: lookForm.lookCount,
       }),

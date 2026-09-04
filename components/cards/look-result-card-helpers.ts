@@ -1,5 +1,5 @@
 import { findBestClosetMatch, getMatchConfidencePercent } from '@/lib/closet-match';
-import type { LabeledPiece } from '@/lib/outfit-piece-display';
+import { resolveClosetConstrainedPieces, type LabeledPiece } from '@/lib/outfit-piece-display';
 import type { ClosetItem } from '@/types/closet';
 import type { LookRecommendation, OutfitPiece } from '@/types/look-request';
 import { normalizePiece } from '@/types/look-request';
@@ -54,9 +54,7 @@ export function buildLabeledPieces(
     (userText && !isGeneric)
       ? userText
       : (recommendation.anchorItem?.trim() || userText || 'Anchor item');
-  const pieces: LabeledPiece[] = [
-    { label: 'Anchor', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true },
-  ];
+  const anchorPiece: LabeledPiece = { label: 'Anchor', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true };
 
   // Normalizer used to deduplicate anchor from keyPieces.
   const normStr = (s: string) =>
@@ -67,7 +65,7 @@ export function buildLabeledPieces(
   // The backend already deduplicates (see deduplicateKeyPieces in outfits-response-mapper),
   // but this guards against stale cached responses where the anchor appears in both
   // anchorItem and keyPieces, which would cause it to show up twice in the piece list.
-  pieces.push(...recommendation.keyPieces
+  const keySlots = recommendation.keyPieces
     .filter((piece) => {
       if (!normalizedAnchor) return true;
       const p = normStr(normalizePiece(piece).display_name);
@@ -75,38 +73,34 @@ export function buildLabeledPieces(
     })
     .map((piece, index) => {
       const normalized = normalizePiece(piece);
-      const { item, confidencePercent } = resolveMatch(normalized, closetItems, matchMap);
-      return {
-        label: uniqueLabel(labelForKeyPiece(normalized, index), usedLabels),
-        value: normalized.display_name,
-        matchedClosetItem: item,
-        confidencePercent,
-      };
-    }));
+      return { label: uniqueLabel(labelForKeyPiece(normalized, index), usedLabels), value: normalized.display_name, piece: normalized };
+    });
 
-  recommendation.shoes.forEach((shoe, index) => {
+  const shoeSlots = recommendation.shoes.map((shoe, index) => {
     const normalized = normalizePiece(shoe);
-    const { item, confidencePercent } = resolveMatch(normalized, closetItems, matchMap);
-    pieces.push({
-      label: uniqueLabel(index === 0 ? 'Shoes' : `Shoe ${index + 1}`, usedLabels),
-      value: normalized.display_name,
-      matchedClosetItem: item,
-      confidencePercent,
-    });
+    return { label: uniqueLabel(index === 0 ? 'Shoes' : `Shoe ${index + 1}`, usedLabels), value: normalized.display_name, piece: normalized };
   });
 
-  recommendation.accessories.forEach((accessory, index) => {
+  const accessorySlots = recommendation.accessories.map((accessory, index) => {
     const normalized = normalizePiece(accessory);
-    const { item, confidencePercent } = resolveMatch(normalized, closetItems, matchMap);
-    pieces.push({
-      label: uniqueLabel(`Accessory ${index + 1}`, usedLabels),
-      value: normalized.display_name,
-      matchedClosetItem: item,
-      confidencePercent,
-    });
+    return { label: uniqueLabel(`Accessory ${index + 1}`, usedLabels), value: normalized.display_name, piece: normalized };
   });
 
-  return pieces;
+  const nonAnchorSlots = [...keySlots, ...shoeSlots, ...accessorySlots];
+
+  // closetOnly recommendations already carry the real ids every piece resolves
+  // to — pair against that small known-good set instead of fuzzy-searching the
+  // whole closet from scratch (see lib/outfit-piece-display.ts). Freeform
+  // recommendations fall back to today's per-piece matchMap/fuzzy matching,
+  // which uses the full structured piece (category/color/material) for scoring.
+  const resolvedNonAnchor = recommendation.closetItemIds?.length
+    ? resolveClosetConstrainedPieces(nonAnchorSlots, recommendation.closetItemIds, closetItems)
+    : nonAnchorSlots.map(({ piece, ...slot }) => {
+        const { item, confidencePercent } = resolveMatch(piece, closetItems, matchMap);
+        return { ...slot, matchedClosetItem: item, confidencePercent };
+      });
+
+  return [anchorPiece, ...resolvedNonAnchor];
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

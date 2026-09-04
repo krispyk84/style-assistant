@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 
 import { AppIcon, type AppIconName } from '@/components/ui/app-icon';
@@ -5,6 +6,7 @@ import { AppText } from '@/components/ui/app-text';
 import { ClosetPickerModal } from '@/components/closet/closet-picker-modal';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
+import { evaluateClosetReadiness } from '@/lib/closet-readiness';
 import { LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
 import type { WeatherSeason } from '@/types/weather';
 import { AnchorItemCard } from './AnchorItemCard';
@@ -66,6 +68,8 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
     toggleTier,
     includeBag,
     includeHat,
+    closetOnly,
+    toggleClosetOnly,
     isOptionalItemsExpanded,
     setIsOptionalItemsExpanded,
     toggleIncludeBag,
@@ -78,6 +82,7 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
     setLookCount,
   } = lookForm;
   const hasAnyInput = populatedAnchorItems.length > 0;
+  const isClosetReady = useMemo(() => evaluateClosetReadiness(closetItems).ready, [closetItems]);
 
   return (
     <View style={{ gap: spacing.xl }}>
@@ -346,6 +351,27 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
           </View>
         ) : null}
       </View>
+
+      {/* Closet Only — only offered once the wardrobe is generative-ready */}
+      {isClosetReady ? (
+        <View style={{ gap: spacing.md }}>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>From Your Closet</AppText>
+          <View style={{
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            borderRadius: 18,
+            borderWidth: 1,
+            padding: spacing.md,
+          }}>
+            <OptionalItemRow
+              label="Pair only items from my closet"
+              description="Build this look entirely from pieces you already own instead of AI-generated suggestions."
+              checked={closetOnly}
+              onToggle={toggleClosetOnly}
+            />
+          </View>
+        </View>
+      ) : null}
 
       {/* Additional Details — collapsible */}
       <View style={{ gap: spacing.md }}>

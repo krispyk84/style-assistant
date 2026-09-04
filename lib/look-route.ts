@@ -47,6 +47,7 @@ export function parseLookInput(params: LookRouteParams): CreateLookInput | null 
     anchorImage: primaryAnchorItem?.image ?? null,
     includeBag: params.includeBag === 'true',
     includeHat: params.includeHat === 'true',
+    closetOnly: params.closetOnly === 'true',
     additionalDetails: params.additionalDetails ?? '',
   };
 }
@@ -84,6 +85,7 @@ export function buildLookRouteParams(requestId: string, input: CreateLookInput) 
     manualSeason: input.manualSeason ?? undefined,
     includeBag: input.includeBag ? 'true' : undefined,
     includeHat: input.includeHat ? 'true' : undefined,
+    closetOnly: input.closetOnly ? 'true' : undefined,
     additionalDetails: input.additionalDetails?.trim() || undefined,
   };
 }

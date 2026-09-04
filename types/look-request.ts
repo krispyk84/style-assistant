@@ -124,6 +124,8 @@ export type CreateLookInput = {
    * Read at request time; not user-specified per look.
    */
   trendiness?: number;
+  /** User opted to constrain every recommendation to real items already in their closet. */
+  closetOnly?: boolean;
 };
 
 export type LookTierDefinition = {
@@ -150,6 +152,8 @@ export type LookRecommendation = {
   sketchImageUrl?: string | null;
   sketchStorageKey?: string | null;
   sketchMimeType?: string | null;
+  /** Set only when the request was closetOnly — real closet item ids this recommendation's pieces resolve to. */
+  closetItemIds?: string[];
 };
 
 export type LookRequestResponse = {

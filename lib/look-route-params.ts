@@ -48,6 +48,7 @@ export type LookRouteParams = {
   manualSeason?: string;
   includeBag?: string;
   includeHat?: string;
+  closetOnly?: string;
   additionalDetails?: string;
   /** Comma-separated additional requestIds for same-tier variations (variation 2..N, base is the URL). */
   variantRequestIds?: string;

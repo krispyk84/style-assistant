@@ -6,11 +6,12 @@ import { openAiClient } from '../../ai/openai-client.js';
 import { buildAnchorImageContent } from '../../ai/image-input.js';
 import type { SubjectRenderingInput } from '../../ai/body-type-severity.js';
 import {
-  singleTierRegenerationJsonSchema,
+  buildSingleTierRegenerationJsonSchema,
   singleTierRegenerationSchema,
-  tieredOutfitGenerationJsonSchema,
+  buildTieredOutfitGenerationJsonSchema,
   tieredOutfitGenerationSchema,
 } from './outfits.schemas.js';
+import { buildClosetIndex } from '../closet/closet-index.js';
 import { buildGenerateOutfitsInstructions, buildGenerateOutfitsUserPrompt, buildRegenerateTierInstructions, buildRegenerateTierUserPrompt } from '../../ai/prompts/outfits.prompts.js';
 import {
   buildOutfitGenerationStyleGuideQuery,
@@ -138,6 +139,11 @@ export const outfitsService = {
     // the prompt (via formatProfileContext — see outfits.prompts.ts).
     const vibeKeywords = input.vibeKeywords?.trim() || null;
 
+    // closetOnly hands the model the full wardrobe index and requires every
+    // recommendation to be built from real ids — mirrors trips.service.ts's
+    // "From My Closet" pattern.
+    const closetIndex = input.closetOnly ? await buildClosetIndex(supabaseUserId) : null;
+
     const [styleGuideContext, seasonalTrends] = await Promise.all([
       styleGuideService.retrieveGuidance({
         task: 'outfit-generation',
@@ -164,7 +170,8 @@ export const outfitsService = {
           },
           profile,
           styleGuideContext?.promptContext,
-          seasonalTrends
+          seasonalTrends,
+          closetIndex?.index,
         ),
       },
     ];
@@ -176,15 +183,23 @@ export const outfitsService = {
       jsonSchema: {
         name: 'tiered_outfit_generation',
         description: profile?.gender === 'woman' ? 'Three womenswear outfit tiers for one anchor item.' : 'Three menswear outfit tiers for one anchor item.',
-        schema: tieredOutfitGenerationJsonSchema,
+        schema: buildTieredOutfitGenerationJsonSchema(!!input.closetOnly),
       },
-      instructions: buildGenerateOutfitsInstructions(tiersToGenerate, profile?.gender),
+      instructions: buildGenerateOutfitsInstructions(tiersToGenerate, profile?.gender, input.closetOnly),
       userContent,
       supabaseUserId,
       feature: 'outfit-generation',
     });
 
-    const recommendationMap = new Map(aiOutput.recommendations.map((recommendation) => [recommendation.tier, recommendation]));
+    // Never trust the model's ids at face value — drop any id that isn't
+    // actually in the wardrobe index rather than pretending the user owns
+    // an item that doesn't exist.
+    const recommendationMap = new Map(aiOutput.recommendations.map((recommendation) => [
+      recommendation.tier,
+      closetIndex
+        ? { ...recommendation, closetItemIds: (recommendation.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id)) }
+        : recommendation,
+    ]));
 
     const response: OutfitResponse = {
       requestId: input.requestId,
@@ -205,6 +220,7 @@ export const outfitsService = {
         region: input.region,
         includeBag: input.includeBag ?? false,
         includeHat: input.includeHat ?? false,
+        closetOnly: input.closetOnly ?? false,
         additionalDetails: input.additionalDetails?.trim() || undefined,
         trendiness: input.trendiness,
       },
@@ -245,6 +261,7 @@ export const outfitsService = {
     const nextVariantIndex = currentVariantIndex + 1;
     const profile = await findProfile(supabaseUserId);
     const anchorItems = getNormalizedAnchorItems(existing.input);
+    const closetIndex = existing.input.closetOnly ? await buildClosetIndex(supabaseUserId) : null;
     const uploadedAnchorImages = await Promise.all(
       anchorItems.map(async (item) => (item.imageId ? uploadsRepository.findById(item.imageId) : null))
     );
@@ -271,6 +288,7 @@ export const outfitsService = {
           tier,
           styleGuideContext: styleGuideContext?.promptContext,
           seasonalTrends,
+          closetIndex: closetIndex?.index,
         }),
       },
     ];
@@ -282,13 +300,18 @@ export const outfitsService = {
       jsonSchema: {
         name: 'single_tier_regeneration',
         description: profile?.gender === 'woman' ? 'A single regenerated womenswear tier recommendation.' : 'A single regenerated menswear tier recommendation.',
-        schema: singleTierRegenerationJsonSchema,
+        schema: buildSingleTierRegenerationJsonSchema(!!existing.input.closetOnly),
       },
-      instructions: buildRegenerateTierInstructions(profile?.gender),
+      instructions: buildRegenerateTierInstructions(profile?.gender, existing.input.closetOnly),
       userContent,
       supabaseUserId,
       feature: 'tier-regeneration',
     });
+
+    // Never trust the model's ids at face value — see generateOutfits' same guard.
+    const regeneratedRecommendation = closetIndex
+      ? { ...aiOutput.recommendation, closetItemIds: (aiOutput.recommendation.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id)) }
+      : aiOutput.recommendation;
 
     const mergedResponse: OutfitResponse = {
       ...existing,
@@ -297,7 +320,7 @@ export const outfitsService = {
       recommendations: existing.recommendations.map((recommendation) =>
         recommendation.tier === tier
           ? mapOutfitRecommendation(
-              aiOutput.recommendation,
+              regeneratedRecommendation,
               tier,
               buildStableSketchUrl(env.STORAGE_PUBLIC_BASE_URL, existing.requestId, tier, nextVariantIndex),
               nextVariantIndex,

@@ -3,6 +3,19 @@ import type { TrendFeedbackValue } from '../../modules/seasonal-trends/trend-fee
 import { buildBaseOutfitRules } from './base-stylist-rules.js';
 import { formatProfileContext } from '../prompt-context.js';
 import { buildSeasonalTrendGuidance } from './seasonal-trend-guidance.js';
+import type { ClosetOutfitIndexItem } from './closet-outfits.prompts.js';
+
+function buildClosetOnlyInstructions(): string[] {
+  return [
+    'CLOSET-ONLY MODE: every recommendation must be built ENTIRELY from the WARDROBE INDEX provided in the user content below. Never invent a piece that is not in the index — if the wardrobe genuinely has no good option for a slot, choose the closest available item rather than fabricating one.',
+    'closetItemIds: the exact ids (from the wardrobe index) used to build this recommendation\'s anchorPiece/keyPieces/shoes/accessories. Every id must exist in the index. 2–8 ids per recommendation.',
+    'display_name for every piece must describe the ACTUAL chosen item by its real name/details, not a generic placeholder.',
+  ];
+}
+
+function buildClosetOnlyWardrobeBlock(closetIndex: ClosetOutfitIndexItem[]): string {
+  return ['WARDROBE INDEX (every item you may use — reference by exact id):', JSON.stringify(closetIndex, null, 2)].join('\n');
+}
 
 type PromptProfile = Parameters<typeof formatProfileContext>[0];
 
@@ -81,9 +94,10 @@ function buildFemaleBodyTypeGuidance(bodyType: string): string | null {
   return note ? `FEMALE BODY TYPE GUIDANCE — ${bodyType}: ${note}` : null;
 }
 
-export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[], gender?: string | null) {
+export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[], gender?: string | null, closetOnly?: boolean) {
   return [
     ...buildBaseOutfitRules(gender),
+    ...(closetOnly ? buildClosetOnlyInstructions() : []),
     'Return only structured JSON matching the provided schema.',
     `Return only the requested tier recommendations in this order: ${selectedTiers.join(', ')}.`,
     'Anchor the recommendations to the provided item or image evidence.',
@@ -281,7 +295,9 @@ export function buildGenerateOutfitsUserPrompt(
   input: GenerateOutfitsRequest,
   profile: PromptProfile,
   styleGuideContext?: string | null,
-  seasonalTrends?: OutfitsSeasonalTrendsContext
+  seasonalTrends?: OutfitsSeasonalTrendsContext,
+  /** Present only for closetOnly requests — the full wardrobe index every recommendation must build from. */
+  closetIndex?: ClosetOutfitIndexItem[],
 ) {
   const anchorItems = input.anchorItems?.length
     ? input.anchorItems
@@ -312,6 +328,7 @@ export function buildGenerateOutfitsUserPrompt(
     buildSeasonalTrendsRule(seasonalTrends ?? null, input.selectedTiers),
     buildAdditionalDetailsRule(input.additionalDetails),
     buildVariantContextRule(input.variantContext),
+    closetIndex ? buildClosetOnlyWardrobeBlock(closetIndex) : null,
     'Styling request:',
     ...anchorItems.map(
       (item, index) =>
@@ -335,9 +352,10 @@ export function buildGenerateOutfitsUserPrompt(
   ].filter(Boolean).join('\n');
 }
 
-export function buildRegenerateTierInstructions(gender?: string | null) {
+export function buildRegenerateTierInstructions(gender?: string | null, closetOnly?: boolean) {
   return [
     ...buildBaseOutfitRules(gender),
+    ...(closetOnly ? buildClosetOnlyInstructions() : []),
     gender === 'woman'
       ? 'You are regenerating one tier of a womenswear styling recommendation.'
       : 'You are regenerating one tier of a menswear styling recommendation.',
@@ -356,6 +374,8 @@ export function buildRegenerateTierUserPrompt(input: {
   tier: OutfitTierSlug;
   styleGuideContext?: string | null;
   seasonalTrends?: OutfitsSeasonalTrendsContext;
+  /** Present only when the original request was closetOnly — the full wardrobe index the replacement must build from. */
+  closetIndex?: ClosetOutfitIndexItem[];
 }) {
   const previousTier = input.existing.recommendations.find((item) => item.tier === input.tier);
 
@@ -379,6 +399,7 @@ export function buildRegenerateTierUserPrompt(input: {
     buildAdditionalDetailsRule(
       (input.existing.input as { additionalDetails?: string }).additionalDetails,
     ),
+    input.closetIndex ? buildClosetOnlyWardrobeBlock(input.closetIndex) : null,
     'Original styling request:',
     ...(input.existing.input.anchorItems?.length
       ? input.existing.input.anchorItems.map(
