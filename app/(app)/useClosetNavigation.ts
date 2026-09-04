@@ -23,6 +23,29 @@ export function useClosetNavigation({ items, sections }: UseClosetNavigationPara
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Pairing flow: select exactly 2 items, then combine them into a new item
+  // (e.g. a blazer + trousers into a suit) without touching the source items.
+  const [isPairSelectMode, setIsPairSelectMode] = useState(false);
+  const [pairSelectedIds, setPairSelectedIds] = useState<string[]>([]);
+
+  function togglePairSelectMode() {
+    setIsPairSelectMode((prev) => !prev);
+    setPairSelectedIds([]);
+  }
+
+  function togglePairItemSelected(item: ClosetItem) {
+    setPairSelectedIds((prev) => {
+      if (prev.includes(item.id)) return prev.filter((id) => id !== item.id);
+      if (prev.length >= 2) return prev;
+      return [...prev, item.id];
+    });
+  }
+
+  function exitPairSelectMode() {
+    setIsPairSelectMode(false);
+    setPairSelectedIds([]);
+  }
+
   // Refs created here — returned to the screen for forwarding to ClosetScreenView,
   // which wires them to the list components. The scroll effect calls them directly.
   const flatListRef = useRef<FlatList<ClosetRow>>(null);
@@ -115,5 +138,10 @@ export function useClosetNavigation({ items, sections }: UseClosetNavigationPara
     searchResults,
     flatListRef,
     sectionListRef,
+    isPairSelectMode,
+    togglePairSelectMode,
+    pairSelectedIds,
+    togglePairItemSelected,
+    exitPairSelectMode,
   };
 }

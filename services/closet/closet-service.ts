@@ -24,6 +24,8 @@ import type { ClosetItem } from '@/types/closet';
 export type ClosetService = {
   analyzeItem: (request: AnalyzeClosetItemRequest) => Promise<ApiResponse<AnalyzeClosetItemResponse>>;
   saveItem: (request: SaveClosetItemRequest) => Promise<ApiResponse<ClosetItem>>;
+  /** Combines two existing closet items (e.g. a blazer + trousers) into a new, independent item (e.g. a suit) — the two source items are left untouched. */
+  createPairedItem: (itemIds: [string, string]) => Promise<ApiResponse<ClosetItem>>;
   getItems: () => Promise<ApiResponse<GetClosetItemsResponse>>;
   getItem: (id: string) => Promise<ApiResponse<ClosetItem>>;
   updateItem: (request: UpdateClosetItemRequest) => Promise<ApiResponse<ClosetItem>>;

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { useWindowDimensions } from 'react-native';
 
@@ -10,6 +10,7 @@ import { HelpMePickModal } from '@/components/closet/HelpMePickModal';
 import { useClosetAnalyzer } from '@/components/closet/useClosetAnalyzer';
 import { useGenerateOutfits } from '@/components/closet/useGenerateOutfits';
 import { useHelpMePick } from '@/components/closet/useHelpMePick';
+import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
 import { COLUMN_COUNT } from './closet-grid-utils';
 import { useClosetAnimations } from './useClosetAnimations';
@@ -41,7 +42,11 @@ export default function ClosetScreen() {
     searchQuery, setSearchQuery,
     searchResults,
     flatListRef, sectionListRef,
+    isPairSelectMode, togglePairSelectMode,
+    pairSelectedIds, togglePairItemSelected, exitPairSelectMode,
   } = useClosetNavigation({ items, sections });
+  const [isCreatingPair, setIsCreatingPair] = useState(false);
+  const [pairError, setPairError] = useState<string | null>(null);
 
   // ── Step 3: Animation — consumes only isLoading from step 1 ──────────────
   const { translateX } = useClosetAnimations(isLoading);
@@ -92,6 +97,24 @@ export default function ClosetScreen() {
     void loadItems();
   }
 
+  // itemIds is exactly 2 by construction — togglePairItemSelected caps selection at 2,
+  // and the "Create Pair" action is only reachable once pairSelectedIds.length === 2.
+  async function handleCreatePair() {
+    if (pairSelectedIds.length !== 2 || isCreatingPair) return;
+    setIsCreatingPair(true);
+    setPairError(null);
+    const response = await closetService.createPairedItem([pairSelectedIds[0]!, pairSelectedIds[1]!]);
+    setIsCreatingPair(false);
+    if (!response.success || !response.data) {
+      setPairError(response.error?.message ?? 'Could not create the pair. Please try again.');
+      return;
+    }
+    exitPairSelectMode();
+    setSelectedCategory(null);
+    await loadItems(); // picks up the new pending-sketch item and starts polling it
+    setEditingItem(response.data); // open the new item for rename/recategorize right away
+  }
+
   return (
     <>
       <ClosetScreenView
@@ -138,6 +161,13 @@ export default function ClosetScreen() {
         flatListRef={flatListRef}
         sectionListRef={sectionListRef}
         translateX={translateX}
+        isPairSelectMode={isPairSelectMode}
+        onTogglePairSelectMode={togglePairSelectMode}
+        pairSelectedIds={pairSelectedIds}
+        onTogglePairItemSelected={togglePairItemSelected}
+        onCreatePair={() => void handleCreatePair()}
+        isCreatingPair={isCreatingPair}
+        pairError={pairError}
       />
       {editingItem !== null ? (
         <ClosetItemSheetView

@@ -19,9 +19,13 @@ type ClosetGridRowProps = {
   row: ClosetRow;
   cellWidth: number;
   onPressItem: (item: ClosetItem) => void;
+  /** When set, tapping an item toggles selection instead of opening it — used by the pairing flow. */
+  isSelectMode?: boolean;
+  selectedItemIds?: Set<string>;
+  onToggleSelect?: (item: ClosetItem) => void;
 };
 
-export const ClosetGridRow = React.memo(function ClosetGridRow({ row, cellWidth, onPressItem }: ClosetGridRowProps) {
+export const ClosetGridRow = React.memo(function ClosetGridRow({ row, cellWidth, onPressItem, isSelectMode, selectedItemIds, onToggleSelect }: ClosetGridRowProps) {
   return (
     <View style={{ flexDirection: 'row', gap: spacing.sm }}>
       {row.map((item) => (
@@ -30,6 +34,9 @@ export const ClosetGridRow = React.memo(function ClosetGridRow({ row, cellWidth,
           item={item}
           cellWidth={cellWidth}
           onPress={onPressItem}
+          isSelectMode={isSelectMode}
+          isSelected={selectedItemIds?.has(item.id) ?? false}
+          onToggleSelect={onToggleSelect}
         />
       ))}
       {row.length < COLUMN_COUNT
@@ -47,23 +54,28 @@ type ClosetGridItemProps = {
   item: ClosetItem;
   cellWidth: number;
   onPress: (item: ClosetItem) => void;
+  isSelectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (item: ClosetItem) => void;
 };
 
-const ClosetGridItem = React.memo(function ClosetGridItem({ item, cellWidth, onPress }: ClosetGridItemProps) {
+const ClosetGridItem = React.memo(function ClosetGridItem({ item, cellWidth, onPress, isSelectMode, isSelected, onToggleSelect }: ClosetGridItemProps) {
   const { theme } = useTheme();
   const hasBoth = Boolean(item.sketchImageUrl) && Boolean(item.uploadedImageUrl);
   const primaryUri = item.sketchImageUrl ?? item.uploadedImageUrl ?? null;
 
   return (
     <View style={{ flex: 1 }}>
-      <Pressable style={{ flex: 1, gap: spacing.xs }} onPress={() => onPress(item)}>
+      <Pressable
+        style={{ flex: 1, gap: spacing.xs }}
+        onPress={() => (isSelectMode ? onToggleSelect?.(item) : onPress(item))}>
         <View
           style={{
             aspectRatio: 3 / 4,
             backgroundColor: theme.colors.card,
-            borderColor: theme.colors.border,
+            borderColor: isSelectMode && isSelected ? theme.colors.accent : theme.colors.border,
             borderRadius: 16,
-            borderWidth: 1,
+            borderWidth: isSelectMode && isSelected ? 2 : 1,
             overflow: 'hidden',
             alignItems: 'center',
             justifyContent: 'center',
@@ -85,10 +97,29 @@ const ClosetGridItem = React.memo(function ClosetGridItem({ item, cellWidth, onP
             <AppIcon color={theme.colors.subtleText} name="shirt" size={22} />
           )}
 
-          {hasBoth ? (
+          {hasBoth && !isSelectMode ? (
             <View style={{ bottom: 6, flexDirection: 'row', gap: 4, position: 'absolute', alignSelf: 'center' }}>
               <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 5, width: 5, opacity: 0.9 }} />
               <View style={{ backgroundColor: '#FFF', borderRadius: 999, height: 5, width: 5, opacity: 0.45 }} />
+            </View>
+          ) : null}
+
+          {isSelectMode ? (
+            <View
+              style={{
+                alignItems: 'center',
+                backgroundColor: isSelected ? theme.colors.accent : 'rgba(255,255,255,0.85)',
+                borderColor: theme.colors.border,
+                borderRadius: 999,
+                borderWidth: isSelected ? 0 : 1,
+                height: 22,
+                justifyContent: 'center',
+                position: 'absolute',
+                right: 6,
+                top: 6,
+                width: 22,
+              }}>
+              {isSelected ? <AppIcon color={theme.colors.inverseText} name="check" size={13} /> : null}
             </View>
           ) : null}
         </View>

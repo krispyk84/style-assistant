@@ -70,6 +70,7 @@ export const closetRepository = {
     category?: string;
     uploadedImageUrl?: string;
     sketchImageUrl?: string;
+    sketchStatus?: string;
   } & ClosetItemMetadata) {
     return prisma.closetItem.updateMany({ where: { id, supabaseUserId }, data });
   },

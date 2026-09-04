@@ -109,6 +109,27 @@ export const mockClosetService: ClosetService = {
     return { success: true, data: item, error: null };
   },
 
+  async createPairedItem(itemIds: [string, string]): Promise<ApiResponse<ClosetItem>> {
+    const items = await loadClosetItems();
+    const [item1, item2] = itemIds.map((id) => items.find((i) => i.id === id));
+    if (!item1 || !item2) {
+      return { success: false, data: null, error: { code: 'NOT_FOUND', message: 'One or both items were not found.' } };
+    }
+    const paired: ClosetItem = {
+      id: `mock-${Date.now()}`,
+      title: `${item1.title} & ${item2.title}`,
+      brand: '',
+      size: '',
+      category: item1.category,
+      uploadedImageUrl: null,
+      sketchImageUrl: item1.sketchImageUrl ?? item2.sketchImageUrl ?? null,
+      sketchStatus: item1.sketchImageUrl || item2.sketchImageUrl ? 'ready' : 'failed',
+      savedAt: new Date().toISOString(),
+    };
+    await saveClosetItem(paired);
+    return { success: true, data: paired, error: null };
+  },
+
   async getItems(): Promise<ApiResponse<GetClosetItemsResponse>> {
     const items = await loadClosetItems();
     return { success: true, data: { items }, error: null };

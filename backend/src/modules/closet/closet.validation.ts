@@ -130,6 +130,10 @@ export const generateClosetOutfitVariationsSchema = z.object({
   swapItemIds: z.array(z.string()).min(1).max(2),
 });
 
+export const createClosetItemPairSchema = z.object({
+  itemIds: z.array(z.string()).length(2),
+});
+
 export const setClosetOutfitFeedbackSchema = z.object({
   feedbackId: z.string().min(1),
   feedback: z.enum(['love', 'hate']).nullable(),
@@ -146,3 +150,4 @@ export type HelpMePickPayload = z.infer<typeof helpMePickSchema>;
 export type GenerateClosetOutfitsPayload = z.infer<typeof generateClosetOutfitsSchema>;
 export type GenerateClosetOutfitVariationsPayload = z.infer<typeof generateClosetOutfitVariationsSchema>;
 export type SetClosetOutfitFeedbackPayload = z.infer<typeof setClosetOutfitFeedbackSchema>;
+export type CreateClosetItemPairPayload = z.infer<typeof createClosetItemPairSchema>;

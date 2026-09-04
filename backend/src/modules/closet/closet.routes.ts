@@ -9,6 +9,7 @@ import { closetService } from './closet.service.js';
 import {
   analyzeClosetItemSchema,
   closetMatchSchema,
+  createClosetItemPairSchema,
   generateClosetOutfitsSchema,
   generateClosetOutfitVariationsSchema,
   generateClosetSketchSchema,
@@ -117,6 +118,17 @@ closetRouter.post(
   asyncHandler(async (request, response) => {
     const payload = parseWithSchema(saveClosetItemSchema, request.body);
     const result = await closetService.saveItem(payload, request.userId!);
+    return sendSuccess(response, result, 201);
+  })
+);
+
+// Must be before /closet/items/:id to avoid "pair" being treated as an id
+closetRouter.post(
+  '/closet/items/pair',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(createClosetItemPairSchema, request.body);
+    const result = await closetService.createPairedItem(payload, request.userId!);
     return sendSuccess(response, result, 201);
   })
 );

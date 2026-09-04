@@ -45,6 +45,18 @@ export const apiClosetService: ClosetService = {
     return mockClosetService.saveItem(request);
   },
 
+  async createPairedItem(itemIds: [string, string]): Promise<ApiResponse<ClosetItem>> {
+    const response = await createApiClient().request<ClosetItem>('/closet/items/pair', {
+      method: 'POST',
+      body: { itemIds },
+    });
+    if (response.success && response.data) {
+      await saveClosetItem(response.data);
+      return response;
+    }
+    return mockClosetService.createPairedItem(itemIds);
+  },
+
   async getItems(): Promise<ApiResponse<GetClosetItemsResponse>> {
     const response = await createApiClient().request<GetClosetItemsResponse>('/closet/items');
     if (!response.success) {

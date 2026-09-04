@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
-import { HttpError } from '../../lib/http-error.js';
+import { env } from '../../config/env.js';
+import { logger } from '../../config/logger.js';
+import { HttpError, describeError } from '../../lib/http-error.js';
 import { closetRepository } from './closet.repository.js';
 import { closetAnalysisRepository } from './closet-analysis.repository.js';
 import { closetSketchService } from './closet-sketch.service.js';
@@ -9,7 +11,10 @@ import { closetOutfitsService } from './closet-outfits.service.js';
 import { mapClosetItem } from './closet-response-mapper.js';
 import { analyzeClosetItem, matchClosetItems } from './closet-analysis.service.js';
 import { openAiClient } from '../../ai/openai-client.js';
+import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { buildHelpMePickSystemPrompt, buildHelpMePickUserPrompt } from '../../ai/prompts/help-me-pick.prompts.js';
+import { buildClosetItemPairSketchPrompt, type ClosetItemPairPiece } from '../../ai/prompts/closet-item-pair-sketch.prompts.js';
+import { storageProvider } from '../../storage/index.js';
 import {
   buildClosetAdvisoryOnlySystemPrompt,
   buildClosetAdvisoryOnlyUserPrompt,
@@ -26,6 +31,7 @@ import {
 import type {
   AnalyzeClosetItemPayload,
   ClosetMatchPayload,
+  CreateClosetItemPairPayload,
   GenerateClosetOutfitsPayload,
   GenerateClosetOutfitVariationsPayload,
   GenerateClosetSketchOptions,
@@ -34,6 +40,14 @@ import type {
   SaveClosetItemPayload,
   UpdateClosetItemPayload,
 } from './closet.validation.js';
+
+// Mirrors lib/closet-match-taxonomy.ts's CATEGORY_TO_GROUP mapping for these
+// two groups — kept as a local constant since that file isn't shared with
+// the backend. Used only to pick a sensible default title/category when
+// pairing a blazer with trousers into a suit; any other combination just
+// falls back to a generic "A & B" title with the first item's category.
+const BLAZER_CATEGORIES = new Set(['Blazer', 'Sports Jacket']);
+const TROUSER_CATEGORIES = new Set(['Trousers']);
 
 // ── Closet Analyser ───────────────────────────────────────────────────────────
 
@@ -122,6 +136,45 @@ export const closetService = {
     if (!existing) throw new HttpError(404, 'NOT_FOUND', 'Item not found.');
     await closetRepository.deleteItem(id, supabaseUserId);
     return { deleted: true };
+  },
+
+  /**
+   * Combines two existing closet items (e.g. a blazer + trousers) into a
+   * NEW, independent closet item (e.g. a suit) — the two source items are
+   * untouched. The new item is created immediately with sketchStatus
+   * 'pending' and no image; a new AI sketch showing both pieces together is
+   * generated in the background and attached once ready. useClosetData's
+   * existing "poll while any item has sketchStatus === 'pending'" logic
+   * picks this up automatically — no new polling plumbing needed.
+   */
+  async createPairedItem(payload: CreateClosetItemPairPayload, supabaseUserId: string) {
+    const [item1, item2] = await Promise.all(
+      payload.itemIds.map((id) => closetRepository.getItem(id, supabaseUserId)),
+    );
+    if (!item1 || !item2) {
+      throw new HttpError(404, 'NOT_FOUND', 'One or both items were not found.');
+    }
+
+    const isSuitPair =
+      (BLAZER_CATEGORIES.has(item1.category) && TROUSER_CATEGORIES.has(item2.category)) ||
+      (BLAZER_CATEGORIES.has(item2.category) && TROUSER_CATEGORIES.has(item1.category));
+
+    const suitColor = item1.primaryColor || item1.colorFamily || item2.primaryColor || item2.colorFamily;
+    const title = isSuitPair && suitColor ? `${suitColor} Suit` : `${item1.title} & ${item2.title}`;
+    const category = isSuitPair ? 'Suit' : item1.category;
+
+    const created = await closetRepository.createItem({
+      supabaseUserId,
+      title,
+      brand: '',
+      size: '',
+      category,
+      sketchStatus: 'pending',
+    });
+
+    void generatePairedItemSketch(created.id, [item1, item2], supabaseUserId);
+
+    return mapClosetItem(created);
   },
 
   async generateItemSketch(payload: GenerateClosetSketchPayload, supabaseUserId?: string) {
@@ -365,6 +418,62 @@ export const closetService = {
 };
 
 // ── Internals ────────────────────────────────────────────────────────────────
+
+type ClosetItemRow = NonNullable<Awaited<ReturnType<typeof closetRepository.getItem>>>;
+
+function toPairSketchPiece(item: ClosetItemRow): ClosetItemPairPiece {
+  return {
+    title: item.title,
+    category: item.category,
+    primaryColor: item.primaryColor,
+    colorFamily: item.colorFamily,
+    material: item.material,
+    pattern: item.pattern,
+    silhouette: item.silhouette,
+  };
+}
+
+async function generatePairedItemSketch(
+  itemId: string,
+  sourceItems: [ClosetItemRow, ClosetItemRow],
+  supabaseUserId: string,
+): Promise<void> {
+  try {
+    const [item1, item2] = sourceItems;
+    const prompt = buildClosetItemPairSketchPrompt({
+      setTitle: item1.title === item2.title ? item1.title : `${item1.title} & ${item2.title}`,
+      items: sourceItems.map(toPairSketchPiece),
+    });
+
+    const generatedImage = await openAiClient.generateImage({
+      prompt,
+      model: env.OPENAI_OUTFIT_SKETCH_MODEL,
+      size: '1024x1536',
+      quality: env.OPENAI_OUTFIT_SKETCH_QUALITY,
+      outputFormat: 'jpeg',
+      supabaseUserId,
+      feature: 'closet-sketch',
+      costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
+      logContext: { itemId },
+    });
+
+    const storedFile = await storageProvider.storeGeneratedFile({
+      category: 'closet-sketch',
+      fileExtension: '.jpg',
+      mimeType: generatedImage.mimeType,
+      data: generatedImage.data,
+    });
+
+    await closetRepository.updateItem(itemId, supabaseUserId, {
+      sketchImageUrl: `${env.STORAGE_PUBLIC_BASE_URL}/media/${storedFile.storageKey}`,
+      sketchStatus: 'ready',
+    });
+  } catch (error) {
+    const { code, message } = describeError(error);
+    logger.error({ itemId, errorCode: code, error }, 'Closet item pair sketch generation failed');
+    await closetRepository.updateItem(itemId, supabaseUserId, { sketchStatus: 'failed' });
+  }
+}
 
 type ClosetItemForHash = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
 

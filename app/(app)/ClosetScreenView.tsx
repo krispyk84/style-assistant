@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import {
-  Animated, FlatList, LayoutAnimation, Platform, Pressable, SectionList, TextInput, View,
+  ActivityIndicator, Animated, FlatList, LayoutAnimation, Platform, Pressable, SectionList, TextInput, View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -64,6 +64,14 @@ export type ClosetScreenViewProps = {
   sectionListRef: React.RefObject<SectionList<ClosetRow> | null>;
   // Animation
   translateX: Animated.Value;
+  // Pair 2 items into a new combined closet item (e.g. blazer + trousers -> suit)
+  isPairSelectMode: boolean;
+  onTogglePairSelectMode: () => void;
+  pairSelectedIds: string[];
+  onTogglePairItemSelected: (item: ClosetItem) => void;
+  onCreatePair: () => void;
+  isCreatingPair: boolean;
+  pairError: string | null;
 };
 
 // ── View ──────────────────────────────────────────────────────────────────────
@@ -101,10 +109,20 @@ export function ClosetScreenView({
   flatListRef,
   sectionListRef,
   translateX,
+  isPairSelectMode,
+  onTogglePairSelectMode,
+  pairSelectedIds,
+  onTogglePairItemSelected,
+  onCreatePair,
+  isCreatingPair,
+  pairError,
 }: ClosetScreenViewProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const activeLabel = selectedCategory ?? 'All Items';
+  const pairSelectedIdSet = React.useMemo(() => new Set(pairSelectedIds), [pairSelectedIds]);
+  // Extra bottom room so the fixed pairing action bar doesn't cover the last grid row.
+  const pairBarSpace = isPairSelectMode ? 96 : 0;
 
   // ── Floating add button — appears once header scrolls out of view ────────────
   const [fabVisible, setFabVisible] = useState(false);
@@ -128,12 +146,19 @@ export function ClosetScreenView({
     Animated.timing(chevronAnim, { toValue: next ? 1 : 0, duration: 200, useNativeDriver: true }).start();
   }
 
-  // renderItem is stable unless cellWidth or onPressItem changes
+  // renderItem is stable unless cellWidth, onPressItem, or pair-select state changes
   const renderRow = useCallback(
     ({ item: row }: { item: ClosetRow }) => (
-      <ClosetGridRow row={row} cellWidth={cellWidth} onPressItem={onPressItem} />
+      <ClosetGridRow
+        row={row}
+        cellWidth={cellWidth}
+        onPressItem={onPressItem}
+        isSelectMode={isPairSelectMode}
+        selectedItemIds={pairSelectedIdSet}
+        onToggleSelect={onTogglePairItemSelected}
+      />
     ),
-    [cellWidth, onPressItem],
+    [cellWidth, onPressItem, isPairSelectMode, pairSelectedIdSet, onTogglePairItemSelected],
   );
 
   const pillStyle = {
@@ -161,7 +186,7 @@ export function ClosetScreenView({
           <AppText variant="heroSmall">My Closet</AppText>
         </View>
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          {itemCount > 0 ? (
+          {itemCount > 0 && !isPairSelectMode ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={searchOpen ? 'Close search' : 'Search closet'}
@@ -201,7 +226,7 @@ export function ClosetScreenView({
       </View>
 
       {/* Search input — appears when search is toggled, autoFocuses to open the keyboard */}
-      {searchOpen ? (
+      {searchOpen && !isPairSelectMode ? (
         <View
           style={{
             alignItems: 'center',
@@ -452,6 +477,34 @@ export function ClosetScreenView({
                 </View>
                 <AppIcon color={theme.colors.subtleText} name="chevron-right" size={16} />
               </Pressable>
+
+              {/* Pair 2 items (e.g. a blazer + trousers) into a new combined closet item */}
+              {itemCount >= 2 ? (
+                <Pressable
+                  onPress={onTogglePairSelectMode}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: isPairSelectMode ? theme.colors.subtleSurface : theme.colors.surface,
+                    borderColor: isPairSelectMode ? theme.colors.accent : theme.colors.border,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    flexDirection: 'row',
+                    gap: spacing.sm,
+                    paddingHorizontal: spacing.lg,
+                    paddingVertical: spacing.md,
+                  }}>
+                  <AppIcon color={theme.colors.accent} name={isPairSelectMode ? 'close' : 'add-circle'} size={18} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <AppText style={{ fontSize: 14, fontFamily: theme.fonts.sansMedium }}>
+                      {isPairSelectMode ? 'Cancel pairing' : 'Pair two items'}
+                    </AppText>
+                    <AppText tone="muted" style={{ fontSize: 12 }}>
+                      {isPairSelectMode ? 'Tap two items below, or cancel' : 'Combine e.g. a blazer + trousers into a suit'}
+                    </AppText>
+                  </View>
+                  {!isPairSelectMode ? <AppIcon color={theme.colors.subtleText} name="chevron-right" size={16} /> : null}
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
         </>
@@ -498,7 +551,7 @@ export function ClosetScreenView({
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'left', 'right']}>
-      {searchOpen ? (
+      {searchOpen && !isPairSelectMode ? (
         <FlatList<ClosetItem>
           data={trimmedQuery ? searchResults : []}
           keyExtractor={(item) => item.id}
@@ -535,7 +588,7 @@ export function ClosetScreenView({
               </AppText>
             ) : null
           }
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl }}
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl + pairBarSpace }}
           windowSize={5}
           maxToRenderPerBatch={5}
           initialNumToRender={9}
@@ -568,7 +621,7 @@ export function ClosetScreenView({
           ListHeaderComponent={listHeaderContent}
           ItemSeparatorComponent={ClosetGridRowSeparator}
           stickySectionHeadersEnabled={false}
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl }}
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl + pairBarSpace }}
           windowSize={5}
           maxToRenderPerBatch={5}
           initialNumToRender={9}
@@ -610,6 +663,54 @@ export function ClosetScreenView({
           <AppIcon color={theme.colors.text} name="add" size={16} />
           <AppText style={{ fontSize: 14 }}>Add</AppText>
         </Pressable>
+      ) : null}
+
+      {/* Pairing action bar — fixed at the bottom while select mode is active */}
+      {isPairSelectMode ? (
+        <View
+          style={{
+            backgroundColor: theme.colors.surface,
+            borderTopColor: theme.colors.border,
+            borderTopWidth: 1,
+            bottom: 0,
+            left: 0,
+            paddingBottom: insets.bottom + spacing.md,
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.md,
+            position: 'absolute',
+            right: 0,
+          }}>
+          {pairError ? (
+            <AppText style={{ color: theme.colors.danger, fontSize: 13, paddingBottom: spacing.sm }}>{pairError}</AppText>
+          ) : null}
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md, justifyContent: 'space-between' }}>
+            <AppText tone="muted" style={{ fontSize: 13 }}>
+              {pairSelectedIds.length}/2 selected
+            </AppText>
+            <Pressable
+              disabled={pairSelectedIds.length !== 2 || isCreatingPair}
+              onPress={onCreatePair}
+              style={{
+                alignItems: 'center',
+                backgroundColor: pairSelectedIds.length === 2 ? theme.colors.text : theme.colors.border,
+                borderRadius: 999,
+                flexDirection: 'row',
+                gap: spacing.xs,
+                justifyContent: 'center',
+                minHeight: 46,
+                paddingHorizontal: spacing.lg,
+              }}>
+              {isCreatingPair ? (
+                <ActivityIndicator color={theme.colors.inverseText} size="small" />
+              ) : (
+                <AppIcon color={pairSelectedIds.length === 2 ? theme.colors.inverseText : theme.colors.subtleText} name="add-circle" size={16} />
+              )}
+              <AppText style={{ color: pairSelectedIds.length === 2 ? theme.colors.inverseText : theme.colors.subtleText, fontSize: 14 }}>
+                {isCreatingPair ? 'Creating...' : 'Create Pair'}
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
       ) : null}
 
       <SaveToClosetModal
