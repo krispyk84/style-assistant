@@ -108,6 +108,7 @@ export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[]
     'IMPORTANT — anchor deduplication: the anchor item must NOT appear in keyPieces. keyPieces contains only supporting pieces that complement the anchor. If the anchor is a shirt, do not add the same shirt again as a keyPiece top.',
     'IMPORTANT — anchorPiece field: always populate anchorPiece with a structured representation of the anchor item. display_name must match the anchorItem string. metadata.category must be the exact enum value that best fits the anchor (e.g. "Knitwear" for a quarter-zip, "Outerwear" for a bomber, "Trousers" for cargo pants). metadata.color is the dominant color. metadata.formality must match the tier.',
     'IMPORTANT — category assignment reflects item TYPE, not material: a merino wool tie is "Tie", not "Knitwear"; a cashmere pocket square is "Scarf" or "Tie", not "Knitwear"; a leather belt is "Belt"; a silk scarf is "Scarf". Never assign "Knitwear" to accessories just because they contain wool, merino, or cashmere.',
+    'IMPORTANT — business tier shirt and footwear: for the business tier specifically, the shirt is a traditional collared woven dress shirt (poplin, oxford cloth, twill, or similar) — do NOT default to a turtleneck, polo, or knitwear top unless the user\'s vibe keywords or additional details explicitly call for one. Business tier footwear is classic formal leather dress shoes (oxfords, derbies, brogues, monk straps, or polished penny/tassel loafers) — do NOT default to boots (including Chelsea boots), sneakers, or other casual footwear unless explicitly requested. This applies whether the anchor is a suit, blazer, or any other business-tier piece.',
     // Bag selection guidance is intentionally NOT injected here. Bags must only be
     // included when the user explicitly opts in via includeBag — see buildOptionalItemsRule.
     // Adding an unconditional bag rule biased the model into always choosing one.
@@ -364,6 +365,7 @@ export function buildRegenerateTierInstructions(gender?: string | null, closetOn
     'The new recommendation must stay faithful to the anchor item and overall wardrobe direction while being materially different from the previous version.',
     'If vibe keywords were provided, keep them prominent in the regenerated outfit.',
     'Do not repeat the previous title or the exact same key pieces.',
+    'IMPORTANT — business tier shirt and footwear: if the requested tier is business, the shirt is a traditional collared woven dress shirt — do NOT default to a turtleneck, polo, or knitwear top unless vibe keywords or additional details explicitly call for one. Footwear is classic formal leather dress shoes (oxfords, derbies, brogues, monk straps, or polished loafers) — do NOT default to boots (including Chelsea boots), sneakers, or other casual footwear unless explicitly requested.',
     // Bag rule is conditional — see buildOptionalItemsRule applied in the user prompt.
   ].join(' ');
 }
