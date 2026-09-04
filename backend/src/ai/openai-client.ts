@@ -43,8 +43,8 @@ type GenerateImageInput = {
   model?: string;
   /** Override calcImageCost when the model has different pricing than IMAGE_COST_TABLE (e.g. gpt-image-1-mini). */
   costUsd?: number;
-  /** When provided, uses the Responses API with multimodal input for style-reference conditioning. Must be an https:// URL. */
-  styleRefImageUrl?: string;
+  /** When provided (1 or more), uses the Responses API with multimodal input for style-reference conditioning — the model sees these images alongside the prompt. Each must be an https:// URL. */
+  styleRefImageUrls?: string[];
   /** Merged into failure log lines so a sketch's root-cause log can be correlated with its job-status log (e.g. { requestId, tier } or { jobId }). */
   logContext?: Record<string, unknown>;
 };
@@ -115,7 +115,9 @@ export const openAiClient = {
     const size = input.size ?? '1024x1536';
     const quality = input.quality ?? 'medium';
     const outputFormat = input.outputFormat ?? 'jpeg';
-    const useStyleRef = typeof input.styleRefImageUrl === 'string' && input.styleRefImageUrl.startsWith('https://');
+    const useStyleRef = Array.isArray(input.styleRefImageUrls)
+      && input.styleRefImageUrls.length > 0
+      && input.styleRefImageUrls.every((url) => url.startsWith('https://'));
 
     const result = await withRetry(
       {
@@ -136,7 +138,7 @@ export const openAiClient = {
             buildImageWithRefRequestBody({
               model: env.OPENAI_RESPONSES_MODEL, // Responses API requires a chat model; image models (gpt-image-1) are not supported
               prompt: input.prompt,
-              styleRefImageUrl: input.styleRefImageUrl!,
+              styleRefImageUrls: input.styleRefImageUrls!,
               size,
               quality,
               outputFormat,

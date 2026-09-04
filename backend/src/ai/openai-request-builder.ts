@@ -72,7 +72,7 @@ export function buildImageRequestBody(params: {
 export function buildImageWithRefRequestBody(params: {
   model: string;
   prompt: string;
-  styleRefImageUrl: string;
+  styleRefImageUrls: string[];
   size: string;
   quality: string;
   outputFormat: string;
@@ -83,7 +83,7 @@ export function buildImageWithRefRequestBody(params: {
       {
         role: 'user',
         content: [
-          { type: 'input_image', image_url: params.styleRefImageUrl },
+          ...params.styleRefImageUrls.map((url) => ({ type: 'input_image', image_url: url })),
           { type: 'input_text', text: params.prompt },
         ],
       },

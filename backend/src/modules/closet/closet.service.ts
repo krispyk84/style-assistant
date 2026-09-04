@@ -440,9 +440,20 @@ async function generatePairedItemSketch(
 ): Promise<void> {
   try {
     const [item1, item2] = sourceItems;
+    // Ground the generation in the two items' OWN existing artwork rather
+    // than text metadata alone — each source item already has a sketch (or
+    // at minimum an uploaded photo); pass those in as reference images so
+    // the model composes the actual pieces the user owns, not a generic
+    // reinterpretation from color/material text. Falls back to text-only
+    // generation only if neither source item has any usable image.
+    const styleRefImageUrls = sourceItems
+      .map((item) => item.sketchImageUrl ?? item.uploadedImageUrl)
+      .filter((url): url is string => Boolean(url) && url!.startsWith('https://'));
+
     const prompt = buildClosetItemPairSketchPrompt({
       setTitle: item1.title === item2.title ? item1.title : `${item1.title} & ${item2.title}`,
       items: sourceItems.map(toPairSketchPiece),
+      hasReferenceImages: styleRefImageUrls.length > 0,
     });
 
     const generatedImage = await openAiClient.generateImage({
@@ -454,6 +465,7 @@ async function generatePairedItemSketch(
       supabaseUserId,
       feature: 'closet-sketch',
       costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
+      styleRefImageUrls: styleRefImageUrls.length > 0 ? styleRefImageUrls : undefined,
       logContext: { itemId },
     });
 

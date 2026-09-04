@@ -41,10 +41,21 @@ function describeItem(item: ClosetItemPairPiece): string {
   return details ? `${item.title} (${details})` : item.title;
 }
 
-export function buildClosetItemPairSketchPrompt(input: { setTitle: string; items: ClosetItemPairPiece[] }): string {
+export function buildClosetItemPairSketchPrompt(input: {
+  setTitle: string;
+  items: ClosetItemPairPiece[];
+  /** True when the two source items' own existing photos/sketches are attached as reference images to this request. */
+  hasReferenceImages?: boolean;
+}): string {
   const itemLines = input.items
     .map((item, index) => `- piece ${index + 1} (${item.category}): ${describeItem(item)}`)
     .join('\n');
+
+  const referenceRule = input.hasReferenceImages
+    ? 'REFERENCE IMAGES — GROUND TRUTH: the attached images show the two ACTUAL pieces this set is made from, in order (image 1 = piece 1, image 2 = piece 2, matching the list below). ' +
+      'Render each piece true to its reference image — exact color, pattern, silhouette, construction detail, and material — reinterpreted only in the watercolor-sketch treatment, never redesigned or genericized. ' +
+      'The text descriptions below are supplementary context, not a substitute for what the reference images show.'
+    : null;
 
   const exclusivityRule =
     'EXACT TWO-PIECE SET — HARD CONSTRAINT: render ONLY the two pieces listed below, combined. ' +
@@ -52,6 +63,7 @@ export function buildClosetItemPairSketchPrompt(input: { setTitle: string; items
 
   const parts = [
     PAIR_STYLE_PREAMBLE,
+    referenceRule,
     `Set "${input.setTitle}":\n${itemLines}`,
     exclusivityRule,
     CLOSET_ITEM_QUALITY_ADDENDUM,
