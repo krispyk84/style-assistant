@@ -125,7 +125,7 @@ export const openAiClient = {
         // parseImageResponse's retryable classification. Content-policy rejections
         // and other permanent failures still fail on the first attempt.
         maxRetries: MAX_RETRIES,
-        timeoutMs: env.OPENAI_TIMEOUT_MS,
+        timeoutMs: useStyleRef ? env.OPENAI_IMAGE_REF_TIMEOUT_MS : env.OPENAI_TIMEOUT_MS,
         feature: input.feature,
         timeoutCode: 'OPENAI_IMAGE_TIMEOUT',
         timeoutMessage: 'The AI provider timed out while generating the sketch.',

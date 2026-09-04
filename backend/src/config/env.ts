@@ -22,6 +22,16 @@ const envSchema = z.object({
    * verification is completed and a more capable model is preferred.
    */
   OPENAI_IMAGE_REF_MODEL: z.string().min(1).default('gpt-4o-mini'),
+  /**
+   * Timeout for the image_generation-tool call above, separate from
+   * OPENAI_TIMEOUT_MS. Conditioning on 2 reference images is a heavier,
+   * slower request than a normal single-image sketch — Render logs showed
+   * it consistently getting aborted at ~30s (OPENAI_TIMEOUT_MS's effective
+   * value in this environment) before OpenAI had a chance to respond.
+   * Scoped separately so this doesn't force every other AI call in the app
+   * to wait longer on genuine failures.
+   */
+  OPENAI_IMAGE_REF_TIMEOUT_MS: z.coerce.number().int().positive().default(180000),
   OPENAI_IMAGE_MODEL: z.string().min(1).default('gpt-image-1'),
   OPENAI_OUTFIT_SKETCH_MODEL: z.string().min(1).default('gpt-image-1-mini'),
   OPENAI_OUTFIT_SKETCH_QUALITY: z.enum(['low', 'medium', 'high', 'auto']).default('medium'),
