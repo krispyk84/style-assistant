@@ -4,7 +4,7 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, Platform,
+  ActivityIndicator, Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, TextInput, View,
 } from 'react-native';
 
@@ -265,10 +265,21 @@ export function ClosetItemSheetView({ item, startInEditMode, onClose, onSaved, o
                 // cellWidth not yet measured — show first image statically to avoid flicker
                 <Image contentFit="contain" source={{ uri: images[0]! }} style={{ height: '100%', width: '100%' }} />
               ) : item?.sketchStatus === 'pending' ? (
+                // Matches the pending state used everywhere else a sketch generates
+                // (GeneratedSketchPanel etc.) — a spinner, not a static icon.
                 <View style={{ alignItems: 'center', gap: spacing.sm }}>
-                  <AppIcon color={theme.colors.subtleText} name="clock" size={32} />
+                  <ActivityIndicator color={theme.colors.accent} size="small" />
                   <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>Sketch generating...</AppText>
                 </View>
+              ) : item?.sketchStatus === 'failed' && !item?.uploadedImageUrl ? (
+                // No source photo exists to fall back to (e.g. a paired/combined item) —
+                // say plainly that AI generation didn't work, not just "add a photo".
+                <Pressable onPress={() => void handleReplacePhoto()} style={{ alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.xl }}>
+                  <AppIcon color={theme.colors.subtleText} name={isReplacingPhoto ? 'upload' : 'warning'} size={32} />
+                  <AppText tone="muted" style={{ fontSize: 12, textAlign: 'center' }}>
+                    {isReplacingPhoto ? 'Uploading...' : "Sketch couldn't be generated — tap to add a photo instead"}
+                  </AppText>
+                </Pressable>
               ) : (
                 <Pressable onPress={() => void handleReplacePhoto()} style={{ alignItems: 'center', gap: spacing.sm }}>
                   <AppIcon color={theme.colors.subtleText} name={isReplacingPhoto ? 'upload' : 'camera'} size={32} />

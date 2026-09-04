@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import React from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
@@ -92,7 +92,7 @@ const ClosetGridItem = React.memo(function ClosetGridItem({ item, cellWidth, onP
           ) : primaryUri ? (
             <Image contentFit="cover" source={{ uri: primaryUri }} style={{ height: '100%', width: '100%' }} />
           ) : item.sketchStatus === 'pending' ? (
-            <AppIcon color={theme.colors.subtleText} name="clock" size={22} />
+            <ActivityIndicator color={theme.colors.subtleText} size="small" />
           ) : (
             <AppIcon color={theme.colors.subtleText} name="shirt" size={22} />
           )}
