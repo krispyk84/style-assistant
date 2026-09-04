@@ -179,7 +179,17 @@ export function buildTripDayLabeledPieces(
   day: TripOutfitDay,
   closetItems: ClosetItem[] | undefined,
 ): LabeledPiece[] {
-  return collectTripOutfitItems(day).map(({ name, category }) => {
+  const items = collectTripOutfitItems(day);
+
+  if (day.closetItemIds?.length && closetItems?.length) {
+    return resolveClosetConstrainedPieces(
+      items.map(({ name, category }) => ({ label: TRIP_OUTFIT_GROUP_LABELS[category], value: name, category })),
+      day.closetItemIds,
+      closetItems,
+    );
+  }
+
+  return items.map(({ name, category }) => {
     const item = closetItems?.length ? findBestClosetMatch(name, closetItems) : null;
     return {
       label: TRIP_OUTFIT_GROUP_LABELS[category],
@@ -187,6 +197,37 @@ export function buildTripDayLabeledPieces(
       matchedClosetItem: item,
       confidencePercent: item ? getMatchConfidencePercent(name, item) : 0,
       category,
+    };
+  });
+}
+
+// ── Closet-constrained piece resolution ────────────────────────────────────────
+
+/**
+ * Pairs text piece slots to real closet items when the generation was already
+ * constrained to a known set of real owned item ids (trip fullCloset days,
+ * closet-only look generation) — used instead of `findBestClosetMatch`'s
+ * whole-closet fuzzy search, which has no way to know a piece's real id and
+ * can confidently match the wrong item out of the user's entire wardrobe.
+ * Matching only within the small resolved set, and excluding items already
+ * claimed by an earlier slot, means each slot gets its own distinct real item.
+ */
+export function resolveClosetConstrainedPieces<T extends { label: string; value: string; category?: TripItemCategory; isAnchor?: boolean }>(
+  slots: T[],
+  closetItemIds: string[],
+  allClosetItems: ClosetItem[],
+): (T & { matchedClosetItem: ClosetItem | null; confidencePercent: number })[] {
+  const idSet = new Set(closetItemIds);
+  const resolvedPool = allClosetItems.filter((item) => idSet.has(item.id));
+
+  const claimed = new Set<string>();
+  return slots.map((slot) => {
+    const item = resolvedPool.length ? findBestClosetMatch(slot.value, resolvedPool, claimed) : null;
+    if (item) claimed.add(item.id);
+    return {
+      ...slot,
+      matchedClosetItem: item,
+      confidencePercent: item ? getMatchConfidencePercent(slot.value, item) : 0,
     };
   });
 }

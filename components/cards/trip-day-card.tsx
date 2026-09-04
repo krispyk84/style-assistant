@@ -9,6 +9,7 @@ import { useTheme } from '@/contexts/theme-context';
 import { buildTripDayLabeledPieces } from '@/lib/outfit-piece-display';
 import type { TripOutfitDay } from '@/services/trip-outfits';
 import type { ClosetItem } from '@/types/closet';
+import { OutfitItemThumbnailRow } from './OutfitItemThumbnailRow';
 import { OutfitPieceListView } from './OutfitPieceListView';
 
 if (Platform.OS === 'android') {
@@ -58,6 +59,23 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
   const labeledPieces = useMemo(
     () => buildTripDayLabeledPieces(day, closetItems),
     [day, closetItems],
+  );
+
+  // fullCloset days are resolved to real owned items (see Phase 1's
+  // resolveClosetConstrainedPieces) — show them as tappable photo thumbnails,
+  // matching the closet-outfit-card visual language. Anchor-based days keep
+  // the grouped text list since their pieces aren't guaranteed real items.
+  const isFullClosetDay = !!day.closetItemIds?.length;
+  const thumbnailItems = useMemo(
+    () =>
+      labeledPieces
+        .filter((piece) => piece.matchedClosetItem)
+        .map((piece) => ({
+          id: piece.matchedClosetItem!.id,
+          title: piece.matchedClosetItem!.title,
+          imageUrl: piece.matchedClosetItem!.sketchImageUrl ?? piece.matchedClosetItem!.uploadedImageUrl,
+        })),
+    [labeledPieces],
   );
 
   // Animate layout when sketch becomes ready so the card expands smoothly.
@@ -118,8 +136,12 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
           <AppText tone="muted" style={{ fontSize: 13, lineHeight: 19 }}>{day.rationale}</AppText>
         </View>
 
-        {/* Outfit groups */}
-        <OutfitPieceListView pieces={labeledPieces} display="grouped" />
+        {/* Outfit pieces */}
+        {isFullClosetDay ? (
+          <OutfitItemThumbnailRow items={thumbnailItems} />
+        ) : (
+          <OutfitPieceListView pieces={labeledPieces} display="grouped" />
+        )}
 
         {/* Context tags */}
         {(day.contextTags ?? []).length > 0 && (

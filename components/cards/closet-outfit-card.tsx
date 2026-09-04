@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -9,6 +8,7 @@ import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
 import type { ClosetGeneratedOutfit } from '@/types/api';
+import { OutfitItemThumbnailRow } from './OutfitItemThumbnailRow';
 
 const MAX_SWAP_SELECTION = 2;
 
@@ -85,67 +85,15 @@ export function ClosetOutfitCard({
 
       <View style={{ gap: spacing.sm }}>
       <AppText variant="eyebrow" style={{ color: theme.colors.mutedText }}>The Pieces</AppText>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
-        {outfit.items.map((item) => {
-          const imageUri = item.sketchImageUrl ?? item.uploadedImageUrl;
-          const isSelected = selectedItemIds.includes(item.id);
-          const thumbnail = (
-            <>
-              <View
-                style={{
-                  backgroundColor: theme.colors.card,
-                  borderColor: isSelected ? theme.colors.accent : 'transparent',
-                  borderRadius: 12,
-                  borderWidth: 2,
-                  height: 72,
-                  overflow: 'hidden',
-                  width: 72,
-                }}>
-                {imageUri ? (
-                  <Image contentFit="cover" source={{ uri: imageUri }} style={{ height: '100%', width: '100%' }} />
-                ) : (
-                  <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
-                    <AppIcon color={theme.colors.subtleText} name="closet" size={20} />
-                  </View>
-                )}
-                {isSelected ? (
-                  <View
-                    style={{
-                      alignItems: 'center',
-                      backgroundColor: theme.colors.accent,
-                      borderRadius: 999,
-                      height: 20,
-                      justifyContent: 'center',
-                      position: 'absolute',
-                      right: 4,
-                      top: 4,
-                      width: 20,
-                    }}>
-                    <AppIcon color={theme.colors.inverseText} name="check-circle" size={14} />
-                  </View>
-                ) : null}
-              </View>
-              <AppText tone="subtle" numberOfLines={1} style={{ fontSize: 10, marginTop: 2, textAlign: 'center', width: 72 }}>
-                {item.title}
-              </AppText>
-            </>
-          );
-
-          if (!onGenerateVariants) {
-            return (
-              <View key={item.id} style={{ alignItems: 'center', width: 72 }}>
-                {thumbnail}
-              </View>
-            );
-          }
-
-          return (
-            <Pressable key={item.id} onPress={() => toggleItemSelected(item.id)} style={{ alignItems: 'center', width: 72 }}>
-              {thumbnail}
-            </Pressable>
-          );
-        })}
-      </View>
+      <OutfitItemThumbnailRow
+        items={outfit.items.map((item) => ({
+          id: item.id,
+          title: item.title,
+          imageUrl: item.sketchImageUrl ?? item.uploadedImageUrl,
+        }))}
+        selectedItemIds={onGenerateVariants ? selectedItemIds : undefined}
+        onToggleSelect={onGenerateVariants ? toggleItemSelected : undefined}
+      />
       </View>
 
       {onGenerateVariants ? (

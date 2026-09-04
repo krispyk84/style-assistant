@@ -66,6 +66,8 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
     toggleTier,
     includeBag,
     includeHat,
+    isOptionalItemsExpanded,
+    setIsOptionalItemsExpanded,
     toggleIncludeBag,
     toggleIncludeHat,
     additionalDetails,
@@ -279,31 +281,70 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
         ) : null}
       </View>
 
-      {/* Optional Items */}
+      {/* Optional Items — collapsible */}
       <View style={{ gap: spacing.md }}>
-        <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Optional Items</AppText>
-        <View style={{
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.border,
-          borderRadius: 18,
-          borderWidth: 1,
-          gap: spacing.xs,
-          padding: spacing.md,
-        }}>
-          <OptionalItemRow
-            label="Include a bag"
-            description="We'll pick a bag type that suits the look."
-            checked={includeBag}
-            onToggle={toggleIncludeBag}
-          />
-          <View style={{ backgroundColor: theme.colors.border, height: 1, marginVertical: spacing.xs }} />
-          <OptionalItemRow
-            label="Include a hat"
-            description="We'll choose a hat that matches the styling direction."
-            checked={includeHat}
-            onToggle={toggleIncludeHat}
-          />
-        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isOptionalItemsExpanded }}
+          accessibilityLabel={isOptionalItemsExpanded ? 'Collapse Optional Items' : 'Expand Optional Items'}
+          onPress={() => setIsOptionalItemsExpanded((v) => !v)}
+          style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+            <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Optional Items</AppText>
+            {(includeBag || includeHat) && !isOptionalItemsExpanded ? (
+              <View style={{
+                backgroundColor: theme.colors.accent,
+                borderRadius: 999,
+                paddingHorizontal: spacing.sm,
+                paddingVertical: 2,
+              }}>
+                <AppText variant="eyebrow" style={{ color: theme.colors.inverseText, letterSpacing: 1 }}>
+                  {[includeBag && 'Bag', includeHat && 'Hat'].filter(Boolean).join(' + ')}
+                </AppText>
+              </View>
+            ) : null}
+          </View>
+          <View style={{
+            alignItems: 'center',
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            borderRadius: 999,
+            borderWidth: 1,
+            height: 28,
+            justifyContent: 'center',
+            width: 28,
+          }}>
+            <AppIcon
+              color={theme.colors.text}
+              name={isOptionalItemsExpanded ? 'chevron-up' : 'chevron-down'}
+              size={14}
+            />
+          </View>
+        </Pressable>
+        {isOptionalItemsExpanded ? (
+          <View style={{
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            borderRadius: 18,
+            borderWidth: 1,
+            gap: spacing.xs,
+            padding: spacing.md,
+          }}>
+            <OptionalItemRow
+              label="Include a bag"
+              description="We'll pick a bag type that suits the look."
+              checked={includeBag}
+              onToggle={toggleIncludeBag}
+            />
+            <View style={{ backgroundColor: theme.colors.border, height: 1, marginVertical: spacing.xs }} />
+            <OptionalItemRow
+              label="Include a hat"
+              description="We'll choose a hat that matches the styling direction."
+              checked={includeHat}
+              onToggle={toggleIncludeHat}
+            />
+          </View>
+        ) : null}
       </View>
 
       {/* Additional Details — collapsible */}

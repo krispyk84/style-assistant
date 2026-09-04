@@ -10,6 +10,7 @@ import { formatTierLabel } from '@/lib/outfit-utils';
 import type { LookRecommendation } from '@/types/look-request';
 import type { ClosetItem } from '@/types/closet';
 import { AppText } from '@/components/ui/app-text';
+import { OutfitItemThumbnailRow } from './OutfitItemThumbnailRow';
 import { OutfitPieceListView } from './OutfitPieceListView';
 import { buildLabeledPieces } from './look-result-card-helpers';
 
@@ -75,6 +76,17 @@ export function LookResultCardView({
 
   const nonAnchorPieces = labeledPieces.filter((p) => !p.isAnchor);
   const ownedCount = nonAnchorPieces.filter((p) => p.matchedClosetItem).length;
+  const thumbnailItems = useMemo(
+    () =>
+      labeledPieces
+        .filter((piece) => piece.matchedClosetItem)
+        .map((piece) => ({
+          id: piece.matchedClosetItem!.id,
+          title: piece.matchedClosetItem!.title,
+          imageUrl: piece.matchedClosetItem!.sketchImageUrl ?? piece.matchedClosetItem!.uploadedImageUrl,
+        })),
+    [labeledPieces],
+  );
 
   const quietButtonStyle = {
     alignItems: 'center',
@@ -118,38 +130,6 @@ export function LookResultCardView({
         borderRadius={0}
       />
 
-      {/* Love / Not for me — sits directly below the image, not floating over it */}
-      <View style={{ alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
-        <View style={{ backgroundColor: theme.colors.subtleSurface, borderRadius: 999, flexDirection: 'row', overflow: 'hidden' }}>
-          {(['love', 'hate'] as const).map((thumb, index) => {
-            const isSelected = outfitFeedback === thumb;
-            return (
-              <Pressable
-                key={thumb}
-                onPress={() => onOutfitFeedback?.(thumb)}
-                style={{
-                  alignItems: 'center',
-                  borderLeftColor: index === 1 ? theme.colors.border : undefined,
-                  borderLeftWidth: index === 1 ? 1 : 0,
-                  flexDirection: 'row',
-                  gap: spacing.xs,
-                  paddingHorizontal: spacing.md,
-                  paddingVertical: spacing.sm + 2,
-                }}>
-                <AppIcon
-                  color={isSelected ? theme.colors.accent : theme.colors.text}
-                  name={thumb === 'love' ? 'heart' : 'thumbs-down'}
-                  size={16}
-                />
-                <AppText style={{ color: isSelected ? theme.colors.accent : theme.colors.text, fontSize: 13 }}>
-                  {thumb === 'love' ? 'Love this' : 'Not for me'}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
       <View style={{ gap: spacing.lg, padding: spacing.lg }}>
         {/* Stylist rationale — comes before the itemized breakdown, matching how a stylist actually explains a look */}
         <View style={{ gap: spacing.xs }}>
@@ -159,6 +139,7 @@ export function LookResultCardView({
 
         <View style={{ gap: spacing.sm }}>
           <AppText variant="eyebrow" style={{ color: theme.colors.mutedText }}>The Look</AppText>
+          {thumbnailItems.length > 0 ? <OutfitItemThumbnailRow items={thumbnailItems} /> : null}
           <OutfitPieceListView
             pieces={labeledPieces}
             display="labeled"
@@ -220,6 +201,31 @@ export function LookResultCardView({
             <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
           </Pressable>
         </View>
+
+        {onOutfitFeedback ? (
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {(['love', 'hate'] as const).map((thumb) => {
+              const isSelected = outfitFeedback === thumb;
+              return (
+                <Pressable
+                  key={thumb}
+                  onPress={() => onOutfitFeedback(thumb)}
+                  style={[quietButtonStyle, isSelected ? { backgroundColor: theme.colors.text } : null]}>
+                  <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                    <AppIcon
+                      color={isSelected ? theme.colors.inverseText : theme.colors.text}
+                      name={thumb === 'love' ? 'heart' : 'thumbs-down'}
+                      size={16}
+                    />
+                    <AppText style={{ color: isSelected ? theme.colors.inverseText : theme.colors.text, fontSize: 13 }}>
+                      {thumb === 'love' ? 'Love it' : 'Hate it'}
+                    </AppText>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
       </View>
     </View>
   );

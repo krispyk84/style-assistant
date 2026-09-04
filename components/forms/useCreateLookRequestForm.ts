@@ -15,6 +15,10 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
   const [isSeasonExpanded, setIsSeasonExpanded] = useState(false);
   const [includeBag, setIncludeBag] = useState<boolean>(initialValue.includeBag ?? false);
   const [includeHat, setIncludeHat] = useState<boolean>(initialValue.includeHat ?? false);
+  // Auto-expand if the form was pre-filled with an optional item already selected
+  const [isOptionalItemsExpanded, setIsOptionalItemsExpanded] = useState(() =>
+    !!(initialValue.includeBag || initialValue.includeHat),
+  );
   const [additionalDetails, setAdditionalDetails] = useState<string>(initialValue.additionalDetails ?? '');
   // Auto-expand if the form was pre-filled with details (e.g. retry / edit flows)
   const [isAdditionalDetailsExpanded, setIsAdditionalDetailsExpanded] = useState(() =>
@@ -65,6 +69,7 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
     isSeasonExpanded,
     includeBag,
     includeHat,
+    isOptionalItemsExpanded,
     additionalDetails,
     isAdditionalDetailsExpanded,
     lookCount,
@@ -74,6 +79,7 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
     setIsSeasonExpanded,
     setTierError,
     setSelectedSeason,
+    setIsOptionalItemsExpanded,
     setAdditionalDetails,
     setIsAdditionalDetailsExpanded,
     setLookCount,
