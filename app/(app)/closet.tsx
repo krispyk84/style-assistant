@@ -47,6 +47,9 @@ export default function ClosetScreen() {
   } = useClosetNavigation({ items, sections });
   const [isCreatingPair, setIsCreatingPair] = useState(false);
   const [pairError, setPairError] = useState<string | null>(null);
+  // Only the sheet opened right after creating a pair should start in edit
+  // mode — a normal tap on any other item should still open read-only.
+  const [openInEditMode, setOpenInEditMode] = useState(false);
 
   // ── Step 3: Animation — consumes only isLoading from step 1 ──────────────
   const { translateX } = useClosetAnimations(isLoading);
@@ -112,6 +115,7 @@ export default function ClosetScreen() {
     exitPairSelectMode();
     setSelectedCategory(null);
     await loadItems(); // picks up the new pending-sketch item and starts polling it
+    setOpenInEditMode(true);
     setEditingItem(response.data); // open the new item for rename/recategorize right away
   }
 
@@ -157,7 +161,7 @@ export default function ClosetScreen() {
         }}
         onSearchQueryChange={setSearchQuery}
         cellWidth={cellWidth}
-        onPressItem={setEditingItem}
+        onPressItem={(item) => { setOpenInEditMode(false); setEditingItem(item); }}
         flatListRef={flatListRef}
         sectionListRef={sectionListRef}
         translateX={translateX}
@@ -172,6 +176,7 @@ export default function ClosetScreen() {
       {editingItem !== null ? (
         <ClosetItemSheetView
           item={editingItem}
+          startInEditMode={openInEditMode}
           onClose={() => setEditingItem(null)}
           onSaved={handleItemSaved}
           onDeleted={handleItemDeleted}

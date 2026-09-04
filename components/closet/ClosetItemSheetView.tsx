@@ -32,6 +32,8 @@ import { useClosetItemSubmit } from './useClosetItemSubmit';
 
 export type ClosetItemSheetViewProps = {
   item: ClosetItem | null;
+  /** Opens straight into the edit form instead of the read-only view — used right after creating a new item (e.g. a paired item) so there's no dead-end read-only screen with nothing to do. */
+  startInEditMode?: boolean;
   onClose: () => void;
   onSaved: (item: ClosetItem) => void;
   onDeleted: (id: string) => void;
@@ -40,7 +42,7 @@ export type ClosetItemSheetViewProps = {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted, onRestore }: ClosetItemSheetViewProps) {
+export function ClosetItemSheetView({ item, startInEditMode, onClose, onSaved, onDeleted, onRestore }: ClosetItemSheetViewProps) {
   const { theme } = useTheme();
   const router = useRouter();
   const [cellWidth, setCellWidth] = useState(0);
@@ -99,7 +101,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted, onResto
     }
   }
 
-  const editor = useClosetItemEditor({ item });
+  const editor = useClosetItemEditor({ item, startInEditMode });
   const submit = useClosetItemSubmit({
     item,
     setError: editor.setError,
@@ -176,6 +178,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted, onResto
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
             maxHeight: '96%',
+            flexShrink: 1,
             overflow: 'hidden',
             transform: [{ translateY: sheetTranslateY }],
           }}>
@@ -183,6 +186,7 @@ export function ClosetItemSheetView({ item, onClose, onSaved, onDeleted, onResto
             bounces={false}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            style={{ flexShrink: 1 }}
             contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg, paddingBottom: spacing.xl }}>
 
             {/* Header */}

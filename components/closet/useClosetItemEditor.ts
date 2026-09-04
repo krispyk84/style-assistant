@@ -36,8 +36,8 @@ export type ClosetEditFields = {
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
-export function useClosetItemEditor({ item }: { item: ClosetItem | null }) {
-  const [isEditing, setIsEditing] = useState(false);
+export function useClosetItemEditor({ item, startInEditMode = false }: { item: ClosetItem | null; startInEditMode?: boolean }) {
+  const [isEditing, setIsEditing] = useState(startInEditMode);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);

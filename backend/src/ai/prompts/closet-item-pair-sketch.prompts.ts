@@ -29,8 +29,10 @@ const PAIR_STYLE_PREAMBLE =
   'The overall image must be tactile, painterly, and editorial — like a luxury stylist\'s sketchbook page. ' +
   'Avoid vector cleanliness, sterile negative space, hard digital edges, glossy rendering, flat color blocking, cartoon polish, or overly neat app-illustration treatment. ' +
   'The subject is a matched two-piece SET, not a single item and not a full worn outfit — there is NO figure, NO mannequin, NO body, NO face, NO hands anywhere in the image. ' +
-  'Render both pieces together in one cohesive product composition, arranged naturally as a coordinated set (e.g. the upper piece laid or floating just above/behind the lower piece) so it reads as ONE clothing set photographed together for a product page, not two separate isolated product shots stitched into one frame. ' +
-  'Both pieces must be fully visible and unobstructed by each other. ' +
+  'Render both pieces together in one cohesive product composition so it reads as ONE clothing set photographed together for a product page, not two separate isolated product shots stitched into one frame. ' +
+  'COMPOSITION — HARD CONSTRAINT: arrange the two pieces so BOTH are entirely visible with clear separation between them — e.g. side by side, or the lower piece laid flat below the upper piece with visible space between them. ' +
+  'Do NOT stack, layer, or place one piece directly behind or underneath the other in a way that hides, crops, or obscures any part of either piece — every silhouette edge of both pieces must be fully readable, with no overlap between the two garments. ' +
+  'If in doubt, favor more separation between the two pieces over a tighter "worn together" arrangement.' +
   'Keep the same luxury menswear watercolor-paper aesthetic as the other closet-item and outfit illustrations so this image belongs to the exact same visual system.';
 
 function describeItem(item: ClosetItemPairPiece): string {
