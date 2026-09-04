@@ -1,4 +1,4 @@
-import type { GenerateTripOutfitsRequest, RegenerateTripDayRequest } from '../../contracts/trips.contracts.js';
+import type { GenerateTripDayVariantsRequest, GenerateTripOutfitsRequest, RegenerateTripDayRequest } from '../../contracts/trips.contracts.js';
 import type { JsonSchemaConfig } from '../openai-request-builder.js';
 import { formatProfileContext } from '../prompt-context.js';
 import { HEADLESS_GUARD, STYLE_GUARD, STYLE_PREAMBLE, QUALITY_ADDENDUM, QUALITY_ADDENDUM_2 } from './sketch-style-preamble.js';
@@ -309,10 +309,13 @@ export function buildRegenerateDayPrompt(
   req: RegenerateTripDayRequest,
   profile: PromptProfile,
   styleGuideContext?: string | null,
+  /** Present only when the original day was "From My Closet" (fullCloset) — the full wardrobe index the replacement day must build from. */
+  closetIndex?: TripWardrobeIndexItem[],
 ): RegenerateDayPrompt {
   const dayLabel = formatDate(req.date);
   const previousList = req.previousPieces.map((p) => `  • ${p}`).join('\n');
   const previousShoes = req.previousShoes ? `  • ${req.previousShoes} (shoes)` : '';
+  const isFullCloset = closetIndex !== undefined;
 
   const instructions = [
     'You are an expert travel stylist. Generate ONE fresh outfit alternative for a single trip day.',
@@ -324,6 +327,13 @@ export function buildRegenerateDayPrompt(
     '- Do NOT repeat the previous outfit pieces. Generate a genuinely different look.',
     '- title should be a different evocative label from before.',
     '- Be specific about garment descriptions (color + fabric hint).',
+    ...(isFullCloset
+      ? [
+          '- FULL-CLOSET MODE: you must build this day ENTIRELY from the WARDROBE INDEX provided below. Never invent a piece that is not in the index.',
+          '- closetItemIds: the exact ids (from the wardrobe index) used to build this day\'s outfit. Every id must exist in the index. 2–6 ids.',
+          '- pieces/shoes/accessories text must describe the ACTUAL chosen items by their real name, not generic placeholders.',
+        ]
+      : []),
     TRIP_REGENERATION_BAG_RULE,
     ...buildTripTemperatureRuleLines(req.avgHighC),
     '',
@@ -339,6 +349,7 @@ export function buildRegenerateDayPrompt(
     `Style vibe: ${req.styleVibe}`,
     req.purposes.length > 0 ? `Trip purpose: ${req.purposes.join(', ')}` : '',
     '',
+    ...(isFullCloset ? ['WARDROBE INDEX (every item you may use — reference by exact id):', JSON.stringify(closetIndex, null, 2), ''] : []),
     `Day to regenerate: Day ${req.dayIndex + 1} — ${dayLabel} (${req.dayType})`,
     '',
     'PREVIOUS OUTFIT (do NOT repeat these pieces):',
@@ -361,8 +372,14 @@ export function buildRegenerateDayPrompt(
       bag:          { type: ['string', 'null'] },
       accessories:  { type: 'array', items: { type: 'string' }, maxItems: 3 },
       contextTags:  { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 },
+      ...(isFullCloset
+        ? { closetItemIds: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 6, description: 'Real closet item ids used to build this day\'s outfit' } }
+        : {}),
     },
-    required: ['dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags'],
+    required: [
+      'dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags',
+      ...(isFullCloset ? ['closetItemIds'] : []),
+    ],
     additionalProperties: false,
   };
 
@@ -376,6 +393,112 @@ export function buildRegenerateDayPrompt(
         type: 'object',
         properties: { day: daySchema },
         required: ['day'],
+        additionalProperties: false,
+      },
+    },
+  };
+}
+
+// ── Trip day variants prompt (swap 1-2 items, keep the rest) ────────────────
+// Closet-constrained only — mirrors closet-outfits.service.ts's
+// generateOutfitVariations "keep/swap" semantics, adapted to trips' day shape.
+
+export type DayVariantsPrompt = {
+  instructions: string;
+  userContent: { type: 'input_text'; text: string }[];
+  jsonSchema: JsonSchemaConfig;
+};
+
+export function buildDayVariantsPrompt(
+  req: GenerateTripDayVariantsRequest,
+  profile: PromptProfile,
+  closetIndex: TripWardrobeIndexItem[],
+  styleGuideContext?: string | null,
+): DayVariantsPrompt {
+  const dayLabel = formatDate(req.date);
+  const indexById = new Map(closetIndex.map((item) => [item.id, item]));
+  const keepDescriptions = req.keepItemIds
+    .map((id) => indexById.get(id))
+    .filter((item): item is TripWardrobeIndexItem => !!item)
+    .map((item) => `  • [${item.id}] ${item.category}: ${item.name}`)
+    .join('\n');
+  const swapDescriptions = req.swapItemIds
+    .map((id) => indexById.get(id))
+    .filter((item): item is TripWardrobeIndexItem => !!item)
+    .map((item) => `  • [${item.id}] ${item.category}: ${item.name}`)
+    .join('\n');
+
+  const instructions = [
+    'You are an expert travel stylist. Generate up to 5 DISTINCT alternative outfits for a single trip day, all built ENTIRELY from the WARDROBE INDEX below.',
+    '',
+    'RULES:',
+    '- Every variant must reuse the KEEP ITEMS below completely unchanged — same ids, described identically. Do not swap, drop, or reword them.',
+    '- Every variant must replace EACH of the SWAP ITEMS below with a DIFFERENT real item from the wardrobe index in the same category/slot. Try a genuinely different real item across the 5 variants where the wardrobe allows it — do not just return the same replacement 5 times.',
+    '- Never invent a piece that is not in the wardrobe index.',
+    '- closetItemIds: the exact ids (from the wardrobe index) used to build that variant, including the kept ids and the chosen replacement(s). 2–6 ids per variant.',
+    '- pieces/shoes/accessories text must describe the ACTUAL chosen items by their real name, not generic placeholders.',
+    '- dayIndex and date must match what is provided on every variant — do NOT change them. Keep the same dayType.',
+    '- Return between 1 and 5 variants — fewer than 5 is fine if the wardrobe genuinely doesn\'t support more distinct options, but never repeat an identical set of closetItemIds across variants.',
+    TRIP_REGENERATION_BAG_RULE,
+    ...buildTripTemperatureRuleLines(req.avgHighC),
+    '',
+    formatProfileContext(profile),
+    styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
+  ].join('\n');
+
+  const userText = [
+    `TRIP: ${req.destination}, ${req.country}`,
+    `Climate: ${req.climateLabel || 'Not specified'}`,
+    req.activities ? `Activities: ${req.activities}` : '',
+    req.dressCode ? `Dress code: ${req.dressCode}` : '',
+    `Style vibe: ${req.styleVibe}`,
+    req.purposes.length > 0 ? `Trip purpose: ${req.purposes.join(', ')}` : '',
+    '',
+    'WARDROBE INDEX (every item you may use — reference by exact id):',
+    JSON.stringify(closetIndex, null, 2),
+    '',
+    `Day: Day ${req.dayIndex + 1} — ${dayLabel} (${req.dayType})`,
+    '',
+    'KEEP ITEMS (reuse unchanged in every variant):',
+    keepDescriptions || '  (none)',
+    '',
+    'SWAP ITEMS (replace each with a different real item, per variant):',
+    swapDescriptions,
+    '',
+    'Generate up to 5 distinct variants.',
+  ].filter(Boolean).join('\n');
+
+  const daySchema = {
+    type: 'object',
+    properties: {
+      dayIndex:     { type: 'integer' },
+      date:         { type: 'string' },
+      title:        { type: 'string' },
+      dayType:      { type: 'string', enum: ['travel_day', 'sightseeing', 'business', 'meeting', 'dinner_out', 'beach_pool', 'adventure', 'wedding_event', 'relaxed', 'conference'] },
+      rationale:    { type: 'string' },
+      pieces:       { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 5 },
+      shoes:        { type: 'string' },
+      bag:          { type: ['string', 'null'] },
+      accessories:  { type: 'array', items: { type: 'string' }, maxItems: 3 },
+      contextTags:  { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 },
+      closetItemIds: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 6, description: 'Real closet item ids used to build this variant' },
+    },
+    required: ['dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags', 'closetItemIds'],
+    additionalProperties: false,
+  };
+
+  return {
+    instructions,
+    userContent: [{ type: 'input_text', text: userText }],
+    jsonSchema: {
+      name: 'trip_day_variants',
+      description: 'Up to 5 alternative outfits for a single trip day, swapping 1-2 items',
+      schema: {
+        type: 'object',
+        properties: {
+          variants: { type: 'array', items: daySchema, minItems: 1, maxItems: 5 },
+        },
+        required: ['variants'],
         additionalProperties: false,
       },
     },

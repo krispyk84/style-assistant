@@ -1,4 +1,6 @@
 export type {
+  GenerateTripDayVariantsParams,
+  GenerateTripDayVariantsResponse,
   GenerateTripOutfitsParams,
   GenerateTripOutfitsResponse,
   RegenerateTripDayParams,

@@ -1,9 +1,10 @@
 import { LayoutAnimation, Platform, Pressable, UIManager, View } from 'react-native';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPanel';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
+import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { buildTripDayLabeledPieces } from '@/lib/outfit-piece-display';
@@ -11,6 +12,8 @@ import type { TripOutfitDay } from '@/services/trip-outfits';
 import type { ClosetItem } from '@/types/closet';
 import { OutfitItemThumbnailRow } from './OutfitItemThumbnailRow';
 import { OutfitPieceListView } from './OutfitPieceListView';
+
+const MAX_SWAP_SELECTION = 2;
 
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -40,10 +43,21 @@ type Props = {
   onGenerateSketch: () => void;
   onLove: () => void;
   onHate: () => void;
+  /** fullCloset days only — tapping a piece becomes a swap selection (max 2) and a "Generate Variants" button appears. */
+  onGenerateVariants?: (day: TripOutfitDay, swapItemIds: string[]) => void;
 };
 
-export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch, onLove, onHate }: Props) {
+export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch, onLove, onHate, onGenerateVariants }: Props) {
   const { theme } = useTheme();
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+
+  function toggleItemSelected(itemId: string) {
+    setSelectedItemIds((current) => {
+      if (current.includes(itemId)) return current.filter((id) => id !== itemId);
+      if (current.length >= MAX_SWAP_SELECTION) return current;
+      return [...current, itemId];
+    });
+  }
 
   const dayLabel = new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', {
     weekday: 'short',
@@ -138,7 +152,29 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
 
         {/* Outfit pieces */}
         {isFullClosetDay ? (
-          <OutfitItemThumbnailRow items={thumbnailItems} />
+          <View style={{ gap: spacing.xs }}>
+            <OutfitItemThumbnailRow
+              items={thumbnailItems}
+              selectedItemIds={onGenerateVariants ? selectedItemIds : undefined}
+              onToggleSelect={onGenerateVariants ? toggleItemSelected : undefined}
+            />
+            {onGenerateVariants ? (
+              <>
+                <AppText tone="subtle" style={{ fontSize: 12 }}>
+                  {selectedItemIds.length === 0
+                    ? 'Tap 1-2 pieces above to swap — everything else stays the same.'
+                    : `Swapping ${selectedItemIds.length} piece${selectedItemIds.length === 1 ? '' : 's'} — the rest of this outfit stays the same.`}
+                </AppText>
+                {selectedItemIds.length > 0 ? (
+                  <PrimaryButton
+                    label="Generate Variants"
+                    variant="secondary"
+                    onPress={() => onGenerateVariants(day, selectedItemIds)}
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </View>
         ) : (
           <OutfitPieceListView pieces={labeledPieces} display="grouped" />
         )}

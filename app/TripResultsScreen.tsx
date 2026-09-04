@@ -44,6 +44,7 @@ export function TripResultsScreen() {
     handleGenerateSketch,
     handleLove,
     handleHate,
+    handleGenerateVariants,
     handleSaveTrip,
   } = useTripResultsActions({
     plan,
@@ -147,6 +148,7 @@ export function TripResultsScreen() {
                 onGenerateSketch={() => void handleGenerateSketch(day)}
                 onLove={() => void handleLove(day)}
                 onHate={() => void handleHate(day)}
+                onGenerateVariants={handleGenerateVariants}
               />
             ))}
 

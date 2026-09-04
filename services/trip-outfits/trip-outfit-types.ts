@@ -47,6 +47,29 @@ export type RegenerateTripDayParams = {
   purposes: string[];
   previousPieces: string[];
   previousShoes?: string;
+  isFullCloset?: boolean;
+};
+
+export type GenerateTripDayVariantsParams = {
+  tripId: string;
+  dayIndex: number;
+  date: string;
+  dayType: TripDayType;
+  destination: string;
+  country: string;
+  climateLabel: string;
+  avgHighC?: number;
+  avgLowC?: number;
+  activities?: string;
+  dressCode?: string;
+  styleVibe: string;
+  purposes: string[];
+  keepItemIds: string[];
+  swapItemIds: string[];
+};
+
+export type GenerateTripDayVariantsResponse = {
+  variants: TripOutfitDay[];
 };
 
 export type TripAnchorInput = {

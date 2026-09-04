@@ -1,5 +1,8 @@
-import { Dispatch, SetStateAction, useCallback, useState } from 'react';
+import { router } from 'expo-router';
+import { Dispatch, SetStateAction, useCallback, useEffect, useState } from 'react';
 
+import { buildTripDayVariantsHref } from '@/lib/trip-route';
+import { tripDayVariantFlow } from '@/lib/trip-day-variant-flow';
 import type { StoredTripPlan } from '@/lib/trip-outfits-storage';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
 import { savedTripsService } from '@/services/saved-trips';
@@ -91,6 +94,7 @@ export function useTripResultsActions({
         purposes: plan.purposes,
         previousPieces: day.pieces,
         previousShoes: day.shoes,
+        isFullCloset: !!day.closetItemIds?.length,
       });
 
       setDays((prev) => prev.map((current) => (current.id === day.id ? newDay : current)));
@@ -105,6 +109,45 @@ export function useTripResultsActions({
       });
     }
   }, [plan, savedTripId, setDays, stopSketchPoll, tripId]);
+
+  // Swap 1-2 items on a fullCloset day: push a request for the dedicated
+  // variant-selection screen, then wait for it to hand back the chosen day.
+  const handleGenerateVariants = useCallback((day: TripOutfitDay, swapItemIds: string[]) => {
+    const activeTripId = plan?.tripId ?? tripId;
+    if (!activeTripId || !plan) return;
+
+    const keepItemIds = (day.closetItemIds ?? []).filter((id) => !swapItemIds.includes(id));
+
+    tripDayVariantFlow.setPendingRequest({
+      tripId: activeTripId,
+      dayIndex: day.dayIndex,
+      date: day.date,
+      dayType: day.dayType,
+      destination: plan.destination,
+      country: plan.country,
+      climateLabel: plan.climateLabel,
+      avgHighC: plan.avgHighC,
+      avgLowC: plan.avgLowC,
+      activities: plan.activities,
+      dressCode: plan.dressCode,
+      styleVibe: plan.styleVibe,
+      purposes: plan.purposes,
+      keepItemIds,
+      swapItemIds,
+    });
+
+    tripDayVariantFlow.setListener((selectedDay) => {
+      stopSketchPoll(day.id);
+      const merged: TripOutfitDay = { ...selectedDay, id: day.id, feedback: null };
+      setDays((prev) => prev.map((current) => (current.id === day.id ? merged : current)));
+      if (!savedTripId) void tripOutfitsStorage.updateDay(activeTripId, merged);
+    });
+
+    router.push(buildTripDayVariantsHref());
+  }, [plan, savedTripId, setDays, stopSketchPoll, tripId]);
+
+  // Clear any dangling listener if the screen unmounts before a selection is made.
+  useEffect(() => () => tripDayVariantFlow.clearListener(), []);
 
   const handleSaveTrip = useCallback(async () => {
     if (!plan || isSaving) return;
@@ -142,6 +185,7 @@ export function useTripResultsActions({
     handleGenerateSketch,
     handleLove,
     handleHate,
+    handleGenerateVariants,
     handleSaveTrip,
   };
 }

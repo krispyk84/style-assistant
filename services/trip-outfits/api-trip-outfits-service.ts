@@ -1,5 +1,6 @@
 import { createApiClient } from '@/lib/api/api-client';
 import type {
+  GenerateTripDayVariantsParams,
   GenerateTripOutfitsParams,
   GenerateTripOutfitsResponse,
   RegenerateTripDayParams,
@@ -52,6 +53,23 @@ export const tripOutfitsService = {
       sketchStatus: 'not_started' as const,
       feedback: null,
     };
+  },
+
+  async generateDayVariants(params: GenerateTripDayVariantsParams): Promise<TripOutfitDay[]> {
+    const response = await createApiClient().request<{ variants: RawDay[] }>('/trips/day-variants', {
+      method: 'POST',
+      body: params,
+    });
+
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message ?? 'Failed to generate outfit variants.');
+    }
+
+    return response.data.variants.map((variant) => ({
+      ...variant,
+      sketchStatus: 'not_started' as const,
+      feedback: null,
+    }));
   },
 
   async startDaySketch(params: {

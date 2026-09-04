@@ -49,6 +49,10 @@ export function buildTripResultsHref({
   };
 }
 
+export function buildTripDayVariantsHref() {
+  return { pathname: '/trip-day-variants' as const };
+}
+
 export function buildPackingListHref({
   tripId,
   savedTripId,

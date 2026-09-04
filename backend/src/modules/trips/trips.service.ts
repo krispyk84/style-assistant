@@ -1,18 +1,18 @@
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildModelImageInput, resolveImageUrlForAI } from '../../ai/image-input.js';
-import { buildTripOutfitsPrompt, buildTripDaySketchPrompt, buildRegenerateDayPrompt } from '../../ai/prompts/trips.prompts.js';
+import { buildTripOutfitsPrompt, buildTripDaySketchPrompt, buildRegenerateDayPrompt, buildDayVariantsPrompt } from '../../ai/prompts/trips.prompts.js';
 import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
-import { describeError } from '../../lib/http-error.js';
+import { describeError, HttpError } from '../../lib/http-error.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
 import { closetRepository } from '../closet/closet.repository.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
-import { regenerateDayResponseSchema, tripOutfitsResponseSchema } from './trips.schemas.js';
-import type { GenerateTripOutfitsRequest, GenerateTripOutfitsResponse, RegenerateTripDayRequest, TripOutfitDayDto } from '../../contracts/trips.contracts.js';
+import { regenerateDayResponseSchema, tripDayVariantsResponseSchema, tripOutfitsResponseSchema } from './trips.schemas.js';
+import type { GenerateTripDayVariantsRequest, GenerateTripDayVariantsResponse, GenerateTripOutfitsRequest, GenerateTripOutfitsResponse, RegenerateTripDayRequest, TripOutfitDayDto } from '../../contracts/trips.contracts.js';
 import type { InputContent } from '../../ai/openai-request-builder.js';
 
 // Mirrors lib/outfit-piece-display.ts's CATEGORY_KEYWORDS['Outerwear'] on the
@@ -196,10 +196,12 @@ export const tripsService = {
       task: 'trip-generation',
       query: buildTripRegenerationStyleGuideQuery(request, profile),
     });
+    const closetIndex = request.isFullCloset ? await buildClosetIndex(supabaseUserId) : null;
     const { instructions, userContent, jsonSchema } = buildRegenerateDayPrompt(
       request,
       profile,
       styleGuideContext?.promptContext,
+      closetIndex?.index,
     );
 
     const result = await openAiClient.createStructuredResponse({
@@ -217,7 +219,62 @@ export const tripsService = {
       tripId: request.tripId,
       bag: result.day.bag ?? null,
       accessories: result.day.accessories ?? [],
+      closetItemIds: closetIndex
+        ? (result.day.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id))
+        : undefined,
     };
+  },
+
+  async generateDayVariants(
+    request: GenerateTripDayVariantsRequest,
+    supabaseUserId: string,
+  ): Promise<GenerateTripDayVariantsResponse> {
+    const profile = request.profileId
+      ? await profileRepository.findById(request.profileId)
+      : await profileRepository.findByUserId(supabaseUserId);
+
+    const closetIndex = await buildClosetIndex(supabaseUserId);
+
+    const validKeepIds = request.keepItemIds.filter((id) => closetIndex.itemsById.has(id));
+    const validSwapIds = request.swapItemIds.filter((id) => closetIndex.itemsById.has(id));
+    if (validSwapIds.length === 0) {
+      throw new HttpError(422, 'INVALID_SWAP_ITEMS', 'Select 1 or 2 items from this day to swap.');
+    }
+
+    const styleGuideContext = await styleGuideService.retrieveGuidance({
+      task: 'trip-generation',
+      query: buildTripRegenerationStyleGuideQuery(request, profile),
+    });
+    const { instructions, userContent, jsonSchema } = buildDayVariantsPrompt(
+      { ...request, keepItemIds: validKeepIds, swapItemIds: validSwapIds },
+      profile,
+      closetIndex.index,
+      styleGuideContext?.promptContext,
+    );
+
+    const result = await openAiClient.createStructuredResponse({
+      schema: tripDayVariantsResponseSchema,
+      jsonSchema,
+      instructions,
+      userContent,
+      supabaseUserId,
+      feature: 'trip-generation',
+    });
+
+    const variants: TripOutfitDayDto[] = result.variants.map((variant, index) => ({
+      ...variant,
+      id: `${request.tripId}-day-${request.dayIndex}-v${Date.now()}-${index}`,
+      tripId: request.tripId,
+      bag: variant.bag ?? null,
+      accessories: variant.accessories ?? [],
+      closetItemIds: (variant.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id)),
+    }));
+
+    if (variants.length === 0) {
+      throw new HttpError(502, 'TRIP_DAY_VARIANTS_INVALID', 'Could not generate variants for that day. Please try again.');
+    }
+
+    return { variants };
   },
 
   async getDaySketchStatus(jobId: string) {
@@ -271,7 +328,7 @@ function buildTripGenerationStyleGuideQuery(
 }
 
 function buildTripRegenerationStyleGuideQuery(
-  request: RegenerateTripDayRequest,
+  request: Pick<RegenerateTripDayRequest, 'destination' | 'country' | 'dayType' | 'styleVibe' | 'climateLabel' | 'activities' | 'dressCode' | 'purposes'>,
   profile: StyleGuideProfile,
 ) {
   return [

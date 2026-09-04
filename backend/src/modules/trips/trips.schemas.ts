@@ -96,4 +96,32 @@ export const regenerateTripDaySchema = z.object({
   previousPieces: z.array(z.string()).default([]),
   previousShoes:  z.string().optional(),
   profileId:     z.string().optional(),
+  // Set when the day being regenerated was originally built in "From My
+  // Closet" mode — keeps the replacement day closet-constrained too, instead
+  // of silently falling back to freeform (non-owned) generation.
+  isFullCloset:  z.boolean().optional(),
+});
+
+export const generateTripDayVariantsSchema = z.object({
+  tripId:        z.string().min(1),
+  dayIndex:      z.number().int().min(0),
+  date:          z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dayType:       z.enum(['travel_day', 'sightseeing', 'business', 'meeting', 'dinner_out', 'beach_pool', 'adventure', 'wedding_event', 'relaxed', 'conference']),
+  destination:   z.string().min(1),
+  country:       z.string().min(1),
+  climateLabel:  z.string().default(''),
+  avgHighC:      z.number().optional(),
+  avgLowC:       z.number().optional(),
+  activities:    z.string().optional(),
+  dressCode:     z.string().optional(),
+  styleVibe:     z.string().min(1),
+  purposes:      z.array(z.string()).default([]),
+  // Real closet item ids to keep unchanged, and the 1-2 ids the user tapped to swap out.
+  keepItemIds:   z.array(z.string()).default([]),
+  swapItemIds:   z.array(z.string()).min(1).max(2),
+  profileId:     z.string().optional(),
+});
+
+export const tripDayVariantsResponseSchema = z.object({
+  variants: z.array(tripDaySchema).min(1).max(5),
 });
