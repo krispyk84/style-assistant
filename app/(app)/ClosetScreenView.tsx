@@ -301,7 +301,7 @@ export function ClosetScreenView({
 
       {/* Sort segmented control + (when grouping by Type) the type filter pill */}
       {!isLoading && itemCount > 0 ? (
-        <View style={{ gap: spacing.sm }}>
+        <View style={{ alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
           <View
             style={{
               alignSelf: 'flex-start',
