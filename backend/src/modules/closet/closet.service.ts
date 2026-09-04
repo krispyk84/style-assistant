@@ -14,7 +14,6 @@ import { openAiClient } from '../../ai/openai-client.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { buildHelpMePickSystemPrompt, buildHelpMePickUserPrompt } from '../../ai/prompts/help-me-pick.prompts.js';
 import { buildClosetItemPairSketchPrompt, type ClosetItemPairPiece } from '../../ai/prompts/closet-item-pair-sketch.prompts.js';
-import { storageProvider } from '../../storage/index.js';
 import {
   buildClosetAdvisoryOnlySystemPrompt,
   buildClosetAdvisoryOnlyUserPrompt,
@@ -469,15 +468,25 @@ async function generatePairedItemSketch(
       logContext: { itemId },
     });
 
-    const storedFile = await storageProvider.storeGeneratedFile({
-      category: 'closet-sketch',
-      fileExtension: '.jpg',
-      mimeType: generatedImage.mimeType,
-      data: generatedImage.data,
+    // Persisted as a DB blob (ClosetSketchJob), not via storageProvider's
+    // disk-backed writes — mirrors closet-sketch.service.ts's single-item
+    // flow. The /media/closet-sketch/:filename route only serves from disk
+    // as a legacy fallback; Render's filesystem isn't reliably readable
+    // back across requests, so every closet sketch is stored in the DB.
+    const sketchJob = await closetRepository.createSketchJob();
+    const sketchStorageKey = `closet-sketch/${sketchJob.id}.jpg`;
+    const sketchImageUrl = `${env.STORAGE_PUBLIC_BASE_URL}/media/${sketchStorageKey}`;
+
+    await closetRepository.updateSketchJob(sketchJob.id, {
+      status: 'ready',
+      sketchImageUrl,
+      sketchStorageKey,
+      sketchMimeType: generatedImage.mimeType,
+      sketchImageData: generatedImage.data,
     });
 
     await closetRepository.updateItem(itemId, supabaseUserId, {
-      sketchImageUrl: `${env.STORAGE_PUBLIC_BASE_URL}/media/${storedFile.storageKey}`,
+      sketchImageUrl,
       sketchStatus: 'ready',
     });
   } catch (error) {
