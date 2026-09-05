@@ -250,3 +250,34 @@ export function normalizeSuitDualRole<TItem extends BuilderClosetItem>(bySlot: P
     bySlot.outerwear = bySlot.bottoms;
   }
 }
+
+/**
+ * Last-resort safety net: a slot the caller has decided is required for this
+ * outfit (footwear/bottoms/tops always; layering/outerwear only when the
+ * weather calls for them) must never end up silently unfilled just because
+ * the model's response didn't include it or validation fell back to a
+ * narrower path. This ignores formality banding and exclusions entirely —
+ * it only runs for a slot that's STILL empty after the normal shortlist-
+ * driven choice, so a formality-mismatched pick beats no pick at all.
+ * Every already-used id (across all slots, not just this one) is avoided
+ * where possible so this never duplicates an item into two roles.
+ */
+export function fillMissingRequiredSlots<TItem extends BuilderClosetItem>(params: {
+  bySlot: Partial<Record<OutfitSlot, TItem>>;
+  closetItems: TItem[];
+  requiredSlots: readonly OutfitSlot[];
+}): void {
+  for (const slot of params.requiredSlots) {
+    if (params.bySlot[slot]) continue;
+
+    const usedIds = new Set(Object.values(params.bySlot).map((item) => (item as TItem).id));
+    const allowedGroups = SLOT_GROUPS[slot];
+    const candidates = params.closetItems.filter((item) => {
+      const group = CATEGORY_TO_GROUP[item.category];
+      return group !== undefined && allowedGroups.includes(group);
+    });
+    const fresh = candidates.find((item) => !usedIds.has(item.id));
+    const picked = fresh ?? candidates[0];
+    if (picked) params.bySlot[slot] = picked;
+  }
+}

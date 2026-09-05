@@ -18,7 +18,7 @@ import { describeError, HttpError } from '../../lib/http-error.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
 import { closetRepository } from '../closet/closet.repository.js';
-import { buildDeterministicOutfit, buildOutfitSlotShortlists, buildVariantCandidates, normalizeSuitDualRole } from '../closet/closet-outfit-builder.js';
+import { buildDeterministicOutfit, buildOutfitSlotShortlists, buildVariantCandidates, fillMissingRequiredSlots, normalizeSuitDualRole } from '../closet/closet-outfit-builder.js';
 import { CATEGORY_TO_GROUP, FORMALITY_RANK, GROUP_TO_SLOTS, TRIP_DAY_TYPE_FORMALITY_TARGET, type OutfitSlot } from '../closet/closet-taxonomy.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
@@ -376,12 +376,22 @@ async function chooseFullClosetDay(params: {
   const slots = (Object.keys(shortlists) as OutfitSlot[]).filter((slot) => (shortlists[slot]?.length ?? 0) > 0);
 
   if (slots.length === 0) {
+    // Even with every shortlist empty (unexpected, but not impossible after
+    // cap-narrowing deletes a slot entirely), still try to fill the always-
+    // required categories directly from the raw closet — never return a
+    // fully-empty day when the closet has anything at all to offer.
+    const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
+    const requiredSlots: OutfitSlot[] = ['footwear', 'bottoms', 'tops'];
+    if (includeLayering) requiredSlots.push('layering');
+    if (includeOuterwear) requiredSlots.push('outerwear');
+    fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots });
+    normalizeSuitDualRole(bySlot);
     return {
-      bySlot: {},
+      bySlot,
       title: FALLBACK_TRIP_TITLE,
       rationale: FALLBACK_TRIP_RATIONALE,
-      usedOuterwearTitles: params.usedOuterwearTitles,
-      usedFootwearTitles: params.usedFootwearTitles,
+      usedOuterwearTitles: updateUsedTitles(bySlot, 'outerwear', params.usedOuterwearTitles),
+      usedFootwearTitles: updateUsedTitles(bySlot, 'footwear', params.usedFootwearTitles),
     };
   }
 
@@ -428,6 +438,16 @@ async function chooseFullClosetDay(params: {
   const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = chosen
     ? (Object.fromEntries(Object.entries(chosen.chosenIds).map(([slot, id]) => [slot, itemsById.get(id)!])) as Partial<Record<OutfitSlot, BuilderItem>>)
     : (Object.fromEntries(slots.map((slot) => [slot, shortlists[slot]![0]!])) as Partial<Record<OutfitSlot, BuilderItem>>);
+  normalizeSuitDualRole(bySlot);
+
+  // Hard guarantee, no exceptions: footwear/bottoms/tops always, plus
+  // layering/outerwear whenever the weather calls for them — never leave a
+  // required category silently unfilled, whatever upstream reason (empty
+  // shortlist, model omission, validation fallback) caused it.
+  const requiredSlots: OutfitSlot[] = ['footwear', 'bottoms', 'tops'];
+  if (includeLayering) requiredSlots.push('layering');
+  if (includeOuterwear) requiredSlots.push('outerwear');
+  fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots });
   normalizeSuitDualRole(bySlot);
 
   return {
