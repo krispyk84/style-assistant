@@ -552,25 +552,35 @@ export function buildTripDaySketchPrompt(params: {
     outfitLines.join('\n'),
   ].join('\n');
 
+  const hasOuterwearOrExtraLayer = pieces.length > 2; // bottoms + top is the 2-piece floor; anything beyond that includes a layer/outerwear
+
   // Hard "exact item list" constraint — mirrors closet-outfit-sketch.prompts.ts's
   // exclusivityRule. Without this, the model sometimes adds an unlisted piece
   // (most often a jacket or an extra top) to make the look feel more
-  // "complete", even when that role has nothing listed above at all.
+  // "complete", even when that role has nothing listed above at all. Placed
+  // right after the headless/style guards — same reasoning as HEADLESS_GUARD
+  // being slot 0: a hard constraint buried after several paragraphs of
+  // editorial styling language gets diluted by the time the model reaches it.
   const exclusivityRule =
-    'EXACT ITEM LIST — HARD CONSTRAINT: the garments/shoes/accessories listed above are the ONLY items the figure wears. ' +
-    'Do not add any garment, layer, or accessory that is not explicitly listed — no extra jacket, blazer, coat, cardigan, undershirt, scarf, hat, bag, jewelry, or any other piece, no matter how much more "complete" or "editorial" the look would feel with one. ' +
-    'If no jacket/coat/blazer is listed above, the figure must NOT wear any outerwear or third layer. If only one top is listed, the figure wears exactly that one top and nothing underneath or over it.';
+    'EXACT ITEM LIST — HARD CONSTRAINT, read this before anything else below: the garments/shoes/accessories listed here are the ONLY items the figure wears. ' +
+    `${outfitSection}\n` +
+    'Do not add any garment, layer, or accessory that is not explicitly listed above — no extra jacket, blazer, coat, cardigan, hoodie, sweater, undershirt, scarf, hat, bag, jewelry, or any other piece, no matter how much more "complete", "editorial", or weather-appropriate the look would feel with one. ' +
+    (hasOuterwearOrExtraLayer
+      ? 'The garments listed above already include every layer this figure wears — do not add a further layer beyond what is listed.'
+      : 'No jacket, coat, blazer, cardigan, hoodie, or sweater is listed above — the figure wears ONLY the single top listed, with nothing else over or under it, regardless of season or climate.');
 
   const parts = [
     HEADLESS_GUARD,
     STYLE_GUARD,
+    exclusivityRule,
     subjectBrief,
     STYLE_PREAMBLE,
-    outfitSection,
-    exclusivityRule,
     'Every listed item is a REAL garment the wearer already owns — render each one true to its stated color, pattern, and material rather than inventing a different interpretation.',
     QUALITY_ADDENDUM,
     QUALITY_ADDENDUM_2,
+    hasOuterwearOrExtraLayer
+      ? 'GARMENT COUNT VERIFICATION (check before finalizing): count the garments you have drawn on the figure — does the count match exactly the garments listed at the top of this prompt, no more? If you have added any unlisted jacket, layer, or top, that is a hard failure — remove it before finalizing.'
+      : 'GARMENT COUNT VERIFICATION (check before finalizing): this figure wears exactly ONE top and nothing else layered over or under it. If you have drawn a jacket, cardigan, hoodie, or second top of any kind, that is a hard failure — remove it before finalizing.',
   ].filter(Boolean);
 
   return parts.join('\n\n');

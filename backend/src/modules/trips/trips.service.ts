@@ -169,6 +169,34 @@ function dedupeById(items: (BuilderItem | undefined)[]): BuilderItem[] {
   return result;
 }
 
+// Prompt instructions alone weren't reliably stopping the model from
+// narrating a garment it never actually selected (a "navy windbreaker" or
+// "white t-shirt" mentioned in the rationale when no outerwear/layering was
+// chosen for the day) — this is a code-level backstop: if a category wasn't
+// selected but its name still shows up in the rationale, the rationale is
+// untrustworthy and gets replaced with one built purely from the real items.
+const OUTERWEAR_HALLUCINATION_KEYWORDS = ['jacket', 'blazer', 'coat', 'windbreaker', 'parka', 'trench', 'overcoat', 'anorak', 'bomber'];
+const LAYERING_HALLUCINATION_KEYWORDS = ['sweater', 'cardigan', 'hoodie', 'sweatshirt', 'jumper', 'pullover', 'fleece'];
+
+function textMentionsAny(text: string, keywords: string[]): boolean {
+  const lower = text.toLowerCase();
+  return keywords.some((keyword) => lower.includes(keyword));
+}
+
+function buildSafeRationale(bySlot: Partial<Record<OutfitSlot, BuilderItem>>): string {
+  const names = dedupeById(Object.values(bySlot)).map((item) => item.title);
+  return `A complete outfit built entirely from pieces you already own: ${names.join(', ')}.`;
+}
+
+function guardAgainstHallucinatedRationale(bySlot: Partial<Record<OutfitSlot, BuilderItem>>, rationale: string): string {
+  const mentionsUnselectedOuterwear = !bySlot.outerwear && textMentionsAny(rationale, OUTERWEAR_HALLUCINATION_KEYWORDS);
+  const mentionsUnselectedLayering = !bySlot.layering && textMentionsAny(rationale, LAYERING_HALLUCINATION_KEYWORDS);
+  if (mentionsUnselectedOuterwear || mentionsUnselectedLayering) {
+    return buildSafeRationale(bySlot);
+  }
+  return rationale;
+}
+
 function mapDaySlotsToDto(bySlot: Partial<Record<OutfitSlot, BuilderItem>>): {
   pieces: string[];
   shoes: string;
@@ -369,6 +397,8 @@ async function chooseFullClosetDay(params: {
   if (params.pinnedItem) {
     const pinnedGroup = CATEGORY_TO_GROUP[params.pinnedItem.category];
     for (const slot of pinnedGroup ? GROUP_TO_SLOTS[pinnedGroup] ?? [] : []) {
+      // hat/bag stay strictly opt-in via the toggle — never force-worn by a pin.
+      if (slot === 'hat' || slot === 'bag') continue;
       shortlists[slot] = [params.pinnedItem];
     }
   }
@@ -450,10 +480,12 @@ async function chooseFullClosetDay(params: {
   fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots });
   normalizeSuitDualRole(bySlot);
 
+  const rationale = guardAgainstHallucinatedRationale(bySlot, chosen?.rationale ?? FALLBACK_TRIP_RATIONALE);
+
   return {
     bySlot,
     title: chosen?.title ?? FALLBACK_TRIP_TITLE,
-    rationale: chosen?.rationale ?? FALLBACK_TRIP_RATIONALE,
+    rationale,
     usedOuterwearTitles: updateUsedTitles(bySlot, 'outerwear', params.usedOuterwearTitles),
     usedFootwearTitles: updateUsedTitles(bySlot, 'footwear', params.usedFootwearTitles),
   };
@@ -492,9 +524,16 @@ async function generateFullClosetTripOutfits(
   // trip, not silently dropped once fullCloset mode is on. usedAnchorItemIds
   // is threaded the same way as the outerwear/footwear caps, since real
   // generation is one day per HTTP request (progressive), not one batched call.
+  // Hat/bag anchors are excluded from pinning — those stay strictly opt-in
+  // via the per-day "Add hat"/"Add bag" toggle regardless of "definitely
+  // bring" status; packing an item isn't the same as it being worn/rendered.
   const closetAnchorItems = (request.anchors ?? [])
     .filter((anchor) => anchor.source === 'closet' && anchor.closetItemId && itemsById.has(anchor.closetItemId))
-    .map((anchor) => itemsById.get(anchor.closetItemId!)!);
+    .map((anchor) => itemsById.get(anchor.closetItemId!)!)
+    .filter((item) => {
+      const group = CATEGORY_TO_GROUP[item.category];
+      return group !== 'hat' && group !== 'bag';
+    });
   const usedAnchorItemIds = new Set(request.usedAnchorItemIds ?? []);
 
   // Sequential, not parallel — the outerwear/footwear cap must be threaded
