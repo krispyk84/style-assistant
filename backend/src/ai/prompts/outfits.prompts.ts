@@ -10,6 +10,7 @@ function buildClosetOnlyInstructions(): string[] {
     'CLOSET-ONLY MODE: every recommendation must be built ENTIRELY from the WARDROBE INDEX provided in the user content below. Never invent a piece that is not in the index — if the wardrobe genuinely has no good option for a slot, choose the closest available item rather than fabricating one.',
     'closetItemIds: the exact ids (from the wardrobe index) used to build this recommendation\'s anchorPiece/keyPieces/shoes/accessories. Every id must exist in the index. 2–8 ids per recommendation.',
     'display_name for every piece must describe the ACTUAL chosen item by its real name/details, not a generic placeholder.',
+    'HARD CONSTRAINT — one piece of text per one real item: every keyPiece/shoe/accessory/anchorPiece must describe exactly one whole item from closetItemIds, using its actual category. Do not split a combined item (e.g. a "Suit" index entry) into separates and wear only part of it. Do not describe an item as serving a role it is not (e.g. never call a shirt "used as a neck tie"). If the wardrobe has no real item for a slot the outfit genuinely needs, omit that slot rather than repurposing or misdescribing an unrelated item to fill it.',
   ];
 }
 

@@ -207,6 +207,7 @@ export function buildTripOutfitsPrompt(
           '- FULL-CLOSET MODE: you must build every day ENTIRELY from the WARDROBE INDEX provided below. Never invent a piece that is not in the index — if the wardrobe genuinely has no good option for a slot, choose the closest available item rather than fabricating one.',
           '- closetItemIds: the exact ids (from the wardrobe index) used to build this day\'s outfit. Every id must exist in the index. 2–6 ids per day.',
           '- pieces/shoes/accessories text must describe the ACTUAL chosen items by their real name, not generic placeholders.',
+          '- HARD CONSTRAINT — one piece of text per one real item: every entry in pieces/shoes/bag/accessories must describe exactly one whole item from closetItemIds, using its actual category. Do not split a combined item (e.g. a "Suit" index entry) into separates and wear only part of it. Do not describe an item as serving a role it is not (e.g. never call a shirt "used as a neck tie"). If the wardrobe has no real item for a slot the day genuinely needs (e.g. a tie), omit that slot rather than repurposing or misdescribing an unrelated item to fill it — note the gap in rationale if relevant.',
           '- Prefer reusing the same versatile pieces across multiple days over picking a fully different item for every single day — treat the wardrobe as one coherent travel capsule, not one outfit per day in isolation.',
           '- If "happy to rewear pieces" is not enabled, still favor reuse across days but bias toward less repetition where the wardrobe allows it.',
         ]
@@ -332,6 +333,7 @@ export function buildRegenerateDayPrompt(
           '- FULL-CLOSET MODE: you must build this day ENTIRELY from the WARDROBE INDEX provided below. Never invent a piece that is not in the index.',
           '- closetItemIds: the exact ids (from the wardrobe index) used to build this day\'s outfit. Every id must exist in the index. 2–6 ids.',
           '- pieces/shoes/accessories text must describe the ACTUAL chosen items by their real name, not generic placeholders.',
+          '- HARD CONSTRAINT — one piece of text per one real item: every entry in pieces/shoes/bag/accessories must describe exactly one whole item from closetItemIds, using its actual category. Do not split a combined item (e.g. a "Suit" index entry) into separates and wear only part of it. Do not describe an item as serving a role it is not (e.g. never call a shirt "used as a neck tie"). If the wardrobe has no real item for a slot the day genuinely needs, omit that slot rather than repurposing or misdescribing an unrelated item to fill it.',
         ]
       : []),
     TRIP_REGENERATION_BAG_RULE,
@@ -437,6 +439,7 @@ export function buildDayVariantsPrompt(
     '- Never invent a piece that is not in the wardrobe index.',
     '- closetItemIds: the exact ids (from the wardrobe index) used to build that variant, including the kept ids and the chosen replacement(s). 2–6 ids per variant.',
     '- pieces/shoes/accessories text must describe the ACTUAL chosen items by their real name, not generic placeholders.',
+    '- HARD CONSTRAINT — one piece of text per one real item: every entry in pieces/shoes/bag/accessories must describe exactly one whole item from closetItemIds, using its actual category. Do not split a combined item (e.g. a "Suit" index entry) into separates and wear only part of it. Do not describe an item as serving a role it is not (e.g. never call a shirt "used as a neck tie").',
     '- dayIndex and date must match what is provided on every variant — do NOT change them. Keep the same dayType.',
     '- Return between 1 and 5 variants — fewer than 5 is fine if the wardrobe genuinely doesn\'t support more distinct options, but never repeat an identical set of closetItemIds across variants.',
     TRIP_REGENERATION_BAG_RULE,
