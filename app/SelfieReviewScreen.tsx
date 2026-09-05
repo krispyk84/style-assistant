@@ -94,8 +94,8 @@ export default function SelfieReviewScreen() {
                 ? uploadSuccessMessage ?? 'Upload complete.'
                 : null
           }
-          pickLabel={isUploading ? `Uploading ${Math.round(uploadProgress * 100)}%` : 'Choose from library'}
-          cameraLabel="Take photo"
+          pickLabel={isUploading ? `Uploading ${Math.round(uploadProgress * 100)}%` : 'Library'}
+          cameraLabel="Photo"
           futureCameraHint="Use your library or capture a fresh outfit photo with the camera."
           onPick={pickFromLibrary}
           onTakePhoto={handleOpenCamera}
