@@ -222,7 +222,16 @@ export function resolveClosetConstrainedPieces<T extends { label: string; value:
 
   const claimed = new Set<string>();
   return slots.map((slot) => {
-    const item = resolvedPool.length ? findBestClosetMatch(slot.value, resolvedPool, claimed) : null;
+    let item = resolvedPool.length ? findBestClosetMatch(slot.value, resolvedPool, claimed) : null;
+    // The generation prompt sometimes narrates a piece it never actually
+    // included a real id for (despite being told not to) — rather than let
+    // that piece silently vanish from the card while the rationale still
+    // describes it, fall back to a whole-closet search so it gets *some*
+    // real match instead of none. findBestClosetMatch already gates on a
+    // minimum confidence internally, so a poor fallback still returns null.
+    if (!item) {
+      item = findBestClosetMatch(slot.value, allClosetItems, claimed);
+    }
     if (item) claimed.add(item.id);
     return {
       ...slot,
