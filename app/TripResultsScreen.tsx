@@ -41,11 +41,13 @@ export function TripResultsScreen() {
     regeneratingDays,
     isSaving,
     savedDbId,
+    updatingAccessoryDayId,
     handleGenerateSketch,
     handleLove,
     handleHate,
     handleGenerateVariants,
     handleSaveTrip,
+    handleToggleDayAccessory,
   } = useTripResultsActions({
     plan,
     days,
@@ -149,6 +151,8 @@ export function TripResultsScreen() {
                 onLove={() => void handleLove(day)}
                 onHate={() => void handleHate(day)}
                 onGenerateVariants={handleGenerateVariants}
+                onToggleAccessory={(targetDay, toggle) => void handleToggleDayAccessory(targetDay, toggle)}
+                isUpdatingAccessories={updatingAccessoryDayId === day.id}
               />
             ))}
 

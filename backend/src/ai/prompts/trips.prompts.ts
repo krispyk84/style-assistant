@@ -169,27 +169,19 @@ export type TripOutfitsPrompt = {
   };
 };
 
-export type TripWardrobeIndexItem = {
-  id: string;
-  name: string;
-  category: string;
-  color_family?: string | null;
-  formality?: string | null;
-  silhouette?: string | null;
-  season?: string | null;
-  material?: string | null;
-  brand?: string | null;
-};
+// "From My Closet" (fullCloset) trip days no longer send a wardrobe index to
+// any LLM prompt at all — item SELECTION is deterministic (closet-outfit-
+// builder.ts, applied per-day in trips.service.ts using each day's dayType-
+// derived formality target). These prompts now cover only the non-closet
+// (guided/auto/manual anchor) path, plus the two fullCloset-specific prompts
+// below (day "shape" planning, and narration of already-fixed real items).
 
 export function buildTripOutfitsPrompt(
   req: GenerateTripOutfitsRequest,
   profile: PromptProfile,
   styleGuideContext?: string | null,
-  /** Present only for "From My Closet" (fullCloset) requests — the full wardrobe index the model must build every day from. */
-  closetIndex?: TripWardrobeIndexItem[],
 ): TripOutfitsPrompt {
   const totalDays = Math.min(14, daysBetween(req.departureDate, req.returnDate));
-  const isFullCloset = closetIndex !== undefined;
 
   const instructions = [
     'You are an expert travel stylist. Generate a practical, stylish, day-by-day outfit plan for a trip.',
@@ -202,17 +194,6 @@ export function buildTripOutfitsPrompt(
     '- If laundry access is No, avoid outfits that require laundering every day.',
     '- title should be a short evocative label for the day (e.g. "Arrival in Kyoto", "Temple District Morning", "Black-Tie Gala").',
     '- rationale explains why this outfit works for this specific day (climate, activity, formality).',
-    ...(isFullCloset
-      ? [
-          '- FULL-CLOSET MODE: you must build every day ENTIRELY from the WARDROBE INDEX provided below. Never invent a piece that is not in the index — if the wardrobe genuinely has no good option for a slot, choose the closest available item rather than fabricating one.',
-          '- closetItemIds: the exact ids (from the wardrobe index) used to build this day\'s outfit. Every id must exist in the index. 2–6 ids per day.',
-          '- pieces/shoes/accessories text must describe the ACTUAL chosen items by their real name, not generic placeholders.',
-          '- HARD CONSTRAINT — one piece of text per one real item: every entry in pieces/shoes/bag/accessories must describe exactly one whole item from closetItemIds, using its actual category. Do not split a combined item (e.g. a "Suit" index entry) into separates and wear only part of it. Do not describe an item as serving a role it is not (e.g. never call a shirt "used as a neck tie"). If the wardrobe has no real item for a slot the day genuinely needs (e.g. a tie), omit that slot rather than repurposing or misdescribing an unrelated item to fill it — note the gap in rationale if relevant.',
-          '- FORMALITY-APPROPRIATE FOOTWEAR: for business, meeting, conference, dinner_out, and wedding_event days, prefer wardrobe index items whose formality is "Formal" or "Refined Casual" — especially footwear. Do not default to Casual-formality sneakers for these day types when the index contains more formal footwear (oxfords, derbies, brogues, loafers, boots) that would suit the day. Only choose a Casual item for these days if the wardrobe genuinely has no more formal option in that category.',
-          '- Prefer reusing the same versatile pieces across multiple days over picking a fully different item for every single day — treat the wardrobe as one coherent travel capsule, not one outfit per day in isolation.',
-          '- If "happy to rewear pieces" is not enabled, still favor reuse across days but bias toward less repetition where the wardrobe allows it.',
-        ]
-      : []),
     '- pieces: list each main garment with color + fabric hint (e.g. "Slim navy linen trousers"). Min 2, max 5.',
     `- If any piece is a jacket/coat/blazer/outerwear layer, treat it as a strictly limited, reusable resource — see the outerwear cap in PACKING CONSTRAINTS below. Do not describe a different jacket for each day; reuse the same one(s), worded identically, across the trip.`,
     '- shoes: one specific footwear choice.',
@@ -232,15 +213,12 @@ export function buildTripOutfitsPrompt(
   const userText = [
     buildTripContext(req),
     '',
-    ...(isFullCloset
-      ? [`Rewear pieces OK: ${req.rewearOk ? 'Yes' : 'No'}`, '', 'WARDROBE INDEX (every item you may use — reference by exact id):', JSON.stringify(closetIndex, null, 2), '']
-      : []),
     buildDayList(req),
     '',
     generateInstruction,
   ].join('\n');
 
-  const baseDayProperties: Record<string, unknown> = {
+  const dayProperties: Record<string, unknown> = {
     dayIndex:     { type: 'integer', description: '0-based day index' },
     date:         { type: 'string',  description: 'YYYY-MM-DD' },
     title:        { type: 'string',  description: 'Short evocative day title' },
@@ -252,21 +230,7 @@ export function buildTripOutfitsPrompt(
     accessories:  { type: 'array', items: { type: 'string' }, maxItems: 3 },
     contextTags:  { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 },
   };
-  const baseRequired = ['dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags'];
-
-  const dayProperties = isFullCloset
-    ? {
-        ...baseDayProperties,
-        closetItemIds: {
-          type: 'array',
-          items: { type: 'string' },
-          minItems: 2,
-          maxItems: 6,
-          description: 'Real closet item ids (from the wardrobe index) used to build this day\'s outfit',
-        },
-      }
-    : baseDayProperties;
-  const dayRequired = isFullCloset ? [...baseRequired, 'closetItemIds'] : baseRequired;
+  const dayRequired = ['dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags'];
 
   const jsonSchema: TripOutfitsPrompt['jsonSchema'] = {
     name: 'trip_outfits',
@@ -311,13 +275,10 @@ export function buildRegenerateDayPrompt(
   req: RegenerateTripDayRequest,
   profile: PromptProfile,
   styleGuideContext?: string | null,
-  /** Present only when the original day was "From My Closet" (fullCloset) — the full wardrobe index the replacement day must build from. */
-  closetIndex?: TripWardrobeIndexItem[],
 ): RegenerateDayPrompt {
   const dayLabel = formatDate(req.date);
   const previousList = req.previousPieces.map((p) => `  • ${p}`).join('\n');
   const previousShoes = req.previousShoes ? `  • ${req.previousShoes} (shoes)` : '';
-  const isFullCloset = closetIndex !== undefined;
 
   const instructions = [
     'You are an expert travel stylist. Generate ONE fresh outfit alternative for a single trip day.',
@@ -329,15 +290,6 @@ export function buildRegenerateDayPrompt(
     '- Do NOT repeat the previous outfit pieces. Generate a genuinely different look.',
     '- title should be a different evocative label from before.',
     '- Be specific about garment descriptions (color + fabric hint).',
-    ...(isFullCloset
-      ? [
-          '- FULL-CLOSET MODE: you must build this day ENTIRELY from the WARDROBE INDEX provided below. Never invent a piece that is not in the index.',
-          '- closetItemIds: the exact ids (from the wardrobe index) used to build this day\'s outfit. Every id must exist in the index. 2–6 ids.',
-          '- pieces/shoes/accessories text must describe the ACTUAL chosen items by their real name, not generic placeholders.',
-          '- HARD CONSTRAINT — one piece of text per one real item: every entry in pieces/shoes/bag/accessories must describe exactly one whole item from closetItemIds, using its actual category. Do not split a combined item (e.g. a "Suit" index entry) into separates and wear only part of it. Do not describe an item as serving a role it is not (e.g. never call a shirt "used as a neck tie"). If the wardrobe has no real item for a slot the day genuinely needs, omit that slot rather than repurposing or misdescribing an unrelated item to fill it.',
-          '- FORMALITY-APPROPRIATE FOOTWEAR: for business, meeting, conference, dinner_out, and wedding_event days, prefer wardrobe index items whose formality is "Formal" or "Refined Casual" — especially footwear. Do not default to Casual-formality sneakers for these day types when the index contains more formal footwear (oxfords, derbies, brogues, loafers, boots) that would suit the day. Only choose a Casual item for these days if the wardrobe genuinely has no more formal option in that category.',
-        ]
-      : []),
     TRIP_REGENERATION_BAG_RULE,
     ...buildTripTemperatureRuleLines(req.avgHighC),
     '',
@@ -353,7 +305,6 @@ export function buildRegenerateDayPrompt(
     `Style vibe: ${req.styleVibe}`,
     req.purposes.length > 0 ? `Trip purpose: ${req.purposes.join(', ')}` : '',
     '',
-    ...(isFullCloset ? ['WARDROBE INDEX (every item you may use — reference by exact id):', JSON.stringify(closetIndex, null, 2), ''] : []),
     `Day to regenerate: Day ${req.dayIndex + 1} — ${dayLabel} (${req.dayType})`,
     '',
     'PREVIOUS OUTFIT (do NOT repeat these pieces):',
@@ -376,14 +327,8 @@ export function buildRegenerateDayPrompt(
       bag:          { type: ['string', 'null'] },
       accessories:  { type: 'array', items: { type: 'string' }, maxItems: 3 },
       contextTags:  { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 },
-      ...(isFullCloset
-        ? { closetItemIds: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 6, description: 'Real closet item ids used to build this day\'s outfit' } }
-        : {}),
     },
-    required: [
-      'dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags',
-      ...(isFullCloset ? ['closetItemIds'] : []),
-    ],
+    required: ['dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags'],
     additionalProperties: false,
   };
 
@@ -403,113 +348,138 @@ export function buildRegenerateDayPrompt(
   };
 }
 
-// ── Trip day variants prompt (swap 1-2 items, keep the rest) ────────────────
-// Closet-constrained only — mirrors closet-outfits.service.ts's
-// generateOutfitVariations "keep/swap" semantics, adapted to trips' day shape.
+// ── Trip day "shape" prompt (fullCloset only) ────────────────────────────────
+// Item selection is deterministic (closet-outfit-builder.ts) — this prompt
+// only decides the day type and context tags before the real items are picked
+// in code; the day's title is decided later, in narration, once the real
+// items are known. Kept as its own small LLM call because day-type
+// distribution is a genuinely creative, context-sensitive judgment (which
+// days are business vs. relaxed, informed by free-text trip details) that a
+// fixed heuristic would handle far more crudely.
 
-export type DayVariantsPrompt = {
+const DAY_TYPE_ENUM = ['travel_day', 'sightseeing', 'business', 'meeting', 'dinner_out', 'beach_pool', 'adventure', 'wedding_event', 'relaxed', 'conference'];
+
+export type TripDayShapePrompt = {
   instructions: string;
   userContent: { type: 'input_text'; text: string }[];
   jsonSchema: JsonSchemaConfig;
 };
 
-export function buildDayVariantsPrompt(
-  req: GenerateTripDayVariantsRequest,
+export function buildTripDayShapePrompt(
+  req: GenerateTripOutfitsRequest,
   profile: PromptProfile,
-  closetIndex: TripWardrobeIndexItem[],
   styleGuideContext?: string | null,
-): DayVariantsPrompt {
-  const dayLabel = formatDate(req.date);
-  const indexById = new Map(closetIndex.map((item) => [item.id, item]));
-  const keepDescriptions = req.keepItemIds
-    .map((id) => indexById.get(id))
-    .filter((item): item is TripWardrobeIndexItem => !!item)
-    .map((item) => `  • [${item.id}] ${item.category}: ${item.name}`)
-    .join('\n');
-  const swapDescriptions = req.swapItemIds
-    .map((id) => indexById.get(id))
-    .filter((item): item is TripWardrobeIndexItem => !!item)
-    .map((item) => `  • [${item.id}] ${item.category}: ${item.name}`)
-    .join('\n');
+): TripDayShapePrompt {
+  const totalDays = Math.min(14, daysBetween(req.departureDate, req.returnDate));
 
   const instructions = [
-    'You are an expert travel stylist. Generate up to 5 DISTINCT alternative outfits for a single trip day, all built ENTIRELY from the WARDROBE INDEX below.',
+    'You are an expert travel stylist planning the SHAPE of a day-by-day trip wardrobe — day type, title, and context tags only. Item selection happens separately, in code, from the client\'s own closet.',
     '',
     'RULES:',
-    '- Every variant must reuse the KEEP ITEMS below completely unchanged — same ids, described identically. Do not swap, drop, or reword them.',
-    '- Every variant must replace EACH of the SWAP ITEMS below with a DIFFERENT real item from the wardrobe index in the same category/slot. Try a genuinely different real item across the 5 variants where the wardrobe allows it — do not just return the same replacement 5 times.',
-    '- HARD CONSTRAINT — the replacement must actually appear: for every SWAP ITEM, closetItemIds MUST include a different real id in that same category, and pieces/shoes/bag/accessories MUST contain one text entry describing that exact replacement item. A variant whose closetItemIds still contains an original SWAP ITEM id, or that omits a replacement for it entirely, is invalid and will be discarded — never submit one.',
-    '- Never invent a piece that is not in the wardrobe index.',
-    '- closetItemIds: the exact ids (from the wardrobe index) used to build that variant, including the kept ids and the chosen replacement(s). 2–6 ids per variant.',
-    '- pieces/shoes/accessories text must describe the ACTUAL chosen items by their real name, not generic placeholders.',
-    '- HARD CONSTRAINT — one piece of text per one real item: every entry in pieces/shoes/bag/accessories must describe exactly one whole item from closetItemIds, using its actual category. Do not split a combined item (e.g. a "Suit" index entry) into separates and wear only part of it. Do not describe an item as serving a role it is not (e.g. never call a shirt "used as a neck tie").',
-    '- FORMALITY-APPROPRIATE REPLACEMENTS: for business, meeting, conference, dinner_out, and wedding_event days, if a SWAP ITEM is footwear, prioritize real dress shoes (oxfords, derbies, brogues, loafers, boots — formality "Formal" or "Refined Casual" in the index) for the replacement across the variants. Do not just offer other sneakers or Casual-formality shoes unless the wardrobe genuinely has no formal footwear option available.',
-    '- dayIndex and date must match what is provided on every variant — do NOT change them. Keep the same dayType.',
-    '- Return between 1 and 5 variants — fewer than 5 is fine if the wardrobe genuinely doesn\'t support more distinct options, but never repeat an identical set of closetItemIds across variants.',
-    TRIP_REGENERATION_BAG_RULE,
-    ...buildTripTemperatureRuleLines(req.avgHighC),
+    '- Generate exactly one entry per day listed below.',
+    '- dayIndex is 0-based (Day 1 = dayIndex 0).',
+    '- Distribute day types intelligently: first/last days are usually travel_day; distribute sightseeing, business, dinner_out, beach_pool, adventure, wedding_event, relaxed, conference across the rest based on the trip purpose, activities, and any day-specific user details below.',
+    '- contextTags: 1–4 short tags (e.g. "beach-ready", "breathable", "semi-formal", "layerable").',
     '',
     formatProfileContext(profile),
     styleGuideContext ?? 'No retrieved style-guide guidance was available for this request.',
   ].join('\n');
 
-  const userText = [
-    `TRIP: ${req.destination}, ${req.country}`,
-    `Climate: ${req.climateLabel || 'Not specified'}`,
-    req.activities ? `Activities: ${req.activities}` : '',
-    req.dressCode ? `Dress code: ${req.dressCode}` : '',
-    `Style vibe: ${req.styleVibe}`,
-    req.purposes.length > 0 ? `Trip purpose: ${req.purposes.join(', ')}` : '',
-    '',
-    'WARDROBE INDEX (every item you may use — reference by exact id):',
-    JSON.stringify(closetIndex, null, 2),
-    '',
-    `Day: Day ${req.dayIndex + 1} — ${dayLabel} (${req.dayType})`,
-    '',
-    'KEEP ITEMS (reuse unchanged in every variant):',
-    keepDescriptions || '  (none)',
-    '',
-    'SWAP ITEMS (replace each with a different real item, per variant):',
-    swapDescriptions,
-    '',
-    'Generate up to 5 distinct variants.',
-  ].filter(Boolean).join('\n');
+  const generateInstruction = req.generateOnlyDayIndex !== undefined
+    ? `Generate exactly 1 entry for Day ${req.generateOnlyDayIndex + 1} only.`
+    : `Generate exactly ${totalDays} entries — one per day in order.`;
 
-  const daySchema = {
-    type: 'object',
-    properties: {
-      dayIndex:     { type: 'integer' },
-      date:         { type: 'string' },
-      title:        { type: 'string' },
-      dayType:      { type: 'string', enum: ['travel_day', 'sightseeing', 'business', 'meeting', 'dinner_out', 'beach_pool', 'adventure', 'wedding_event', 'relaxed', 'conference'] },
-      rationale:    { type: 'string' },
-      pieces:       { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 5 },
-      shoes:        { type: 'string' },
-      bag:          { type: ['string', 'null'] },
-      accessories:  { type: 'array', items: { type: 'string' }, maxItems: 3 },
-      contextTags:  { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 },
-      closetItemIds: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 6, description: 'Real closet item ids used to build this variant' },
-    },
-    required: ['dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags', 'closetItemIds'],
-    additionalProperties: false,
-  };
+  const userText = [
+    buildTripContext(req),
+    '',
+    buildDayList(req),
+    '',
+    generateInstruction,
+  ].join('\n');
 
   return {
     instructions,
     userContent: [{ type: 'input_text', text: userText }],
     jsonSchema: {
-      name: 'trip_day_variants',
-      description: 'Up to 5 alternative outfits for a single trip day, swapping 1-2 items',
+      name: 'trip_day_shape',
+      description: 'Day-by-day trip shape (day type, title, tags) — item selection happens separately',
       schema: {
         type: 'object',
         properties: {
-          variants: { type: 'array', items: daySchema, minItems: 1, maxItems: 5 },
+          days: {
+            type: 'array',
+            description: 'One shape entry per day, in chronological order',
+            items: {
+              type: 'object',
+              properties: {
+                dayIndex:    { type: 'integer', description: '0-based day index' },
+                date:        { type: 'string', description: 'YYYY-MM-DD' },
+                dayType:     { type: 'string', enum: DAY_TYPE_ENUM },
+                contextTags: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 },
+              },
+              required: ['dayIndex', 'date', 'dayType', 'contextTags'],
+              additionalProperties: false,
+            },
+            minItems: 1,
+            maxItems: 14,
+          },
         },
-        required: ['variants'],
+        required: ['days'],
         additionalProperties: false,
       },
     },
   };
+}
+
+// ── Trip day narration prompt (fullCloset only) ──────────────────────────────
+// Mirrors closet-outfits.prompts.ts's narration step: the real items for each
+// day are already fixed (built deterministically) — the model only writes the
+// rationale explaining why that exact combination works for that day.
+
+export type TripDayNarrationItem = {
+  id: string;
+  name: string;
+  category: string;
+  color_family?: string | null;
+  formality?: string | null;
+};
+
+export type TripDayToNarrate = {
+  index: number;
+  dayType: string;
+  items: TripDayNarrationItem[];
+};
+
+export function buildTripDayNarrationSystemPrompt(): string {
+  return [
+    'You are an expert travel stylist. For each trip day below, the exact real pieces have ALREADY been chosen from the client\'s own closet — your only job is to title the day and explain why that combination works.',
+    '',
+    'HARD RULES:',
+    '1. Do not add, remove, or substitute any piece. Describe only the items listed for each day — never invent or imply a piece that is not in that day\'s list.',
+    '2. "title" is a short evocative label for the day (e.g. "Arrival in Kyoto", "Temple District Morning", "Black-Tie Gala") — vary the tone/vocabulary across days so they don\'t all sound the same.',
+    '3. "rationale" is 1-2 sentences, specific to the actual pieces listed (reference them by name) and the day\'s type/climate/activities — explain the styling logic, not a generic compliment.',
+    '4. Return one entry per day index provided, matched by "index". Do not skip or reorder.',
+    '',
+    'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
+  ].join('\n');
+}
+
+export function buildTripDayNarrationUserPrompt(params: {
+  days: TripDayToNarrate[];
+  destination: string;
+  climateLabel?: string | null;
+  avgHighC?: number | null;
+}): string {
+  return [
+    `TRIP: ${params.destination}`,
+    params.climateLabel ? `Climate: ${params.climateLabel}` : null,
+    ...buildTripTemperatureRuleLines(params.avgHighC ?? undefined),
+    '',
+    'Days to narrate (each already built from the client\'s real closet items — describe exactly these, nothing else):',
+    JSON.stringify(params.days, null, 2),
+    '',
+    'Return a title and rationale for each day index above.',
+  ].filter((line): line is string => line !== null).join('\n');
 }
 
 // ── Trip day sketch prompt ────────────────────────────────────────────────────

@@ -6,7 +6,7 @@ import { HttpError } from '../../lib/http-error.js';
 import { parseWithSchema } from '../../lib/validation.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { tripsService } from './trips.service.js';
-import { generateTripOutfitsSchema, generateTripDaySketchSchema, regenerateTripDaySchema, generateTripDayVariantsSchema } from './trips.schemas.js';
+import { generateTripOutfitsSchema, generateTripDaySketchSchema, regenerateTripDaySchema, generateTripDayVariantsSchema, updateTripDayAccessoriesSchema } from './trips.schemas.js';
 
 export const tripsRouter = Router();
 
@@ -49,6 +49,16 @@ tripsRouter.post(
     const payload = parseWithSchema(generateTripDayVariantsSchema, request.body);
     const result = await tripsService.generateDayVariants(payload, request.userId!);
     return sendSuccess(response, result, 201);
+  })
+);
+
+tripsRouter.post(
+  '/trips/update-day-accessories',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(updateTripDayAccessoriesSchema, request.body);
+    const result = await tripsService.updateDayAccessories(payload, request.userId!);
+    return sendSuccess(response, result);
   })
 );
 

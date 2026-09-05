@@ -1,6 +1,14 @@
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildModelImageInput, resolveImageUrlForAI } from '../../ai/image-input.js';
-import { buildTripOutfitsPrompt, buildTripDaySketchPrompt, buildRegenerateDayPrompt, buildDayVariantsPrompt } from '../../ai/prompts/trips.prompts.js';
+import {
+  buildTripOutfitsPrompt,
+  buildTripDaySketchPrompt,
+  buildRegenerateDayPrompt,
+  buildTripDayShapePrompt,
+  buildTripDayNarrationSystemPrompt,
+  buildTripDayNarrationUserPrompt,
+  type TripDayToNarrate,
+} from '../../ai/prompts/trips.prompts.js';
 import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { env } from '../../config/env.js';
@@ -9,19 +17,38 @@ import { describeError, HttpError } from '../../lib/http-error.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
 import { closetRepository } from '../closet/closet.repository.js';
+import { buildDeterministicOutfit, pickVariantReplacements } from '../closet/closet-outfit-builder.js';
+import { CATEGORY_TO_GROUP, FORMALITY_RANK, GROUP_TO_SLOTS, TRIP_DAY_TYPE_FORMALITY_TARGET, type OutfitSlot } from '../closet/closet-taxonomy.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
-import { regenerateDayResponseSchema, tripDayVariantsResponseSchema, tripOutfitsResponseSchema } from './trips.schemas.js';
-import type { GenerateTripDayVariantsRequest, GenerateTripDayVariantsResponse, GenerateTripOutfitsRequest, GenerateTripOutfitsResponse, RegenerateTripDayRequest, TripOutfitDayDto } from '../../contracts/trips.contracts.js';
+import {
+  regenerateDayResponseSchema,
+  tripOutfitsResponseSchema,
+  tripDayShapeResponseSchema,
+  tripDayNarrationResponseSchema,
+  TRIP_DAY_NARRATION_JSON_SCHEMA,
+} from './trips.schemas.js';
+import type {
+  GenerateTripDayVariantsRequest,
+  GenerateTripDayVariantsResponse,
+  GenerateTripOutfitsRequest,
+  GenerateTripOutfitsResponse,
+  RegenerateTripDayRequest,
+  TripOutfitDayDto,
+  UpdateTripDayAccessoriesRequest,
+  UpdateTripDayAccessoriesResponse,
+} from '../../contracts/trips.contracts.js';
 import type { InputContent } from '../../ai/openai-request-builder.js';
 
 // Mirrors lib/outfit-piece-display.ts's CATEGORY_KEYWORDS['Outerwear'] on the
 // frontend — kept as a separate constant here since that file isn't shared
-// with the backend. Used to enforce the outerwear cap programmatically:
-// pure prompt instructions weren't reliable enough across ~8 separate,
-// stateless per-day generation calls (each day is its own API request with
-// no real memory of prior turns beyond a text summary) — the model kept
-// inventing a new jacket per day despite being told not to.
+// with the backend. Used to enforce the outerwear cap programmatically for
+// the NON-closet (freeform text) path: pure prompt instructions weren't
+// reliable enough across ~8 separate, stateless per-day generation calls
+// (each day is its own API request with no real memory of prior turns beyond
+// a text summary) — the model kept inventing a new jacket per day despite
+// being told not to. The fullCloset path enforces the same caps directly on
+// real items (enforceClosetSlotCap below) rather than by keyword-matching text.
 const OUTERWEAR_KEYWORDS = ['jacket', 'coat', 'blazer', 'cardigan', 'hoodie', 'windbreaker', 'parka', 'vest', 'puffer', 'trench', 'overcoat', 'jumper', 'overshirt'];
 
 function isOuterwearPiece(piece: string): boolean {
@@ -101,6 +128,348 @@ function parseShoesCap(shoesCount: string | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : 2;
 }
 
+// ── fullCloset (deterministic) helpers ────────────────────────────────────────
+
+type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
+type BuilderProfile = Awaited<ReturnType<typeof profileRepository.findByUserId>>;
+
+function weatherGates(temperatureC: number | null): { includeLayering: boolean; includeOuterwear: boolean } {
+  if (temperatureC == null) return { includeLayering: true, includeOuterwear: true };
+  if (temperatureC >= 24) return { includeLayering: false, includeOuterwear: false };
+  if (temperatureC >= 18) return { includeLayering: false, includeOuterwear: true };
+  return { includeLayering: true, includeOuterwear: true };
+}
+
+/**
+ * Same-purpose real-item equivalent of enforceOuterwearCap/enforceFootwearCap
+ * — tracks cap state via display-title strings (matching the existing
+ * usedOuterwear/usedFootwear request/response contract, which the frontend
+ * already derives and threads across progressive per-day calls) rather than
+ * keyword-matching freeform text, since the item is already known structurally.
+ */
+function enforceClosetSlotCap(params: {
+  picked: BuilderItem | undefined;
+  usedTitles: string[];
+  cap: number;
+  allowDrop: boolean;
+  closetItems: BuilderItem[];
+}): { picked: BuilderItem | undefined; usedTitles: string[] } {
+  const { picked, usedTitles, cap, allowDrop, closetItems } = params;
+  if (!picked) return { picked, usedTitles };
+  if (usedTitles.some((title) => title.toLowerCase() === picked.title.toLowerCase())) {
+    return { picked, usedTitles };
+  }
+  if (allowDrop && cap <= 0) return { picked: undefined, usedTitles };
+  const effectiveCap = allowDrop ? cap : Math.max(1, cap);
+  if (usedTitles.length < effectiveCap) {
+    return { picked, usedTitles: [...usedTitles, picked.title] };
+  }
+  const reuseTitle = usedTitles[0];
+  const reuseItem = reuseTitle
+    ? closetItems.find((item) => item.title.toLowerCase() === reuseTitle.toLowerCase())
+    : undefined;
+  return { picked: reuseItem ?? picked, usedTitles };
+}
+
+function mapDaySlotsToDto(bySlot: Partial<Record<OutfitSlot, BuilderItem>>): {
+  pieces: string[];
+  shoes: string;
+  bag: string | null;
+  accessories: string[];
+  closetItemIds: string[];
+} {
+  const pieces = [bySlot.bottoms, bySlot.tops, bySlot.layering, bySlot.outerwear]
+    .filter((item): item is BuilderItem => Boolean(item))
+    .map((item) => item.title);
+  const accessories = [bySlot.watch, bySlot.sunglasses, bySlot.hat]
+    .filter((item): item is BuilderItem => Boolean(item))
+    .map((item) => item.title);
+  const closetItemIds = Object.values(bySlot)
+    .filter((item): item is BuilderItem => Boolean(item))
+    .map((item) => item.id);
+
+  return {
+    pieces,
+    shoes: bySlot.footwear?.title ?? '',
+    bag: bySlot.bag?.title ?? null,
+    accessories,
+    closetItemIds,
+  };
+}
+
+// Reconstructs a bySlot map from a flat item-id list — needed by
+// generateDayVariants/updateDayAccessories, which work with real item ids
+// (from a swap/toggle request) rather than a fresh buildDeterministicOutfit
+// result that already carries slots.
+function buildBySlotFromItemIds(
+  itemIds: string[],
+  itemsById: Map<string, BuilderItem>,
+): Partial<Record<OutfitSlot, BuilderItem>> {
+  const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
+  for (const id of itemIds) {
+    const item = itemsById.get(id);
+    if (!item) continue;
+    const group = CATEGORY_TO_GROUP[item.category];
+    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
+    if (slot) bySlot[slot] = item;
+  }
+  return bySlot;
+}
+
+// Reuses the shared deterministic builder to pick a single hat/bag by
+// restricting its candidate pool to just that garment group — mirrors
+// closet-outfits.service.ts's pickAccessory.
+function pickAccessory(
+  group: 'hat' | 'bag',
+  closetItems: BuilderItem[],
+  targetFormalityRank: number,
+  excludeItemIds: ReadonlySet<string>,
+): BuilderItem | null {
+  const candidates = closetItems.filter((item) => CATEGORY_TO_GROUP[item.category] === group);
+  const result = buildDeterministicOutfit({
+    closetItems: candidates,
+    targetFormalityRank,
+    includeLayering: false,
+    includeOuterwear: false,
+    includeHat: group === 'hat',
+    includeBag: group === 'bag',
+    excludeItemIds,
+  });
+  return result.bySlot.hat ?? result.bySlot.bag ?? null;
+}
+
+const FALLBACK_TRIP_TITLE = 'A Day From Your Closet';
+const FALLBACK_TRIP_RATIONALE = 'A complete outfit built entirely from pieces you already own.';
+
+async function narrateTripDays(params: {
+  days: TripDayToNarrate[];
+  destination: string;
+  climateLabel?: string | null;
+  avgHighC?: number;
+  supabaseUserId: string;
+}): Promise<Map<number, { title: string; rationale: string }>> {
+  const userPrompt = buildTripDayNarrationUserPrompt({
+    days: params.days,
+    destination: params.destination,
+    climateLabel: params.climateLabel,
+    avgHighC: params.avgHighC,
+  });
+
+  try {
+    const result = await openAiClient.createStructuredResponse({
+      schema: tripDayNarrationResponseSchema,
+      jsonSchema: TRIP_DAY_NARRATION_JSON_SCHEMA,
+      instructions: buildTripDayNarrationSystemPrompt(),
+      userContent: [{ type: 'input_text' as const, text: userPrompt }],
+      supabaseUserId: params.supabaseUserId,
+      feature: 'trip-generation',
+    });
+    return new Map(result.days.map((day) => [day.index, { title: day.title, rationale: day.rationale }]));
+  } catch (error) {
+    // Narration is flavor text on top of already-real, already-valid items —
+    // a narration failure shouldn't block showing the day itself.
+    const { code } = describeError(error);
+    logger.warn({ errorCode: code, error }, 'Trip day narration failed — falling back to generic title/rationale');
+    return new Map();
+  }
+}
+
+function narrationItemsFromSlots(bySlot: Partial<Record<OutfitSlot, BuilderItem>>) {
+  return Object.values(bySlot)
+    .filter((item): item is BuilderItem => Boolean(item))
+    .map((item) => ({
+      id: item.id,
+      name: item.title,
+      category: item.category,
+      color_family: item.colorFamily ?? null,
+      formality: item.formality ?? null,
+    }));
+}
+
+function buildFullClosetDay(params: {
+  closetItems: BuilderItem[];
+  dayType: string;
+  avgHighC?: number;
+  avgLowC?: number;
+  excludeItemIds?: ReadonlySet<string>;
+  usedOuterwearTitles: string[];
+  usedFootwearTitles: string[];
+  jacketsCap: number;
+  shoesCap: number;
+}): {
+  bySlot: Partial<Record<OutfitSlot, BuilderItem>>;
+  usedOuterwearTitles: string[];
+  usedFootwearTitles: string[];
+} {
+  const targetFormalityRank = TRIP_DAY_TYPE_FORMALITY_TARGET[params.dayType] ?? FORMALITY_RANK['Smart Casual'];
+  const { includeLayering, includeOuterwear } = weatherGates(params.avgHighC ?? params.avgLowC ?? null);
+
+  const built = buildDeterministicOutfit({
+    closetItems: params.closetItems,
+    targetFormalityRank,
+    includeLayering,
+    includeOuterwear,
+    excludeItemIds: params.excludeItemIds,
+  });
+
+  const bySlot = { ...built.bySlot };
+  let usedOuterwearTitles = params.usedOuterwearTitles;
+  let usedFootwearTitles = params.usedFootwearTitles;
+
+  if (bySlot.outerwear) {
+    const capped = enforceClosetSlotCap({
+      picked: bySlot.outerwear,
+      usedTitles: usedOuterwearTitles,
+      cap: params.jacketsCap,
+      allowDrop: true,
+      closetItems: params.closetItems,
+    });
+    bySlot.outerwear = capped.picked;
+    usedOuterwearTitles = capped.usedTitles;
+  }
+  if (bySlot.footwear) {
+    const capped = enforceClosetSlotCap({
+      picked: bySlot.footwear,
+      usedTitles: usedFootwearTitles,
+      cap: params.shoesCap,
+      allowDrop: false,
+      closetItems: params.closetItems,
+    });
+    bySlot.footwear = capped.picked;
+    usedFootwearTitles = capped.usedTitles;
+  }
+
+  return { bySlot, usedOuterwearTitles, usedFootwearTitles };
+}
+
+async function generateFullClosetTripOutfits(
+  request: GenerateTripOutfitsRequest,
+  profile: BuilderProfile,
+  supabaseUserId: string,
+): Promise<GenerateTripOutfitsResponse> {
+  const styleGuideContext = await styleGuideService.retrieveGuidance({
+    task: 'trip-generation',
+    query: buildTripGenerationStyleGuideQuery(request, profile),
+  });
+
+  const { instructions, userContent, jsonSchema } = buildTripDayShapePrompt(request, profile, styleGuideContext?.promptContext);
+  const shapeResult = await openAiClient.createStructuredResponse({
+    schema: tripDayShapeResponseSchema,
+    jsonSchema,
+    instructions,
+    userContent,
+    supabaseUserId,
+    feature: 'trip-generation',
+  });
+
+  const { itemsById } = await buildClosetIndex(supabaseUserId);
+  const closetItems = [...itemsById.values()];
+
+  const jacketsCap = Number(request.jacketsCount ?? '1');
+  const shoesCap = parseShoesCap(request.shoesCount);
+  let usedOuterwearTitles = request.usedOuterwear ?? [];
+  let usedFootwearTitles = request.usedFootwear ?? [];
+
+  const builtDays = shapeResult.days.map((shape) => {
+    const built = buildFullClosetDay({
+      closetItems,
+      dayType: shape.dayType,
+      avgHighC: request.avgHighC,
+      avgLowC: request.avgLowC,
+      usedOuterwearTitles,
+      usedFootwearTitles,
+      jacketsCap,
+      shoesCap,
+    });
+    usedOuterwearTitles = built.usedOuterwearTitles;
+    usedFootwearTitles = built.usedFootwearTitles;
+    return { shape, bySlot: built.bySlot };
+  });
+
+  const narrationMap = await narrateTripDays({
+    days: builtDays.map(({ shape, bySlot }, index) => ({
+      index,
+      dayType: shape.dayType,
+      items: narrationItemsFromSlots(bySlot),
+    })),
+    destination: request.destination,
+    climateLabel: request.climateLabel,
+    avgHighC: request.avgHighC,
+    supabaseUserId,
+  });
+
+  const days: TripOutfitDayDto[] = builtDays.map(({ shape, bySlot }, index) => {
+    const narration = narrationMap.get(index);
+    const dto = mapDaySlotsToDto(bySlot);
+    return {
+      id: `${request.tripId}-day-${shape.dayIndex}`,
+      tripId: request.tripId,
+      dayIndex: shape.dayIndex,
+      date: shape.date,
+      title: narration?.title ?? FALLBACK_TRIP_TITLE,
+      dayType: shape.dayType,
+      rationale: narration?.rationale ?? FALLBACK_TRIP_RATIONALE,
+      contextTags: shape.contextTags,
+      ...dto,
+    };
+  });
+
+  return { tripId: request.tripId, days };
+}
+
+async function regenerateFullClosetDay(
+  request: RegenerateTripDayRequest,
+  supabaseUserId: string,
+): Promise<TripOutfitDayDto> {
+  const { itemsById } = await buildClosetIndex(supabaseUserId);
+  const closetItems = [...itemsById.values()];
+
+  // "Do NOT repeat the previous outfit" — we only have the previous day's
+  // display text (not real ids), so exclude any real item whose title
+  // matches one of those strings, guaranteeing a genuinely different pick
+  // rather than trusting the weighted draw to avoid it by chance.
+  const previousTitles = new Set(
+    [...request.previousPieces, ...(request.previousShoes ? [request.previousShoes] : [])].map((t) => t.toLowerCase()),
+  );
+  const excludeItemIds = new Set(
+    closetItems.filter((item) => previousTitles.has(item.title.toLowerCase())).map((item) => item.id),
+  );
+
+  const built = buildFullClosetDay({
+    closetItems,
+    dayType: request.dayType,
+    avgHighC: request.avgHighC,
+    avgLowC: request.avgLowC,
+    excludeItemIds,
+    usedOuterwearTitles: [],
+    usedFootwearTitles: [],
+    jacketsCap: Number.MAX_SAFE_INTEGER,
+    shoesCap: Number.MAX_SAFE_INTEGER,
+  });
+
+  const narrationMap = await narrateTripDays({
+    days: [{ index: 0, dayType: request.dayType, items: narrationItemsFromSlots(built.bySlot) }],
+    destination: request.destination,
+    climateLabel: request.climateLabel,
+    avgHighC: request.avgHighC,
+    supabaseUserId,
+  });
+  const narration = narrationMap.get(0);
+  const dto = mapDaySlotsToDto(built.bySlot);
+
+  return {
+    id: `${request.tripId}-day-${request.dayIndex}-r${Date.now()}`,
+    tripId: request.tripId,
+    dayIndex: request.dayIndex,
+    date: request.date,
+    title: narration?.title ?? FALLBACK_TRIP_TITLE,
+    dayType: request.dayType,
+    rationale: narration?.rationale ?? FALLBACK_TRIP_RATIONALE,
+    contextTags: [],
+    ...dto,
+  };
+}
+
 export const tripsService = {
   async generateTripOutfits(
     request: GenerateTripOutfitsRequest,
@@ -110,23 +479,16 @@ export const tripsService = {
       ? await profileRepository.findById(request.profileId)
       : await profileRepository.findByUserId(supabaseUserId);
 
+    if (request.anchorMode === 'fullCloset') {
+      return generateFullClosetTripOutfits(request, profile, supabaseUserId);
+    }
+
     const styleGuideContext = await styleGuideService.retrieveGuidance({
       task: 'trip-generation',
       query: buildTripGenerationStyleGuideQuery(request, profile),
     });
 
-    // "From My Closet" hands the model the full wardrobe index and requires
-    // every day to be built from real ids — mirrors closet-outfits.service.ts's
-    // "never let the model invent inventory" pattern.
-    const isFullCloset = request.anchorMode === 'fullCloset';
-    const closetIndex = isFullCloset ? await buildClosetIndex(supabaseUserId) : null;
-
-    const { instructions, userContent, jsonSchema } = buildTripOutfitsPrompt(
-      request,
-      profile,
-      styleGuideContext?.promptContext,
-      closetIndex?.index,
-    );
+    const { instructions, userContent, jsonSchema } = buildTripOutfitsPrompt(request, profile, styleGuideContext?.promptContext);
     const anchorImageContent = await buildTripAnchorImageContent(request);
 
     const result = await openAiClient.createStructuredResponse({
@@ -157,12 +519,7 @@ export const tripsService = {
         tripId: request.tripId,
         bag: day.bag ?? null,
         accessories: day.accessories ?? [],
-        // Never trust the model's ids at face value — drop any id that isn't
-        // actually in the wardrobe index rather than pretending the user owns
-        // an item that doesn't exist.
-        closetItemIds: closetIndex
-          ? (day.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id))
-          : undefined,
+        closetItemIds: undefined,
       };
     });
 
@@ -188,6 +545,10 @@ export const tripsService = {
     request: RegenerateTripDayRequest,
     supabaseUserId: string,
   ): Promise<TripOutfitDayDto> {
+    if (request.isFullCloset) {
+      return regenerateFullClosetDay(request, supabaseUserId);
+    }
+
     const profile = request.profileId
       ? await profileRepository.findById(request.profileId)
       : await profileRepository.findByUserId(supabaseUserId);
@@ -196,13 +557,7 @@ export const tripsService = {
       task: 'trip-generation',
       query: buildTripRegenerationStyleGuideQuery(request, profile),
     });
-    const closetIndex = request.isFullCloset ? await buildClosetIndex(supabaseUserId) : null;
-    const { instructions, userContent, jsonSchema } = buildRegenerateDayPrompt(
-      request,
-      profile,
-      styleGuideContext?.promptContext,
-      closetIndex?.index,
-    );
+    const { instructions, userContent, jsonSchema } = buildRegenerateDayPrompt(request, profile, styleGuideContext?.promptContext);
 
     const result = await openAiClient.createStructuredResponse({
       schema: regenerateDayResponseSchema,
@@ -219,9 +574,7 @@ export const tripsService = {
       tripId: request.tripId,
       bag: result.day.bag ?? null,
       accessories: result.day.accessories ?? [],
-      closetItemIds: closetIndex
-        ? (result.day.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id))
-        : undefined,
+      closetItemIds: undefined,
     };
   },
 
@@ -229,68 +582,98 @@ export const tripsService = {
     request: GenerateTripDayVariantsRequest,
     supabaseUserId: string,
   ): Promise<GenerateTripDayVariantsResponse> {
-    const profile = request.profileId
-      ? await profileRepository.findById(request.profileId)
-      : await profileRepository.findByUserId(supabaseUserId);
+    const { itemsById } = await buildClosetIndex(supabaseUserId);
+    const closetItems = [...itemsById.values()];
 
-    const closetIndex = await buildClosetIndex(supabaseUserId);
-
-    const validKeepIds = request.keepItemIds.filter((id) => closetIndex.itemsById.has(id));
-    const validSwapIds = request.swapItemIds.filter((id) => closetIndex.itemsById.has(id));
+    const validKeepIds = request.keepItemIds.filter((id) => itemsById.has(id));
+    const validSwapIds = request.swapItemIds.filter((id) => itemsById.has(id));
     if (validSwapIds.length === 0) {
       throw new HttpError(422, 'INVALID_SWAP_ITEMS', 'Select 1 or 2 items from this day to swap.');
     }
 
-    const styleGuideContext = await styleGuideService.retrieveGuidance({
-      task: 'trip-generation',
-      query: buildTripRegenerationStyleGuideQuery(request, profile),
-    });
-    const { instructions, userContent, jsonSchema } = buildDayVariantsPrompt(
-      { ...request, keepItemIds: validKeepIds, swapItemIds: validSwapIds },
-      profile,
-      closetIndex.index,
-      styleGuideContext?.promptContext,
+    const targetFormalityRank = TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual'];
+    const excludeIds = new Set([...validKeepIds, ...validSwapIds]);
+
+    // Each swap slot is constrained to the SAME garment group as the item
+    // being replaced (pickVariantReplacements) — a shoe swap only ever offers
+    // other shoes, never a different slot's item.
+    const replacementLists = validSwapIds.map((swapId) =>
+      pickVariantReplacements(itemsById.get(swapId)!, closetItems, targetFormalityRank, excludeIds, 5),
     );
 
-    const result = await openAiClient.createStructuredResponse({
-      schema: tripDayVariantsResponseSchema,
-      jsonSchema,
-      instructions,
-      userContent,
-      supabaseUserId,
-      feature: 'trip-generation',
-    });
-
-    const swapIdSet = new Set(validSwapIds);
-    const keepIdSet = new Set(validKeepIds);
-
-    const variants: TripOutfitDayDto[] = result.variants
-      .map((variant, index) => ({
-        ...variant,
-        id: `${request.tripId}-day-${request.dayIndex}-v${Date.now()}-${index}`,
-        tripId: request.tripId,
-        bag: variant.bag ?? null,
-        accessories: variant.accessories ?? [],
-        closetItemIds: (variant.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id)),
-      }))
-      // Reject any variant that isn't a genuine swap: either it still carries
-      // one of the original swapped-out ids (nothing actually changed), or it
-      // never introduces a real replacement id at all (the model dropped the
-      // swap slot from closetItemIds entirely while still narrating it in
-      // pieces/rationale) — both produce a card indistinguishable from what
-      // the user already has.
-      .filter((variant) => {
-        const ids = variant.closetItemIds ?? [];
-        const stillHasSwappedOutItem = ids.some((id) => swapIdSet.has(id));
-        const hasGenuineReplacement = ids.some((id) => !keepIdSet.has(id) && !swapIdSet.has(id));
-        return !stillHasSwappedOutItem && hasGenuineReplacement;
-      });
-
-    if (variants.length === 0) {
-      throw new HttpError(502, 'TRIP_DAY_VARIANTS_INVALID', 'Could not generate variants for that day. Please try again.');
+    const variantCount = Math.min(5, ...replacementLists.map((list) => list.length));
+    if (variantCount === 0) {
+      throw new HttpError(502, 'TRIP_DAY_VARIANTS_INVALID', 'Your closet does not have another item in the same category to swap in.');
     }
 
+    const variantItemIds = Array.from({ length: variantCount }, (_, index) => [
+      ...validKeepIds,
+      ...replacementLists.map((list) => list[index]!.id),
+    ]);
+
+    const narrationMap = await narrateTripDays({
+      days: variantItemIds.map((itemIds, index) => ({
+        index,
+        dayType: request.dayType,
+        items: itemIds.map((id) => {
+          const item = itemsById.get(id)!;
+          return { id: item.id, name: item.title, category: item.category, color_family: item.colorFamily ?? null, formality: item.formality ?? null };
+        }),
+      })),
+      destination: request.destination,
+      climateLabel: request.climateLabel,
+      avgHighC: request.avgHighC,
+      supabaseUserId,
+    });
+
+    const variants: TripOutfitDayDto[] = variantItemIds.map((itemIds, index) => {
+      const narration = narrationMap.get(index);
+      const dto = mapDaySlotsToDto(buildBySlotFromItemIds(itemIds, itemsById));
+      return {
+        id: `${request.tripId}-day-${request.dayIndex}-v${Date.now()}-${index}`,
+        tripId: request.tripId,
+        dayIndex: request.dayIndex,
+        date: request.date,
+        title: narration?.title ?? FALLBACK_TRIP_TITLE,
+        dayType: request.dayType,
+        rationale: narration?.rationale ?? FALLBACK_TRIP_RATIONALE,
+        contextTags: [],
+        ...dto,
+      };
+    });
+
     return { variants };
+  },
+
+  async updateDayAccessories(
+    request: UpdateTripDayAccessoriesRequest,
+    supabaseUserId: string,
+  ): Promise<UpdateTripDayAccessoriesResponse> {
+    const { itemsById } = await buildClosetIndex(supabaseUserId);
+    const closetItems = [...itemsById.values()];
+
+    const validItemIds = request.itemIds.filter((id) => itemsById.has(id));
+    if (validItemIds.length < 2) {
+      throw new HttpError(422, 'INVALID_BASE_OUTFIT', 'This day no longer matches your closet.');
+    }
+
+    const targetFormalityRank = TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual'];
+    const currentHatId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'hat');
+    const currentBagId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'bag');
+
+    let itemIds = validItemIds.filter((id) => id !== currentHatId || request.includeHat);
+    itemIds = itemIds.filter((id) => id !== currentBagId || request.includeBag);
+
+    if (request.includeHat && !currentHatId) {
+      const hat = pickAccessory('hat', closetItems, targetFormalityRank, new Set(itemIds));
+      if (hat) itemIds.push(hat.id);
+    }
+    if (request.includeBag && !currentBagId) {
+      const bag = pickAccessory('bag', closetItems, targetFormalityRank, new Set(itemIds));
+      if (bag) itemIds.push(bag.id);
+    }
+
+    return mapDaySlotsToDto(buildBySlotFromItemIds(itemIds, itemsById));
   },
 
   async getDaySketchStatus(jobId: string) {

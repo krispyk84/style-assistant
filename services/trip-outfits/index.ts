@@ -10,6 +10,8 @@ export type {
   TripDaySketchStatusResponse,
   TripDayType,
   TripOutfitDay,
+  UpdateTripDayAccessoriesParams,
+  UpdateTripDayAccessoriesResponse,
 } from './trip-outfit-types';
 
 export { tripOutfitsService } from './api-trip-outfits-service';

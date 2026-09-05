@@ -8,6 +8,8 @@ import type {
   TripDaySketchResponse,
   TripDaySketchStatusResponse,
   TripOutfitDay,
+  UpdateTripDayAccessoriesParams,
+  UpdateTripDayAccessoriesResponse,
 } from './trip-outfit-types';
 
 type RawDay = Omit<TripOutfitDay, 'sketchStatus' | 'sketchUrl' | 'sketchJobId' | 'feedback'>;
@@ -70,6 +72,19 @@ export const tripOutfitsService = {
       sketchStatus: 'not_started' as const,
       feedback: null,
     }));
+  },
+
+  async updateDayAccessories(params: UpdateTripDayAccessoriesParams): Promise<UpdateTripDayAccessoriesResponse> {
+    const response = await createApiClient().request<UpdateTripDayAccessoriesResponse>('/trips/update-day-accessories', {
+      method: 'POST',
+      body: params,
+    });
+
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message ?? 'Could not update this day.');
+    }
+
+    return response.data;
   },
 
   async startDaySketch(params: {

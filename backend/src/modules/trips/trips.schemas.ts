@@ -125,3 +125,65 @@ export const generateTripDayVariantsSchema = z.object({
 export const tripDayVariantsResponseSchema = z.object({
   variants: z.array(tripDaySchema).min(1).max(5),
 });
+
+// ── fullCloset day "shape" + narration (item selection is deterministic — see
+// closet-outfit-builder.ts applied per-day in trips.service.ts) ──────────────
+
+const dayTypeEnum = z.enum(['travel_day', 'sightseeing', 'business', 'meeting', 'dinner_out', 'beach_pool', 'adventure', 'wedding_event', 'relaxed', 'conference']);
+
+export const tripDayShapeSchema = z.object({
+  dayIndex: z.number().int().min(0),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dayType: dayTypeEnum,
+  contextTags: z.array(z.string().min(1)).min(1).max(4),
+});
+
+export const tripDayShapeResponseSchema = z.object({
+  days: z.array(tripDayShapeSchema).min(1).max(14),
+});
+
+export const tripDayNarrationItemSchema = z.object({
+  index: z.number(),
+  title: z.string().min(1),
+  rationale: z.string().min(1),
+});
+
+export const tripDayNarrationResponseSchema = z.object({
+  days: z.array(tripDayNarrationItemSchema).min(1),
+});
+
+export const TRIP_DAY_NARRATION_JSON_SCHEMA = {
+  name: 'trip_day_narration',
+  schema: {
+    type: 'object' as const,
+    properties: {
+      days: {
+        type: 'array',
+        minItems: 1,
+        items: {
+          type: 'object',
+          properties: {
+            index: { type: 'number', description: 'The day index this entry narrates, matching the input' },
+            title: { type: 'string', description: 'A short, evocative day title' },
+            rationale: { type: 'string', description: 'One to two sentences on why this exact combination works for this day' },
+          },
+          required: ['index', 'title', 'rationale'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['days'],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
+// Partial update: caller sends the day's current full item list plus the
+// desired hat/bag state — mirrors closet.validation.ts's
+// updateClosetOutfitAccessoriesSchema for the trip-day equivalent.
+export const updateTripDayAccessoriesSchema = z.object({
+  itemIds: z.array(z.string()).min(2),
+  dayType: dayTypeEnum,
+  includeHat: z.boolean(),
+  includeBag: z.boolean(),
+});

@@ -48,9 +48,22 @@ type Props = {
   onHate: () => void;
   /** fullCloset days only — tapping a piece becomes a swap selection (max 2) and a "Generate Variants" button appears. */
   onGenerateVariants?: (day: TripOutfitDay, swapItemIds: string[], swappedItems: OutfitThumbnailItem[]) => void;
+  /** fullCloset days only — toggles a hat/bag in or out of this day, reloading just this day's item list and sketch. */
+  onToggleAccessory?: (day: TripOutfitDay, toggle: { includeHat: boolean; includeBag: boolean }) => void;
+  isUpdatingAccessories?: boolean;
 };
 
-export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch, onLove, onHate, onGenerateVariants }: Props) {
+export function TripDayCard({
+  day,
+  closetItems,
+  isRegenerating,
+  onGenerateSketch,
+  onLove,
+  onHate,
+  onGenerateVariants,
+  onToggleAccessory,
+  isUpdatingAccessories = false,
+}: Props) {
   const { theme } = useTheme();
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
 
@@ -83,6 +96,9 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
   // matching the closet-outfit-card visual language. Anchor-based days keep
   // the grouped text list since their pieces aren't guaranteed real items.
   const isFullClosetDay = !!day.closetItemIds?.length;
+  const closetItemsById = useMemo(() => new Map(closetItems?.map((item) => [item.id, item]) ?? []), [closetItems]);
+  const hasHat = (day.closetItemIds ?? []).some((id) => closetItemsById.get(id)?.category === 'Hat');
+  const hasBag = (day.closetItemIds ?? []).some((id) => closetItemsById.get(id)?.category === 'Bag');
   const thumbnailItems = useMemo(
     () =>
       labeledPieces
@@ -176,6 +192,63 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
                   />
                 ) : null}
               </>
+            ) : null}
+
+            {onToggleAccessory ? (
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <Pressable
+                  disabled={isUpdatingAccessories}
+                  onPress={() => onToggleAccessory(day, { includeHat: !hasHat, includeBag: hasBag })}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 5,
+                    backgroundColor: hasHat ? theme.colors.text : theme.colors.subtleSurface,
+                    borderRadius: 999,
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.xs + 1,
+                    opacity: isUpdatingAccessories ? 0.5 : 1,
+                  }}>
+                  <AppIcon
+                    name={hasHat ? 'check-circle' : 'add-circle'}
+                    color={hasHat ? theme.colors.inverseText : theme.colors.subtleText}
+                    size={13}
+                  />
+                  <AppText style={{
+                    color: hasHat ? theme.colors.inverseText : theme.colors.subtleText,
+                    fontFamily: theme.fonts.sansMedium,
+                    fontSize: 12,
+                  }}>
+                    {hasHat ? 'Hat added' : 'Add hat'}
+                  </AppText>
+                </Pressable>
+                <Pressable
+                  disabled={isUpdatingAccessories}
+                  onPress={() => onToggleAccessory(day, { includeHat: hasHat, includeBag: !hasBag })}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 5,
+                    backgroundColor: hasBag ? theme.colors.text : theme.colors.subtleSurface,
+                    borderRadius: 999,
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.xs + 1,
+                    opacity: isUpdatingAccessories ? 0.5 : 1,
+                  }}>
+                  <AppIcon
+                    name={hasBag ? 'check-circle' : 'add-circle'}
+                    color={hasBag ? theme.colors.inverseText : theme.colors.subtleText}
+                    size={13}
+                  />
+                  <AppText style={{
+                    color: hasBag ? theme.colors.inverseText : theme.colors.subtleText,
+                    fontFamily: theme.fonts.sansMedium,
+                    fontSize: 12,
+                  }}>
+                    {hasBag ? 'Bag added' : 'Add bag'}
+                  </AppText>
+                </Pressable>
+              </View>
             ) : null}
           </View>
         ) : (

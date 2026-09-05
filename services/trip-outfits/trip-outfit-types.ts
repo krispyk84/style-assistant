@@ -138,3 +138,19 @@ export type TripDaySketchStatusResponse = {
 export type RegenerateTripDayResponse = {
   day: Omit<TripOutfitDay, 'sketchStatus' | 'sketchUrl' | 'sketchJobId' | 'feedback'>;
 };
+
+/** Partial update: current full item list + desired hat/bag state for a single fullCloset day — every other already-chosen item, plus title/rationale, is left untouched. */
+export type UpdateTripDayAccessoriesParams = {
+  itemIds: string[];
+  dayType: TripDayType;
+  includeHat: boolean;
+  includeBag: boolean;
+};
+
+export type UpdateTripDayAccessoriesResponse = {
+  pieces: string[];
+  shoes: string;
+  bag: string | null;
+  accessories: string[];
+  closetItemIds: string[];
+};

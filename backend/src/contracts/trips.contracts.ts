@@ -113,3 +113,19 @@ export type GenerateTripDayVariantsRequest = {
 export type GenerateTripDayVariantsResponse = {
   variants: TripOutfitDayDto[];
 };
+
+/** Partial update: current full item list + desired hat/bag state for a single fullCloset day — mirrors closet's updateOutfitAccessories, scoped per day. */
+export type UpdateTripDayAccessoriesRequest = {
+  itemIds: string[];
+  dayType: string;
+  includeHat: boolean;
+  includeBag: boolean;
+};
+
+export type UpdateTripDayAccessoriesResponse = {
+  pieces: string[];
+  shoes: string;
+  bag: string | null;
+  accessories: string[];
+  closetItemIds: string[];
+};
