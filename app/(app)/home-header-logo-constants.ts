@@ -6,10 +6,10 @@ import { spacing } from '@/constants/theme';
 // cross-component measurement, which proved unreliable — the target now
 // matches HomeScreen's layout by construction instead of by measuring it).
 export const HOME_HEADER_LOGO_RECT_CONSTANTS = {
-  width: 117,
-  height: 48,
+  width: 138,
+  height: 57,
   /** Height of the header row the logo is vertically centered within. */
-  rowHeight: 56,
+  rowHeight: 74,
   /** Matches AppScreen's default topInset content padding (paddingTop: spacing.md). */
   topPadding: spacing.md,
 } as const;
