@@ -38,6 +38,7 @@ import type {
   HelpMePickPayload,
   SaveClosetItemPayload,
   UpdateClosetItemPayload,
+  UpdateClosetOutfitAccessoriesPayload,
 } from './closet.validation.js';
 
 // Mirrors lib/closet-match-taxonomy.ts's CATEGORY_TO_GROUP mapping for these
@@ -302,6 +303,10 @@ export const closetService = {
 
   async setOutfitFeedback(feedbackId: string, feedback: 'love' | 'hate' | null, supabaseUserId: string) {
     return closetOutfitsService.setOutfitFeedback(feedbackId, supabaseUserId, feedback);
+  },
+
+  async updateOutfitAccessories(payload: UpdateClosetOutfitAccessoriesPayload, supabaseUserId: string) {
+    return closetOutfitsService.updateOutfitAccessories(payload, supabaseUserId);
   },
 
   async recordAnchorUsed(id: string, supabaseUserId: string) {

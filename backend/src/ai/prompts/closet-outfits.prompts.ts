@@ -1,8 +1,10 @@
 // Prompt construction for the "Generate 5 Outfits" closet feature.
-// Unlike outfits.prompts.ts (which lets the model invent pieces, matched to the
-// closet client-side afterward), these prompts hand the model the FULL wardrobe
-// index up front and require every returned outfit to be built entirely from
-// those item ids — no invented pieces.
+// Item SELECTION is deterministic and code-driven (closet-outfit-builder.ts) —
+// these prompts only narrate an already-fixed set of real items (title +
+// rationale), which is what actually guarantees formality-correctness and
+// eliminates phantom pieces, rather than relying on prompt instructions alone.
+// ClosetOutfitIndexItem/ClosetOutfitSeasonalTrendsContext are still shared with
+// outfits.prompts.ts (Create a Look's closet-only path) and closet-index.ts.
 
 import type { TrendFeedbackValue } from '../../modules/seasonal-trends/trend-feedback.repository.js';
 import { buildSeasonalTrendGuidance } from './seasonal-trend-guidance.js';
@@ -94,58 +96,6 @@ function buildTrendinessRule(trendinessRaw: number | undefined | null): string |
   return `TRENDINESS ${t}/100 (TRENDY): favour current, fashion-forward combinations. Prioritise the wardrobe's most directional pieces and unexpected pairings — the wearer wants to look current, not safe.`;
 }
 
-export function buildClosetOutfitsSystemPrompt(): string {
-  return [
-    'You are an expert personal stylist assembling complete, wearable outfits entirely from a client\'s existing wardrobe.',
-    '',
-    'HARD RULES (in priority order — earlier rules override later ones if they ever conflict):',
-    '1. COMPLETENESS IS NON-NEGOTIABLE: every outfit MUST include a bottom (trousers/denim/shorts, or a suit/jumpsuit that covers the lower body) AND footwear (shoes/sneakers/loafers/boots), in addition to a top. An outfit missing a bottom or footwear is an invalid, unusable answer — always fill these slots from the wardrobe index before adding anything else.',
-    '2. Every item you use MUST be referenced by its exact "id" from the wardrobe index provided in the user message. Never invent an item or use an id that is not in the index.',
-    '3. FORMALITY IS A HARD CONSTRAINT, not a suggestion. The requested formality level overrides trendiness whenever they would otherwise conflict — never include a piece that violates the formality band just because it is trendy or directional. Each wardrobe item may also carry its own "formality" tag from cataloguing; treat that as a strong signal and avoid building a smart-casual or business outfit primarily from items tagged casual.',
-    '4. COLOR COORDINATION: do not put 3 or more pieces in the same color/color-family in one outfit (e.g. olive top + olive trousers + olive shoes) — head-to-toe monochrome reads as flat and lifeless, not stylish, even at high trendiness. Build real contrast: pair a colored piece against neutrals (white, black, navy, grey, stone, tan/camel), or use at most one secondary color alongside a neutral base.',
-    '5. Never put two items from the same competing slot in one outfit (e.g. two pairs of trousers, two jackets meant to be worn alone).',
-    '6. Return exactly 5 outfits, and make them meaningfully different from each other — vary the anchor piece, colour story, and silhouette across the 5. Do not return near-duplicates.',
-    '7. VARIETY ACROSS REQUESTS: this client has a large wardrobe. If the user message lists "Recently featured items", deliberately minimise reusing them here — actively draw on other pieces from the index that still satisfy every rule above, rather than defaulting to the same "obvious" combination every time. Only reuse a recently-featured item when the wardrobe genuinely does not offer a suitable alternative for that slot.',
-    '8. PREFERENCE SIGNAL: if the user message lists items the client has loved or hated in past outfits, lean toward the loved items and the styles they represent where they fit the brief, and avoid the hated items where a reasonable alternative exists — but never let this override rules 1-6.',
-    '9. Within all of the above constraints, look cool, current, and intentional — this is a client who cares about their aesthetic, not a rote uniform.',
-    '',
-    'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
-  ].join('\n');
-}
-
-export type ClosetOutfitVarietyContext = {
-  /** Item ids featured in this client's recent generations — deprioritise, don't hard-exclude. */
-  recentlyUsedItems?: { id: string; name: string }[];
-  /** Item ids from outfits this client explicitly loved/hated. */
-  preference?: { loved: { id: string; name: string }[]; hated: { id: string; name: string }[] };
-};
-
-function buildVarietyAndPreferenceBlock(context?: ClosetOutfitVarietyContext): string | null {
-  if (!context) return null;
-  const lines: string[] = [];
-
-  if (context.recentlyUsedItems?.length) {
-    lines.push(
-      'Recently featured items (used in outfits generated for this client recently — minimise reuse per rule 7):',
-      context.recentlyUsedItems.map((item) => `- ${item.name} (${item.id})`).join('\n'),
-    );
-  }
-  if (context.preference?.loved.length) {
-    lines.push(
-      'Loved in past outfits (lean into these where they fit the brief, per rule 8):',
-      context.preference.loved.map((item) => `- ${item.name} (${item.id})`).join('\n'),
-    );
-  }
-  if (context.preference?.hated.length) {
-    lines.push(
-      'Disliked in past outfits (avoid where a reasonable alternative exists, per rule 8):',
-      context.preference.hated.map((item) => `- ${item.name} (${item.id})`).join('\n'),
-    );
-  }
-
-  return lines.length ? lines.join('\n') : null;
-}
-
 /**
  * Free-form additional guidance from the user — appended as a HARD styling
  * constraint so the model treats it as a steering signal rather than a hint.
@@ -184,7 +134,6 @@ function buildContextBlock(params: {
   weatherCode?: number | null;
   trendiness?: number | null;
   additionalDetails?: string | null;
-  variety?: ClosetOutfitVarietyContext;
   seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
 }): string {
   const lines = [
@@ -199,39 +148,42 @@ function buildContextBlock(params: {
     buildTrendinessRule(params.trendiness),
     buildAdditionalDetailsRule(params.additionalDetails),
     buildSeasonalFashionTrendsRule(params.formality, params.seasonalTrends),
-    buildVarietyAndPreferenceBlock(params.variety),
   ];
   return lines.filter((line): line is string => line !== null).join('\n');
 }
 
-export function buildClosetOutfitsUserPrompt(params: {
-  index: ClosetOutfitIndexItem[];
-  formality: string;
-  weatherSummary?: string | null;
-  weatherStylingHint?: string | null;
-  season?: string | null;
-  temperatureC?: number | null;
-  weatherCode?: number | null;
-  trendiness?: number | null;
-  additionalDetails?: string | null;
-  variety?: ClosetOutfitVarietyContext;
-  seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
-}): string {
+// ── Narration (item selection is deterministic — code picks the real items,
+// the model only writes the title/rationale for an already-fixed set) ────────
+
+export type ClosetOutfitNarrationItem = {
+  id: string;
+  name: string;
+  category: string;
+  color_family?: string | null;
+  formality?: string | null;
+};
+
+export type ClosetOutfitToNarrate = {
+  index: number;
+  items: ClosetOutfitNarrationItem[];
+};
+
+export function buildClosetOutfitNarrationSystemPrompt(): string {
   return [
-    buildContextBlock(params),
+    'You are an expert personal stylist. For each outfit below, the exact real pieces have ALREADY been chosen for the client from their own closet — your only job is to name it and explain why it works.',
     '',
-    'Wardrobe index (every item you may use — reference by exact id):',
-    JSON.stringify(params.index, null, 2),
+    'HARD RULES:',
+    '1. Do not add, remove, or substitute any piece. Describe only the items listed for each outfit — never invent or imply a piece that is not in that outfit\'s list.',
+    '2. Every outfit needs a short, evocative title (2-5 words) — vary the tone/vocabulary across outfits so they don\'t all sound the same.',
+    '3. "whyItWorks" is one sentence, specific to the actual pieces listed (reference them by name, not generically) — explain the styling logic (formality fit, color pairing, silhouette, weather-appropriateness), not a generic compliment.',
+    '4. Return one entry per outfit index provided, matched by "index". Do not skip or reorder.',
     '',
-    'Build exactly 5 distinct, complete outfits from this wardrobe for the formality and weather context above.',
-    'For each outfit return: a short title, the list of item ids used, and one sentence on why it works.',
+    'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');
 }
 
-export function buildClosetOutfitVariationsUserPrompt(params: {
-  index: ClosetOutfitIndexItem[];
-  baseItemIds: string[];
-  swapItemIds: string[];
+export function buildClosetOutfitNarrationUserPrompt(params: {
+  outfits: ClosetOutfitToNarrate[];
   formality: string;
   weatherSummary?: string | null;
   weatherStylingHint?: string | null;
@@ -240,33 +192,14 @@ export function buildClosetOutfitVariationsUserPrompt(params: {
   weatherCode?: number | null;
   trendiness?: number | null;
   additionalDetails?: string | null;
-  variety?: ClosetOutfitVarietyContext;
   seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
 }): string {
-  const keepItemIds = params.baseItemIds.filter((id) => !params.swapItemIds.includes(id));
-  const indexById = new Map(params.index.map((item) => [item.id, item]));
-  const describe = (id: string) => {
-    const item = indexById.get(id);
-    return item ? `${item.name} (${id})` : id;
-  };
-
   return [
     buildContextBlock(params),
     '',
-    'Wardrobe index (every item you may use — reference by exact id):',
-    JSON.stringify(params.index, null, 2),
+    'Outfits to narrate (each already built from the client\'s real closet items — describe exactly these, nothing else):',
+    JSON.stringify(params.outfits, null, 2),
     '',
-    `Base outfit (item ids): ${JSON.stringify(params.baseItemIds)}`,
-    '',
-    'The client has told you exactly what to change — this is not your choice to make:',
-    `- KEEP UNCHANGED in every variation, exactly as in the base outfit: ${keepItemIds.map(describe).join(', ') || '(none)'}`,
-    `- REPLACE in every variation, each with a different item from the wardrobe index: ${params.swapItemIds.map(describe).join(', ')}`,
-    '',
-    'Build exactly 5 variations of the base outfit. For each variation:',
-    '- Every "keep unchanged" item id above MUST appear in the variation\'s item list, unmodified. This is a hard requirement — a variation missing one of them is an invalid answer.',
-    '- Every "replace" item above MUST be swapped for a different item from the wardrobe index that fills the same role (e.g. a different top for a top, a different shoe for a shoe) and still satisfies the formality/completeness/color rules with the kept items.',
-    '- Do not touch any item that is not explicitly listed as "replace" above.',
-    '- Across the 5 variations, use a different replacement each time where the wardrobe offers enough alternatives for that slot — don\'t repeat the same replacement item twice unless the wardrobe genuinely has no other option.',
-    'For each variation return: a short title, the full list of item ids used (including the unchanged ones), and one sentence on why the swap works.',
+    'Return a title and one-sentence whyItWorks for each outfit index above.',
   ].join('\n');
 }

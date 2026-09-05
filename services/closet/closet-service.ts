@@ -17,6 +17,8 @@ import type {
   SetClosetOutfitFeedbackRequest,
   SetClosetOutfitFeedbackResponse,
   UpdateClosetItemRequest,
+  UpdateClosetOutfitAccessoriesRequest,
+  UpdateClosetOutfitAccessoriesResponse,
 } from '@/types/api';
 import type { ApiResponse } from '@/types/api';
 import type { ClosetItem } from '@/types/closet';
@@ -36,6 +38,7 @@ export type ClosetService = {
   helpMePick: (request: HelpMePickRequest) => Promise<ApiResponse<HelpMePickResponse>>;
   generateOutfits: (request: GenerateClosetOutfitsRequest) => Promise<ApiResponse<GenerateClosetOutfitsResponse>>;
   generateOutfitVariations: (request: GenerateClosetOutfitVariationsRequest) => Promise<ApiResponse<GenerateClosetOutfitsResponse>>;
+  updateOutfitAccessories: (request: UpdateClosetOutfitAccessoriesRequest) => Promise<ApiResponse<UpdateClosetOutfitAccessoriesResponse>>;
   setOutfitFeedback: (request: SetClosetOutfitFeedbackRequest) => Promise<ApiResponse<SetClosetOutfitFeedbackResponse>>;
   recordAnchorUsed: (id: string) => Promise<ApiResponse<{ recorded: boolean }>>;
   recordMatchUsed: (id: string) => Promise<ApiResponse<{ recorded: boolean }>>;

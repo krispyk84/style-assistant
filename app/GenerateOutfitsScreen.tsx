@@ -15,9 +15,9 @@ import { useGenerateOutfitsResults } from './useGenerateOutfitsResults';
 export function GenerateOutfitsScreen() {
   const {
     formality, stage, outfits, selectedOutfit, variations, error,
-    savedOutfitIds, savingOutfitId, weekPickerOutfit, setWeekPickerOutfit,
+    savedOutfitIds, savingOutfitId, updatingAccessoryOutfitId, weekPickerOutfit, setWeekPickerOutfit,
     secondOpinionOutfit, setSecondOpinionOutfit,
-    loadOutfits, selectOutfit, backToOutfits, handleSaveOutfit, handleAssignToWeek, handleFeedback,
+    loadOutfits, selectOutfit, backToOutfits, handleSaveOutfit, handleAssignToWeek, handleFeedback, handleToggleAccessory,
   } = useGenerateOutfitsResults();
 
   const isLoading = stage === 'loading' || stage === 'variations-loading';
@@ -81,6 +81,9 @@ export function GenerateOutfitsScreen() {
                 onAddToWeek={() => setWeekPickerOutfit(outfit)}
                 onFeedback={(value) => void handleFeedback(outfit, value)}
                 onSecondOpinion={() => setSecondOpinionOutfit(outfit)}
+                onToggleHat={() => void handleToggleAccessory(outfit, { includeHat: !outfit.items.some((item) => item.category === 'Hat') })}
+                onToggleBag={() => void handleToggleAccessory(outfit, { includeBag: !outfit.items.some((item) => item.category === 'Bag') })}
+                isUpdatingAccessories={updatingAccessoryOutfitId === outfit.id}
               />
             ))}
           </View>

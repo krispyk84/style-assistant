@@ -19,6 +19,8 @@ import type {
   SetClosetOutfitFeedbackRequest,
   SetClosetOutfitFeedbackResponse,
   UpdateClosetItemRequest,
+  UpdateClosetOutfitAccessoriesRequest,
+  UpdateClosetOutfitAccessoriesResponse,
 } from '@/types/api';
 import type { ApiResponse } from '@/types/api';
 import type { ClosetItem } from '@/types/closet';
@@ -130,6 +132,13 @@ export const apiClosetService: ClosetService = {
 
   async generateOutfitVariations(request: GenerateClosetOutfitVariationsRequest): Promise<ApiResponse<GenerateClosetOutfitsResponse>> {
     return createApiClient().request<GenerateClosetOutfitsResponse>('/closet/generate-outfit-variations', {
+      method: 'POST',
+      body: request,
+    });
+  },
+
+  async updateOutfitAccessories(request: UpdateClosetOutfitAccessoriesRequest): Promise<ApiResponse<UpdateClosetOutfitAccessoriesResponse>> {
+    return createApiClient().request<UpdateClosetOutfitAccessoriesResponse>('/closet/update-outfit-accessories', {
       method: 'POST',
       body: request,
     });

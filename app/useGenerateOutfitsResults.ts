@@ -23,6 +23,7 @@ export function useGenerateOutfitsResults() {
   const [error, setError] = useState<string | null>(null);
   const [savedOutfitIds, setSavedOutfitIds] = useState<string[]>([]);
   const [savingOutfitId, setSavingOutfitId] = useState<string | null>(null);
+  const [updatingAccessoryOutfitId, setUpdatingAccessoryOutfitId] = useState<string | null>(null);
   const [weekPickerOutfit, setWeekPickerOutfit] = useState<ClosetGeneratedOutfit | null>(null);
   const [secondOpinionOutfit, setSecondOpinionOutfit] = useState<ClosetGeneratedOutfit | null>(null);
   const { showToast } = useToast();
@@ -157,6 +158,34 @@ export function useGenerateOutfitsResults() {
     }
   }
 
+  async function handleToggleAccessory(outfit: ClosetGeneratedOutfit, toggle: { includeHat?: boolean; includeBag?: boolean }) {
+    if (updatingAccessoryOutfitId) return;
+    const currentHasHat = outfit.items.some((item) => item.category === 'Hat');
+    const currentHasBag = outfit.items.some((item) => item.category === 'Bag');
+
+    setUpdatingAccessoryOutfitId(outfit.id);
+    const response = await closetService.updateOutfitAccessories({
+      itemIds: outfit.items.map((item) => item.id),
+      title: outfit.title,
+      whyItWorks: outfit.whyItWorks,
+      formality,
+      includeHat: toggle.includeHat ?? currentHasHat,
+      includeBag: toggle.includeBag ?? currentHasBag,
+    });
+    setUpdatingAccessoryOutfitId(null);
+
+    if (!response.success || !response.data) {
+      showToast('Could not update this outfit.', 'error');
+      return;
+    }
+
+    const updated = response.data.outfit;
+    const applyUpdate = (list: ClosetGeneratedOutfit[]) =>
+      list.map((item) => (item.id === outfit.id ? updated : item));
+    setOutfits(applyUpdate);
+    setVariations(applyUpdate);
+  }
+
   async function handleAssignToWeek(dayKey: string, dayLabel: string) {
     if (!weekPickerOutfit) return;
     try {
@@ -177,6 +206,7 @@ export function useGenerateOutfitsResults() {
     error,
     savedOutfitIds,
     savingOutfitId,
+    updatingAccessoryOutfitId,
     weekPickerOutfit,
     setWeekPickerOutfit,
     secondOpinionOutfit,
@@ -187,5 +217,6 @@ export function useGenerateOutfitsResults() {
     handleSaveOutfit,
     handleAssignToWeek,
     handleFeedback,
+    handleToggleAccessory,
   };
 }

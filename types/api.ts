@@ -408,6 +408,20 @@ export type GenerateClosetOutfitVariationsRequest = {
   swapItemIds: string[];
 };
 
+/** Partial update: current full item list + desired hat/bag state — the server adds/removes just those slots, leaving everything else (and the title/rationale) untouched. */
+export type UpdateClosetOutfitAccessoriesRequest = {
+  itemIds: string[];
+  title: string;
+  whyItWorks: string;
+  formality: LookTierSlug;
+  includeHat: boolean;
+  includeBag: boolean;
+};
+
+export type UpdateClosetOutfitAccessoriesResponse = {
+  outfit: ClosetGeneratedOutfit;
+};
+
 // ── Seasonal Fashion Trends Intelligence ─────────────────────────────────────
 
 export type FashionGender = 'menswear' | 'womenswear';

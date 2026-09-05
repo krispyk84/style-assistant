@@ -210,40 +210,36 @@ export const HELP_ME_PICK_JSON_SCHEMA = {
 };
 
 // ── Generate 5 Outfits (closet-only) ──────────────────────────────────────────
+// Item selection is deterministic (closet-outfit-builder.ts) — this schema is
+// narration-only: the model receives already-fixed real items per outfit and
+// returns just a title + rationale, matched back by index.
 
-const closetOutfitLlmSchema = z.object({
+const closetOutfitNarrationItemSchema = z.object({
+  index: z.number(),
   title: z.string(),
-  itemIds: z.array(z.string()).min(2).max(6),
   whyItWorks: z.string(),
 });
 
-export const closetOutfitsLlmResponseSchema = z.object({
-  outfits: z.array(closetOutfitLlmSchema).length(5),
+export const closetOutfitNarrationResponseSchema = z.object({
+  outfits: z.array(closetOutfitNarrationItemSchema).min(1),
 });
 
-export const CLOSET_OUTFITS_JSON_SCHEMA = {
-  name: 'closet_outfits_response',
+export const CLOSET_OUTFIT_NARRATION_JSON_SCHEMA = {
+  name: 'closet_outfit_narration_response',
   schema: {
     type: 'object' as const,
     properties: {
       outfits: {
         type: 'array',
-        minItems: 5,
-        maxItems: 5,
+        minItems: 1,
         items: {
           type: 'object',
           properties: {
+            index: { type: 'number', description: 'The outfit index this entry narrates, matching the input' },
             title: { type: 'string', description: 'A short, evocative outfit title' },
-            itemIds: {
-              type: 'array',
-              items: { type: 'string' },
-              minItems: 2,
-              maxItems: 6,
-              description: 'Exact ids from the wardrobe index used to build this outfit',
-            },
-            whyItWorks: { type: 'string', description: 'One sentence on why this combination works' },
+            whyItWorks: { type: 'string', description: 'One sentence on why this exact combination works' },
           },
-          required: ['title', 'itemIds', 'whyItWorks'],
+          required: ['index', 'title', 'whyItWorks'],
           additionalProperties: false,
         },
       },

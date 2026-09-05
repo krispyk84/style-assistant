@@ -130,6 +130,19 @@ export const generateClosetOutfitVariationsSchema = z.object({
   swapItemIds: z.array(z.string()).min(1).max(2),
 });
 
+// Partial update: caller sends the outfit's current full item list plus the
+// desired hat/bag state, and the server adds/removes just those slots — every
+// other already-chosen item is left untouched, and title/whyItWorks are
+// passed through unchanged since only the item list and sketch should change.
+export const updateClosetOutfitAccessoriesSchema = z.object({
+  itemIds: z.array(z.string()).min(2),
+  title: z.string().min(1),
+  whyItWorks: z.string().min(1),
+  formality: closetOutfitFormalitySchema,
+  includeHat: z.boolean(),
+  includeBag: z.boolean(),
+});
+
 export const createClosetItemPairSchema = z.object({
   itemIds: z.array(z.string()).length(2),
 });
@@ -149,5 +162,6 @@ export type ClosetMatchPayload = z.infer<typeof closetMatchSchema>;
 export type HelpMePickPayload = z.infer<typeof helpMePickSchema>;
 export type GenerateClosetOutfitsPayload = z.infer<typeof generateClosetOutfitsSchema>;
 export type GenerateClosetOutfitVariationsPayload = z.infer<typeof generateClosetOutfitVariationsSchema>;
+export type UpdateClosetOutfitAccessoriesPayload = z.infer<typeof updateClosetOutfitAccessoriesSchema>;
 export type SetClosetOutfitFeedbackPayload = z.infer<typeof setClosetOutfitFeedbackSchema>;
 export type CreateClosetItemPairPayload = z.infer<typeof createClosetItemPairSchema>;

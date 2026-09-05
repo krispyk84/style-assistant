@@ -27,6 +27,10 @@ type ClosetOutfitCardProps = {
   /** When set, item thumbnails become selectable (up to 2) and a "Generate Variants" button appears above Save/Add to week. */
   onGenerateVariants?: (selectedItemIds: string[]) => void;
   onSecondOpinion?: () => void;
+  /** Toggles a hat/bag in or out of this outfit — reloads just this card's item list and sketch, leaving every other already-chosen item untouched. */
+  onToggleHat?: () => void;
+  onToggleBag?: () => void;
+  isUpdatingAccessories?: boolean;
 };
 
 export function ClosetOutfitCard({
@@ -39,10 +43,15 @@ export function ClosetOutfitCard({
   onFeedback,
   onGenerateVariants,
   onSecondOpinion,
+  onToggleHat,
+  onToggleBag,
+  isUpdatingAccessories = false,
 }: ClosetOutfitCardProps) {
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const showActions = onSave || onAddToWeek || onDelete;
+  const hasHat = outfit.items.some((item) => item.category === 'Hat');
+  const hasBag = outfit.items.some((item) => item.category === 'Bag');
 
   function toggleItemSelected(itemId: string) {
     setSelectedItemIds((current) => {
@@ -99,6 +108,53 @@ export function ClosetOutfitCard({
         onToggleSelect={onGenerateVariants ? toggleItemSelected : undefined}
       />
       </View>
+
+      {onToggleHat || onToggleBag ? (
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {onToggleHat ? (
+            <Pressable
+              disabled={isUpdatingAccessories}
+              onPress={onToggleHat}
+              style={[
+                quietButtonStyle,
+                hasHat ? { backgroundColor: theme.colors.text } : null,
+                isUpdatingAccessories ? { opacity: 0.5 } : null,
+              ]}>
+              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                <AppIcon
+                  color={hasHat ? theme.colors.inverseText : theme.colors.text}
+                  name={hasHat ? 'check-circle' : 'add-circle'}
+                  size={16}
+                />
+                <AppText style={{ color: hasHat ? theme.colors.inverseText : theme.colors.text, fontSize: 13 }}>
+                  {hasHat ? 'Hat added' : 'Add hat'}
+                </AppText>
+              </View>
+            </Pressable>
+          ) : null}
+          {onToggleBag ? (
+            <Pressable
+              disabled={isUpdatingAccessories}
+              onPress={onToggleBag}
+              style={[
+                quietButtonStyle,
+                hasBag ? { backgroundColor: theme.colors.text } : null,
+                isUpdatingAccessories ? { opacity: 0.5 } : null,
+              ]}>
+              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                <AppIcon
+                  color={hasBag ? theme.colors.inverseText : theme.colors.text}
+                  name={hasBag ? 'check-circle' : 'add-circle'}
+                  size={16}
+                />
+                <AppText style={{ color: hasBag ? theme.colors.inverseText : theme.colors.text, fontSize: 13 }}>
+                  {hasBag ? 'Bag added' : 'Add bag'}
+                </AppText>
+              </View>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       {onGenerateVariants ? (
         <View style={{ gap: spacing.xs }}>

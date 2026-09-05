@@ -6,11 +6,9 @@ import { openAiClient } from '../../ai/openai-client.js';
 import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import {
-  buildClosetOutfitsSystemPrompt,
-  buildClosetOutfitsUserPrompt,
-  buildClosetOutfitVariationsUserPrompt,
-  type ClosetOutfitIndexItem,
-  type ClosetOutfitVarietyContext,
+  buildClosetOutfitNarrationSystemPrompt,
+  buildClosetOutfitNarrationUserPrompt,
+  type ClosetOutfitSeasonalTrendsContext,
 } from '../../ai/prompts/closet-outfits.prompts.js';
 import { buildClosetOutfitSketchPrompt } from '../../ai/prompts/closet-outfit-sketch.prompts.js';
 import { storageProvider } from '../../storage/index.js';
@@ -22,8 +20,14 @@ import type { Hemisphere } from '../seasonal-trends/season-math.js';
 import { buildClosetIndex } from './closet-index.js';
 import { closetRepository } from './closet.repository.js';
 import { mapClosetItem } from './closet-response-mapper.js';
-import { CLOSET_OUTFITS_JSON_SCHEMA, closetOutfitsLlmResponseSchema } from './closet.schemas.js';
-import type { GenerateClosetOutfitsPayload, GenerateClosetOutfitVariationsPayload } from './closet.validation.js';
+import { closetOutfitNarrationResponseSchema, CLOSET_OUTFIT_NARRATION_JSON_SCHEMA } from './closet.schemas.js';
+import { buildDeterministicOutfit, pickVariantReplacements, type DeterministicOutfitResult } from './closet-outfit-builder.js';
+import { CATEGORY_TO_GROUP, FORMALITY_RANK, GROUP_TO_SLOTS, TIER_FORMALITY_TARGET, type OutfitSlot } from './closet-taxonomy.js';
+import type {
+  GenerateClosetOutfitsPayload,
+  GenerateClosetOutfitVariationsPayload,
+  UpdateClosetOutfitAccessoriesPayload,
+} from './closet.validation.js';
 
 function fashionGenderForProfile(gender: string | null | undefined): FashionGender {
   return gender === 'woman' ? 'womenswear' : 'menswear';
@@ -45,7 +49,6 @@ async function loadSeasonalTrends(supabaseUserId: string, hemisphere?: Hemispher
 // is what actually stops a request from being made with an unusable closet;
 // this is a server-side backstop in case a client ever skips that check.
 const MIN_WARDROBE_SIZE = 10;
-const MAX_ATTEMPTS = 4;
 const TARGET_OUTFIT_COUNT = 5;
 // Bounds actual concurrent generations (not just start times) — each
 // gpt-image-1-mini call holds a full image buffer in memory for its
@@ -53,21 +56,22 @@ const TARGET_OUTFIT_COUNT = 5;
 // server's memory limit on the trend-sketch side, so this mirrors that fix.
 const SKETCH_GENERATION_CONCURRENCY = 3;
 // Two batches' worth of outfits (a base 5 + a variations 5) — wide enough to
-// meaningfully steer the model away from repeats, narrow enough that older
+// meaningfully steer selection away from repeats, narrow enough that older
 // generations stop suppressing an item forever.
 const RECENT_OUTFITS_FOR_VARIETY = 10;
+// A batch-built outfit can duplicate an earlier one in the same batch by
+// chance (small closets, weighted randomization) — retry a few times before
+// accepting the duplicate rather than looping indefinitely.
+const MAX_DUPLICATE_RETRIES = 3;
 
-// A generated outfit must cover both of these slots to count as "complete" —
-// the LLM is instructed to do this, but instructions alone aren't reliable
-// enough to skip validating it server-side.
-const BOTTOM_CATEGORIES = new Set(['Trousers', 'Denim', 'Shorts', 'Suit']);
-const FOOTWEAR_CATEGORIES = new Set(['Shoes', 'Sneakers', 'Loafers', 'Boots']);
-
-function isCompleteOutfit(categories: string[]): boolean {
-  return categories.some((c) => BOTTOM_CATEGORIES.has(c)) && categories.some((c) => FOOTWEAR_CATEGORIES.has(c));
-}
+const FORMALITY_LABEL: Record<string, string> = {
+  business: 'Business',
+  'smart-casual': 'Smart Casual',
+  casual: 'Casual',
+};
 
 type MappedClosetItem = ReturnType<typeof mapClosetItem>;
+type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
 
 type ResolvedOutfit = {
   id: string;
@@ -90,116 +94,160 @@ async function loadIndex(supabaseUserId: string) {
       `Add at least ${MIN_WARDROBE_SIZE} closet items before generating full outfits.`,
     );
   }
-  return { index, itemsById };
+  return { itemsById };
 }
 
-async function buildVarietyContext(
-  supabaseUserId: string,
-  itemsById: Map<string, Awaited<ReturnType<typeof closetRepository.getItems>>[number]>,
-): Promise<ClosetOutfitVarietyContext> {
-  const [recentIds, preference] = await Promise.all([
-    closetRepository.getRecentlyUsedItemIds(supabaseUserId, RECENT_OUTFITS_FOR_VARIETY),
-    closetRepository.getPreferenceItemIds(supabaseUserId),
-  ]);
-
-  const toNamed = (ids: string[]) =>
-    ids
-      .map((id) => itemsById.get(id))
-      .filter((item): item is NonNullable<typeof item> => Boolean(item))
-      .map((item) => ({ id: item.id, name: item.title }));
-
-  return {
-    recentlyUsedItems: toNamed(recentIds),
-    preference: { loved: toNamed(preference.loved), hated: toNamed(preference.hated) },
-  };
+// ── Weather gating — mirrors the temperature bands in the narration prompt's
+// buildTemperatureRule, translated into whether a layering/outerwear slot
+// should be attempted at all (the caller's job per the shared builder's
+// contract, not the builder's own concern). ──────────────────────────────────
+function weatherGates(temperatureC: number | null): { includeLayering: boolean; includeOuterwear: boolean } {
+  if (temperatureC == null) return { includeLayering: true, includeOuterwear: true };
+  if (temperatureC >= 24) return { includeLayering: false, includeOuterwear: false };
+  if (temperatureC >= 18) return { includeLayering: false, includeOuterwear: true };
+  return { includeLayering: true, includeOuterwear: true };
 }
 
-function resolveOutfits(
-  outfits: { title: string; itemIds: string[]; whyItWorks: string }[],
-  itemsById: Map<string, Awaited<ReturnType<typeof closetRepository.getItems>>[number]>,
-  mustIncludeItemIds?: string[],
-): Omit<ResolvedOutfit, 'feedbackId' | 'feedback' | 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[] {
-  const resolved: Omit<ResolvedOutfit, 'feedbackId' | 'feedback' | 'sketchJobId' | 'sketchStatus' | 'sketchImageUrl'>[] = [];
+// Seeds group-diversity tracking from cross-session history (not just this
+// batch) — an item used in outfits generated recently deprioritizes its whole
+// garment GROUP for the slot(s) it can fill, so today's fresh batch doesn't
+// immediately reconverge on the same shoe/top type as last time.
+function seedRecentGroupsBySlot(
+  recentlyUsedItemIds: string[],
+  itemsById: Map<string, BuilderItem>,
+): Partial<Record<OutfitSlot, Set<string>>> {
+  const seed: Partial<Record<OutfitSlot, Set<string>>> = {};
+  for (const id of recentlyUsedItemIds) {
+    const category = itemsById.get(id)?.category;
+    const group = category ? CATEGORY_TO_GROUP[category] : undefined;
+    if (!group) continue;
+    for (const slot of GROUP_TO_SLOTS[group] ?? []) {
+      (seed[slot] ??= new Set()).add(group);
+    }
+  }
+  return seed;
+}
 
-  for (let i = 0; i < outfits.length; i++) {
-    const outfit = outfits[i]!;
-    const uniqueIds = [...new Set(outfit.itemIds)];
-    const validIds = uniqueIds.filter((id) => itemsById.has(id));
+function outfitKey(result: DeterministicOutfitResult<BuilderItem>): string {
+  return [...result.itemIds].sort().join('|');
+}
 
-    // Drop outfits where the model referenced an id outside the wardrobe index,
-    // or ended up with fewer than 2 real items after filtering.
-    if (validIds.length < 2 || validIds.length !== uniqueIds.length) continue;
-
-    // Drop outfits missing a bottom or footwear — an incomplete outfit is a
-    // failed generation, not a partial success worth showing.
-    const categories = validIds.map((id) => itemsById.get(id)!.category);
-    if (!isCompleteOutfit(categories)) continue;
-
-    // Variations only: the client explicitly asked to keep certain items
-    // unchanged — a variation that dropped one is invalid, not a partial success.
-    if (mustIncludeItemIds && !mustIncludeItemIds.every((id) => validIds.includes(id))) continue;
-
-    resolved.push({
-      id: `outfit-${i}-${validIds.join('-')}`,
-      title: outfit.title,
-      whyItWorks: outfit.whyItWorks,
-      items: validIds.map((id) => mapClosetItem(itemsById.get(id)!)),
-    });
+// Builds `count` deterministic outfits, accumulating per-slot group usage
+// across the batch (on top of the cross-session seed) so the N outfits in one
+// response are mutually type-diverse, not just individually formality-correct.
+function buildOutfitBatch(params: {
+  closetItems: BuilderItem[];
+  targetFormalityRank: number;
+  includeLayering: boolean;
+  includeOuterwear: boolean;
+  count: number;
+  seedGroupsBySlot: Partial<Record<OutfitSlot, Set<string>>>;
+}): DeterministicOutfitResult<BuilderItem>[] {
+  const recentGroupsBySlot: Partial<Record<OutfitSlot, Set<string>>> = {};
+  for (const slot of Object.keys(params.seedGroupsBySlot) as OutfitSlot[]) {
+    recentGroupsBySlot[slot] = new Set(params.seedGroupsBySlot[slot]);
   }
 
-  return resolved;
-}
-
-async function requestOutfits(params: {
-  index: ClosetOutfitIndexItem[];
-  userPrompt: string;
-  supabaseUserId: string;
-  mustIncludeItemIds?: string[];
-}): Promise<{ title: string; itemIds: string[]; whyItWorks: string }[]> {
-  const categoryById = new Map(params.index.map((item) => [item.id, item.category]));
-  const isUsable = (outfit: { itemIds: string[] }) => {
-    if (!outfit.itemIds.every((id) => categoryById.has(id))) return false;
-    const categories = outfit.itemIds.map((id) => categoryById.get(id)!);
-    if (!isCompleteOutfit(categories)) return false;
-    if (params.mustIncludeItemIds && !params.mustIncludeItemIds.every((id) => outfit.itemIds.includes(id))) return false;
-    return true;
-  };
-
-  // Accumulate usable outfits ACROSS attempts rather than requiring a single
-  // attempt to score 5/5 — a retry that got 4/5 right shouldn't discard the
-  // one good outfit from a prior attempt that only got 2/5 right. This is
-  // what actually fixed generations settling for 3 outfits instead of 5: the
-  // old version replaced the "best" attempt wholesale each retry instead of
-  // combining what already validated.
-  const accumulated: { title: string; itemIds: string[]; whyItWorks: string }[] = [];
+  const results: DeterministicOutfitResult<BuilderItem>[] = [];
   const seenKeys = new Set<string>();
 
-  for (let attempt = 0; attempt < MAX_ATTEMPTS && accumulated.length < TARGET_OUTFIT_COUNT; attempt++) {
-    const result = await openAiClient.createStructuredResponse({
-      schema: closetOutfitsLlmResponseSchema,
-      jsonSchema: CLOSET_OUTFITS_JSON_SCHEMA,
-      instructions: buildClosetOutfitsSystemPrompt(),
-      userContent: [{ type: 'input_text' as const, text: params.userPrompt }],
-      supabaseUserId: params.supabaseUserId,
-      feature: 'outfit-generation',
-    });
+  for (let i = 0; i < params.count; i++) {
+    let result: DeterministicOutfitResult<BuilderItem> | null = null;
+    for (let attempt = 0; attempt < MAX_DUPLICATE_RETRIES; attempt++) {
+      const candidate = buildDeterministicOutfit({
+        closetItems: params.closetItems,
+        targetFormalityRank: params.targetFormalityRank,
+        includeLayering: params.includeLayering,
+        includeOuterwear: params.includeOuterwear,
+        recentGroupsBySlot,
+      });
+      const key = outfitKey(candidate);
+      if (!seenKeys.has(key) || attempt === MAX_DUPLICATE_RETRIES - 1) {
+        result = candidate;
+        seenKeys.add(key);
+        break;
+      }
+    }
+    if (!result) continue;
 
-    for (const outfit of result.outfits) {
-      if (!isUsable(outfit)) continue;
-      const key = [...outfit.itemIds].sort().join('|');
-      if (seenKeys.has(key)) continue;
-      seenKeys.add(key);
-      accumulated.push(outfit);
-      if (accumulated.length >= TARGET_OUTFIT_COUNT) break;
+    results.push(result);
+    for (const [slot, item] of Object.entries(result.bySlot) as [OutfitSlot, BuilderItem][]) {
+      const group = CATEGORY_TO_GROUP[item.category];
+      if (!group) continue;
+      (recentGroupsBySlot[slot] ??= new Set()).add(group);
     }
   }
 
-  if (accumulated.length >= 3) {
-    return accumulated.slice(0, TARGET_OUTFIT_COUNT);
-  }
-
-  throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not assemble outfits from your closet. Please try again.');
+  return results;
 }
+
+// An outfit missing footwear, bottoms, or a top is a failed build (the
+// closet genuinely lacks that category) — not a partial success worth
+// showing. Every other slot is optional by nature (weather-gated, or
+// opt-in accessories).
+function isValidOutfit(result: DeterministicOutfitResult<BuilderItem>): boolean {
+  return Boolean(result.bySlot.footwear && result.bySlot.bottoms && result.bySlot.tops);
+}
+
+async function narrateOutfits(params: {
+  outfits: { index: number; items: MappedClosetItem[] }[];
+  formality: string;
+  weatherSummary?: string | null;
+  weatherStylingHint?: string | null;
+  season?: string | null;
+  temperatureC?: number | null;
+  weatherCode?: number | null;
+  trendiness?: number | null;
+  additionalDetails?: string | null;
+  seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
+  supabaseUserId: string;
+}): Promise<Map<number, { title: string; whyItWorks: string }>> {
+  const userPrompt = buildClosetOutfitNarrationUserPrompt({
+    outfits: params.outfits.map((outfit) => ({
+      index: outfit.index,
+      items: outfit.items.map((item) => ({
+        id: item.id,
+        name: item.title,
+        category: item.category,
+        color_family: item.colorFamily ?? null,
+        formality: item.formality ?? null,
+      })),
+    })),
+    formality: params.formality,
+    weatherSummary: params.weatherSummary,
+    weatherStylingHint: params.weatherStylingHint,
+    season: params.season,
+    temperatureC: params.temperatureC,
+    weatherCode: params.weatherCode,
+    trendiness: params.trendiness,
+    additionalDetails: params.additionalDetails,
+    seasonalTrends: params.seasonalTrends,
+  });
+
+  try {
+    const result = await openAiClient.createStructuredResponse({
+      schema: closetOutfitNarrationResponseSchema,
+      jsonSchema: CLOSET_OUTFIT_NARRATION_JSON_SCHEMA,
+      instructions: buildClosetOutfitNarrationSystemPrompt(),
+      userContent: [{ type: 'input_text' as const, text: userPrompt }],
+      supabaseUserId: params.supabaseUserId,
+      feature: 'outfit-generation',
+    });
+    return new Map(result.outfits.map((outfit) => [outfit.index, { title: outfit.title, whyItWorks: outfit.whyItWorks }]));
+  } catch (error) {
+    // Narration is flavor text on top of already-real, already-valid items —
+    // a narration failure shouldn't block showing the outfit itself.
+    const { code } = describeError(error);
+    logger.warn({ errorCode: code, error }, 'Closet outfit narration failed — falling back to generic titles');
+    return new Map();
+  }
+}
+
+function fallbackTitle(formality: string): string {
+  return `${FORMALITY_LABEL[formality] ?? formality} Look`;
+}
+
+const FALLBACK_WHY_IT_WORKS = 'A complete outfit built entirely from pieces you already own.';
 
 async function generateOutfitSketch(
   jobId: string,
@@ -303,45 +351,99 @@ async function attachSketchJobs(
   return withJobs;
 }
 
+// Reuses the shared deterministic builder to pick a single hat/bag by
+// restricting its candidate pool to just that garment group — avoids a
+// separate single-item-pick code path for what's structurally the same
+// "formality + variety aware pick from a pool" operation the builder already does.
+function pickAccessory(
+  group: 'hat' | 'bag',
+  closetItems: BuilderItem[],
+  targetFormalityRank: number,
+  excludeItemIds: ReadonlySet<string>,
+): BuilderItem | null {
+  const candidates = closetItems.filter((item) => CATEGORY_TO_GROUP[item.category] === group);
+  const result = buildDeterministicOutfit({
+    closetItems: candidates,
+    targetFormalityRank,
+    includeLayering: false,
+    includeOuterwear: false,
+    includeHat: group === 'hat',
+    includeBag: group === 'bag',
+    excludeItemIds,
+  });
+  return result.bySlot.hat ?? result.bySlot.bag ?? null;
+}
+
 export const closetOutfitsService = {
   async generateOutfits(payload: GenerateClosetOutfitsPayload, supabaseUserId: string) {
-    const { index, itemsById } = await loadIndex(supabaseUserId);
-    const [variety, seasonalTrends] = await Promise.all([
-      buildVarietyContext(supabaseUserId, itemsById),
+    const { itemsById } = await loadIndex(supabaseUserId);
+    const closetItems = [...itemsById.values()];
+
+    const [recentlyUsedItemIds, seasonalTrends] = await Promise.all([
+      closetRepository.getRecentlyUsedItemIds(supabaseUserId, RECENT_OUTFITS_FOR_VARIETY),
       loadSeasonalTrends(supabaseUserId, payload.hemisphere),
     ]);
 
-    const userPrompt = buildClosetOutfitsUserPrompt({
-      index,
+    const temperatureC = payload.weatherContext?.apparentTemperatureC ?? payload.weatherContext?.temperatureC ?? null;
+    const { includeLayering, includeOuterwear } = weatherGates(temperatureC);
+    const targetFormalityRank = TIER_FORMALITY_TARGET[payload.formality] ?? FORMALITY_RANK['Refined Casual'];
+    const seedGroupsBySlot = seedRecentGroupsBySlot(recentlyUsedItemIds, itemsById);
+
+    const batch = buildOutfitBatch({
+      closetItems,
+      targetFormalityRank,
+      includeLayering,
+      includeOuterwear,
+      count: TARGET_OUTFIT_COUNT,
+      seedGroupsBySlot,
+    });
+
+    const validBatch = batch.filter(isValidOutfit);
+    if (validBatch.length === 0) {
+      throw new HttpError(
+        422,
+        'CLOSET_OUTFITS_INVALID',
+        'Your closet needs footwear, bottoms, and tops to build a complete outfit.',
+      );
+    }
+
+    const resolved = validBatch.map((result, index) => ({
+      id: `outfit-${index}-${result.itemIds.join('-')}`,
+      items: result.itemIds.map((id) => mapClosetItem(itemsById.get(id)!)),
+    }));
+
+    const narrationMap = await narrateOutfits({
+      outfits: resolved.map((outfit, index) => ({ index, items: outfit.items })),
       formality: payload.formality,
       weatherSummary: payload.weatherContext?.summary,
       weatherStylingHint: payload.weatherContext?.stylingHint,
       season: payload.weatherContext?.season,
-      temperatureC: payload.weatherContext?.apparentTemperatureC ?? payload.weatherContext?.temperatureC,
+      temperatureC,
       weatherCode: payload.weatherContext?.weatherCode,
       trendiness: payload.trendiness,
       additionalDetails: payload.additionalDetails,
-      variety,
       seasonalTrends,
+      supabaseUserId,
     });
 
-    const outfits = await requestOutfits({ index, userPrompt, supabaseUserId });
-    const resolved = resolveOutfits(outfits, itemsById);
+    const withTitles = resolved.map((outfit, index) => {
+      const narration = narrationMap.get(index);
+      return {
+        id: outfit.id,
+        title: narration?.title ?? fallbackTitle(payload.formality),
+        whyItWorks: narration?.whyItWorks ?? FALLBACK_WHY_IT_WORKS,
+        items: outfit.items,
+      };
+    });
 
-    if (resolved.length === 0) {
-      throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not assemble outfits from your closet. Please try again.');
-    }
-
-    const withFeedbackIds = await attachFeedbackIds(resolved, payload.formality, supabaseUserId);
+    const withFeedbackIds = await attachFeedbackIds(withTitles, payload.formality, supabaseUserId);
     return { outfits: await attachSketchJobs(withFeedbackIds, supabaseUserId) };
   },
 
   async generateOutfitVariations(payload: GenerateClosetOutfitVariationsPayload, supabaseUserId: string) {
-    const { index, itemsById } = await loadIndex(supabaseUserId);
-    const [variety, seasonalTrends] = await Promise.all([
-      buildVarietyContext(supabaseUserId, itemsById),
-      loadSeasonalTrends(supabaseUserId, payload.hemisphere),
-    ]);
+    const { itemsById } = await loadIndex(supabaseUserId);
+    const closetItems = [...itemsById.values()];
+    const seasonalTrends = await loadSeasonalTrends(supabaseUserId, payload.hemisphere);
 
     const validBaseIds = payload.baseItemIds.filter((id) => itemsById.has(id));
     if (validBaseIds.length < 2) {
@@ -354,31 +456,105 @@ export const closetOutfitsService = {
     }
     const keepItemIds = validBaseIds.filter((id) => !swapItemIds.includes(id));
 
-    const userPrompt = buildClosetOutfitVariationsUserPrompt({
-      index,
-      baseItemIds: validBaseIds,
-      swapItemIds,
+    const temperatureC = payload.weatherContext?.apparentTemperatureC ?? payload.weatherContext?.temperatureC ?? null;
+    const targetFormalityRank = TIER_FORMALITY_TARGET[payload.formality] ?? FORMALITY_RANK['Refined Casual'];
+
+    // Each swap slot is constrained to the SAME garment group as the item
+    // being replaced (pickVariantReplacements) — a shoe swap only ever offers
+    // other shoes, never a different slot's item. Never re-suggest an item
+    // already in the base outfit.
+    const excludeIds = new Set(validBaseIds);
+    const replacementLists = swapItemIds.map((swapId) =>
+      pickVariantReplacements(itemsById.get(swapId)!, closetItems, targetFormalityRank, excludeIds, TARGET_OUTFIT_COUNT),
+    );
+
+    const variantCount = Math.min(TARGET_OUTFIT_COUNT, ...replacementLists.map((list) => list.length));
+    if (variantCount === 0) {
+      throw new HttpError(
+        502,
+        'CLOSET_OUTFITS_INVALID',
+        'Your closet does not have another item in the same category to swap in.',
+      );
+    }
+
+    const resolved = Array.from({ length: variantCount }, (_, index) => {
+      const itemIds = [...keepItemIds, ...replacementLists.map((list) => list[index]!.id)];
+      return { id: `outfit-variant-${index}-${itemIds.join('-')}`, items: itemIds.map((id) => mapClosetItem(itemsById.get(id)!)) };
+    });
+
+    const narrationMap = await narrateOutfits({
+      outfits: resolved.map((outfit, index) => ({ index, items: outfit.items })),
       formality: payload.formality,
       weatherSummary: payload.weatherContext?.summary,
       weatherStylingHint: payload.weatherContext?.stylingHint,
       season: payload.weatherContext?.season,
-      temperatureC: payload.weatherContext?.apparentTemperatureC ?? payload.weatherContext?.temperatureC,
+      temperatureC,
       weatherCode: payload.weatherContext?.weatherCode,
       trendiness: payload.trendiness,
       additionalDetails: payload.additionalDetails,
-      variety,
       seasonalTrends,
+      supabaseUserId,
     });
 
-    const outfits = await requestOutfits({ index, userPrompt, supabaseUserId, mustIncludeItemIds: keepItemIds });
-    const resolved = resolveOutfits(outfits, itemsById, keepItemIds);
+    const withTitles = resolved.map((outfit, index) => {
+      const narration = narrationMap.get(index);
+      return {
+        id: outfit.id,
+        title: narration?.title ?? `${fallbackTitle(payload.formality)} Variation`,
+        whyItWorks: narration?.whyItWorks ?? 'A variation on your outfit with a fresh piece swapped in.',
+        items: outfit.items,
+      };
+    });
 
-    if (resolved.length === 0) {
-      throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not generate variations for that outfit. Please try again.');
+    const withFeedbackIds = await attachFeedbackIds(withTitles, payload.formality, supabaseUserId);
+    return { outfits: await attachSketchJobs(withFeedbackIds, supabaseUserId) };
+  },
+
+  // Partial update: adds/removes just the hat/bag slot from an already-shown
+  // outfit, keeping every other item, the title, and the rationale exactly as
+  // they were — only the item list and sketch change.
+  async updateOutfitAccessories(payload: UpdateClosetOutfitAccessoriesPayload, supabaseUserId: string) {
+    const { itemsById } = await loadIndex(supabaseUserId);
+    const closetItems = [...itemsById.values()];
+
+    const validItemIds = payload.itemIds.filter((id) => itemsById.has(id));
+    if (validItemIds.length < 2) {
+      throw new HttpError(422, 'INVALID_BASE_OUTFIT', 'This outfit no longer matches your closet.');
     }
 
-    const withFeedbackIds = await attachFeedbackIds(resolved, payload.formality, supabaseUserId);
-    return { outfits: await attachSketchJobs(withFeedbackIds, supabaseUserId) };
+    const targetFormalityRank = TIER_FORMALITY_TARGET[payload.formality] ?? FORMALITY_RANK['Refined Casual'];
+
+    const currentHatId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'hat');
+    const currentBagId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'bag');
+
+    let itemIds = validItemIds.filter((id) => id !== currentHatId || payload.includeHat);
+    itemIds = itemIds.filter((id) => id !== currentBagId || payload.includeBag);
+
+    if (payload.includeHat && !currentHatId) {
+      const hat = pickAccessory('hat', closetItems, targetFormalityRank, new Set(itemIds));
+      if (hat) itemIds.push(hat.id);
+    }
+    if (payload.includeBag && !currentBagId) {
+      const bag = pickAccessory('bag', closetItems, targetFormalityRank, new Set(itemIds));
+      if (bag) itemIds.push(bag.id);
+    }
+
+    const items = itemIds.map((id) => mapClosetItem(itemsById.get(id)!));
+    const [feedbackRow] = await closetRepository.createOutfitFeedbackRows(supabaseUserId, payload.formality, [
+      { title: payload.title, itemIds },
+    ]);
+
+    const outfit = {
+      id: `outfit-${itemIds.join('-')}`,
+      title: payload.title,
+      whyItWorks: payload.whyItWorks,
+      items,
+      feedbackId: feedbackRow!.id,
+      feedback: null as 'love' | 'hate' | null,
+    };
+
+    const [withSketch] = await attachSketchJobs([outfit], supabaseUserId);
+    return { outfit: withSketch! };
   },
 
   async setOutfitFeedback(feedbackId: string, supabaseUserId: string, feedback: 'love' | 'hate' | null) {
