@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -7,7 +8,10 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing, theme } from '@/constants/theme';
+import { outfitChatFlow } from '@/lib/outfit-chat-flow';
+import { buildSecondOpinionSubjectFromClosetOutfit } from '@/lib/outfit-utils';
 import type { ClosetGeneratedOutfit } from '@/types/api';
+import { OutfitActionsAccordion } from './OutfitActionsAccordion';
 import { OutfitItemThumbnailRow } from './OutfitItemThumbnailRow';
 
 const MAX_SWAP_SELECTION = 2;
@@ -112,59 +116,84 @@ export function ClosetOutfitCard({
         </View>
       ) : null}
 
-      {showActions ? (
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          {onDelete ? (
-            <Pressable onPress={onDelete} style={quietButtonStyle}>
-              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-                <AppIcon color={theme.colors.danger} name="trash" size={16} />
-                <AppText style={{ color: theme.colors.danger, fontSize: 13 }}>Remove</AppText>
-              </View>
-            </Pressable>
-          ) : (
-            <>
-              {onSave ? (
-                <Pressable
-                  disabled={isSaved || isSaving}
-                  onPress={onSave}
-                  style={[quietButtonStyle, isSaved ? { backgroundColor: theme.colors.border } : null]}>
+      <OutfitActionsAccordion>
+          {showActions ? (
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              {onDelete ? (
+                <Pressable onPress={onDelete} style={quietButtonStyle}>
                   <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-                    <AppIcon color={theme.colors.text} name={isSaved ? 'bookmark-filled' : 'bookmark'} size={16} />
-                    <AppText style={{ fontSize: 13 }}>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save'}</AppText>
+                    <AppIcon color={theme.colors.danger} name="trash" size={16} />
+                    <AppText style={{ color: theme.colors.danger, fontSize: 13 }}>Remove</AppText>
                   </View>
                 </Pressable>
-              ) : null}
-              {onAddToWeek ? (
-                <Pressable onPress={onAddToWeek} style={quietButtonStyle}>
-                  <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-                    <AppIcon color={theme.colors.text} name="calendar" size={16} />
-                    <AppText style={{ fontSize: 13 }}>Add to week</AppText>
-                  </View>
-                </Pressable>
-              ) : null}
-            </>
-          )}
-        </View>
-      ) : null}
+              ) : (
+                <>
+                  {onSave ? (
+                    <Pressable
+                      disabled={isSaved || isSaving}
+                      onPress={onSave}
+                      style={[quietButtonStyle, isSaved ? { backgroundColor: theme.colors.border } : null]}>
+                      <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                        <AppIcon color={theme.colors.text} name={isSaved ? 'bookmark-filled' : 'bookmark'} size={16} />
+                        <AppText style={{ fontSize: 13 }}>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save'}</AppText>
+                      </View>
+                    </Pressable>
+                  ) : null}
+                  {onAddToWeek ? (
+                    <Pressable onPress={onAddToWeek} style={quietButtonStyle}>
+                      <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                        <AppIcon color={theme.colors.text} name="calendar" size={16} />
+                        <AppText style={{ fontSize: 13 }}>Add to week</AppText>
+                      </View>
+                    </Pressable>
+                  ) : null}
+                </>
+              )}
+            </View>
+          ) : null}
 
-      {onSecondOpinion ? (
-        <Pressable
-          onPress={onSecondOpinion}
-          style={{
-            alignItems: 'center',
-            borderColor: theme.colors.accent,
-            borderRadius: 999,
-            borderWidth: 1,
-            flexDirection: 'row',
-            gap: spacing.xs,
-            justifyContent: 'center',
-            minHeight: 50,
-            paddingHorizontal: spacing.md,
-          }}>
-          <AppIcon color={theme.colors.accent} name="chat" size={18} />
-          <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
-        </Pressable>
-      ) : null}
+          {onSecondOpinion ? (
+            <Pressable
+              onPress={onSecondOpinion}
+              style={{
+                alignItems: 'center',
+                borderColor: theme.colors.accent,
+                borderRadius: 999,
+                borderWidth: 1,
+                flexDirection: 'row',
+                gap: spacing.xs,
+                justifyContent: 'center',
+                minHeight: 50,
+                paddingHorizontal: spacing.md,
+              }}>
+              <AppIcon color={theme.colors.accent} name="chat" size={18} />
+              <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            onPress={() => {
+              outfitChatFlow.setPendingContext({
+                ...buildSecondOpinionSubjectFromClosetOutfit(outfit),
+                sketchImageUrl: outfit.sketchImageUrl,
+              });
+              router.push('/outfit-chat');
+            }}
+            style={{
+              alignItems: 'center',
+              borderColor: theme.colors.border,
+              borderRadius: 999,
+              borderWidth: 1,
+              flexDirection: 'row',
+              gap: spacing.xs,
+              justifyContent: 'center',
+              minHeight: 50,
+              paddingHorizontal: spacing.md,
+            }}>
+            <AppIcon color={theme.colors.text} name="chat" size={18} />
+            <AppText>Ask Questions</AppText>
+          </Pressable>
+      </OutfitActionsAccordion>
 
       {onFeedback ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>

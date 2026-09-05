@@ -95,6 +95,7 @@ function AppNavigation() {
         <Stack.Screen name="check-piece" options={{ headerShown: false }} />
         <Stack.Screen name="closet-fit-check" options={{ headerShown: false }} />
         <Stack.Screen name="selfie-review" options={{ headerShown: false }} />
+        <Stack.Screen name="outfit-chat" options={{ headerShown: false }} />
         <Stack.Screen name="results/[requestId]" options={{ headerShown: false }} />
         <Stack.Screen name="tier/[tier]" options={{ headerShown: false }} />
         <Stack.Screen name="create-look" options={{ headerShown: false }} />

@@ -6,10 +6,12 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPanel';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import { formatTierLabel } from '@/lib/outfit-utils';
+import { outfitChatFlow } from '@/lib/outfit-chat-flow';
+import { buildSecondOpinionSubject, formatTierLabel } from '@/lib/outfit-utils';
 import type { LookRecommendation } from '@/types/look-request';
 import type { ClosetItem } from '@/types/closet';
 import { AppText } from '@/components/ui/app-text';
+import { OutfitActionsAccordion } from './OutfitActionsAccordion';
 import { OutfitPieceListView } from './OutfitPieceListView';
 import { buildLabeledPieces } from './look-result-card-helpers';
 
@@ -151,26 +153,25 @@ export function LookResultCardView({
           </View>
         ) : null}
 
-        {/* Quieter, lower-emphasis actions — these support the look, they aren't the point of the card */}
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <Pressable
-            disabled={isSaved || isSaving || !onSave}
-            onPress={onSave}
-            style={[quietButtonStyle, isSaved ? { backgroundColor: theme.colors.border } : null]}>
-            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-              <AppIcon color={theme.colors.text} name="bookmark" size={16} />
-              <AppText style={{ fontSize: 13 }}>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}</AppText>
-            </View>
-          </Pressable>
-          <Pressable disabled={!onAddToWeek} onPress={onAddToWeek} style={quietButtonStyle}>
-            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-              <AppIcon color={theme.colors.text} name="calendar" size={16} />
-              <AppText style={{ fontSize: 13 }}>Add to week</AppText>
-            </View>
-          </Pressable>
-        </View>
+        <OutfitActionsAccordion>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Pressable
+              disabled={isSaved || isSaving || !onSave}
+              onPress={onSave}
+              style={[quietButtonStyle, isSaved ? { backgroundColor: theme.colors.border } : null]}>
+              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                <AppIcon color={theme.colors.text} name="bookmark" size={16} />
+                <AppText style={{ fontSize: 13 }}>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}</AppText>
+              </View>
+            </Pressable>
+            <Pressable disabled={!onAddToWeek} onPress={onAddToWeek} style={quietButtonStyle}>
+              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                <AppIcon color={theme.colors.text} name="calendar" size={16} />
+                <AppText style={{ fontSize: 13 }}>Add to week</AppText>
+              </View>
+            </Pressable>
+          </View>
 
-        <View style={{ gap: spacing.sm }}>
           <Pressable
             onPress={() => router.push(detailHref)}
             style={[primaryButtonStyle, { backgroundColor: theme.colors.text, flexDirection: 'row', gap: spacing.xs }]}>
@@ -187,7 +188,20 @@ export function LookResultCardView({
             <AppIcon color={theme.colors.accent} name="chat" size={18} />
             <AppText style={{ color: theme.colors.accent }}>Second Opinion</AppText>
           </Pressable>
-        </View>
+
+          <Pressable
+            onPress={() => {
+              outfitChatFlow.setPendingContext({
+                ...buildSecondOpinionSubject(recommendation),
+                sketchImageUrl: recommendation.sketchImageUrl,
+              });
+              router.push('/outfit-chat');
+            }}
+            style={[primaryButtonStyle, { borderColor: theme.colors.border, borderWidth: 1, flexDirection: 'row', gap: spacing.xs }]}>
+            <AppIcon color={theme.colors.text} name="chat" size={18} />
+            <AppText>Ask Questions</AppText>
+          </Pressable>
+        </OutfitActionsAccordion>
 
         {onOutfitFeedback ? (
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>

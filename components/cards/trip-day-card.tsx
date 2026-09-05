@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { LayoutAnimation, Platform, Pressable, UIManager, View } from 'react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -7,9 +8,11 @@ import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { outfitChatFlow } from '@/lib/outfit-chat-flow';
 import { buildTripDayLabeledPieces } from '@/lib/outfit-piece-display';
 import type { TripOutfitDay } from '@/services/trip-outfits';
 import type { ClosetItem } from '@/types/closet';
+import { OutfitActionsAccordion } from './OutfitActionsAccordion';
 import { OutfitItemThumbnailRow } from './OutfitItemThumbnailRow';
 import { OutfitPieceListView } from './OutfitPieceListView';
 
@@ -197,65 +200,62 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
           </View>
         )}
 
-        {/* ── Actions row ──────────────────────────────────────────────────── */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs }}>
+        {/* Love / Hate — always visible */}
+        <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs }}>
+          <Pressable
+            onPress={onLove}
+            disabled={isRegenerating}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
+              backgroundColor: isLoved ? theme.colors.text : theme.colors.subtleSurface,
+              borderRadius: 999,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.xs + 1,
+            }}>
+            <AppIcon
+              name="heart"
+              color={isLoved ? theme.colors.inverseText : theme.colors.subtleText}
+              size={13}
+            />
+            <AppText style={{
+              color: isLoved ? theme.colors.inverseText : theme.colors.subtleText,
+              fontFamily: theme.fonts.sansMedium,
+              fontSize: 12,
+            }}>
+              Love it
+            </AppText>
+          </Pressable>
 
-          {/* Love / Hate */}
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <Pressable
-              onPress={onLove}
-              disabled={isRegenerating}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 5,
-                backgroundColor: isLoved ? theme.colors.text : theme.colors.subtleSurface,
-                borderRadius: 999,
-                paddingHorizontal: spacing.md,
-                paddingVertical: spacing.xs + 1,
-              }}>
-              <AppIcon
-                name="heart"
-                color={isLoved ? theme.colors.inverseText : theme.colors.subtleText}
-                size={13}
-              />
-              <AppText style={{
-                color: isLoved ? theme.colors.inverseText : theme.colors.subtleText,
-                fontFamily: theme.fonts.sansMedium,
-                fontSize: 12,
-              }}>
-                Love it
-              </AppText>
-            </Pressable>
+          <Pressable
+            onPress={onHate}
+            disabled={isRegenerating}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
+              backgroundColor: isHated ? theme.colors.text : theme.colors.subtleSurface,
+              borderRadius: 999,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.xs + 1,
+            }}>
+            <AppIcon
+              name="thumbs-down"
+              color={isHated ? theme.colors.inverseText : theme.colors.subtleText}
+              size={13}
+            />
+            <AppText style={{
+              color: isHated ? theme.colors.inverseText : theme.colors.subtleText,
+              fontFamily: theme.fonts.sansMedium,
+              fontSize: 12,
+            }}>
+              Hate it
+            </AppText>
+          </Pressable>
+        </View>
 
-            <Pressable
-              onPress={onHate}
-              disabled={isRegenerating}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 5,
-                backgroundColor: isHated ? theme.colors.text : theme.colors.subtleSurface,
-                borderRadius: 999,
-                paddingHorizontal: spacing.md,
-                paddingVertical: spacing.xs + 1,
-              }}>
-              <AppIcon
-                name="thumbs-down"
-                color={isHated ? theme.colors.inverseText : theme.colors.subtleText}
-                size={13}
-              />
-              <AppText style={{
-                color: isHated ? theme.colors.inverseText : theme.colors.subtleText,
-                fontFamily: theme.fonts.sansMedium,
-                fontSize: 12,
-              }}>
-                Hate it
-              </AppText>
-            </Pressable>
-          </View>
-
-          {/* Sketch actions */}
+        <OutfitActionsAccordion>
           {hasSketch ? (
             <Pressable
               onPress={onGenerateSketch}
@@ -266,7 +266,34 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
               </AppText>
             </Pressable>
           ) : null}
-        </View>
+
+          <Pressable
+            onPress={() => {
+              outfitChatFlow.setPendingContext({
+                outfitTitle: day.title,
+                keyPieces: day.pieces,
+                shoes: [day.shoes],
+                accessories: [...(day.bag ? [day.bag] : []), ...day.accessories],
+                whyItWorks: day.rationale,
+                sketchImageUrl: day.sketchUrl,
+              });
+              router.push('/outfit-chat');
+            }}
+            style={{
+              alignItems: 'center',
+              borderColor: theme.colors.border,
+              borderRadius: 999,
+              borderWidth: 1,
+              flexDirection: 'row',
+              gap: spacing.xs,
+              justifyContent: 'center',
+              minHeight: 44,
+              paddingHorizontal: spacing.md,
+            }}>
+            <AppIcon color={theme.colors.text} name="chat" size={16} />
+            <AppText style={{ fontSize: 13 }}>Ask Questions</AppText>
+          </Pressable>
+        </OutfitActionsAccordion>
       </View>
     </View>
   );

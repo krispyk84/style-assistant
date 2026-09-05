@@ -1,0 +1,62 @@
+import { buildBaseAnalysisRules } from './base-stylist-rules.js';
+import { formatProfileContext } from '../prompt-context.js';
+
+type PromptProfile = Parameters<typeof formatProfileContext>[0];
+
+export type OutfitChatMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+export function buildOutfitChatInstructions(gender?: string | null) {
+  return [
+    ...buildBaseAnalysisRules(gender),
+    'A user is looking at one specific recommended outfit and asking follow-up styling questions about it — e.g. what to pair with a piece, whether a swap would work, or why a choice was made.',
+    'Return only structured JSON matching the provided schema.',
+    'answer must be direct and specific to the actual pieces described below — ground every answer in them, not generic styling advice.',
+    'Keep answers to 2-4 short sentences — concrete and conversational, like a stylist texting back a quick opinion, not an essay.',
+    'If asked about a change (e.g. a color or piece swap), give a real verdict (works / does not work / works with a caveat) and say why in one clause, not just a neutral list of options.',
+    'Stay in scope: only answer questions about this outfit, its pieces, and styling around them. If asked something unrelated to this outfit, briefly redirect back to it.',
+    'Do not write headings, bullet points, lists, or numbered items. Only flowing sentences.',
+  ].join(' ');
+}
+
+export function buildOutfitChatUserPrompt(input: {
+  profile: PromptProfile;
+  question: string;
+  history?: OutfitChatMessage[];
+  outfitTitle?: string;
+  tier?: string;
+  anchorItem?: string;
+  keyPieces?: string[];
+  shoes?: string[];
+  accessories?: string[];
+  fitNotes?: string[];
+  whyItWorks?: string;
+  stylingDirection?: string;
+}) {
+  const piecesBlock = [
+    input.keyPieces?.length ? `Key pieces: ${input.keyPieces.join(', ')}` : null,
+    input.shoes?.length ? `Shoes: ${input.shoes.join(', ')}` : null,
+    input.accessories?.length ? `Accessories: ${input.accessories.join(', ')}` : null,
+  ].filter(Boolean).join('\n');
+
+  const historyBlock = input.history?.length
+    ? ['\nConversation so far:', ...input.history.map((m) => `${m.role === 'user' ? 'User' : 'You'}: ${m.content}`)].join('\n')
+    : null;
+
+  return [
+    formatProfileContext(input.profile),
+    '\nOutfit being discussed:',
+    `- Title: ${input.outfitTitle?.trim() || 'Not provided'}`,
+    input.tier ? `- Tier: ${input.tier}` : null,
+    `- Anchor item: ${input.anchorItem?.trim() || 'Not provided'}`,
+    piecesBlock,
+    input.fitNotes?.length ? `Fit notes: ${input.fitNotes.join(' | ')}` : null,
+    input.whyItWorks ? `Original reasoning: ${input.whyItWorks}` : null,
+    input.stylingDirection ? `Styling direction: ${input.stylingDirection}` : null,
+    historyBlock,
+    `\nUser's new question: "${input.question.trim()}"`,
+    '\nAnswer the question directly.',
+  ].filter((line) => line !== null).join('\n');
+}

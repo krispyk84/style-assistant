@@ -21,6 +21,7 @@ import { healthRouter } from './modules/health/health.routes.js';
 import { outfitsRouter } from './modules/outfits/outfits.routes.js';
 import { profileRouter } from './modules/profile/profile.routes.js';
 import { secondOpinionRouter } from './modules/second-opinion/second-opinion.routes.js';
+import { outfitChatRouter } from './modules/outfit-chat/outfit-chat.routes.js';
 import { selfieReviewRouter } from './modules/selfie-review/selfie-review.routes.js';
 import { uploadsRouter } from './modules/uploads/uploads.routes.js';
 import { tripsRouter } from './modules/trips/trips.routes.js';
@@ -220,6 +221,7 @@ export function createApp() {
   apiRouter.use(haircutRouter);
   apiRouter.use(selfieReviewRouter);
   apiRouter.use(secondOpinionRouter);
+  apiRouter.use(outfitChatRouter);
   apiRouter.use(uploadsRouter);
   apiRouter.use(tripsRouter);
   apiRouter.use(savedTripsRouter);

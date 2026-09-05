@@ -19,6 +19,7 @@ export type AiFeature =
   | 'compatibility-check'
   | 'selfie-review'
   | 'second-opinion'
+  | 'outfit-chat'
   | 'help-me-pick'
   | 'trip-generation'
   | 'trip-sketch'

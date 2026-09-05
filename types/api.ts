@@ -231,6 +231,22 @@ export type SecondOpinionResponse = {
  * populate whichever of these it actually has. */
 export type SecondOpinionSubject = Omit<SecondOpinionRequest, 'stylistId' | 'profileId'>;
 
+export type OutfitChatMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+export type OutfitChatRequest = SecondOpinionSubject & {
+  profileId?: string;
+  question: string;
+  /** Prior turns in this conversation, oldest first — omitted for the first question. */
+  history?: OutfitChatMessage[];
+};
+
+export type OutfitChatResponse = {
+  answer: string;
+};
+
 /** Structured outfit piece input for the closet matching API. */
 export type OutfitPieceInput = {
   display_name: string;
