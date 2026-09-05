@@ -164,6 +164,7 @@ export function TierDetailScreen() {
             }}
             onPieceSelect={(piece) => handleCheckPiece(piece.value)}
             trailingIcon="camera"
+            hideOwnershipIndicators={!!liveRecommendation.closetItemIds?.length}
           />
         </View>
 

@@ -136,8 +136,9 @@ export function LookResultCardView({
             matchFeedbackMap={matchFeedbackMap}
             onMatchThumbsUp={onMatchThumbsUp}
             onMatchThumbsDown={onMatchThumbsDown}
+            hideOwnershipIndicators={!!recommendation.closetItemIds?.length}
           />
-          {nonAnchorPieces.length > 0 ? (
+          {nonAnchorPieces.length > 0 && !recommendation.closetItemIds?.length ? (
             <AppText tone="subtle" style={{ fontSize: 12 }}>
               You own {ownedCount} of {nonAnchorPieces.length} pieces
             </AppText>

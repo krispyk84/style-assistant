@@ -33,6 +33,12 @@ export type OutfitPieceListViewProps = {
   onPieceSelect?: (piece: LabeledPiece) => void;
   /** For `display='card'`: optional decorative icon at the row's trailing edge. */
   trailingIcon?: AppIconName;
+  /**
+   * When every piece is already guaranteed a real owned item (closet-only
+   * generation), the "you already own this" checkmarks and hint are
+   * redundant by construction — hide them.
+   */
+  hideOwnershipIndicators?: boolean;
 };
 
 type SelectedMatch = { suggestion: string; confidencePercent: number };
@@ -50,6 +56,7 @@ export function OutfitPieceListView({
   onMatchThumbsDown,
   onPieceSelect,
   trailingIcon,
+  hideOwnershipIndicators = false,
 }: OutfitPieceListViewProps) {
   const [selected, setSelected] = useState<SelectedMatch | null>(null);
 
@@ -66,7 +73,7 @@ export function OutfitPieceListView({
   return (
     <>
       {display === 'labeled' ? (
-        <LabeledList pieces={pieces} regeneratingMatches={regeneratingMatches} onPiecePress={openSheet} />
+        <LabeledList pieces={pieces} regeneratingMatches={regeneratingMatches} onPiecePress={openSheet} hideOwnershipIndicators={hideOwnershipIndicators} />
       ) : display === 'grouped' ? (
         <GroupedList
           pieces={pieces}
@@ -74,6 +81,7 @@ export function OutfitPieceListView({
           groupLabels={groupLabels}
           regeneratingMatches={regeneratingMatches}
           onPiecePress={openSheet}
+          hideOwnershipIndicators={hideOwnershipIndicators}
         />
       ) : (
         <CardList
@@ -82,6 +90,7 @@ export function OutfitPieceListView({
           onPiecePress={openSheet}
           onPieceSelect={onPieceSelect}
           trailingIcon={trailingIcon}
+          hideOwnershipIndicators={hideOwnershipIndicators}
         />
       )}
 
@@ -131,15 +140,16 @@ type ListChildProps = {
   pieces: LabeledPiece[];
   regeneratingMatches?: Set<string>;
   onPiecePress: (suggestion: string, confidencePercent: number) => void;
+  hideOwnershipIndicators?: boolean;
 };
 
-function LabeledList({ pieces, regeneratingMatches, onPiecePress }: ListChildProps) {
+function LabeledList({ pieces, regeneratingMatches, onPiecePress, hideOwnershipIndicators }: ListChildProps) {
   const { theme } = useTheme();
   const hasAnyMatch = pieces.some((p) => !p.isAnchor && p.matchedClosetItem !== null);
 
   return (
     <View style={{ gap: spacing.md }}>
-      <OwnedHint visible={hasAnyMatch} />
+      <OwnedHint visible={hasAnyMatch && !hideOwnershipIndicators} />
 
       {pieces.map((piece) => {
         const isRematching = (!piece.isAnchor && regeneratingMatches?.has(piece.value)) ?? false;
@@ -150,7 +160,7 @@ function LabeledList({ pieces, regeneratingMatches, onPiecePress }: ListChildPro
                 (often long, wrapping) piece description. */}
             <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
               <AppText variant="sectionTitle">{piece.label}</AppText>
-              {!piece.isAnchor && isRematching ? (
+              {hideOwnershipIndicators ? null : !piece.isAnchor && isRematching ? (
                 <ActivityIndicator color={theme.colors.accent} size="small" />
               ) : !piece.isAnchor && piece.matchedClosetItem ? (
                 <Pressable
@@ -177,7 +187,7 @@ type GroupedListProps = ListChildProps & {
   groupLabels: Record<TripItemCategory, string>;
 };
 
-function GroupedList({ pieces, groupOrder, groupLabels, regeneratingMatches, onPiecePress }: GroupedListProps) {
+function GroupedList({ pieces, groupOrder, groupLabels, regeneratingMatches, onPiecePress, hideOwnershipIndicators }: GroupedListProps) {
   const { theme } = useTheme();
 
   return (
@@ -206,7 +216,7 @@ function GroupedList({ pieces, groupOrder, groupLabels, regeneratingMatches, onP
                   style={{ alignItems: 'flex-start', flexDirection: 'row', gap: spacing.xs }}>
                   <AppText style={{ color: theme.colors.accent, fontSize: 13, lineHeight: 20 }}>·</AppText>
                   <AppText style={{ flex: 1, fontSize: 13, lineHeight: 20 }}>{piece.value}</AppText>
-                  {isRematching ? (
+                  {hideOwnershipIndicators ? null : isRematching ? (
                     <ActivityIndicator color={theme.colors.accent} size="small" style={{ marginTop: 3 }} />
                   ) : piece.matchedClosetItem ? (
                     <Pressable
@@ -235,7 +245,7 @@ type CardListProps = ListChildProps & {
   trailingIcon?: AppIconName;
 };
 
-function CardList({ pieces, regeneratingMatches, onPiecePress, onPieceSelect, trailingIcon }: CardListProps) {
+function CardList({ pieces, regeneratingMatches, onPiecePress, onPieceSelect, trailingIcon, hideOwnershipIndicators }: CardListProps) {
   const { theme } = useTheme();
   const hasAnyMatch = pieces.some((p) => !p.isAnchor && p.matchedClosetItem !== null);
 
@@ -253,7 +263,7 @@ function CardList({ pieces, regeneratingMatches, onPiecePress, onPieceSelect, tr
 
   return (
     <View style={{ gap: spacing.md }}>
-      <OwnedHint visible={hasAnyMatch} />
+      <OwnedHint visible={hasAnyMatch && !hideOwnershipIndicators} />
 
       {pieces.map((piece) => {
         const isRematching = (!piece.isAnchor && regeneratingMatches?.has(piece.value)) ?? false;
@@ -266,7 +276,7 @@ function CardList({ pieces, regeneratingMatches, onPiecePress, onPieceSelect, tr
               <AppText variant="sectionTitle">{piece.label}</AppText>
               <AppText tone="muted">{piece.value}</AppText>
             </View>
-            {!piece.isAnchor && isRematching ? (
+            {hideOwnershipIndicators ? null : !piece.isAnchor && isRematching ? (
               <ActivityIndicator color={theme.colors.accent} size="small" />
             ) : !piece.isAnchor && piece.matchedClosetItem ? (
               <Pressable

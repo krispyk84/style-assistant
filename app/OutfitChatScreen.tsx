@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +22,7 @@ export function OutfitChatScreen() {
   const { context, messages, isSending, errorMessage, sendQuestion } = useOutfitChat();
   const [draft, setDraft] = useState('');
   const [isImageExpanded, setIsImageExpanded] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
 
   function handleSend() {
     const question = draft.trim();
@@ -30,13 +31,19 @@ export function OutfitChatScreen() {
     void sendQuestion(question);
   }
 
+  useEffect(() => {
+    if (!messages.length && !isSending) return;
+    const timeout = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+    return () => clearTimeout(timeout);
+  }, [messages, isSending]);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={insets.top}>
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg }}
           showsVerticalScrollIndicator={false}>
           <ScreenHeader title="Ask About This Look" showBack />
