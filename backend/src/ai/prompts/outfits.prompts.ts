@@ -21,6 +21,7 @@ function buildClosetOnlyInstructions(): string[] {
     'Only anchorPiece stays a free-form structured description (the anchor is user-supplied, not drawn from the closet).',
     'Reference the chosen ids\' real names/colors/materials (visible in the WARDROBE OPTIONS block) when writing whyItWorks, stylingDirection, fitNotes, and detailNotes — describe what you actually picked, not a generic placeholder.',
     'NEVER include an item\'s id in any prose field (title, whyItWorks, stylingDirection, fitNotes, detailNotes) — ids belong only in keyPieceIds/shoeIds/accessoryIds. Refer to every piece by its descriptive name only.',
+    'NEVER mention or imply a piece that isn\'t one of your actual keyPieceIds/shoeIds/accessoryIds for this recommendation. If a role\'s shortlist was empty for this tier, that means the wardrobe has nothing for it right now — do not invent one in the prose fields.',
     'SUITS: a Suit id already covers BOTH the bottoms and outerwear roles at once (it is trousers + jacket in one piece) — if you include a Suit id in keyPieceIds, do NOT also include a separate trousers/denim/shorts item or a separate blazer/jacket/coat item; the suit alone fills both. A suit is always worn with a proper collared dress shirt underneath, never a polo or t-shirt.',
     'If a role\'s shortlist for this tier is empty or offers nothing suitable, choose the closest available id from that same shortlist rather than leaving the array empty — every recommendation still needs complete keyPieces/shoes.',
   ];

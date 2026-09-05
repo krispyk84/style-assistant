@@ -226,6 +226,7 @@ export function buildClosetOutfitsChoiceSystemPrompt(): string {
     '',
     'For each outfit, also write a short evocative title and one sentence on why the combination works — reference the actual chosen pieces by their descriptive name (e.g. "the olive green knitted polo"), not generic praise.',
     'NEVER include an item\'s id in the title or whyItWorks text — ids belong only in chosenIds. Refer to every piece by name only.',
+    'NEVER mention or imply a piece that isn\'t one of your actual chosenIds for that outfit. If a slot (e.g. LAYERING or OUTERWEAR) wasn\'t offered to you at all, that means the wardrobe has nothing for it right now — do not invent one in whyItWorks or the title. Only describe the exact pieces you actually chose ids for.',
     '',
     'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');

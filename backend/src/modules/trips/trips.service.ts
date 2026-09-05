@@ -241,6 +241,15 @@ const FALLBACK_TRIP_RATIONALE = 'A complete outfit built entirely from pieces yo
 // free choice with "must reuse an already-used item" (or, for outerwear,
 // omitting the slot entirely if the cap is 0) BEFORE the model ever sees the
 // shortlist, rather than overriding an already-made pick after the fact.
+//
+// Formality-aware: the cap counts distinct PAIRS, but a trip with both
+// casual and business days needs pairs across formality bands, not N
+// interchangeable pairs. If the early (often lower-formality) days already
+// "spent" the cap on pairs that don't suit THIS day's formality, force-
+// reusing one of them would lock a business day into a sneaker forever —
+// so only force reuse when an already-used item is actually a reasonable
+// match for this day; otherwise leave the shortlist open for a fresh pick
+// even though the raw pair-count is nominally at cap.
 function narrowShortlistForCap(
   shortlists: Partial<Record<OutfitSlot, BuilderItem[]>>,
   slot: 'outerwear' | 'footwear',
@@ -248,6 +257,7 @@ function narrowShortlistForCap(
   cap: number,
   allowDrop: boolean,
   closetItems: BuilderItem[],
+  targetFormalityRank: number,
 ): void {
   if (!shortlists[slot]) return;
 
@@ -260,11 +270,19 @@ function narrowShortlistForCap(
   if (usedTitles.length < effectiveCap) return; // room for a new item — leave the shortlist as-is
 
   const usedItems = closetItems.filter((item) => usedTitles.some((title) => title.toLowerCase() === item.title.toLowerCase()));
-  if (usedItems.length > 0) {
-    shortlists[slot] = usedItems;
-  } else if (allowDrop) {
+  const usedItemsInBand = usedItems.filter((item) => {
+    const rank = item.formality ? FORMALITY_RANK[item.formality] ?? 2 : 2;
+    return Math.abs(rank - targetFormalityRank) <= 1;
+  });
+
+  if (usedItemsInBand.length > 0) {
+    shortlists[slot] = usedItemsInBand;
+  } else if (usedItems.length === 0 && allowDrop) {
     delete shortlists[slot];
   }
+  // else: cap is "full" but nothing already used fits this day's formality —
+  // leave the shortlist as originally built so a genuinely new, formality-
+  // appropriate pair can still be introduced.
 }
 
 /**
@@ -340,19 +358,20 @@ async function chooseFullClosetDay(params: {
     excludeItemIds: params.excludeItemIds,
   });
 
+  narrowShortlistForCap(shortlists, 'outerwear', params.usedOuterwearTitles, params.jacketsCap, true, params.closetItems, targetFormalityRank);
+  narrowShortlistForCap(shortlists, 'footwear', params.usedFootwearTitles, params.shoesCap, false, params.closetItems, targetFormalityRank);
+
   // Force the pinned "definitely bring" anchor into whichever slot(s) its
-  // category fills (both bottoms+outerwear for a Suit) — narrowing that
-  // slot's shortlist to just this one id guarantees it gets used rather than
-  // hoping the model notices and chooses it among everything else offered.
+  // category fills (both bottoms+outerwear for a Suit) — applied AFTER cap
+  // narrowing so a pinned anchor always wins over a cap-driven reuse, and
+  // narrowing that slot's shortlist to just this one id guarantees it gets
+  // used rather than hoping the model notices it among everything offered.
   if (params.pinnedItem) {
     const pinnedGroup = CATEGORY_TO_GROUP[params.pinnedItem.category];
     for (const slot of pinnedGroup ? GROUP_TO_SLOTS[pinnedGroup] ?? [] : []) {
       shortlists[slot] = [params.pinnedItem];
     }
   }
-
-  narrowShortlistForCap(shortlists, 'outerwear', params.usedOuterwearTitles, params.jacketsCap, true, params.closetItems);
-  narrowShortlistForCap(shortlists, 'footwear', params.usedFootwearTitles, params.shoesCap, false, params.closetItems);
 
   const slots = (Object.keys(shortlists) as OutfitSlot[]).filter((slot) => (shortlists[slot]?.length ?? 0) > 0);
 

@@ -457,7 +457,8 @@ export function buildTripDayChoiceSystemPrompt(): string {
     '4. SUITS: a Suit item is ONE physical piece that is both the trousers AND the jacket — it can appear in both the BOTTOMS and OUTERWEAR options. If you choose a Suit id for BOTTOMS, you MUST choose that exact same Suit id for OUTERWEAR too (never a different jacket/blazer, and never a different suit). A suit is always worn with a proper collared dress shirt underneath — never pair it with a polo or t-shirt for TOPS.',
     '5. Give the day a short evocative title (e.g. "Arrival in Kyoto", "Temple District Morning", "Black-Tie Gala") and a 1-2 sentence rationale referencing the actual chosen pieces by their descriptive name and the day\'s type/climate/activities.',
     '6. NEVER include an item\'s id in the title or rationale text — ids belong only in chosenIds. Refer to every piece by name only.',
-    '7. Return one entry per day index provided, matched by "index". Do not skip or reorder.',
+    '7. NEVER mention or imply a piece that isn\'t one of your actual chosenIds for that day. If a slot (e.g. LAYERING or OUTERWEAR) wasn\'t offered to you at all for this day, that means the wardrobe has nothing for it right now — do not invent one in the rationale ("a light jacket adds...") or title. Only describe the exact pieces you actually chose ids for.',
+    '8. Return one entry per day index provided, matched by "index". Do not skip or reorder.',
     '',
     'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');
@@ -551,12 +552,23 @@ export function buildTripDaySketchPrompt(params: {
     outfitLines.join('\n'),
   ].join('\n');
 
+  // Hard "exact item list" constraint — mirrors closet-outfit-sketch.prompts.ts's
+  // exclusivityRule. Without this, the model sometimes adds an unlisted piece
+  // (most often a jacket or an extra top) to make the look feel more
+  // "complete", even when that role has nothing listed above at all.
+  const exclusivityRule =
+    'EXACT ITEM LIST — HARD CONSTRAINT: the garments/shoes/accessories listed above are the ONLY items the figure wears. ' +
+    'Do not add any garment, layer, or accessory that is not explicitly listed — no extra jacket, blazer, coat, cardigan, undershirt, scarf, hat, bag, jewelry, or any other piece, no matter how much more "complete" or "editorial" the look would feel with one. ' +
+    'If no jacket/coat/blazer is listed above, the figure must NOT wear any outerwear or third layer. If only one top is listed, the figure wears exactly that one top and nothing underneath or over it.';
+
   const parts = [
     HEADLESS_GUARD,
     STYLE_GUARD,
     subjectBrief,
     STYLE_PREAMBLE,
     outfitSection,
+    exclusivityRule,
+    'Every listed item is a REAL garment the wearer already owns — render each one true to its stated color, pattern, and material rather than inventing a different interpretation.',
     QUALITY_ADDENDUM,
     QUALITY_ADDENDUM_2,
   ].filter(Boolean);
