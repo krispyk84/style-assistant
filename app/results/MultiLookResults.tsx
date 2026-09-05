@@ -27,7 +27,7 @@ import {
   loadRecommendationFeedback,
   saveRecommendationFeedback,
 } from '@/lib/recommendation-feedback-storage';
-import { buildTierHref } from '@/lib/look-route';
+import { buildSelfieReviewHref } from '@/lib/look-route';
 import { outfitsService } from '@/services/outfits';
 import type { GenerateOutfitsResponse, VariationSummary } from '@/types/api';
 import type { ClosetItem } from '@/types/closet';
@@ -436,7 +436,7 @@ export function MultiLookResults({
                 closetItems={closetItems}
                 matchMap={matchMaps[slot.requestId]}
                 anchorDescription={parsedInput.anchorItemDescription}
-                detailHref={buildTierHref(tier, slot.requestId, slot.response.input, recommendation)}
+                detailHref={buildSelfieReviewHref(slot.requestId, recommendation, parsedInput.anchorItemDescription)}
               />
             </View>
           );

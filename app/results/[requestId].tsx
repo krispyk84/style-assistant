@@ -15,7 +15,7 @@ import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser
 import { WeekPickerModal } from '@/components/week/week-picker-modal';
 import { spacing, theme } from '@/constants/theme';
 import { buildSavedOutfitId } from '@/lib/saved-outfits-storage';
-import { buildTierHref, parseLookInput, parseVariantRequestIds, type LookRouteParams } from '@/lib/look-route';
+import { buildSelfieReviewHref, parseLookInput, parseVariantRequestIds, type LookRouteParams } from '@/lib/look-route';
 import { LOOK_TIER_OPTIONS } from '@/types/look-request';
 import { buildSecondOpinionSubject, formatTierLabel } from '@/lib/outfit-utils';
 
@@ -233,11 +233,10 @@ export default function ResultDetailsScreen() {
               closetItems={closetItems}
               matchMap={matchMap}
               anchorDescription={parsedInput?.anchorItemDescription ?? response.input.anchorItemDescription}
-              detailHref={buildTierHref(
-                recommendation.tier,
+              detailHref={buildSelfieReviewHref(
                 response.requestId,
-                response.input,
                 recommendation,
+                parsedInput?.anchorItemDescription ?? response.input.anchorItemDescription,
               )}
             />
           );

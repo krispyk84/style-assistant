@@ -10,7 +10,6 @@ import { formatTierLabel } from '@/lib/outfit-utils';
 import type { LookRecommendation } from '@/types/look-request';
 import type { ClosetItem } from '@/types/closet';
 import { AppText } from '@/components/ui/app-text';
-import { OutfitItemThumbnailRow } from './OutfitItemThumbnailRow';
 import { OutfitPieceListView } from './OutfitPieceListView';
 import { buildLabeledPieces } from './look-result-card-helpers';
 
@@ -76,17 +75,6 @@ export function LookResultCardView({
 
   const nonAnchorPieces = labeledPieces.filter((p) => !p.isAnchor);
   const ownedCount = nonAnchorPieces.filter((p) => p.matchedClosetItem).length;
-  const thumbnailItems = useMemo(
-    () =>
-      labeledPieces
-        .filter((piece) => piece.matchedClosetItem)
-        .map((piece) => ({
-          id: piece.matchedClosetItem!.id,
-          title: piece.matchedClosetItem!.title,
-          imageUrl: piece.matchedClosetItem!.sketchImageUrl ?? piece.matchedClosetItem!.uploadedImageUrl,
-        })),
-    [labeledPieces],
-  );
 
   const quietButtonStyle = {
     alignItems: 'center',
@@ -139,7 +127,6 @@ export function LookResultCardView({
 
         <View style={{ gap: spacing.sm }}>
           <AppText variant="eyebrow" style={{ color: theme.colors.mutedText }}>The Look</AppText>
-          {thumbnailItems.length > 0 ? <OutfitItemThumbnailRow items={thumbnailItems} /> : null}
           <OutfitPieceListView
             pieces={labeledPieces}
             display="labeled"
@@ -187,8 +174,8 @@ export function LookResultCardView({
           <Pressable
             onPress={() => router.push(detailHref)}
             style={[primaryButtonStyle, { backgroundColor: theme.colors.text, flexDirection: 'row', gap: spacing.xs }]}>
-            <AppIcon color={theme.colors.inverseText} name="check-circle" size={18} />
-            <AppText style={{ color: theme.colors.inverseText }}>Check Look</AppText>
+            <AppIcon color={theme.colors.inverseText} name="camera" size={18} />
+            <AppText style={{ color: theme.colors.inverseText }}>Selfie Check</AppText>
           </Pressable>
 
           <Pressable

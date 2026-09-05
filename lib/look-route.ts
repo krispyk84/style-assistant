@@ -118,6 +118,28 @@ export function buildTierHref(
   };
 }
 
+/**
+ * The "Check Look" button on a freshly generated result skips the tier-detail
+ * screen entirely and goes straight to the selfie-check flow — the tier-detail
+ * screen ("Check recommended pieces") stays reachable from saved/week outfit
+ * cards, which use buildTierHref directly instead of this.
+ */
+export function buildSelfieReviewHref(
+  requestId: string,
+  recommendation: LookRecommendation,
+  anchorItemDescription?: string
+): Href {
+  return {
+    pathname: '/selfie-review',
+    params: {
+      requestId,
+      tier: recommendation.tier,
+      outfitTitle: recommendation.title,
+      anchorItemDescription,
+    },
+  };
+}
+
 export function buildLookResultsHref(requestId: string, input: CreateLookInput): Href {
   return {
     pathname: '/results/[requestId]',
