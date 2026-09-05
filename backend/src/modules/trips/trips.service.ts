@@ -261,14 +261,30 @@ export const tripsService = {
       feature: 'trip-generation',
     });
 
-    const variants: TripOutfitDayDto[] = result.variants.map((variant, index) => ({
-      ...variant,
-      id: `${request.tripId}-day-${request.dayIndex}-v${Date.now()}-${index}`,
-      tripId: request.tripId,
-      bag: variant.bag ?? null,
-      accessories: variant.accessories ?? [],
-      closetItemIds: (variant.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id)),
-    }));
+    const swapIdSet = new Set(validSwapIds);
+    const keepIdSet = new Set(validKeepIds);
+
+    const variants: TripOutfitDayDto[] = result.variants
+      .map((variant, index) => ({
+        ...variant,
+        id: `${request.tripId}-day-${request.dayIndex}-v${Date.now()}-${index}`,
+        tripId: request.tripId,
+        bag: variant.bag ?? null,
+        accessories: variant.accessories ?? [],
+        closetItemIds: (variant.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id)),
+      }))
+      // Reject any variant that isn't a genuine swap: either it still carries
+      // one of the original swapped-out ids (nothing actually changed), or it
+      // never introduces a real replacement id at all (the model dropped the
+      // swap slot from closetItemIds entirely while still narrating it in
+      // pieces/rationale) — both produce a card indistinguishable from what
+      // the user already has.
+      .filter((variant) => {
+        const ids = variant.closetItemIds ?? [];
+        const stillHasSwappedOutItem = ids.some((id) => swapIdSet.has(id));
+        const hasGenuineReplacement = ids.some((id) => !keepIdSet.has(id) && !swapIdSet.has(id));
+        return !stillHasSwappedOutItem && hasGenuineReplacement;
+      });
 
     if (variants.length === 0) {
       throw new HttpError(502, 'TRIP_DAY_VARIANTS_INVALID', 'Could not generate variants for that day. Please try again.');

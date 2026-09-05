@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { Dispatch, SetStateAction, useCallback, useEffect, useState } from 'react';
 
+import type { OutfitThumbnailItem } from '@/components/cards/OutfitItemThumbnailRow';
 import { buildTripDayVariantsHref } from '@/lib/trip-route';
 import { tripDayVariantFlow } from '@/lib/trip-day-variant-flow';
 import type { StoredTripPlan } from '@/lib/trip-outfits-storage';
@@ -112,7 +113,7 @@ export function useTripResultsActions({
 
   // Swap 1-2 items on a fullCloset day: push a request for the dedicated
   // variant-selection screen, then wait for it to hand back the chosen day.
-  const handleGenerateVariants = useCallback((day: TripOutfitDay, swapItemIds: string[]) => {
+  const handleGenerateVariants = useCallback((day: TripOutfitDay, swapItemIds: string[], swappedItems: OutfitThumbnailItem[]) => {
     const activeTripId = plan?.tripId ?? tripId;
     if (!activeTripId || !plan) return;
 
@@ -134,6 +135,7 @@ export function useTripResultsActions({
       purposes: plan.purposes,
       keepItemIds,
       swapItemIds,
+      swappedItems,
     });
 
     tripDayVariantFlow.setListener((selectedDay) => {

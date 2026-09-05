@@ -436,6 +436,7 @@ export function buildDayVariantsPrompt(
     'RULES:',
     '- Every variant must reuse the KEEP ITEMS below completely unchanged — same ids, described identically. Do not swap, drop, or reword them.',
     '- Every variant must replace EACH of the SWAP ITEMS below with a DIFFERENT real item from the wardrobe index in the same category/slot. Try a genuinely different real item across the 5 variants where the wardrobe allows it — do not just return the same replacement 5 times.',
+    '- HARD CONSTRAINT — the replacement must actually appear: for every SWAP ITEM, closetItemIds MUST include a different real id in that same category, and pieces/shoes/bag/accessories MUST contain one text entry describing that exact replacement item. A variant whose closetItemIds still contains an original SWAP ITEM id, or that omits a replacement for it entirely, is invalid and will be discarded — never submit one.',
     '- Never invent a piece that is not in the wardrobe index.',
     '- closetItemIds: the exact ids (from the wardrobe index) used to build that variant, including the kept ids and the chosen replacement(s). 2–6 ids per variant.',
     '- pieces/shoes/accessories text must describe the ACTUAL chosen items by their real name, not generic placeholders.',

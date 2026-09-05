@@ -13,7 +13,7 @@ import { buildTripDayLabeledPieces } from '@/lib/outfit-piece-display';
 import type { TripOutfitDay } from '@/services/trip-outfits';
 import type { ClosetItem } from '@/types/closet';
 import { OutfitActionsAccordion } from './OutfitActionsAccordion';
-import { OutfitItemThumbnailRow } from './OutfitItemThumbnailRow';
+import { OutfitItemThumbnailRow, type OutfitThumbnailItem } from './OutfitItemThumbnailRow';
 import { OutfitPieceListView } from './OutfitPieceListView';
 
 const MAX_SWAP_SELECTION = 2;
@@ -47,7 +47,7 @@ type Props = {
   onLove: () => void;
   onHate: () => void;
   /** fullCloset days only — tapping a piece becomes a swap selection (max 2) and a "Generate Variants" button appears. */
-  onGenerateVariants?: (day: TripOutfitDay, swapItemIds: string[]) => void;
+  onGenerateVariants?: (day: TripOutfitDay, swapItemIds: string[], swappedItems: OutfitThumbnailItem[]) => void;
 };
 
 export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch, onLove, onHate, onGenerateVariants }: Props) {
@@ -172,7 +172,7 @@ export function TripDayCard({ day, closetItems, isRegenerating, onGenerateSketch
                   <PrimaryButton
                     label="Generate Variants"
                     variant="secondary"
-                    onPress={() => onGenerateVariants(day, selectedItemIds)}
+                    onPress={() => onGenerateVariants(day, selectedItemIds, thumbnailItems.filter((item) => selectedItemIds.includes(item.id)))}
                   />
                 ) : null}
               </>

@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 
+import type { OutfitThumbnailItem } from '@/components/cards/OutfitItemThumbnailRow';
 import { tripDayVariantFlow } from '@/lib/trip-day-variant-flow';
 import { closetService } from '@/services/closet';
 import { tripOutfitsService } from '@/services/trip-outfits';
@@ -12,6 +13,7 @@ export function useTripDayVariants() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [variants, setVariants] = useState<TripOutfitDay[]>([]);
   const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
+  const [swappedItems, setSwappedItems] = useState<OutfitThumbnailItem[]>([]);
 
   useEffect(() => {
     closetService.getItems().then((res) => {
@@ -24,6 +26,7 @@ export function useTripDayVariants() {
       setIsLoading(false);
       return;
     }
+    setSwappedItems(request.swappedItems);
 
     let cancelled = false;
     (async () => {
@@ -47,5 +50,5 @@ export function useTripDayVariants() {
     router.back();
   }
 
-  return { isLoading, errorMessage, variants, closetItems, selectVariant };
+  return { isLoading, errorMessage, variants, closetItems, swappedItems, selectVariant };
 }

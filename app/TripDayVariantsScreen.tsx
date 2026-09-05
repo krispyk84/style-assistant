@@ -16,12 +16,19 @@ import type { ClosetItem } from '@/types/closet';
 import { useTripDayVariants } from './useTripDayVariants';
 
 export function TripDayVariantsScreen() {
-  const { isLoading, errorMessage, variants, closetItems, selectVariant } = useTripDayVariants();
+  const { isLoading, errorMessage, variants, closetItems, swappedItems, selectVariant } = useTripDayVariants();
 
   return (
     <AppScreen scrollable floatingBack avoidsKeyboard={false}>
-      <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
+      <View style={{ gap: spacing.lg, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Choose a Variant" showBack />
+
+        {swappedItems.length > 0 ? (
+          <View style={{ gap: spacing.sm }}>
+            <AppText variant="eyebrow" tone="muted">Swapping Out</AppText>
+            <OutfitItemThumbnailRow items={swappedItems} />
+          </View>
+        ) : null}
 
         {isLoading ? (
           <View style={{ paddingVertical: spacing.md }}>
