@@ -20,6 +20,7 @@ function buildClosetOnlyInstructions(): string[] {
     'CLOSET-ONLY MODE: keyPieces, shoes, and accessories are arrays of real closet item ids — not descriptions. Each array\'s allowed ids are listed per tier in the WARDROBE OPTIONS block below (organised by slot: bottoms/tops/layering/outerwear feed keyPieces, footwear feeds shoes, watch/sunglasses/hat/bag feed accessories). Choose ids only from the tier you are building for a given recommendation — never reuse an id listed under a different tier\'s options unless it also appears under this tier\'s own list.',
     'Only anchorPiece stays a free-form structured description (the anchor is user-supplied, not drawn from the closet).',
     'Reference the chosen ids\' real names/colors/materials (visible in the WARDROBE OPTIONS block) when writing whyItWorks, stylingDirection, fitNotes, and detailNotes — describe what you actually picked, not a generic placeholder.',
+    'NEVER include an item\'s id in any prose field (title, whyItWorks, stylingDirection, fitNotes, detailNotes) — ids belong only in keyPieceIds/shoeIds/accessoryIds. Refer to every piece by its descriptive name only.',
     'If a role\'s shortlist for this tier is empty or offers nothing suitable, choose the closest available id from that same shortlist rather than leaving the array empty — every recommendation still needs complete keyPieces/shoes.',
   ];
 }

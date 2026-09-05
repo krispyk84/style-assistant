@@ -223,7 +223,8 @@ export function buildClosetOutfitsChoiceSystemPrompt(): string {
     '5. PREFERENCE SIGNAL: if the user message lists items the client has loved or hated in past outfits, lean toward the loved items and the styles they represent where they fit the brief, and avoid the hated items where a reasonable alternative exists — but never let this override rules 1-3.',
     '6. Within all of the above, look cool, current, and intentional — this is a client who cares about their aesthetic, not a rote uniform.',
     '',
-    'For each outfit, also write a short evocative title and one sentence on why the combination works — reference the actual chosen pieces, not generic praise.',
+    'For each outfit, also write a short evocative title and one sentence on why the combination works — reference the actual chosen pieces by their descriptive name (e.g. "the olive green knitted polo"), not generic praise.',
+    'NEVER include an item\'s id in the title or whyItWorks text — ids belong only in chosenIds. Refer to every piece by name only.',
     '',
     'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');

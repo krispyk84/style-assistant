@@ -50,8 +50,8 @@ export const STYLE_PREAMBLE =
 // Appended after the outfit bullet list to push rendering quality and fidelity.
 
 export const QUALITY_ADDENDUM =
-  'Push the rendering toward a high-end fashion concept sketch — the kind printed in a luxury menswear style board or editorial lookbook. ' +
-  'Make the outfit feel more stylish, directional, and modern, with sharper taste, stronger styling, and more confident silhouette choices while staying completely true to the provided garments. ' +
+  'Push the RENDERING CRAFT toward a high-end fashion concept sketch — the kind printed in a luxury menswear style board or editorial lookbook — through more confident, polished illustration technique (linework, shading, texture, detail). ' +
+  'This is about HOW the outfit is drawn, never WHAT is drawn: do not add, remove, substitute, or "elevate" any garment, layer, or accessory to make the look feel more complete, directional, or editorial — render exactly and only the real pieces described below, no matter how simple or casual that combination is. ' +
   'Increase color fidelity: the anchor piece and every described clothing item must match the real garment color as accurately as possible, prioritizing the exact hue, depth, temperature, and saturation of the source item rather than drifting toward generic beige, tan, or neutralized approximations. ' +
   'Do not reinterpret the anchor item\'s color; preserve it faithfully. ' +
   'Increase richness and vibrancy while keeping the palette refined and believable, so the image feels alive and confident. ' +
