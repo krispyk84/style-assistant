@@ -569,10 +569,26 @@ export function buildTripDaySketchPrompt(params: {
       ? 'The garments listed above already include every layer this figure wears — do not add a further layer beyond what is listed.'
       : 'No jacket, coat, blazer, cardigan, hoodie, or sweater is listed above — the figure wears ONLY the single top listed, with nothing else over or under it, regardless of season or climate.');
 
+  // Garment CONSTRUCTION fidelity — a separate failure mode from adding/
+  // omitting a piece: the model sometimes renders a correctly-listed item as
+  // a simpler, generic garment (e.g. a "collared button-up shirt" drawn as a
+  // plain crew-neck tee with no collar or buttons). The item's exact name
+  // already states its construction — this makes reading it literally an
+  // explicit instruction rather than trusting the model to infer it.
+  const constructionRule =
+    'GARMENT CONSTRUCTION — read each garment name literally, do not simplify or generalize it: ' +
+    'if a name includes "shirt", "button-up", "button-down", "collared", or "dress shirt", draw a full button placket down the front and a clearly visible point/spread collar — never a collarless pullover. ' +
+    'If a name includes "polo", draw a soft collar and a short 2-3 button placket, no full-length buttons. ' +
+    'If a name includes "t-shirt", "tee", "crew neck", or "tank", draw NO collar and NO buttons — a plain pullover neckline only. ' +
+    'If a name includes "cardigan", draw a full button or zip front over a knit body. ' +
+    'If a name includes "hoodie", draw an attached hood. ' +
+    'Match every other named detail (crewneck vs. collar, zip vs. button, short vs. long sleeve, pattern, silhouette) exactly as stated rather than defaulting to the simplest/most generic version of that garment category.';
+
   const parts = [
     HEADLESS_GUARD,
     STYLE_GUARD,
     exclusivityRule,
+    constructionRule,
     subjectBrief,
     STYLE_PREAMBLE,
     'Every listed item is a REAL garment the wearer already owns — render each one true to its stated color, pattern, and material rather than inventing a different interpretation.',

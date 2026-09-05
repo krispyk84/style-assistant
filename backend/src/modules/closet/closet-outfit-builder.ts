@@ -74,6 +74,21 @@ function filterByFormalityBand<TItem extends BuilderClosetItem>(candidates: TIte
   return candidates;
 }
 
+// Footwear formality is more reliably signaled by garment GROUP than by an
+// item's own (often inconsistently cataloged) formality tag — a "Shoes"/
+// "Loafers" category item is inherently dressier than "Sneakers"/"Boots"
+// regardless of how each happens to be tagged. On a genuinely Formal-target
+// day, prefer the dressier groups outright rather than trusting formality
+// tags alone to sort it out; only fall back to the full footwear pool if the
+// closet has nothing in those groups at all.
+const FORMAL_FOOTWEAR_GROUPS = new Set(['formal_shoes', 'loafers']);
+
+function preferFormalFootwearGroups<TItem extends BuilderClosetItem>(candidates: TItem[], targetRank: number): TItem[] {
+  if (targetRank < FORMALITY_RANK['Formal']) return candidates;
+  const dressy = candidates.filter((item) => FORMAL_FOOTWEAR_GROUPS.has(CATEGORY_TO_GROUP[item.category] ?? ''));
+  return dressy.length > 0 ? dressy : candidates;
+}
+
 function pickForSlot<TItem extends BuilderClosetItem>(
   slot: OutfitSlot,
   closetItems: TItem[],
@@ -177,12 +192,16 @@ export function buildOutfitSlotShortlists<TItem extends BuilderClosetItem>(
 
   for (const slot of slotsToInclude) {
     const allowedGroups = SLOT_GROUPS[slot];
-    const candidates = params.closetItems.filter((item) => {
+    let candidates = params.closetItems.filter((item) => {
       if (excludeItemIds.has(item.id)) return false;
       const group = CATEGORY_TO_GROUP[item.category];
       return group !== undefined && allowedGroups.includes(group);
     });
     if (candidates.length === 0) continue;
+
+    if (slot === 'footwear') {
+      candidates = preferFormalFootwearGroups(candidates, params.targetFormalityRank);
+    }
 
     const pool = filterByFormalityBand(candidates, params.targetFormalityRank);
 

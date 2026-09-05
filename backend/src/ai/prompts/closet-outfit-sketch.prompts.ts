@@ -83,6 +83,21 @@ export function buildClosetOutfitSketchPrompt(input: {
         ? `LAYERING UNDER OUTERWEAR — HARD CONSTRAINT: underneath ${outerwear.map(describeItem).join(', ')}, the figure wears ONLY ${garments.map(describeItem).join(', ')} — nothing else. Do not render a second top, undershirt, sweater, or any other layer beneath the outerwear, and do not show so much as a sliver of collar, placket, or cuff from any garment not in that list. Whatever is visible under the outerwear (whether worn open or closed) must be exactly the garment(s) named above, never an invented additional layer.`
         : null;
 
+  // Garment CONSTRUCTION fidelity — a separate failure mode from adding/
+  // omitting a piece: the model sometimes renders a correctly-listed item as
+  // a simpler, generic garment (e.g. a "collared button-up shirt" drawn as a
+  // plain crew-neck tee with no collar or buttons). The item's exact name
+  // already states its construction — this makes reading it literally an
+  // explicit instruction rather than trusting the model to infer it.
+  const constructionRule =
+    'GARMENT CONSTRUCTION — read each garment name literally, do not simplify or generalize it: ' +
+    'if a name includes "shirt", "button-up", "button-down", "collared", or "dress shirt", draw a full button placket down the front and a clearly visible point/spread collar — never a collarless pullover. ' +
+    'If a name includes "polo", draw a soft collar and a short 2-3 button placket, no full-length buttons. ' +
+    'If a name includes "t-shirt", "tee", "crew neck", or "tank", draw NO collar and NO buttons — a plain pullover neckline only. ' +
+    'If a name includes "cardigan", draw a full button or zip front over a knit body. ' +
+    'If a name includes "hoodie", draw an attached hood. ' +
+    'Match every other named detail (crewneck vs. collar, zip vs. button, short vs. long sleeve, pattern, silhouette) exactly as stated rather than defaulting to the simplest/most generic version of that garment category.';
+
   const parts = [
     HEADLESS_GUARD,
     STYLE_GUARD,
@@ -91,6 +106,7 @@ export function buildClosetOutfitSketchPrompt(input: {
     outfitSection,
     exclusivityRule,
     outerwearRule,
+    constructionRule,
     'Every listed item is a REAL garment the wearer already owns — render each one true to its stated color, pattern, and material rather than inventing a different interpretation.',
     QUALITY_ADDENDUM,
     QUALITY_ADDENDUM_2,

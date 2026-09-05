@@ -411,7 +411,7 @@ async function chooseFullClosetDay(params: {
     // required categories directly from the raw closet — never return a
     // fully-empty day when the closet has anything at all to offer.
     const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
-    const requiredSlots: OutfitSlot[] = ['footwear', 'bottoms', 'tops'];
+    const requiredSlots: OutfitSlot[] = ['footwear', 'bottoms', 'tops', 'watch', 'sunglasses'];
     if (includeLayering) requiredSlots.push('layering');
     if (includeOuterwear) requiredSlots.push('outerwear');
     fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots });
@@ -470,11 +470,11 @@ async function chooseFullClosetDay(params: {
     : (Object.fromEntries(slots.map((slot) => [slot, shortlists[slot]![0]!])) as Partial<Record<OutfitSlot, BuilderItem>>);
   normalizeSuitDualRole(bySlot);
 
-  // Hard guarantee, no exceptions: footwear/bottoms/tops always, plus
-  // layering/outerwear whenever the weather calls for them — never leave a
-  // required category silently unfilled, whatever upstream reason (empty
-  // shortlist, model omission, validation fallback) caused it.
-  const requiredSlots: OutfitSlot[] = ['footwear', 'bottoms', 'tops'];
+  // Hard guarantee, no exceptions: footwear/bottoms/tops/watch/sunglasses
+  // always, plus layering/outerwear whenever the weather calls for them —
+  // never leave a required category silently unfilled, whatever upstream
+  // reason (empty shortlist, model omission, validation fallback) caused it.
+  const requiredSlots: OutfitSlot[] = ['footwear', 'bottoms', 'tops', 'watch', 'sunglasses'];
   if (includeLayering) requiredSlots.push('layering');
   if (includeOuterwear) requiredSlots.push('outerwear');
   fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots });
