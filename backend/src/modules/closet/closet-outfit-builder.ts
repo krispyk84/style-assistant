@@ -1,13 +1,25 @@
 import { CATEGORY_TO_GROUP, FORMALITY_RANK, SLOT_GROUPS, type OutfitSlot } from './closet-taxonomy.js';
 
 /**
- * Deterministic, code-driven closet-only outfit selection — shared by
- * Generate 5 Outfits, the trip planner's From My Closet mode, and Create a
- * Look's closet-only path. Item SELECTION happens here, not in the LLM: the
- * LLM's role downstream is narrowed to narrating an already-fixed set of
- * real items (title/rationale), which is what actually fixes the formality
- * mismatches, phantom pieces, and non-differentiated "variants" that prompt
- * instructions alone couldn't reliably prevent.
+ * Shared closet-only outfit-building primitives — used by Generate 5
+ * Outfits, the trip planner's From My Closet mode, and Create a Look's
+ * closet-only path.
+ *
+ * The main selection primitive is `buildOutfitSlotShortlists`: it filters
+ * each slot (footwear, bottoms, tops, ...) down to real closet items within
+ * the target formality band, but does NOT pick a winner — it hands back a
+ * generously-sized, per-slot candidate list. The caller then puts those
+ * shortlists in front of an LLM (alongside color/texture/silhouette/vibe/
+ * trendiness context) and asks it to CHOOSE and narrate a coherent outfit
+ * from real ids only. This is what actually fixes formality mismatches
+ * (a business-formality shortlist structurally cannot contain sneakers when
+ * the closet has dress shoes) and phantom pieces (every id is real and
+ * slot-correct by construction) while keeping the model's styling judgment
+ * intact — a shortlist is a guardrail, not a substitute for taste.
+ *
+ * `buildDeterministicOutfit` (pure code, no LLM) is kept for the narrower
+ * "add a hat/bag to an already-composed outfit" toggle, where a single,
+ * low-stakes addition doesn't warrant its own LLM round-trip.
  */
 
 export type BuilderClosetItem = {
@@ -107,19 +119,82 @@ export function buildDeterministicOutfit<TItem extends BuilderClosetItem>(
   };
 }
 
+export type SlotShortlists<TItem> = Partial<Record<OutfitSlot, TItem[]>>;
+
+// Safety valve for pathologically large closets — NOT a quality cap. The
+// point of this design is that the model gets real variety to reason about;
+// don't shrink this to "save tokens" without cause.
+const DEFAULT_MAX_PER_SLOT = 40;
+
+export type SlotShortlistParams<TItem extends BuilderClosetItem> = {
+  closetItems: TItem[];
+  /** Target FORMALITY_RANK value (0-3) for this outfit/day/tier. */
+  targetFormalityRank: number;
+  /** Weather-gated — caller decides based on temperature. */
+  includeLayering: boolean;
+  includeOuterwear: boolean;
+  includeHat?: boolean;
+  includeBag?: boolean;
+  /** Item ids to omit entirely (e.g. already fixed elsewhere, like an anchor). */
+  excludeItemIds?: ReadonlySet<string>;
+  maxPerSlot?: number;
+};
+
 /**
- * Picks up to `count` distinct replacement candidates for a variant swap,
- * constrained to the SAME garment group as the item being replaced (not
- * just "a different real item") — used by generateOutfitVariations/
- * generateDayVariants so a shoe swap only ever offers other shoes, and each
- * of the (up to 5) variants gets a genuinely different real replacement.
+ * Builds a generous, formality-filtered candidate list per slot — the
+ * shortlist an LLM chooses from, not a single deterministic pick. Widens to
+ * the full candidate set for a slot if nothing qualifies within the target
+ * formality band (a slightly-off option beats none), matching the same
+ * graceful-degradation behavior as buildDeterministicOutfit.
  */
-export function pickVariantReplacements<TItem extends BuilderClosetItem>(
+export function buildOutfitSlotShortlists<TItem extends BuilderClosetItem>(
+  params: SlotShortlistParams<TItem>,
+): SlotShortlists<TItem> {
+  const excludeItemIds = params.excludeItemIds ?? new Set<string>();
+  const maxPerSlot = params.maxPerSlot ?? DEFAULT_MAX_PER_SLOT;
+
+  const slotsToInclude: OutfitSlot[] = ['footwear', 'bottoms', 'tops', 'watch', 'sunglasses'];
+  if (params.includeLayering) slotsToInclude.push('layering');
+  if (params.includeOuterwear) slotsToInclude.push('outerwear');
+  if (params.includeHat) slotsToInclude.push('hat');
+  if (params.includeBag) slotsToInclude.push('bag');
+
+  const bySlot: SlotShortlists<TItem> = {};
+
+  for (const slot of slotsToInclude) {
+    const allowedGroups = SLOT_GROUPS[slot];
+    const candidates = params.closetItems.filter((item) => {
+      if (excludeItemIds.has(item.id)) return false;
+      const group = CATEGORY_TO_GROUP[item.category];
+      return group !== undefined && allowedGroups.includes(group);
+    });
+    if (candidates.length === 0) continue;
+
+    const withinBand = candidates.filter((item) => formalityDistance(item, params.targetFormalityRank) <= 1);
+    const pool = withinBand.length > 0 ? withinBand : candidates;
+
+    // Shuffle so a long shortlist doesn't always present the same items in
+    // the same position — models can anchor on list order.
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    bySlot[slot] = shuffled.slice(0, maxPerSlot);
+  }
+
+  return bySlot;
+}
+
+/**
+ * Same shortlist philosophy, scoped to a single swap: every candidate in the
+ * SAME garment group as the item being replaced (never a different slot),
+ * within the formality band — so a shoe swap only ever offers other shoes,
+ * and the LLM picks a genuinely different, thoughtfully-coordinated
+ * replacement rather than a random one.
+ */
+export function buildVariantCandidates<TItem extends BuilderClosetItem>(
   originalItem: TItem,
   closetItems: TItem[],
   targetFormalityRank: number,
   excludeItemIds: ReadonlySet<string>,
-  count: number,
+  maxCandidates: number = DEFAULT_MAX_PER_SLOT,
 ): TItem[] {
   const group = CATEGORY_TO_GROUP[originalItem.category];
   if (!group) return [];
@@ -133,7 +208,6 @@ export function pickVariantReplacements<TItem extends BuilderClosetItem>(
   const withinBand = candidates.filter((item) => formalityDistance(item, targetFormalityRank) <= 1);
   const pool = withinBand.length > 0 ? withinBand : candidates;
 
-  // Shuffle then take the first `count` — each variant gets a distinct real item.
   const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count);
+  return shuffled.slice(0, maxCandidates);
 }

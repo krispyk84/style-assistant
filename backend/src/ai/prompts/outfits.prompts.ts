@@ -3,19 +3,37 @@ import type { TrendFeedbackValue } from '../../modules/seasonal-trends/trend-fee
 import { buildBaseOutfitRules } from './base-stylist-rules.js';
 import { formatProfileContext } from '../prompt-context.js';
 import { buildSeasonalTrendGuidance } from './seasonal-trend-guidance.js';
-import type { ClosetOutfitIndexItem } from './closet-outfits.prompts.js';
+import type { ClosetOutfitSlotShortlists } from './closet-outfits.prompts.js';
 
+// CLOSET-ONLY MODE: keyPieces/shoes/accessories are no longer free-invented —
+// each is an array of real closet item ids, constrained per-role to exactly
+// the ids offered in that role's shortlist (closet-outfit-builder.ts's
+// buildOutfitSlotShortlists, computed per tier in outfits.service.ts and
+// enforced via the response schema's own id enum). This is what fixes
+// formality mismatches and phantom pieces while leaving every OTHER styling
+// judgment (which real item to pick, given color/texture/silhouette/vibe/
+// trendiness/season) exactly where it already lived: with the model. Only
+// anchorPiece stays free-form, since the anchor is user-supplied (text/photo)
+// and not guaranteed to be a real closet item at all.
 function buildClosetOnlyInstructions(): string[] {
   return [
-    'CLOSET-ONLY MODE: every recommendation must be built ENTIRELY from the WARDROBE INDEX provided in the user content below. Never invent a piece that is not in the index — if the wardrobe genuinely has no good option for a slot, choose the closest available item rather than fabricating one.',
-    'closetItemIds: the exact ids (from the wardrobe index) used to build this recommendation\'s anchorPiece/keyPieces/shoes/accessories. Every id must exist in the index. 2–8 ids per recommendation.',
-    'display_name for every piece must describe the ACTUAL chosen item by its real name/details, not a generic placeholder.',
-    'HARD CONSTRAINT — one piece of text per one real item: every keyPiece/shoe/accessory/anchorPiece must describe exactly one whole item from closetItemIds, using its actual category. Do not split a combined item (e.g. a "Suit" index entry) into separates and wear only part of it. Do not describe an item as serving a role it is not (e.g. never call a shirt "used as a neck tie"). If the wardrobe has no real item for a slot the outfit genuinely needs, omit that slot rather than repurposing or misdescribing an unrelated item to fill it.',
+    'CLOSET-ONLY MODE: keyPieces, shoes, and accessories are arrays of real closet item ids — not descriptions. Each array\'s allowed ids are listed per tier in the WARDROBE OPTIONS block below (organised by slot: bottoms/tops/layering/outerwear feed keyPieces, footwear feeds shoes, watch/sunglasses/hat/bag feed accessories). Choose ids only from the tier you are building for a given recommendation — never reuse an id listed under a different tier\'s options unless it also appears under this tier\'s own list.',
+    'Only anchorPiece stays a free-form structured description (the anchor is user-supplied, not drawn from the closet).',
+    'Reference the chosen ids\' real names/colors/materials (visible in the WARDROBE OPTIONS block) when writing whyItWorks, stylingDirection, fitNotes, and detailNotes — describe what you actually picked, not a generic placeholder.',
+    'If a role\'s shortlist for this tier is empty or offers nothing suitable, choose the closest available id from that same shortlist rather than leaving the array empty — every recommendation still needs complete keyPieces/shoes.',
   ];
 }
 
-function buildClosetOnlyWardrobeBlock(closetIndex: ClosetOutfitIndexItem[]): string {
-  return ['WARDROBE INDEX (every item you may use — reference by exact id):', JSON.stringify(closetIndex, null, 2)].join('\n');
+function buildClosetOnlyShortlistsBlock(shortlistsByTier: Record<string, ClosetOutfitSlotShortlists>): string {
+  const lines: string[] = ['WARDROBE OPTIONS BY TIER AND SLOT (choose ids only from the tier you are currently building):'];
+  for (const [tier, shortlists] of Object.entries(shortlistsByTier)) {
+    lines.push(`\n${tier.toUpperCase()} TIER:`);
+    for (const [slot, items] of Object.entries(shortlists)) {
+      if (!items?.length) continue;
+      lines.push(`  ${slot.toUpperCase()} options:`, JSON.stringify(items, null, 2));
+    }
+  }
+  return lines.join('\n');
 }
 
 type PromptProfile = Parameters<typeof formatProfileContext>[0];
@@ -298,8 +316,8 @@ export function buildGenerateOutfitsUserPrompt(
   profile: PromptProfile,
   styleGuideContext?: string | null,
   seasonalTrends?: OutfitsSeasonalTrendsContext,
-  /** Present only for closetOnly requests — the full wardrobe index every recommendation must build from. */
-  closetIndex?: ClosetOutfitIndexItem[],
+  /** Present only for closetOnly requests — per-tier, per-slot shortlists of real closet items. */
+  shortlistsByTier?: Record<string, ClosetOutfitSlotShortlists>,
 ) {
   const anchorItems = input.anchorItems?.length
     ? input.anchorItems
@@ -330,7 +348,7 @@ export function buildGenerateOutfitsUserPrompt(
     buildSeasonalTrendsRule(seasonalTrends ?? null, input.selectedTiers),
     buildAdditionalDetailsRule(input.additionalDetails),
     buildVariantContextRule(input.variantContext),
-    closetIndex ? buildClosetOnlyWardrobeBlock(closetIndex) : null,
+    shortlistsByTier ? buildClosetOnlyShortlistsBlock(shortlistsByTier) : null,
     'Styling request:',
     ...anchorItems.map(
       (item, index) =>
@@ -377,8 +395,8 @@ export function buildRegenerateTierUserPrompt(input: {
   tier: OutfitTierSlug;
   styleGuideContext?: string | null;
   seasonalTrends?: OutfitsSeasonalTrendsContext;
-  /** Present only when the original request was closetOnly — the full wardrobe index the replacement must build from. */
-  closetIndex?: ClosetOutfitIndexItem[];
+  /** Present only when the original request was closetOnly — per-slot shortlists of real closet items for the requested tier. */
+  shortlists?: ClosetOutfitSlotShortlists;
 }) {
   const previousTier = input.existing.recommendations.find((item) => item.tier === input.tier);
 
@@ -402,7 +420,7 @@ export function buildRegenerateTierUserPrompt(input: {
     buildAdditionalDetailsRule(
       (input.existing.input as { additionalDetails?: string }).additionalDetails,
     ),
-    input.closetIndex ? buildClosetOnlyWardrobeBlock(input.closetIndex) : null,
+    input.shortlists ? buildClosetOnlyShortlistsBlock({ [input.tier]: input.shortlists }) : null,
     'Original styling request:',
     ...(input.existing.input.anchorItems?.length
       ? input.existing.input.anchorItems.map(

@@ -55,6 +55,37 @@ export const singleTierRegenerationSchema = z.object({
 export type TieredOutfitGeneration = z.infer<typeof tieredOutfitGenerationSchema>;
 export type SingleTierRegeneration = z.infer<typeof singleTierRegenerationSchema>;
 
+// ── Closet-only variant — keyPieces/shoes/accessories are real closet item
+// ids (constrained to per-tier, per-role shortlists via the JSON schema's
+// own enum), not free-invented pieces. anchorPiece stays free-form since the
+// anchor is user-supplied and not guaranteed to be a real closet item.
+// Server-side resolution (outfits.service.ts) maps the chosen ids back to
+// real items and synthesizes outfitPieceSchema-shaped objects before this
+// converges with the freeform path's mapOutfitRecommendation.
+export const closetOnlyOutfitRecommendationSchema = z.object({
+  tier: tierEnum,
+  title: z.string().min(1),
+  anchorItem: z.string().min(1),
+  anchorPiece: outfitPieceSchema.optional(),
+  keyPieceIds: z.array(z.string()).min(1).max(5),
+  shoeIds: z.array(z.string()).min(1).max(3),
+  accessoryIds: z.array(z.string()).min(0).max(4),
+  fitNotes: z.array(z.string().min(1)).min(2).max(5),
+  whyItWorks: z.string().min(1),
+  stylingDirection: z.string().min(1),
+  detailNotes: z.array(z.string().min(1)).min(2).max(5),
+});
+
+export const closetOnlyTieredOutfitGenerationSchema = z.object({
+  recommendations: z.array(closetOnlyOutfitRecommendationSchema).min(1).max(3),
+});
+
+export const closetOnlySingleTierRegenerationSchema = z.object({
+  recommendation: closetOnlyOutfitRecommendationSchema,
+});
+
+export type ClosetOnlyOutfitRecommendation = z.infer<typeof closetOnlyOutfitRecommendationSchema>;
+
 const outfitPieceMetaJsonSchema = {
   type: 'object',
   additionalProperties: false,
@@ -94,7 +125,7 @@ const outfitPieceJsonSchema = {
   required: ['display_name', 'metadata'],
 } as const;
 
-function buildOutfitRecommendationJsonSchema(closetOnly: boolean) {
+function buildOutfitRecommendationJsonSchema() {
   return {
     type: 'object',
     additionalProperties: false,
@@ -149,33 +180,101 @@ function buildOutfitRecommendationJsonSchema(closetOnly: boolean) {
         minItems: 2,
         maxItems: 5,
       },
-      ...(closetOnly
-        ? {
-            closetItemIds: {
-              type: 'array',
-              items: { type: 'string' },
-              minItems: 2,
-              maxItems: 8,
-              description: 'Real closet item ids (from the wardrobe index) used to build keyPieces/shoes/accessories/anchorPiece for this tier',
-            },
-          }
-        : {}),
     },
     required: [
       'tier', 'title', 'anchorItem', 'anchorPiece', 'keyPieces', 'shoes', 'accessories', 'fitNotes', 'whyItWorks', 'stylingDirection', 'detailNotes',
-      ...(closetOnly ? ['closetItemIds'] : []),
     ],
   } as const;
 }
 
-export function buildTieredOutfitGenerationJsonSchema(closetOnly: boolean) {
+// ── Closet-only JSON schema variants — keyPieceIds/shoeIds/accessoryIds are
+// id arrays whose `enum` is the union of every requested tier's shortlist
+// for that role (closet-outfit-builder.ts's buildOutfitSlotShortlists). The
+// union (not a single shared list) is a deliberate looseness: JSON schema
+// can't easily vary an array item's enum by the array's own position, so
+// per-tier precision (a business recommendation can't secretly use a
+// casual-only id) is enforced by outfits.service.ts post-validation instead —
+// the enum here is the API-level guardrail against invented/wrong-role ids.
+
+export type ClosetOnlyRoleIds = { keyPieces: string[]; shoes: string[]; accessories: string[] };
+
+function buildClosetOnlyOutfitRecommendationJsonSchema(roleIds: ClosetOnlyRoleIds) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      tier: { type: 'string', enum: tierEnum.options },
+      title: { type: 'string' },
+      anchorItem: { type: 'string' },
+      anchorPiece: {
+        ...outfitPieceJsonSchema,
+        description: 'The anchor item as a structured piece — display_name matches anchorItem text, metadata reflects the anchor\'s category, dominant color, material, and formality.',
+      },
+      keyPieceIds: {
+        type: 'array',
+        items: { type: 'string', enum: roleIds.keyPieces },
+        minItems: 1,
+        maxItems: 5,
+        description: 'Real closet item ids for supporting key pieces (bottoms/tops/layers/outerwear) that complement the anchor.',
+      },
+      shoeIds: {
+        type: 'array',
+        items: { type: 'string', enum: roleIds.shoes },
+        minItems: 1,
+        maxItems: 3,
+        description: 'Real closet item id(s) for footwear.',
+      },
+      accessoryIds: {
+        type: 'array',
+        items: { type: 'string', enum: roleIds.accessories },
+        minItems: 0,
+        maxItems: 4,
+        description: 'Real closet item ids for accessories (watch/sunglasses, plus hat/bag only if the user opted in) — empty if the closet genuinely offers none.',
+      },
+      fitNotes: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 5 },
+      whyItWorks: { type: 'string' },
+      stylingDirection: { type: 'string' },
+      detailNotes: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 5 },
+    },
+    required: ['tier', 'title', 'anchorItem', 'anchorPiece', 'keyPieceIds', 'shoeIds', 'accessoryIds', 'fitNotes', 'whyItWorks', 'stylingDirection', 'detailNotes'],
+  } as const;
+}
+
+export function buildClosetOnlyTieredOutfitGenerationJsonSchema(unionRoleIds: ClosetOnlyRoleIds, count: number) {
   return {
     type: 'object',
     additionalProperties: false,
     properties: {
       recommendations: {
         type: 'array',
-        items: buildOutfitRecommendationJsonSchema(closetOnly),
+        items: buildClosetOnlyOutfitRecommendationJsonSchema(unionRoleIds),
+        minItems: count,
+        maxItems: count,
+      },
+    },
+    required: ['recommendations'],
+  } as const;
+}
+
+export function buildClosetOnlySingleTierRegenerationJsonSchema(roleIds: ClosetOnlyRoleIds) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      recommendation: buildClosetOnlyOutfitRecommendationJsonSchema(roleIds),
+    },
+    required: ['recommendation'],
+  } as const;
+}
+
+export function buildTieredOutfitGenerationJsonSchema() {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      recommendations: {
+        type: 'array',
+        items: buildOutfitRecommendationJsonSchema(),
         minItems: 1,
         maxItems: 3,
       },
@@ -184,12 +283,12 @@ export function buildTieredOutfitGenerationJsonSchema(closetOnly: boolean) {
   } as const;
 }
 
-export function buildSingleTierRegenerationJsonSchema(closetOnly: boolean) {
+export function buildSingleTierRegenerationJsonSchema() {
   return {
     type: 'object',
     additionalProperties: false,
     properties: {
-      recommendation: buildOutfitRecommendationJsonSchema(closetOnly),
+      recommendation: buildOutfitRecommendationJsonSchema(),
     },
     required: ['recommendation'],
   } as const;

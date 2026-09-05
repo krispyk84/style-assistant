@@ -1,8 +1,13 @@
 // Prompt construction for the "Generate 5 Outfits" closet feature.
-// Item SELECTION is deterministic and code-driven (closet-outfit-builder.ts) —
-// these prompts only narrate an already-fixed set of real items (title +
-// rationale), which is what actually guarantees formality-correctness and
-// eliminates phantom pieces, rather than relying on prompt instructions alone.
+// Item selection is shortlist-constrained, not free-invention: each slot
+// (footwear, bottoms, tops, ...) is pre-filtered to real, formality-
+// appropriate closet items (closet-outfit-builder.ts's
+// buildOutfitSlotShortlists) before the model ever sees it, and the response
+// schema's per-slot id fields are JSON-schema `enum`s of exactly those real
+// ids — so the model CANNOT return a wrong-formality or invented piece, but
+// still makes the actual color/texture/silhouette/vibe choice and writes the
+// narrative fields. This is what fixes formality mismatches and phantom
+// pieces while keeping real styling judgment intact.
 // ClosetOutfitIndexItem/ClosetOutfitSeasonalTrendsContext are still shared with
 // outfits.prompts.ts (Create a Look's closet-only path) and closet-index.ts.
 
@@ -125,6 +130,39 @@ function buildSeasonalFashionTrendsRule(
   });
 }
 
+export type ClosetOutfitVarietyContext = {
+  /** Item ids featured in this client's recent generations — deprioritise, don't hard-exclude. */
+  recentlyUsedItems?: { id: string; name: string }[];
+  /** Item ids from outfits this client explicitly loved/hated. */
+  preference?: { loved: { id: string; name: string }[]; hated: { id: string; name: string }[] };
+};
+
+function buildVarietyAndPreferenceBlock(context?: ClosetOutfitVarietyContext): string | null {
+  if (!context) return null;
+  const lines: string[] = [];
+
+  if (context.recentlyUsedItems?.length) {
+    lines.push(
+      'Recently featured items (used in outfits generated for this client recently — minimise reuse per the variety rule):',
+      context.recentlyUsedItems.map((item) => `- ${item.name} (${item.id})`).join('\n'),
+    );
+  }
+  if (context.preference?.loved.length) {
+    lines.push(
+      'Loved in past outfits (lean into these where they fit the brief):',
+      context.preference.loved.map((item) => `- ${item.name} (${item.id})`).join('\n'),
+    );
+  }
+  if (context.preference?.hated.length) {
+    lines.push(
+      'Disliked in past outfits (avoid where a reasonable alternative exists):',
+      context.preference.hated.map((item) => `- ${item.name} (${item.id})`).join('\n'),
+    );
+  }
+
+  return lines.length ? lines.join('\n') : null;
+}
+
 function buildContextBlock(params: {
   formality: string;
   weatherSummary?: string | null;
@@ -134,6 +172,7 @@ function buildContextBlock(params: {
   weatherCode?: number | null;
   trendiness?: number | null;
   additionalDetails?: string | null;
+  variety?: ClosetOutfitVarietyContext;
   seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
 }): string {
   const lines = [
@@ -148,42 +187,50 @@ function buildContextBlock(params: {
     buildTrendinessRule(params.trendiness),
     buildAdditionalDetailsRule(params.additionalDetails),
     buildSeasonalFashionTrendsRule(params.formality, params.seasonalTrends),
+    buildVarietyAndPreferenceBlock(params.variety),
   ];
   return lines.filter((line): line is string => line !== null).join('\n');
 }
 
-// ── Narration (item selection is deterministic — code picks the real items,
-// the model only writes the title/rationale for an already-fixed set) ────────
+// ── Choice + narrate (shortlist-constrained selection) ────────────────────────
+// Each slot's shortlist is real, formality-appropriate closet items only —
+// the model picks exactly one id per listed slot (schema-enforced via enum)
+// and writes the title/rationale, reasoning over color/texture/silhouette/
+// vibe using the full item metadata it's given.
 
-export type ClosetOutfitNarrationItem = {
-  id: string;
-  name: string;
-  category: string;
-  color_family?: string | null;
-  formality?: string | null;
-};
+export type ClosetOutfitSlotShortlists = Partial<Record<string, ClosetOutfitIndexItem[]>>;
 
-export type ClosetOutfitToNarrate = {
-  index: number;
-  items: ClosetOutfitNarrationItem[];
-};
+function buildShortlistBlock(shortlists: ClosetOutfitSlotShortlists, heading: string): string {
+  const lines: string[] = [heading];
+  for (const [slot, items] of Object.entries(shortlists)) {
+    if (!items?.length) continue;
+    lines.push(`\n${slot.toUpperCase()} options (choose exactly one id):`, JSON.stringify(items, null, 2));
+  }
+  return lines.join('\n');
+}
 
-export function buildClosetOutfitNarrationSystemPrompt(): string {
+export function buildClosetOutfitsChoiceSystemPrompt(): string {
   return [
-    'You are an expert personal stylist. For each outfit below, the exact real pieces have ALREADY been chosen for the client from their own closet — your only job is to name it and explain why it works.',
+    'You are an expert personal stylist assembling complete, wearable outfits entirely from a client\'s existing wardrobe.',
     '',
-    'HARD RULES:',
-    '1. Do not add, remove, or substitute any piece. Describe only the items listed for each outfit — never invent or imply a piece that is not in that outfit\'s list.',
-    '2. Every outfit needs a short, evocative title (2-5 words) — vary the tone/vocabulary across outfits so they don\'t all sound the same.',
-    '3. "whyItWorks" is one sentence, specific to the actual pieces listed (reference them by name, not generically) — explain the styling logic (formality fit, color pairing, silhouette, weather-appropriateness), not a generic compliment.',
-    '4. Return one entry per outfit index provided, matched by "index". Do not skip or reorder.',
+    'Each slot below already lists ONLY real, formality-appropriate items from the client\'s closet — you must choose exactly one id per slot listed for each outfit (the schema enforces this: you cannot invent an id or return one that is not listed).',
+    '',
+    'HARD RULES (in priority order):',
+    '1. COLOR COORDINATION: do not choose 3 or more pieces in the same color/color-family for one outfit (e.g. olive top + olive trousers + olive shoes) — head-to-toe monochrome reads as flat, not stylish. Build real contrast: pair a colored piece against neutrals (white, black, navy, grey, stone, tan/camel), or use at most one secondary color alongside a neutral base.',
+    '2. TEXTURE & SILHOUETTE: use each item\'s material/silhouette metadata to create intentional contrast and balance — don\'t pair two heavy-textured pieces or stack two oversized silhouettes without reason. A thoughtfully assembled outfit, not a random draw.',
+    '3. Choose exactly 5 outfits, and make them meaningfully different from each other — vary the anchor piece, colour story, and silhouette across the 5. Do not return near-duplicate combinations.',
+    '4. VARIETY ACROSS REQUESTS: if the user message lists "Recently featured items", deliberately minimise reusing them — actively draw on other pieces from the shortlists that still satisfy every rule above, rather than defaulting to the same "obvious" combination every time. Only reuse a recently-featured item when the shortlist genuinely offers no suitable alternative for that slot.',
+    '5. PREFERENCE SIGNAL: if the user message lists items the client has loved or hated in past outfits, lean toward the loved items and the styles they represent where they fit the brief, and avoid the hated items where a reasonable alternative exists — but never let this override rules 1-3.',
+    '6. Within all of the above, look cool, current, and intentional — this is a client who cares about their aesthetic, not a rote uniform.',
+    '',
+    'For each outfit, also write a short evocative title and one sentence on why the combination works — reference the actual chosen pieces, not generic praise.',
     '',
     'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');
 }
 
-export function buildClosetOutfitNarrationUserPrompt(params: {
-  outfits: ClosetOutfitToNarrate[];
+export function buildClosetOutfitsChoiceUserPrompt(params: {
+  shortlists: ClosetOutfitSlotShortlists;
   formality: string;
   weatherSummary?: string | null;
   weatherStylingHint?: string | null;
@@ -192,14 +239,40 @@ export function buildClosetOutfitNarrationUserPrompt(params: {
   weatherCode?: number | null;
   trendiness?: number | null;
   additionalDetails?: string | null;
+  variety?: ClosetOutfitVarietyContext;
   seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
 }): string {
   return [
     buildContextBlock(params),
     '',
-    'Outfits to narrate (each already built from the client\'s real closet items — describe exactly these, nothing else):',
-    JSON.stringify(params.outfits, null, 2),
+    buildShortlistBlock(params.shortlists, 'WARDROBE OPTIONS BY SLOT:'),
     '',
-    'Return a title and one-sentence whyItWorks for each outfit index above.',
+    'Build exactly 5 distinct, complete outfits from these options for the formality and weather context above.',
+  ].join('\n');
+}
+
+export function buildClosetOutfitVariationsChoiceUserPrompt(params: {
+  keepItems: ClosetOutfitIndexItem[];
+  swapShortlists: ClosetOutfitSlotShortlists;
+  formality: string;
+  weatherSummary?: string | null;
+  weatherStylingHint?: string | null;
+  season?: string | null;
+  temperatureC?: number | null;
+  weatherCode?: number | null;
+  trendiness?: number | null;
+  additionalDetails?: string | null;
+  variety?: ClosetOutfitVarietyContext;
+  seasonalTrends?: ClosetOutfitSeasonalTrendsContext | null;
+}): string {
+  return [
+    buildContextBlock(params),
+    '',
+    'KEEP UNCHANGED in every variant, exactly as listed (do not re-describe or replace):',
+    JSON.stringify(params.keepItems, null, 2),
+    '',
+    buildShortlistBlock(params.swapShortlists, 'REPLACE each of these slots with exactly one id from its own list below — choose thoughtfully so the replacement coordinates with the kept pieces above (color, texture, silhouette):'),
+    '',
+    'Build up to 5 distinct variants, each swapping in a genuinely different, well-coordinated replacement — do not repeat the same replacement across variants unless the options genuinely run out.',
   ].join('\n');
 }

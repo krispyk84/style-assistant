@@ -126,8 +126,9 @@ export const tripDayVariantsResponseSchema = z.object({
   variants: z.array(tripDaySchema).min(1).max(5),
 });
 
-// ── fullCloset day "shape" + narration (item selection is deterministic — see
-// closet-outfit-builder.ts applied per-day in trips.service.ts) ──────────────
+// ── fullCloset day "shape" + choice (item selection is shortlist-
+// constrained — see closet-outfit-builder.ts's buildOutfitSlotShortlists,
+// applied per-day in trips.service.ts) ────────────────────────────────────────
 
 const dayTypeEnum = z.enum(['travel_day', 'sightseeing', 'business', 'meeting', 'dinner_out', 'beach_pool', 'adventure', 'wedding_event', 'relaxed', 'conference']);
 
@@ -142,41 +143,100 @@ export const tripDayShapeResponseSchema = z.object({
   days: z.array(tripDayShapeSchema).min(1).max(14),
 });
 
-export const tripDayNarrationItemSchema = z.object({
+const tripDayChoiceItemSchema = z.object({
   index: z.number(),
   title: z.string().min(1),
   rationale: z.string().min(1),
+  chosenIds: z.record(z.string(), z.string()),
 });
 
-export const tripDayNarrationResponseSchema = z.object({
-  days: z.array(tripDayNarrationItemSchema).min(1),
+export const tripDayChoiceResponseSchema = z.object({
+  days: z.array(tripDayChoiceItemSchema).min(1),
 });
 
-export const TRIP_DAY_NARRATION_JSON_SCHEMA = {
-  name: 'trip_day_narration',
-  schema: {
-    type: 'object' as const,
-    properties: {
-      days: {
-        type: 'array',
-        minItems: 1,
-        items: {
-          type: 'object',
-          properties: {
-            index: { type: 'number', description: 'The day index this entry narrates, matching the input' },
-            title: { type: 'string', description: 'A short, evocative day title' },
-            rationale: { type: 'string', description: 'One to two sentences on why this exact combination works for this day' },
+/**
+ * `slots`: ordered slot keys to require in every day's chosenIds (only slots
+ * with at least one shortlist candidate should be passed).
+ * `idsBySlot`: the exact real ids allowed for each slot — enforced via enum.
+ */
+export function buildTripDayChoiceJsonSchema(params: { slots: string[]; idsBySlot: Record<string, string[]>; count: number }) {
+  const chosenIdsProperties: Record<string, unknown> = {};
+  for (const slot of params.slots) {
+    chosenIdsProperties[slot] = { type: 'string', enum: params.idsBySlot[slot] ?? [] };
+  }
+  return {
+    name: 'trip_day_choice_response',
+    schema: {
+      type: 'object' as const,
+      properties: {
+        days: {
+          type: 'array',
+          minItems: params.count,
+          maxItems: params.count,
+          items: {
+            type: 'object',
+            properties: {
+              index: { type: 'number', description: 'The day index this entry chooses for, matching the input' },
+              title: { type: 'string', description: 'A short, evocative day title' },
+              rationale: { type: 'string', description: 'One to two sentences on why this exact combination works for this day' },
+              chosenIds: {
+                type: 'object',
+                properties: chosenIdsProperties,
+                required: params.slots,
+                additionalProperties: false,
+              },
+            },
+            required: ['index', 'title', 'rationale', 'chosenIds'],
+            additionalProperties: false,
           },
-          required: ['index', 'title', 'rationale'],
-          additionalProperties: false,
         },
       },
+      required: ['days'],
+      additionalProperties: false,
     },
-    required: ['days'],
-    additionalProperties: false,
-  },
-  strict: true,
-};
+    strict: true,
+  };
+}
+
+/** Same shape, for the variant-swap flow — up to 5 variants, not exactly count. */
+export function buildTripDayVariantsChoiceJsonSchema(params: { slots: string[]; idsBySlot: Record<string, string[]>; maxCount: number }) {
+  const chosenIdsProperties: Record<string, unknown> = {};
+  for (const slot of params.slots) {
+    chosenIdsProperties[slot] = { type: 'string', enum: params.idsBySlot[slot] ?? [] };
+  }
+  return {
+    name: 'trip_day_variants_choice_response',
+    schema: {
+      type: 'object' as const,
+      properties: {
+        days: {
+          type: 'array',
+          minItems: 1,
+          maxItems: params.maxCount,
+          items: {
+            type: 'object',
+            properties: {
+              index: { type: 'number', description: '0-based variant index' },
+              title: { type: 'string', description: 'A short, evocative day title' },
+              rationale: { type: 'string', description: 'One to two sentences on why this exact combination (including the swap) works' },
+              chosenIds: {
+                type: 'object',
+                properties: chosenIdsProperties,
+                required: params.slots,
+                additionalProperties: false,
+              },
+            },
+            required: ['index', 'title', 'rationale', 'chosenIds'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['days'],
+      additionalProperties: false,
+    },
+    strict: true,
+  };
+}
 
 // Partial update: caller sends the day's current full item list plus the
 // desired hat/bag state — mirrors closet.validation.ts's

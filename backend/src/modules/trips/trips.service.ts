@@ -5,10 +5,11 @@ import {
   buildTripDaySketchPrompt,
   buildRegenerateDayPrompt,
   buildTripDayShapePrompt,
-  buildTripDayNarrationSystemPrompt,
-  buildTripDayNarrationUserPrompt,
-  type TripDayToNarrate,
+  buildTripDayChoiceSystemPrompt,
+  buildTripDayChoiceUserPrompt,
+  buildTripDayVariantsChoiceUserPrompt,
 } from '../../ai/prompts/trips.prompts.js';
+import type { ClosetOutfitIndexItem, ClosetOutfitSlotShortlists } from '../../ai/prompts/closet-outfits.prompts.js';
 import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
 import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { env } from '../../config/env.js';
@@ -17,7 +18,7 @@ import { describeError, HttpError } from '../../lib/http-error.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
 import { closetRepository } from '../closet/closet.repository.js';
-import { buildDeterministicOutfit, pickVariantReplacements } from '../closet/closet-outfit-builder.js';
+import { buildDeterministicOutfit, buildOutfitSlotShortlists, buildVariantCandidates } from '../closet/closet-outfit-builder.js';
 import { CATEGORY_TO_GROUP, FORMALITY_RANK, GROUP_TO_SLOTS, TRIP_DAY_TYPE_FORMALITY_TARGET, type OutfitSlot } from '../closet/closet-taxonomy.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
@@ -25,8 +26,9 @@ import {
   regenerateDayResponseSchema,
   tripOutfitsResponseSchema,
   tripDayShapeResponseSchema,
-  tripDayNarrationResponseSchema,
-  TRIP_DAY_NARRATION_JSON_SCHEMA,
+  tripDayChoiceResponseSchema,
+  buildTripDayChoiceJsonSchema,
+  buildTripDayVariantsChoiceJsonSchema,
 } from './trips.schemas.js';
 import type {
   GenerateTripDayVariantsRequest,
@@ -48,7 +50,7 @@ import type { InputContent } from '../../ai/openai-request-builder.js';
 // (each day is its own API request with no real memory of prior turns beyond
 // a text summary) — the model kept inventing a new jacket per day despite
 // being told not to. The fullCloset path enforces the same caps directly on
-// real items (enforceClosetSlotCap below) rather than by keyword-matching text.
+// real items (narrowShortlistForCap below) rather than by keyword-matching text.
 const OUTERWEAR_KEYWORDS = ['jacket', 'coat', 'blazer', 'cardigan', 'hoodie', 'windbreaker', 'parka', 'vest', 'puffer', 'trench', 'overcoat', 'jumper', 'overshirt'];
 
 function isOuterwearPiece(piece: string): boolean {
@@ -128,7 +130,7 @@ function parseShoesCap(shoesCount: string | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : 2;
 }
 
-// ── fullCloset (deterministic) helpers ────────────────────────────────────────
+// ── fullCloset helpers ────────────────────────────────────────────────────────
 
 type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
 type BuilderProfile = Awaited<ReturnType<typeof profileRepository.findByUserId>>;
@@ -140,35 +142,18 @@ function weatherGates(temperatureC: number | null): { includeLayering: boolean; 
   return { includeLayering: true, includeOuterwear: true };
 }
 
-/**
- * Same-purpose real-item equivalent of enforceOuterwearCap/enforceFootwearCap
- * — tracks cap state via display-title strings (matching the existing
- * usedOuterwear/usedFootwear request/response contract, which the frontend
- * already derives and threads across progressive per-day calls) rather than
- * keyword-matching freeform text, since the item is already known structurally.
- */
-function enforceClosetSlotCap(params: {
-  picked: BuilderItem | undefined;
-  usedTitles: string[];
-  cap: number;
-  allowDrop: boolean;
-  closetItems: BuilderItem[];
-}): { picked: BuilderItem | undefined; usedTitles: string[] } {
-  const { picked, usedTitles, cap, allowDrop, closetItems } = params;
-  if (!picked) return { picked, usedTitles };
-  if (usedTitles.some((title) => title.toLowerCase() === picked.title.toLowerCase())) {
-    return { picked, usedTitles };
-  }
-  if (allowDrop && cap <= 0) return { picked: undefined, usedTitles };
-  const effectiveCap = allowDrop ? cap : Math.max(1, cap);
-  if (usedTitles.length < effectiveCap) {
-    return { picked, usedTitles: [...usedTitles, picked.title] };
-  }
-  const reuseTitle = usedTitles[0];
-  const reuseItem = reuseTitle
-    ? closetItems.find((item) => item.title.toLowerCase() === reuseTitle.toLowerCase())
-    : undefined;
-  return { picked: reuseItem ?? picked, usedTitles };
+function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
+  return {
+    id: item.id,
+    name: item.title,
+    category: item.category,
+    color_family: item.colorFamily ?? null,
+    formality: item.formality ?? null,
+    silhouette: item.silhouette ?? null,
+    season: item.season ?? null,
+    material: item.material ?? null,
+    brand: item.brand || null,
+  };
 }
 
 function mapDaySlotsToDto(bySlot: Partial<Record<OutfitSlot, BuilderItem>>): {
@@ -199,8 +184,8 @@ function mapDaySlotsToDto(bySlot: Partial<Record<OutfitSlot, BuilderItem>>): {
 
 // Reconstructs a bySlot map from a flat item-id list — needed by
 // generateDayVariants/updateDayAccessories, which work with real item ids
-// (from a swap/toggle request) rather than a fresh buildDeterministicOutfit
-// result that already carries slots.
+// (from a swap/toggle request) rather than a fresh choice result that
+// already carries slots.
 function buildBySlotFromItemIds(
   itemIds: string[],
   itemsById: Map<string, BuilderItem>,
@@ -217,8 +202,9 @@ function buildBySlotFromItemIds(
 }
 
 // Reuses the shared deterministic builder to pick a single hat/bag by
-// restricting its candidate pool to just that garment group — mirrors
-// closet-outfits.service.ts's pickAccessory.
+// restricting its candidate pool to just that garment group — a single,
+// low-stakes accessory addition doesn't warrant its own LLM round-trip the
+// way full day assembly does.
 function pickAccessory(
   group: 'hat' | 'bag',
   closetItems: BuilderItem[],
@@ -241,54 +227,56 @@ function pickAccessory(
 const FALLBACK_TRIP_TITLE = 'A Day From Your Closet';
 const FALLBACK_TRIP_RATIONALE = 'A complete outfit built entirely from pieces you already own.';
 
-async function narrateTripDays(params: {
-  days: TripDayToNarrate[];
-  destination: string;
-  climateLabel?: string | null;
-  avgHighC?: number;
-  supabaseUserId: string;
-}): Promise<Map<number, { title: string; rationale: string }>> {
-  const userPrompt = buildTripDayNarrationUserPrompt({
-    days: params.days,
-    destination: params.destination,
-    climateLabel: params.climateLabel,
-    avgHighC: params.avgHighC,
-  });
+// Narrows a slot's shortlist once its cross-day cap is reached — replacing
+// free choice with "must reuse an already-used item" (or, for outerwear,
+// omitting the slot entirely if the cap is 0) BEFORE the model ever sees the
+// shortlist, rather than overriding an already-made pick after the fact.
+function narrowShortlistForCap(
+  shortlists: Partial<Record<OutfitSlot, BuilderItem[]>>,
+  slot: 'outerwear' | 'footwear',
+  usedTitles: string[],
+  cap: number,
+  allowDrop: boolean,
+  closetItems: BuilderItem[],
+): void {
+  if (!shortlists[slot]) return;
 
-  try {
-    const result = await openAiClient.createStructuredResponse({
-      schema: tripDayNarrationResponseSchema,
-      jsonSchema: TRIP_DAY_NARRATION_JSON_SCHEMA,
-      instructions: buildTripDayNarrationSystemPrompt(),
-      userContent: [{ type: 'input_text' as const, text: userPrompt }],
-      supabaseUserId: params.supabaseUserId,
-      feature: 'trip-generation',
-    });
-    return new Map(result.days.map((day) => [day.index, { title: day.title, rationale: day.rationale }]));
-  } catch (error) {
-    // Narration is flavor text on top of already-real, already-valid items —
-    // a narration failure shouldn't block showing the day itself.
-    const { code } = describeError(error);
-    logger.warn({ errorCode: code, error }, 'Trip day narration failed — falling back to generic title/rationale');
-    return new Map();
+  if (allowDrop && cap <= 0) {
+    delete shortlists[slot];
+    return;
+  }
+
+  const effectiveCap = allowDrop ? cap : Math.max(1, cap);
+  if (usedTitles.length < effectiveCap) return; // room for a new item — leave the shortlist as-is
+
+  const usedItems = closetItems.filter((item) => usedTitles.some((title) => title.toLowerCase() === item.title.toLowerCase()));
+  if (usedItems.length > 0) {
+    shortlists[slot] = usedItems;
+  } else if (allowDrop) {
+    delete shortlists[slot];
   }
 }
 
-function narrationItemsFromSlots(bySlot: Partial<Record<OutfitSlot, BuilderItem>>) {
-  return Object.values(bySlot)
-    .filter((item): item is BuilderItem => Boolean(item))
-    .map((item) => ({
-      id: item.id,
-      name: item.title,
-      category: item.category,
-      color_family: item.colorFamily ?? null,
-      formality: item.formality ?? null,
-    }));
+function updateUsedTitles(bySlot: Partial<Record<OutfitSlot, BuilderItem>>, slot: 'outerwear' | 'footwear', usedTitles: string[]): string[] {
+  const picked = bySlot[slot];
+  if (!picked) return usedTitles;
+  if (usedTitles.some((title) => title.toLowerCase() === picked.title.toLowerCase())) return usedTitles;
+  return [...usedTitles, picked.title];
 }
 
-function buildFullClosetDay(params: {
+/**
+ * Chooses + narrates ONE day via a single LLM call over its formality-
+ * filtered shortlists — mirrors closet-outfits.service.ts's generateOutfits,
+ * scoped to a single day so outerwear/footwear cap-narrowing can be threaded
+ * day-by-day even across separate progressive generation requests (the real
+ * usage pattern — see useTripResultsData.ts's per-day loop).
+ */
+async function chooseFullClosetDay(params: {
+  index: number;
   closetItems: BuilderItem[];
   dayType: string;
+  destination: string;
+  climateLabel?: string;
   avgHighC?: number;
   avgLowC?: number;
   excludeItemIds?: ReadonlySet<string>;
@@ -296,15 +284,18 @@ function buildFullClosetDay(params: {
   usedFootwearTitles: string[];
   jacketsCap: number;
   shoesCap: number;
-}): {
+  supabaseUserId: string;
+}): Promise<{
   bySlot: Partial<Record<OutfitSlot, BuilderItem>>;
+  title: string;
+  rationale: string;
   usedOuterwearTitles: string[];
   usedFootwearTitles: string[];
-} {
+}> {
   const targetFormalityRank = TRIP_DAY_TYPE_FORMALITY_TARGET[params.dayType] ?? FORMALITY_RANK['Smart Casual'];
   const { includeLayering, includeOuterwear } = weatherGates(params.avgHighC ?? params.avgLowC ?? null);
 
-  const built = buildDeterministicOutfit({
+  const shortlists = buildOutfitSlotShortlists({
     closetItems: params.closetItems,
     targetFormalityRank,
     includeLayering,
@@ -312,34 +303,72 @@ function buildFullClosetDay(params: {
     excludeItemIds: params.excludeItemIds,
   });
 
-  const bySlot = { ...built.bySlot };
-  let usedOuterwearTitles = params.usedOuterwearTitles;
-  let usedFootwearTitles = params.usedFootwearTitles;
+  narrowShortlistForCap(shortlists, 'outerwear', params.usedOuterwearTitles, params.jacketsCap, true, params.closetItems);
+  narrowShortlistForCap(shortlists, 'footwear', params.usedFootwearTitles, params.shoesCap, false, params.closetItems);
 
-  if (bySlot.outerwear) {
-    const capped = enforceClosetSlotCap({
-      picked: bySlot.outerwear,
-      usedTitles: usedOuterwearTitles,
-      cap: params.jacketsCap,
-      allowDrop: true,
-      closetItems: params.closetItems,
-    });
-    bySlot.outerwear = capped.picked;
-    usedOuterwearTitles = capped.usedTitles;
-  }
-  if (bySlot.footwear) {
-    const capped = enforceClosetSlotCap({
-      picked: bySlot.footwear,
-      usedTitles: usedFootwearTitles,
-      cap: params.shoesCap,
-      allowDrop: false,
-      closetItems: params.closetItems,
-    });
-    bySlot.footwear = capped.picked;
-    usedFootwearTitles = capped.usedTitles;
+  const slots = (Object.keys(shortlists) as OutfitSlot[]).filter((slot) => (shortlists[slot]?.length ?? 0) > 0);
+
+  if (slots.length === 0) {
+    return {
+      bySlot: {},
+      title: FALLBACK_TRIP_TITLE,
+      rationale: FALLBACK_TRIP_RATIONALE,
+      usedOuterwearTitles: params.usedOuterwearTitles,
+      usedFootwearTitles: params.usedFootwearTitles,
+    };
   }
 
-  return { bySlot, usedOuterwearTitles, usedFootwearTitles };
+  const shortlistsForPrompt: ClosetOutfitSlotShortlists = {};
+  const idsBySlot: Record<string, string[]> = {};
+  for (const slot of slots) {
+    const items = shortlists[slot]!;
+    shortlistsForPrompt[slot] = items.map(toIndexItem);
+    idsBySlot[slot] = items.map((item) => item.id);
+  }
+
+  const userPrompt = buildTripDayChoiceUserPrompt({
+    days: [{ index: params.index, dayType: params.dayType, shortlists: shortlistsForPrompt }],
+    destination: params.destination,
+    climateLabel: params.climateLabel,
+    avgHighC: params.avgHighC,
+  });
+
+  let chosen: { title: string; rationale: string; chosenIds: Record<string, string> } | null = null;
+  try {
+    const aiResult = await openAiClient.createStructuredResponse({
+      schema: tripDayChoiceResponseSchema,
+      jsonSchema: buildTripDayChoiceJsonSchema({ slots, idsBySlot, count: 1 }),
+      instructions: buildTripDayChoiceSystemPrompt(),
+      userContent: [{ type: 'input_text' as const, text: userPrompt }],
+      supabaseUserId: params.supabaseUserId,
+      feature: 'trip-generation',
+    });
+    const dayResult = aiResult.days.find((day) => day.index === params.index) ?? aiResult.days[0];
+    if (dayResult) {
+      const validIdSets = new Map(Object.entries(idsBySlot).map(([slot, ids]) => [slot, new Set(ids)]));
+      const chosenEntries = Object.entries(dayResult.chosenIds);
+      const valid = chosenEntries.length > 0 && chosenEntries.every(([slot, id]) => validIdSets.get(slot)?.has(id));
+      if (valid) {
+        chosen = { title: dayResult.title, rationale: dayResult.rationale, chosenIds: dayResult.chosenIds };
+      }
+    }
+  } catch (error) {
+    const { code } = describeError(error);
+    logger.warn({ errorCode: code, error }, 'Trip day choice failed — falling back to a safe default pick');
+  }
+
+  const itemsById = new Map(params.closetItems.map((item) => [item.id, item]));
+  const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = chosen
+    ? (Object.fromEntries(Object.entries(chosen.chosenIds).map(([slot, id]) => [slot, itemsById.get(id)!])) as Partial<Record<OutfitSlot, BuilderItem>>)
+    : (Object.fromEntries(slots.map((slot) => [slot, shortlists[slot]![0]!])) as Partial<Record<OutfitSlot, BuilderItem>>);
+
+  return {
+    bySlot,
+    title: chosen?.title ?? FALLBACK_TRIP_TITLE,
+    rationale: chosen?.rationale ?? FALLBACK_TRIP_RATIONALE,
+    usedOuterwearTitles: updateUsedTitles(bySlot, 'outerwear', params.usedOuterwearTitles),
+    usedFootwearTitles: updateUsedTitles(bySlot, 'footwear', params.usedFootwearTitles),
+  };
 }
 
 async function generateFullClosetTripOutfits(
@@ -370,49 +399,40 @@ async function generateFullClosetTripOutfits(
   let usedOuterwearTitles = request.usedOuterwear ?? [];
   let usedFootwearTitles = request.usedFootwear ?? [];
 
-  const builtDays = shapeResult.days.map((shape) => {
-    const built = buildFullClosetDay({
+  // Sequential, not parallel — the outerwear/footwear cap must be threaded
+  // day-by-day in order (each day narrows or updates the running "used" list
+  // the next day reads).
+  const days: TripOutfitDayDto[] = [];
+  for (const shape of shapeResult.days) {
+    const chosen = await chooseFullClosetDay({
+      index: shape.dayIndex,
       closetItems,
       dayType: shape.dayType,
+      destination: request.destination,
+      climateLabel: request.climateLabel,
       avgHighC: request.avgHighC,
       avgLowC: request.avgLowC,
       usedOuterwearTitles,
       usedFootwearTitles,
       jacketsCap,
       shoesCap,
+      supabaseUserId,
     });
-    usedOuterwearTitles = built.usedOuterwearTitles;
-    usedFootwearTitles = built.usedFootwearTitles;
-    return { shape, bySlot: built.bySlot };
-  });
+    usedOuterwearTitles = chosen.usedOuterwearTitles;
+    usedFootwearTitles = chosen.usedFootwearTitles;
 
-  const narrationMap = await narrateTripDays({
-    days: builtDays.map(({ shape, bySlot }, index) => ({
-      index,
-      dayType: shape.dayType,
-      items: narrationItemsFromSlots(bySlot),
-    })),
-    destination: request.destination,
-    climateLabel: request.climateLabel,
-    avgHighC: request.avgHighC,
-    supabaseUserId,
-  });
-
-  const days: TripOutfitDayDto[] = builtDays.map(({ shape, bySlot }, index) => {
-    const narration = narrationMap.get(index);
-    const dto = mapDaySlotsToDto(bySlot);
-    return {
+    days.push({
       id: `${request.tripId}-day-${shape.dayIndex}`,
       tripId: request.tripId,
       dayIndex: shape.dayIndex,
       date: shape.date,
-      title: narration?.title ?? FALLBACK_TRIP_TITLE,
+      title: chosen.title,
       dayType: shape.dayType,
-      rationale: narration?.rationale ?? FALLBACK_TRIP_RATIONALE,
+      rationale: chosen.rationale,
       contextTags: shape.contextTags,
-      ...dto,
-    };
-  });
+      ...mapDaySlotsToDto(chosen.bySlot),
+    });
+  }
 
   return { tripId: request.tripId, days };
 }
@@ -426,8 +446,8 @@ async function regenerateFullClosetDay(
 
   // "Do NOT repeat the previous outfit" — we only have the previous day's
   // display text (not real ids), so exclude any real item whose title
-  // matches one of those strings, guaranteeing a genuinely different pick
-  // rather than trusting the weighted draw to avoid it by chance.
+  // matches one of those strings, guaranteeing a genuinely different
+  // shortlist rather than trusting the model to avoid it by chance.
   const previousTitles = new Set(
     [...request.previousPieces, ...(request.previousShoes ? [request.previousShoes] : [])].map((t) => t.toLowerCase()),
   );
@@ -435,9 +455,12 @@ async function regenerateFullClosetDay(
     closetItems.filter((item) => previousTitles.has(item.title.toLowerCase())).map((item) => item.id),
   );
 
-  const built = buildFullClosetDay({
+  const chosen = await chooseFullClosetDay({
+    index: 0,
     closetItems,
     dayType: request.dayType,
+    destination: request.destination,
+    climateLabel: request.climateLabel,
     avgHighC: request.avgHighC,
     avgLowC: request.avgLowC,
     excludeItemIds,
@@ -445,28 +468,19 @@ async function regenerateFullClosetDay(
     usedFootwearTitles: [],
     jacketsCap: Number.MAX_SAFE_INTEGER,
     shoesCap: Number.MAX_SAFE_INTEGER,
-  });
-
-  const narrationMap = await narrateTripDays({
-    days: [{ index: 0, dayType: request.dayType, items: narrationItemsFromSlots(built.bySlot) }],
-    destination: request.destination,
-    climateLabel: request.climateLabel,
-    avgHighC: request.avgHighC,
     supabaseUserId,
   });
-  const narration = narrationMap.get(0);
-  const dto = mapDaySlotsToDto(built.bySlot);
 
   return {
     id: `${request.tripId}-day-${request.dayIndex}-r${Date.now()}`,
     tripId: request.tripId,
     dayIndex: request.dayIndex,
     date: request.date,
-    title: narration?.title ?? FALLBACK_TRIP_TITLE,
+    title: chosen.title,
     dayType: request.dayType,
-    rationale: narration?.rationale ?? FALLBACK_TRIP_RATIONALE,
+    rationale: chosen.rationale,
     contextTags: [],
-    ...dto,
+    ...mapDaySlotsToDto(chosen.bySlot),
   };
 }
 
@@ -595,52 +609,83 @@ export const tripsService = {
     const excludeIds = new Set([...validKeepIds, ...validSwapIds]);
 
     // Each swap slot is constrained to the SAME garment group as the item
-    // being replaced (pickVariantReplacements) — a shoe swap only ever offers
-    // other shoes, never a different slot's item.
-    const replacementLists = validSwapIds.map((swapId) =>
-      pickVariantReplacements(itemsById.get(swapId)!, closetItems, targetFormalityRank, excludeIds, 5),
-    );
+    // being replaced — a shoe swap only ever offers other shoes. The
+    // shortlist is generous so the model can reason about which real
+    // replacement actually coordinates with the kept pieces.
+    const slots: string[] = [];
+    const idsBySlot: Record<string, string[]> = {};
+    const swapShortlists: ClosetOutfitSlotShortlists = {};
 
-    const variantCount = Math.min(5, ...replacementLists.map((list) => list.length));
-    if (variantCount === 0) {
+    for (const swapId of validSwapIds) {
+      const originalItem = itemsById.get(swapId)!;
+      const group = CATEGORY_TO_GROUP[originalItem.category];
+      const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
+      if (!slot) continue;
+      const candidates = buildVariantCandidates(originalItem, closetItems, targetFormalityRank, excludeIds);
+      if (candidates.length === 0) continue;
+      slots.push(slot);
+      idsBySlot[slot] = candidates.map((item) => item.id);
+      swapShortlists[slot] = candidates.map(toIndexItem);
+    }
+
+    if (slots.length === 0) {
       throw new HttpError(502, 'TRIP_DAY_VARIANTS_INVALID', 'Your closet does not have another item in the same category to swap in.');
     }
 
-    const variantItemIds = Array.from({ length: variantCount }, (_, index) => [
-      ...validKeepIds,
-      ...replacementLists.map((list) => list[index]!.id),
-    ]);
+    const keepItems = validKeepIds.map((id) => toIndexItem(itemsById.get(id)!));
 
-    const narrationMap = await narrateTripDays({
-      days: variantItemIds.map((itemIds, index) => ({
-        index,
-        dayType: request.dayType,
-        items: itemIds.map((id) => {
-          const item = itemsById.get(id)!;
-          return { id: item.id, name: item.title, category: item.category, color_family: item.colorFamily ?? null, formality: item.formality ?? null };
-        }),
-      })),
+    const userPrompt = buildTripDayVariantsChoiceUserPrompt({
+      dayIndex: request.dayIndex,
+      dayType: request.dayType,
+      keepItems,
+      swapShortlists,
       destination: request.destination,
       climateLabel: request.climateLabel,
       avgHighC: request.avgHighC,
-      supabaseUserId,
     });
 
-    const variants: TripOutfitDayDto[] = variantItemIds.map((itemIds, index) => {
-      const narration = narrationMap.get(index);
-      const dto = mapDaySlotsToDto(buildBySlotFromItemIds(itemIds, itemsById));
-      return {
-        id: `${request.tripId}-day-${request.dayIndex}-v${Date.now()}-${index}`,
+    const aiResult = await openAiClient.createStructuredResponse({
+      schema: tripDayChoiceResponseSchema,
+      jsonSchema: buildTripDayVariantsChoiceJsonSchema({ slots, idsBySlot, maxCount: 5 }),
+      instructions: buildTripDayChoiceSystemPrompt(),
+      userContent: [{ type: 'input_text' as const, text: userPrompt }],
+      supabaseUserId,
+      feature: 'trip-generation',
+    });
+
+    const validIdSets = new Map(Object.entries(idsBySlot).map(([slot, ids]) => [slot, new Set(ids)]));
+    const seenKeys = new Set<string>();
+    const variants: TripOutfitDayDto[] = [];
+
+    for (const day of aiResult.days) {
+      const chosenEntries = Object.entries(day.chosenIds);
+      const valid = chosenEntries.length > 0 && chosenEntries.every(([slot, id]) => validIdSets.get(slot)?.has(id));
+      if (!valid) continue;
+
+      const swapIds = chosenEntries.map(([, id]) => id);
+      if (new Set(swapIds).size !== swapIds.length) continue;
+
+      const itemIds = [...validKeepIds, ...swapIds];
+      const key = [...itemIds].sort().join('|');
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+
+      variants.push({
+        id: `${request.tripId}-day-${request.dayIndex}-v${Date.now()}-${variants.length}`,
         tripId: request.tripId,
         dayIndex: request.dayIndex,
         date: request.date,
-        title: narration?.title ?? FALLBACK_TRIP_TITLE,
+        title: day.title,
         dayType: request.dayType,
-        rationale: narration?.rationale ?? FALLBACK_TRIP_RATIONALE,
+        rationale: day.rationale,
         contextTags: [],
-        ...dto,
-      };
-    });
+        ...mapDaySlotsToDto(buildBySlotFromItemIds(itemIds, itemsById)),
+      });
+    }
+
+    if (variants.length === 0) {
+      throw new HttpError(502, 'TRIP_DAY_VARIANTS_INVALID', 'Could not generate variants for that day. Please try again.');
+    }
 
     return { variants };
   },

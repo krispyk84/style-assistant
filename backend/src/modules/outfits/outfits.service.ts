@@ -1,6 +1,6 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
-import { HttpError } from '../../lib/http-error.js';
+import { describeError, HttpError } from '../../lib/http-error.js';
 import type { GenerateOutfitsRequest, OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildAnchorImageContent } from '../../ai/image-input.js';
@@ -10,8 +10,19 @@ import {
   singleTierRegenerationSchema,
   buildTieredOutfitGenerationJsonSchema,
   tieredOutfitGenerationSchema,
+  buildClosetOnlyTieredOutfitGenerationJsonSchema,
+  buildClosetOnlySingleTierRegenerationJsonSchema,
+  closetOnlyTieredOutfitGenerationSchema,
+  closetOnlySingleTierRegenerationSchema,
+  type ClosetOnlyOutfitRecommendation,
+  type ClosetOnlyRoleIds,
+  type TieredOutfitGeneration,
 } from './outfits.schemas.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
+import { buildOutfitSlotShortlists } from '../closet/closet-outfit-builder.js';
+import { CATEGORY_TO_GROUP, FORMALITY_RANK, GROUP_TO_SLOTS, TIER_FORMALITY_TARGET, type OutfitSlot } from '../closet/closet-taxonomy.js';
+import { closetRepository } from '../closet/closet.repository.js';
+import type { ClosetOutfitIndexItem, ClosetOutfitSlotShortlists } from '../../ai/prompts/closet-outfits.prompts.js';
 import { buildGenerateOutfitsInstructions, buildGenerateOutfitsUserPrompt, buildRegenerateTierInstructions, buildRegenerateTierUserPrompt } from '../../ai/prompts/outfits.prompts.js';
 import {
   buildOutfitGenerationStyleGuideQuery,
@@ -77,6 +88,143 @@ function profileToSubject(profile: ProfileLike): SubjectRenderingInput {
   };
 }
 
+// ── closetOnly helpers ─────────────────────────────────────────────────────────
+// Item selection for closetOnly is shortlist-constrained, not free-invented:
+// per-tier, per-slot shortlists (closet-outfit-builder.ts) are injected into
+// the SAME rich generation prompt (female framework, trendiness, seasonal
+// trends, vibe keywords, business-tier defaults all stay exactly as they are
+// for the freeform path) — only the source of real items changes. The model
+// still makes every styling judgment; it just picks ids from a pre-vetted,
+// formality-correct pool instead of describing invented pieces.
+
+type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
+
+function weatherGates(temperatureC: number | null): { includeLayering: boolean; includeOuterwear: boolean } {
+  if (temperatureC == null) return { includeLayering: true, includeOuterwear: true };
+  if (temperatureC >= 24) return { includeLayering: false, includeOuterwear: false };
+  if (temperatureC >= 18) return { includeLayering: false, includeOuterwear: true };
+  return { includeLayering: true, includeOuterwear: true };
+}
+
+function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
+  return {
+    id: item.id,
+    name: item.title,
+    category: item.category,
+    color_family: item.colorFamily ?? null,
+    formality: item.formality ?? null,
+    silhouette: item.silhouette ?? null,
+    season: item.season ?? null,
+    material: item.material ?? null,
+    brand: item.brand || null,
+  };
+}
+
+const TIER_DEFAULT_FORMALITY: Record<string, string> = {
+  business: 'Formal',
+  'smart-casual': 'Refined Casual',
+  casual: 'Casual',
+};
+
+// Synthesizes an outfitPieceSchema-shaped object from a real closet item —
+// this (not the model) is what determines display_name/metadata for
+// closetOnly recommendations, which is what makes phantom pieces (narrated
+// text with no backing real item) structurally impossible.
+function synthesizePiece(item: BuilderItem, tier: OutfitTierSlug) {
+  return {
+    display_name: item.title,
+    metadata: {
+      category: item.category as any,
+      color: item.colorFamily || 'Neutral',
+      material: item.material ?? null,
+      formality: (item.formality ?? TIER_DEFAULT_FORMALITY[tier] ?? 'Smart Casual') as any,
+    },
+  };
+}
+
+type TierRoleIdSets = { keyPieces: Set<string>; shoes: Set<string>; accessories: Set<string> };
+
+/**
+ * Builds this tier's per-slot shortlists, grouped into the three roles the
+ * closetOnly schema exposes (keyPieces/shoes/accessories), plus the prompt-
+ * ready shortlist block. hat/bag are only offered when the user opted in via
+ * includeHat/includeBag (pre-generation checkboxes on Create a Look, not a
+ * post-generation toggle).
+ */
+function buildTierRoleShortlists(params: {
+  closetItems: BuilderItem[];
+  tier: OutfitTierSlug;
+  includeLayering: boolean;
+  includeOuterwear: boolean;
+  includeHat: boolean;
+  includeBag: boolean;
+}): { forPrompt: ClosetOutfitSlotShortlists; idSets: TierRoleIdSets } {
+  const targetFormalityRank = TIER_FORMALITY_TARGET[params.tier] ?? FORMALITY_RANK['Refined Casual'];
+  const shortlists = buildOutfitSlotShortlists({
+    closetItems: params.closetItems,
+    targetFormalityRank,
+    includeLayering: params.includeLayering,
+    includeOuterwear: params.includeOuterwear,
+    includeHat: params.includeHat,
+    includeBag: params.includeBag,
+  });
+
+  const forPrompt: ClosetOutfitSlotShortlists = {};
+  const idSets: TierRoleIdSets = { keyPieces: new Set(), shoes: new Set(), accessories: new Set() };
+  const accessorySlots = new Set<OutfitSlot>(['watch', 'sunglasses', 'hat', 'bag']);
+
+  for (const slot of Object.keys(shortlists) as OutfitSlot[]) {
+    const items = shortlists[slot];
+    if (!items?.length) continue;
+    forPrompt[slot] = items.map(toIndexItem);
+    const ids = items.map((item) => item.id);
+    if (slot === 'footwear') ids.forEach((id) => idSets.shoes.add(id));
+    else if (accessorySlots.has(slot)) ids.forEach((id) => idSets.accessories.add(id));
+    else ids.forEach((id) => idSets.keyPieces.add(id)); // bottoms/tops/layering/outerwear
+  }
+
+  return { forPrompt, idSets };
+}
+
+/**
+ * Resolves the model's chosen ids back into real items and synthesizes
+ * outfitPieceSchema-shaped pieces — the result converges with the freeform
+ * path's shape so mapOutfitRecommendation/downstream code needs no changes.
+ * Falls back to this tier's own first available id per required role if the
+ * model's picks don't validate (never leaves keyPieces/shoes empty).
+ */
+function resolveClosetOnlyRecommendation(
+  recommendation: ClosetOnlyOutfitRecommendation,
+  idSets: TierRoleIdSets,
+  itemsById: Map<string, BuilderItem>,
+): TieredOutfitGeneration['recommendations'][number] {
+  const resolveRole = (ids: string[], validIds: Set<string>, required: boolean): string[] => {
+    const valid = ids.filter((id) => validIds.has(id) && itemsById.has(id));
+    if (valid.length > 0) return valid;
+    if (required && validIds.size > 0) return [[...validIds][0]!];
+    return [];
+  };
+
+  const keyPieceIds = resolveRole(recommendation.keyPieceIds, idSets.keyPieces, true);
+  const shoeIds = resolveRole(recommendation.shoeIds, idSets.shoes, true);
+  const accessoryIds = resolveRole(recommendation.accessoryIds, idSets.accessories, false);
+
+  return {
+    tier: recommendation.tier,
+    title: recommendation.title,
+    anchorItem: recommendation.anchorItem,
+    anchorPiece: recommendation.anchorPiece,
+    keyPieces: keyPieceIds.map((id) => synthesizePiece(itemsById.get(id)!, recommendation.tier)),
+    shoes: shoeIds.map((id) => synthesizePiece(itemsById.get(id)!, recommendation.tier)),
+    accessories: accessoryIds.map((id) => synthesizePiece(itemsById.get(id)!, recommendation.tier)),
+    fitNotes: recommendation.fitNotes,
+    whyItWorks: recommendation.whyItWorks,
+    stylingDirection: recommendation.stylingDirection,
+    detailNotes: recommendation.detailNotes,
+    closetItemIds: [...keyPieceIds, ...shoeIds, ...accessoryIds],
+  };
+}
+
 export const outfitsService = {
   async getOutfitResult(requestId: string) {
     const existing = await outfitsRepository.findGeneratedOutfit(requestId);
@@ -139,10 +287,30 @@ export const outfitsService = {
     // the prompt (via formatProfileContext — see outfits.prompts.ts).
     const vibeKeywords = input.vibeKeywords?.trim() || null;
 
-    // closetOnly hands the model the full wardrobe index and requires every
-    // recommendation to be built from real ids — mirrors trips.service.ts's
-    // "From My Closet" pattern.
-    const closetIndex = input.closetOnly ? await buildClosetIndex(supabaseUserId) : null;
+    // closetOnly: item selection is shortlist-constrained (real, formality-
+    // appropriate closet items only, per tier) instead of free-invented —
+    // mirrors closet-outfits.service.ts/trips.service.ts's same fix.
+    const itemsById = input.closetOnly ? (await buildClosetIndex(supabaseUserId)).itemsById : new Map<string, BuilderItem>();
+    const closetItems = [...itemsById.values()];
+    const temperatureC = input.weatherContext?.apparentTemperatureC ?? input.weatherContext?.temperatureC ?? null;
+    const { includeLayering, includeOuterwear } = weatherGates(temperatureC);
+
+    const shortlistsByTier: Record<string, ClosetOutfitSlotShortlists> = {};
+    const idSetsByTier: Record<string, TierRoleIdSets> = {};
+    if (input.closetOnly) {
+      for (const tier of tiersToGenerate) {
+        const { forPrompt, idSets } = buildTierRoleShortlists({
+          closetItems,
+          tier,
+          includeLayering,
+          includeOuterwear,
+          includeHat: !!input.includeHat,
+          includeBag: !!input.includeBag,
+        });
+        shortlistsByTier[tier] = forPrompt;
+        idSetsByTier[tier] = idSets;
+      }
+    }
 
     const [styleGuideContext, seasonalTrends] = await Promise.all([
       styleGuideService.retrieveGuidance({
@@ -171,35 +339,52 @@ export const outfitsService = {
           profile,
           styleGuideContext?.promptContext,
           seasonalTrends,
-          closetIndex?.index,
+          input.closetOnly ? shortlistsByTier : undefined,
         ),
       },
     ];
 
     userContent.push(...await buildAnchorImageContent(uploadedAnchorImages, anchorItems));
 
-    const aiOutput = await openAiClient.createStructuredResponse({
-      schema: tieredOutfitGenerationSchema,
-      jsonSchema: {
-        name: 'tiered_outfit_generation',
-        description: profile?.gender === 'woman' ? 'Three womenswear outfit tiers for one anchor item.' : 'Three menswear outfit tiers for one anchor item.',
-        schema: buildTieredOutfitGenerationJsonSchema(!!input.closetOnly),
-      },
-      instructions: buildGenerateOutfitsInstructions(tiersToGenerate, profile?.gender, input.closetOnly),
-      userContent,
-      supabaseUserId,
-      feature: 'outfit-generation',
-    });
+    const instructions = buildGenerateOutfitsInstructions(tiersToGenerate, profile?.gender, input.closetOnly);
+    const description = profile?.gender === 'woman' ? 'Three womenswear outfit tiers for one anchor item.' : 'Three menswear outfit tiers for one anchor item.';
 
-    // Never trust the model's ids at face value — drop any id that isn't
-    // actually in the wardrobe index rather than pretending the user owns
-    // an item that doesn't exist.
-    const recommendationMap = new Map(aiOutput.recommendations.map((recommendation) => [
-      recommendation.tier,
-      closetIndex
-        ? { ...recommendation, closetItemIds: (recommendation.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id)) }
-        : recommendation,
-    ]));
+    let recommendationMap: Map<string, TieredOutfitGeneration['recommendations'][number]>;
+
+    if (input.closetOnly) {
+      const unionRoleIds: ClosetOnlyRoleIds = { keyPieces: [], shoes: [], accessories: [] };
+      for (const idSets of Object.values(idSetsByTier)) {
+        unionRoleIds.keyPieces.push(...idSets.keyPieces);
+        unionRoleIds.shoes.push(...idSets.shoes);
+        unionRoleIds.accessories.push(...idSets.accessories);
+      }
+
+      const aiOutput = await openAiClient.createStructuredResponse({
+        schema: closetOnlyTieredOutfitGenerationSchema,
+        jsonSchema: { name: 'tiered_outfit_generation_closet_only', description, schema: buildClosetOnlyTieredOutfitGenerationJsonSchema(unionRoleIds, tiersToGenerate.length) },
+        instructions,
+        userContent,
+        supabaseUserId,
+        feature: 'outfit-generation',
+      });
+
+      recommendationMap = new Map(
+        aiOutput.recommendations.map((recommendation) => [
+          recommendation.tier,
+          resolveClosetOnlyRecommendation(recommendation, idSetsByTier[recommendation.tier]!, itemsById),
+        ]),
+      );
+    } else {
+      const aiOutput = await openAiClient.createStructuredResponse({
+        schema: tieredOutfitGenerationSchema,
+        jsonSchema: { name: 'tiered_outfit_generation', description, schema: buildTieredOutfitGenerationJsonSchema() },
+        instructions,
+        userContent,
+        supabaseUserId,
+        feature: 'outfit-generation',
+      });
+      recommendationMap = new Map(aiOutput.recommendations.map((recommendation) => [recommendation.tier, recommendation]));
+    }
 
     const response: OutfitResponse = {
       requestId: input.requestId,
@@ -261,10 +446,29 @@ export const outfitsService = {
     const nextVariantIndex = currentVariantIndex + 1;
     const profile = await findProfile(supabaseUserId);
     const anchorItems = getNormalizedAnchorItems(existing.input);
-    const closetIndex = existing.input.closetOnly ? await buildClosetIndex(supabaseUserId) : null;
+    const itemsById = existing.input.closetOnly ? (await buildClosetIndex(supabaseUserId)).itemsById : new Map<string, BuilderItem>();
+    const closetItems = [...itemsById.values()];
     const uploadedAnchorImages = await Promise.all(
       anchorItems.map(async (item) => (item.imageId ? uploadsRepository.findById(item.imageId) : null))
     );
+
+    let shortlists: ClosetOutfitSlotShortlists | undefined;
+    let idSets: TierRoleIdSets | undefined;
+    if (existing.input.closetOnly) {
+      const temperatureC = existing.input.weatherContext?.apparentTemperatureC ?? existing.input.weatherContext?.temperatureC ?? null;
+      const { includeLayering, includeOuterwear } = weatherGates(temperatureC);
+      const built = buildTierRoleShortlists({
+        closetItems,
+        tier,
+        includeLayering,
+        includeOuterwear,
+        includeHat: !!existing.input.includeHat,
+        includeBag: !!existing.input.includeBag,
+      });
+      shortlists = built.forPrompt;
+      idSets = built.idSets;
+    }
+
     const [styleGuideContext, seasonalTrends] = await Promise.all([
       styleGuideService.retrieveGuidance({
         task: 'tier-regeneration',
@@ -288,30 +492,39 @@ export const outfitsService = {
           tier,
           styleGuideContext: styleGuideContext?.promptContext,
           seasonalTrends,
-          closetIndex: closetIndex?.index,
+          shortlists,
         }),
       },
     ];
 
     userContent.push(...await buildAnchorImageContent(uploadedAnchorImages, anchorItems));
 
-    const aiOutput = await openAiClient.createStructuredResponse({
-      schema: singleTierRegenerationSchema,
-      jsonSchema: {
-        name: 'single_tier_regeneration',
-        description: profile?.gender === 'woman' ? 'A single regenerated womenswear tier recommendation.' : 'A single regenerated menswear tier recommendation.',
-        schema: buildSingleTierRegenerationJsonSchema(!!existing.input.closetOnly),
-      },
-      instructions: buildRegenerateTierInstructions(profile?.gender, existing.input.closetOnly),
-      userContent,
-      supabaseUserId,
-      feature: 'tier-regeneration',
-    });
+    const description = profile?.gender === 'woman' ? 'A single regenerated womenswear tier recommendation.' : 'A single regenerated menswear tier recommendation.';
+    const instructions = buildRegenerateTierInstructions(profile?.gender, existing.input.closetOnly);
 
-    // Never trust the model's ids at face value — see generateOutfits' same guard.
-    const regeneratedRecommendation = closetIndex
-      ? { ...aiOutput.recommendation, closetItemIds: (aiOutput.recommendation.closetItemIds ?? []).filter((id) => closetIndex.itemsById.has(id)) }
-      : aiOutput.recommendation;
+    let regeneratedRecommendation: TieredOutfitGeneration['recommendations'][number];
+
+    if (existing.input.closetOnly && idSets) {
+      const aiOutput = await openAiClient.createStructuredResponse({
+        schema: closetOnlySingleTierRegenerationSchema,
+        jsonSchema: { name: 'single_tier_regeneration_closet_only', description, schema: buildClosetOnlySingleTierRegenerationJsonSchema({ keyPieces: [...idSets.keyPieces], shoes: [...idSets.shoes], accessories: [...idSets.accessories] }) },
+        instructions,
+        userContent,
+        supabaseUserId,
+        feature: 'tier-regeneration',
+      });
+      regeneratedRecommendation = resolveClosetOnlyRecommendation(aiOutput.recommendation, idSets, itemsById);
+    } else {
+      const aiOutput = await openAiClient.createStructuredResponse({
+        schema: singleTierRegenerationSchema,
+        jsonSchema: { name: 'single_tier_regeneration', description, schema: buildSingleTierRegenerationJsonSchema() },
+        instructions,
+        userContent,
+        supabaseUserId,
+        feature: 'tier-regeneration',
+      });
+      regeneratedRecommendation = aiOutput.recommendation;
+    }
 
     const mergedResponse: OutfitResponse = {
       ...existing,

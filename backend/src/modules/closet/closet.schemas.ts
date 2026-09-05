@@ -210,42 +210,105 @@ export const HELP_ME_PICK_JSON_SCHEMA = {
 };
 
 // ── Generate 5 Outfits (closet-only) ──────────────────────────────────────────
-// Item selection is deterministic (closet-outfit-builder.ts) — this schema is
-// narration-only: the model receives already-fixed real items per outfit and
-// returns just a title + rationale, matched back by index.
+// Item selection is shortlist-constrained: each slot's shortlist (real,
+// formality-appropriate closet items only — closet-outfit-builder.ts) is
+// injected as a JSON-schema `enum` per slot, so the model can only return an
+// id that was actually offered for that slot. The exact slot set is dynamic
+// per request (weather-gated layering/outerwear, closet-dependent slot
+// availability), hence the schema builder functions below instead of a
+// single static export.
 
-const closetOutfitNarrationItemSchema = z.object({
+const closetOutfitChoiceItemSchema = z.object({
   index: z.number(),
-  title: z.string(),
-  whyItWorks: z.string(),
+  title: z.string().min(1),
+  whyItWorks: z.string().min(1),
+  chosenIds: z.record(z.string(), z.string()),
 });
 
-export const closetOutfitNarrationResponseSchema = z.object({
-  outfits: z.array(closetOutfitNarrationItemSchema).min(1),
+export const closetOutfitsChoiceResponseSchema = z.object({
+  outfits: z.array(closetOutfitChoiceItemSchema).min(1),
 });
 
-export const CLOSET_OUTFIT_NARRATION_JSON_SCHEMA = {
-  name: 'closet_outfit_narration_response',
-  schema: {
-    type: 'object' as const,
-    properties: {
-      outfits: {
-        type: 'array',
-        minItems: 1,
-        items: {
-          type: 'object',
-          properties: {
-            index: { type: 'number', description: 'The outfit index this entry narrates, matching the input' },
-            title: { type: 'string', description: 'A short, evocative outfit title' },
-            whyItWorks: { type: 'string', description: 'One sentence on why this exact combination works' },
+/**
+ * `slots`: ordered slot keys to require in every outfit's chosenIds (only
+ * slots with at least one shortlist candidate should be passed).
+ * `idsBySlot`: the exact real ids allowed for each slot — enforced via enum.
+ */
+export function buildClosetOutfitsChoiceJsonSchema(params: { slots: string[]; idsBySlot: Record<string, string[]>; count: number }) {
+  const chosenIdsProperties: Record<string, unknown> = {};
+  for (const slot of params.slots) {
+    chosenIdsProperties[slot] = { type: 'string', enum: params.idsBySlot[slot] ?? [] };
+  }
+  return {
+    name: 'closet_outfits_choice_response',
+    schema: {
+      type: 'object' as const,
+      properties: {
+        outfits: {
+          type: 'array',
+          minItems: params.count,
+          maxItems: params.count,
+          items: {
+            type: 'object',
+            properties: {
+              index: { type: 'number', description: '0-based outfit index' },
+              title: { type: 'string', description: 'A short, evocative outfit title' },
+              whyItWorks: { type: 'string', description: 'One sentence on why this exact combination works' },
+              chosenIds: {
+                type: 'object',
+                properties: chosenIdsProperties,
+                required: params.slots,
+                additionalProperties: false,
+              },
+            },
+            required: ['index', 'title', 'whyItWorks', 'chosenIds'],
+            additionalProperties: false,
           },
-          required: ['index', 'title', 'whyItWorks'],
-          additionalProperties: false,
         },
       },
+      required: ['outfits'],
+      additionalProperties: false,
     },
-    required: ['outfits'],
-    additionalProperties: false,
-  },
-  strict: true,
-};
+    strict: true,
+  };
+}
+
+/** Same shape, for the variant-swap flow — up to 5 variants, not exactly 5. */
+export function buildClosetOutfitVariationsChoiceJsonSchema(params: { slots: string[]; idsBySlot: Record<string, string[]>; maxCount: number }) {
+  const chosenIdsProperties: Record<string, unknown> = {};
+  for (const slot of params.slots) {
+    chosenIdsProperties[slot] = { type: 'string', enum: params.idsBySlot[slot] ?? [] };
+  }
+  return {
+    name: 'closet_outfit_variations_choice_response',
+    schema: {
+      type: 'object' as const,
+      properties: {
+        outfits: {
+          type: 'array',
+          minItems: 1,
+          maxItems: params.maxCount,
+          items: {
+            type: 'object',
+            properties: {
+              index: { type: 'number', description: '0-based variant index' },
+              title: { type: 'string', description: 'A short, evocative outfit title' },
+              whyItWorks: { type: 'string', description: 'One sentence on why this exact combination (including the swap) works' },
+              chosenIds: {
+                type: 'object',
+                properties: chosenIdsProperties,
+                required: params.slots,
+                additionalProperties: false,
+              },
+            },
+            required: ['index', 'title', 'whyItWorks', 'chosenIds'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['outfits'],
+      additionalProperties: false,
+    },
+    strict: true,
+  };
+}

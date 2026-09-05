@@ -7,6 +7,7 @@ import {
   TRIP_DAY_BAG_RULE_LINES,
   TRIP_REGENERATION_BAG_RULE,
 } from './trip-shared-rules.js';
+import type { ClosetOutfitIndexItem, ClosetOutfitSlotShortlists } from './closet-outfits.prompts.js';
 
 type PromptProfile = Parameters<typeof formatProfileContext>[0];
 
@@ -431,55 +432,90 @@ export function buildTripDayShapePrompt(
   };
 }
 
-// ── Trip day narration prompt (fullCloset only) ──────────────────────────────
-// Mirrors closet-outfits.prompts.ts's narration step: the real items for each
-// day are already fixed (built deterministically) — the model only writes the
-// rationale explaining why that exact combination works for that day.
+// ── Trip day choice + narration prompt (fullCloset only) ─────────────────────
+// Mirrors closet-outfits.prompts.ts's choice+narrate step: each slot's
+// shortlist (real, formality-appropriate closet items only, from
+// closet-outfit-builder.ts's buildOutfitSlotShortlists) is injected as a
+// JSON-schema `enum` per slot, so the model can only return an id that was
+// actually offered — but it still makes the color/texture/silhouette/
+// capsule-wardrobe-reuse judgment and writes the title + rationale.
 
-export type TripDayNarrationItem = {
-  id: string;
-  name: string;
-  category: string;
-  color_family?: string | null;
-  formality?: string | null;
-};
-
-export type TripDayToNarrate = {
+export type TripDayToChoose = {
   index: number;
   dayType: string;
-  items: TripDayNarrationItem[];
+  shortlists: ClosetOutfitSlotShortlists;
 };
 
-export function buildTripDayNarrationSystemPrompt(): string {
+export function buildTripDayChoiceSystemPrompt(): string {
   return [
-    'You are an expert travel stylist. For each trip day below, the exact real pieces have ALREADY been chosen from the client\'s own closet — your only job is to title the day and explain why that combination works.',
+    'You are an expert travel stylist. For each trip day below, every slot already lists ONLY real, formality-appropriate items from the client\'s own closet — you must choose exactly one id per slot listed for that day (the schema enforces this: you cannot invent an id or return one that is not listed).',
     '',
     'HARD RULES:',
-    '1. Do not add, remove, or substitute any piece. Describe only the items listed for each day — never invent or imply a piece that is not in that day\'s list.',
-    '2. "title" is a short evocative label for the day (e.g. "Arrival in Kyoto", "Temple District Morning", "Black-Tie Gala") — vary the tone/vocabulary across days so they don\'t all sound the same.',
-    '3. "rationale" is 1-2 sentences, specific to the actual pieces listed (reference them by name) and the day\'s type/climate/activities — explain the styling logic, not a generic compliment.',
-    '4. Return one entry per day index provided, matched by "index". Do not skip or reorder.',
+    '1. COLOR COORDINATION: do not choose 3 or more pieces in the same color/color-family for one day — build real contrast.',
+    '2. TEXTURE & SILHOUETTE: use each item\'s material/silhouette metadata to create intentional contrast and balance.',
+    '3. CAPSULE WARDROBE: treat the wardrobe as one coherent travel capsule — prefer reusing the same versatile pieces across days over picking a fully different item every day. Seeing the same item appear in multiple days\' shortlists is expected; deliberate reuse is a feature, not a failure.',
+    '4. Give the day a short evocative title (e.g. "Arrival in Kyoto", "Temple District Morning", "Black-Tie Gala") and a 1-2 sentence rationale referencing the actual chosen pieces and the day\'s type/climate/activities.',
+    '5. Return one entry per day index provided, matched by "index". Do not skip or reorder.',
     '',
     'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');
 }
 
-export function buildTripDayNarrationUserPrompt(params: {
-  days: TripDayToNarrate[];
+export function buildTripDayChoiceUserPrompt(params: {
+  days: TripDayToChoose[];
   destination: string;
   climateLabel?: string | null;
   avgHighC?: number | null;
 }): string {
-  return [
+  const lines: (string | null)[] = [
     `TRIP: ${params.destination}`,
     params.climateLabel ? `Climate: ${params.climateLabel}` : null,
     ...buildTripTemperatureRuleLines(params.avgHighC ?? undefined),
     '',
-    'Days to narrate (each already built from the client\'s real closet items — describe exactly these, nothing else):',
-    JSON.stringify(params.days, null, 2),
+  ];
+
+  for (const day of params.days) {
+    lines.push(`DAY ${day.index} (dayType: ${day.dayType}):`);
+    for (const [slot, items] of Object.entries(day.shortlists)) {
+      if (!items?.length) continue;
+      lines.push(`  ${slot.toUpperCase()} options (choose exactly one id):`, JSON.stringify(items, null, 2));
+    }
+    lines.push('');
+  }
+
+  lines.push('Return a title, rationale, and chosenIds for each day index above.');
+  return lines.filter((line): line is string => line !== null).join('\n');
+}
+
+/** Variant-swap version — mirrors buildClosetOutfitVariationsChoiceUserPrompt. */
+export function buildTripDayVariantsChoiceUserPrompt(params: {
+  dayIndex: number;
+  dayType: string;
+  keepItems: ClosetOutfitIndexItem[];
+  swapShortlists: ClosetOutfitSlotShortlists;
+  destination: string;
+  climateLabel?: string | null;
+  avgHighC?: number | null;
+}): string {
+  const lines: (string | null)[] = [
+    `TRIP: ${params.destination}`,
+    params.climateLabel ? `Climate: ${params.climateLabel}` : null,
+    ...buildTripTemperatureRuleLines(params.avgHighC ?? undefined),
     '',
-    'Return a title and rationale for each day index above.',
-  ].filter((line): line is string => line !== null).join('\n');
+    `DAY ${params.dayIndex} (dayType: ${params.dayType})`,
+    '',
+    'KEEP UNCHANGED in every variant, exactly as listed (do not re-describe or replace):',
+    JSON.stringify(params.keepItems, null, 2),
+    '',
+  ];
+
+  for (const [slot, items] of Object.entries(params.swapShortlists)) {
+    if (!items?.length) continue;
+    lines.push(`REPLACE the ${slot.toUpperCase()} slot — choose exactly one id from below, thoughtfully coordinated with the kept pieces above (color, texture, silhouette):`, JSON.stringify(items, null, 2), '');
+  }
+
+  lines.push('Build up to 5 distinct variants, each swapping in a genuinely different, well-coordinated replacement — do not repeat the same replacement across variants unless the options genuinely run out.');
+  return lines.filter((line): line is string => line !== null).join('\n');
 }
 
 // ── Trip day sketch prompt ────────────────────────────────────────────────────
