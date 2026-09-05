@@ -66,7 +66,7 @@ function formalityDistance(item: BuilderClosetItem, targetRank: number): number 
  * jacket. Exact-first keeps the model's shortlist honestly matched to the
  * requested formality whenever the wardrobe supports it.
  */
-function filterByFormalityBand<TItem extends BuilderClosetItem>(candidates: TItem[], targetRank: number): TItem[] {
+export function filterByFormalityBand<TItem extends BuilderClosetItem>(candidates: TItem[], targetRank: number): TItem[] {
   const exact = candidates.filter((item) => formalityDistance(item, targetRank) === 0);
   if (exact.length > 0) return exact;
   const withinOne = candidates.filter((item) => formalityDistance(item, targetRank) <= 1);
@@ -83,7 +83,7 @@ function filterByFormalityBand<TItem extends BuilderClosetItem>(candidates: TIte
 // closet has nothing in those groups at all.
 const FORMAL_FOOTWEAR_GROUPS = new Set(['formal_shoes', 'loafers']);
 
-function preferFormalFootwearGroups<TItem extends BuilderClosetItem>(candidates: TItem[], targetRank: number): TItem[] {
+export function preferFormalFootwearGroups<TItem extends BuilderClosetItem>(candidates: TItem[], targetRank: number): TItem[] {
   if (targetRank < FORMALITY_RANK['Formal']) return candidates;
   const dressy = candidates.filter((item) => FORMAL_FOOTWEAR_GROUPS.has(CATEGORY_TO_GROUP[item.category] ?? ''));
   return dressy.length > 0 ? dressy : candidates;
@@ -285,16 +285,30 @@ export function fillMissingRequiredSlots<TItem extends BuilderClosetItem>(params
   bySlot: Partial<Record<OutfitSlot, TItem>>;
   closetItems: TItem[];
   requiredSlots: readonly OutfitSlot[];
+  /**
+   * Target FORMALITY_RANK for this outfit. When provided, footwear is
+   * forced to a dressier group on Formal-target days rather than grabbing
+   * whatever's first — "there must be footwear, always" isn't satisfied by
+   * sneakers under a business suit. Optional because a couple of callers
+   * (e.g. the fully-empty-shortlist trip fallback) don't track a rank.
+   */
+  targetFormalityRank?: number;
 }): void {
   for (const slot of params.requiredSlots) {
     if (params.bySlot[slot]) continue;
 
     const usedIds = new Set(Object.values(params.bySlot).map((item) => (item as TItem).id));
     const allowedGroups = SLOT_GROUPS[slot];
-    const candidates = params.closetItems.filter((item) => {
+    let candidates = params.closetItems.filter((item) => {
       const group = CATEGORY_TO_GROUP[item.category];
       return group !== undefined && allowedGroups.includes(group);
     });
+    if (slot === 'footwear' && params.targetFormalityRank !== undefined) {
+      candidates = preferFormalFootwearGroups(candidates, params.targetFormalityRank);
+    }
+    if (params.targetFormalityRank !== undefined) {
+      candidates = filterByFormalityBand(candidates, params.targetFormalityRank);
+    }
     const fresh = candidates.find((item) => !usedIds.has(item.id));
     const picked = fresh ?? candidates[0];
     if (picked) params.bySlot[slot] = picked;

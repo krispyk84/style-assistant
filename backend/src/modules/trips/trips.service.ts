@@ -414,7 +414,7 @@ async function chooseFullClosetDay(params: {
     const requiredSlots: OutfitSlot[] = ['footwear', 'bottoms', 'tops', 'watch', 'sunglasses'];
     if (includeLayering) requiredSlots.push('layering');
     if (includeOuterwear) requiredSlots.push('outerwear');
-    fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots });
+    fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots, targetFormalityRank });
     normalizeSuitDualRole(bySlot);
     return {
       bySlot,
@@ -477,7 +477,7 @@ async function chooseFullClosetDay(params: {
   const requiredSlots: OutfitSlot[] = ['footwear', 'bottoms', 'tops', 'watch', 'sunglasses'];
   if (includeLayering) requiredSlots.push('layering');
   if (includeOuterwear) requiredSlots.push('outerwear');
-  fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots });
+  fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots, targetFormalityRank });
   normalizeSuitDualRole(bySlot);
 
   const rationale = guardAgainstHallucinatedRationale(bySlot, chosen?.rationale ?? FALLBACK_TRIP_RATIONALE);

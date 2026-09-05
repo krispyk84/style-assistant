@@ -28,8 +28,14 @@ import {
   buildClosetOutfitsChoiceJsonSchema,
   buildClosetOutfitVariationsChoiceJsonSchema,
 } from './closet.schemas.js';
-import { buildDeterministicOutfit, buildOutfitSlotShortlists, buildVariantCandidates } from './closet-outfit-builder.js';
-import { CATEGORY_TO_GROUP, FORMALITY_RANK, GROUP_TO_SLOTS, TIER_FORMALITY_TARGET } from './closet-taxonomy.js';
+import {
+  buildDeterministicOutfit,
+  buildOutfitSlotShortlists,
+  buildVariantCandidates,
+  filterByFormalityBand,
+  preferFormalFootwearGroups,
+} from './closet-outfit-builder.js';
+import { CATEGORY_TO_GROUP, FORMALITY_RANK, GROUP_TO_SLOTS, SLOT_GROUPS, TIER_FORMALITY_TARGET } from './closet-taxonomy.js';
 import type {
   GenerateClosetOutfitsPayload,
   GenerateClosetOutfitVariationsPayload,
@@ -203,6 +209,33 @@ function resolveChoiceOutfits(params: {
   }
 
   return resolved;
+}
+
+// Last-resort, no-exceptions guarantee: every outfit must have footwear, and
+// on a Formal-target tier it must be a dressy pair — not left to chance even
+// though the schema already requires a valid footwear choice per outfit.
+// Mutates outfits in place, appending a formality-preferenced item straight
+// from the closet (bypassing the shortlist) for the rare case a resolved
+// outfit still came out without one.
+function ensureFootwearPresent(
+  outfits: { items: MappedClosetItem[] }[],
+  closetItems: BuilderItem[],
+  targetFormalityRank: number,
+): void {
+  for (const outfit of outfits) {
+    const hasFootwear = outfit.items.some((item) => SLOT_GROUPS.footwear.includes(CATEGORY_TO_GROUP[item.category] ?? ''));
+    if (hasFootwear) continue;
+
+    const usedIds = new Set(outfit.items.map((item) => item.id));
+    let candidates = closetItems.filter(
+      (item) => SLOT_GROUPS.footwear.includes(CATEGORY_TO_GROUP[item.category] ?? '') && !usedIds.has(item.id),
+    );
+    if (candidates.length === 0) continue;
+    candidates = preferFormalFootwearGroups(candidates, targetFormalityRank);
+    candidates = filterByFormalityBand(candidates, targetFormalityRank);
+    const picked = candidates[0]!;
+    outfit.items = [...outfit.items, mapClosetItem(picked)];
+  }
 }
 
 async function generateOutfitSketch(
@@ -402,6 +435,7 @@ export const closetOutfitsService = {
     if (resolved.length === 0) {
       throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not assemble outfits from your closet. Please try again.');
     }
+    ensureFootwearPresent(resolved, closetItems, targetFormalityRank);
 
     const withFeedbackIds = await attachFeedbackIds(resolved, payload.formality, supabaseUserId);
     return { outfits: await attachSketchJobs(withFeedbackIds, supabaseUserId) };
