@@ -165,9 +165,30 @@ function resolveChoiceOutfits(params: {
     const valid = chosenEntries.every(([slot, id]) => validIdSets.get(slot)?.has(id));
     if (!valid) continue;
 
-    const chosenIds = chosenEntries.map(([, id]) => id);
-    if (new Set(chosenIds).size !== chosenIds.length) continue; // same id reused across two slots — reject
+    // Suit dual-role: bottoms/outerwear may legitimately share the same Suit
+    // id (one physical piece is both trousers and jacket) — force them
+    // consistent rather than rejecting the outfit or double-counting the item.
+    const bySlot = new Map(chosenEntries);
+    const bottomsItem = bySlot.has('bottoms') ? params.itemsById.get(bySlot.get('bottoms')!) : undefined;
+    const outerwearItem = bySlot.has('outerwear') ? params.itemsById.get(bySlot.get('outerwear')!) : undefined;
+    if (bottomsItem && CATEGORY_TO_GROUP[bottomsItem.category] === 'suit' && bySlot.has('outerwear')) {
+      bySlot.set('outerwear', bottomsItem.id);
+    } else if (outerwearItem && CATEGORY_TO_GROUP[outerwearItem.category] === 'suit' && bySlot.has('bottoms')) {
+      bySlot.set('bottoms', outerwearItem.id);
+    }
 
+    // Any OTHER duplicate (two different slots landing on the same non-suit
+    // id) is a real model error, not a suit — reject that outfit.
+    const idCounts = new Map<string, number>();
+    for (const id of bySlot.values()) idCounts.set(id, (idCounts.get(id) ?? 0) + 1);
+    const hasIllegitimateDuplicate = [...idCounts.entries()].some(([id, count]) => {
+      if (count <= 1) return false;
+      const item = params.itemsById.get(id);
+      return !(item && CATEGORY_TO_GROUP[item.category] === 'suit');
+    });
+    if (hasIllegitimateDuplicate) continue;
+
+    const chosenIds = [...new Set(bySlot.values())]; // dedupe the suit id appearing under both slots
     const itemIds = [...params.fixedItemIds, ...chosenIds];
     const key = [...itemIds].sort().join('|');
     if (seenKeys.has(key)) continue;

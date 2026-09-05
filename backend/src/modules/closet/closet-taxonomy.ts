@@ -56,12 +56,17 @@ export type OutfitSlot = 'footwear' | 'bottoms' | 'tops' | 'layering' | 'outerwe
 // weighting is handled by closet-outfit-builder.ts, not by list position.
 // watch/sunglasses are separate slots (not one combined "accessory" slot) so
 // both get independently attempted rather than only ever picking one.
+// 'suit' is deliberately listed under BOTH bottoms and outerwear — a suit is
+// one physical item that supplies both roles at once (trousers + jacket),
+// never a separate top-half garment worn alongside a different jacket.
+// closet-outfit-builder.ts's normalizeSuitDualRole is what actually enforces
+// "if either slot resolves to a suit, both slots resolve to that same suit."
 export const SLOT_GROUPS: Record<OutfitSlot, readonly string[]> = {
   footwear:   ['formal_shoes', 'loafers', 'boots', 'sneakers'],
-  bottoms:    ['trousers', 'denim', 'shorts'],
+  bottoms:    ['trousers', 'denim', 'shorts', 'suit'],
   tops:       ['shirt', 'polo', 'tee'],
   layering:   ['knitwear', 'cardigan', 'hoodie'],
-  outerwear:  ['blazer', 'jacket', 'coat'],
+  outerwear:  ['blazer', 'jacket', 'coat', 'suit'],
   hat:        ['hat'],
   bag:        ['bag'],
   watch:      ['watch'],

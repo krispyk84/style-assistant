@@ -64,6 +64,15 @@ export function collectUsedOuterwear(days: TripOutfitDay[]): string[] {
   return result;
 }
 
+/** Closet-sourced "definitely bring" anchor item ids already used on earlier days — threaded so a fullCloset trip actually features them across the trip instead of only ever considering them (or ignoring them) on day one. */
+export function collectUsedAnchorItemIds(days: TripOutfitDay[]): string[] {
+  const seen = new Set<string>();
+  for (const day of days) {
+    for (const id of day.closetItemIds ?? []) seen.add(id);
+  }
+  return [...seen];
+}
+
 /** Distinct shoes already used on earlier days — same purpose as collectUsedOuterwear, for the shoes cap. */
 export function collectUsedFootwear(days: TripOutfitDay[]): string[] {
   const seen = new Set<string>();
@@ -85,6 +94,7 @@ export function buildTripDayGenerationParams({
   previousDaysSummary,
   usedOuterwear,
   usedFootwear,
+  usedAnchorItemIds,
 }: {
   tripId: string;
   draft: TripDraft;
@@ -92,6 +102,7 @@ export function buildTripDayGenerationParams({
   previousDaysSummary: string[];
   usedOuterwear: string[];
   usedFootwear: string[];
+  usedAnchorItemIds: string[];
 }): GenerateTripOutfitsParams {
   return {
     tripId,
@@ -126,5 +137,6 @@ export function buildTripDayGenerationParams({
     previousDaysSummary,
     usedOuterwear,
     usedFootwear,
+    usedAnchorItemIds,
   };
 }

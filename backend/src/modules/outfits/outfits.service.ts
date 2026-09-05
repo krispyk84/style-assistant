@@ -193,6 +193,21 @@ function buildTierRoleShortlists(params: {
  * Falls back to this tier's own first available id per required role if the
  * model's picks don't validate (never leaves keyPieces/shoes empty).
  */
+// keyPieces bundles bottoms/tops/layering/outerwear into one flat list (no
+// per-role schema keys the way trips/closet-outfits have) — a Suit item
+// supplies BOTH the bottoms and outerwear roles at once, so once one is
+// present, drop any OTHER separate trousers/denim/shorts/blazer/jacket/coat
+// pick as redundant rather than doubling up on the same role.
+function dropRedundantBottomsOrOuterwear(keyPieceIds: string[], itemsById: Map<string, BuilderItem>): string[] {
+  const items = keyPieceIds.map((id) => itemsById.get(id)).filter((item): item is BuilderItem => Boolean(item));
+  const suit = items.find((item) => CATEGORY_TO_GROUP[item.category] === 'suit');
+  if (!suit) return keyPieceIds;
+
+  const redundantGroups = new Set(['trousers', 'denim', 'shorts', 'blazer', 'jacket', 'coat']);
+  const filtered = items.filter((item) => item.id === suit.id || !redundantGroups.has(CATEGORY_TO_GROUP[item.category] ?? ''));
+  return [...new Set(filtered.map((item) => item.id))];
+}
+
 function resolveClosetOnlyRecommendation(
   recommendation: ClosetOnlyOutfitRecommendation,
   idSets: TierRoleIdSets,
@@ -205,7 +220,7 @@ function resolveClosetOnlyRecommendation(
     return [];
   };
 
-  const keyPieceIds = resolveRole(recommendation.keyPieceIds, idSets.keyPieces, true);
+  const keyPieceIds = dropRedundantBottomsOrOuterwear(resolveRole(recommendation.keyPieceIds, idSets.keyPieces, true), itemsById);
   const shoeIds = resolveRole(recommendation.shoeIds, idSets.shoes, true);
   const accessoryIds = resolveRole(recommendation.accessoryIds, idSets.accessories, false);
 

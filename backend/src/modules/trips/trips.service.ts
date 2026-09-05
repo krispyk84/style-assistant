@@ -18,7 +18,7 @@ import { describeError, HttpError } from '../../lib/http-error.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
 import { closetRepository } from '../closet/closet.repository.js';
-import { buildDeterministicOutfit, buildOutfitSlotShortlists, buildVariantCandidates } from '../closet/closet-outfit-builder.js';
+import { buildDeterministicOutfit, buildOutfitSlotShortlists, buildVariantCandidates, normalizeSuitDualRole } from '../closet/closet-outfit-builder.js';
 import { CATEGORY_TO_GROUP, FORMALITY_RANK, GROUP_TO_SLOTS, TRIP_DAY_TYPE_FORMALITY_TARGET, type OutfitSlot } from '../closet/closet-taxonomy.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
@@ -156,6 +156,19 @@ function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
   };
 }
 
+// A suit occupies both bySlot.bottoms and bySlot.outerwear as the SAME item
+// (normalizeSuitDualRole) — dedupe by id so it's listed once, not twice.
+function dedupeById(items: (BuilderItem | undefined)[]): BuilderItem[] {
+  const seen = new Set<string>();
+  const result: BuilderItem[] = [];
+  for (const item of items) {
+    if (!item || seen.has(item.id)) continue;
+    seen.add(item.id);
+    result.push(item);
+  }
+  return result;
+}
+
 function mapDaySlotsToDto(bySlot: Partial<Record<OutfitSlot, BuilderItem>>): {
   pieces: string[];
   shoes: string;
@@ -163,15 +176,9 @@ function mapDaySlotsToDto(bySlot: Partial<Record<OutfitSlot, BuilderItem>>): {
   accessories: string[];
   closetItemIds: string[];
 } {
-  const pieces = [bySlot.bottoms, bySlot.tops, bySlot.layering, bySlot.outerwear]
-    .filter((item): item is BuilderItem => Boolean(item))
-    .map((item) => item.title);
-  const accessories = [bySlot.watch, bySlot.sunglasses, bySlot.hat]
-    .filter((item): item is BuilderItem => Boolean(item))
-    .map((item) => item.title);
-  const closetItemIds = Object.values(bySlot)
-    .filter((item): item is BuilderItem => Boolean(item))
-    .map((item) => item.id);
+  const pieces = dedupeById([bySlot.bottoms, bySlot.tops, bySlot.layering, bySlot.outerwear]).map((item) => item.title);
+  const accessories = dedupeById([bySlot.watch, bySlot.sunglasses, bySlot.hat]).map((item) => item.title);
+  const closetItemIds = dedupeById(Object.values(bySlot)).map((item) => item.id);
 
   return {
     pieces,
@@ -198,6 +205,9 @@ function buildBySlotFromItemIds(
     const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
     if (slot) bySlot[slot] = item;
   }
+  // A suit in a flat id list only ever lands in 'bottoms' (GROUP_TO_SLOTS
+  // takes the first slot) — this promotes it to also fill 'outerwear'.
+  normalizeSuitDualRole(bySlot);
   return bySlot;
 }
 
@@ -257,6 +267,31 @@ function narrowShortlistForCap(
   }
 }
 
+/**
+ * Closet-sourced "definitely bring" anchors should actually get featured on
+ * the trip, not silently ignored once fullCloset mode is on — picks the
+ * unused anchor whose own formality is closest to this day's target, but
+ * only on days formal enough to plausibly want a dedicated piece (never
+ * forces a business suit onto a beach day just because it's on the list).
+ */
+function pickAnchorForDay(params: {
+  targetFormalityRank: number;
+  closetAnchorItems: BuilderItem[];
+  usedAnchorItemIds: ReadonlySet<string>;
+}): BuilderItem | null {
+  if (params.targetFormalityRank < FORMALITY_RANK['Refined Casual']) return null;
+
+  const unused = params.closetAnchorItems.filter((item) => !params.usedAnchorItemIds.has(item.id));
+  if (unused.length === 0) return null;
+
+  const sorted = [...unused].sort((a, b) => {
+    const rankA = a.formality ? FORMALITY_RANK[a.formality] ?? 2 : 2;
+    const rankB = b.formality ? FORMALITY_RANK[b.formality] ?? 2 : 2;
+    return Math.abs(rankA - params.targetFormalityRank) - Math.abs(rankB - params.targetFormalityRank);
+  });
+  return sorted[0]!;
+}
+
 function updateUsedTitles(bySlot: Partial<Record<OutfitSlot, BuilderItem>>, slot: 'outerwear' | 'footwear', usedTitles: string[]): string[] {
   const picked = bySlot[slot];
   if (!picked) return usedTitles;
@@ -284,6 +319,8 @@ async function chooseFullClosetDay(params: {
   usedFootwearTitles: string[];
   jacketsCap: number;
   shoesCap: number;
+  /** A closet-sourced "definitely bring" anchor forced into this day — see pickAnchorForDay. */
+  pinnedItem?: BuilderItem | null;
   supabaseUserId: string;
 }): Promise<{
   bySlot: Partial<Record<OutfitSlot, BuilderItem>>;
@@ -302,6 +339,17 @@ async function chooseFullClosetDay(params: {
     includeOuterwear,
     excludeItemIds: params.excludeItemIds,
   });
+
+  // Force the pinned "definitely bring" anchor into whichever slot(s) its
+  // category fills (both bottoms+outerwear for a Suit) — narrowing that
+  // slot's shortlist to just this one id guarantees it gets used rather than
+  // hoping the model notices and chooses it among everything else offered.
+  if (params.pinnedItem) {
+    const pinnedGroup = CATEGORY_TO_GROUP[params.pinnedItem.category];
+    for (const slot of pinnedGroup ? GROUP_TO_SLOTS[pinnedGroup] ?? [] : []) {
+      shortlists[slot] = [params.pinnedItem];
+    }
+  }
 
   narrowShortlistForCap(shortlists, 'outerwear', params.usedOuterwearTitles, params.jacketsCap, true, params.closetItems);
   narrowShortlistForCap(shortlists, 'footwear', params.usedFootwearTitles, params.shoesCap, false, params.closetItems);
@@ -361,6 +409,7 @@ async function chooseFullClosetDay(params: {
   const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = chosen
     ? (Object.fromEntries(Object.entries(chosen.chosenIds).map(([slot, id]) => [slot, itemsById.get(id)!])) as Partial<Record<OutfitSlot, BuilderItem>>)
     : (Object.fromEntries(slots.map((slot) => [slot, shortlists[slot]![0]!])) as Partial<Record<OutfitSlot, BuilderItem>>);
+  normalizeSuitDualRole(bySlot);
 
   return {
     bySlot,
@@ -399,11 +448,25 @@ async function generateFullClosetTripOutfits(
   let usedOuterwearTitles = request.usedOuterwear ?? [];
   let usedFootwearTitles = request.usedFootwear ?? [];
 
+  // Closet-sourced "definitely bring" anchors ("Add from closet" chips on the
+  // trip form) — these must actually get scheduled somewhere across the
+  // trip, not silently dropped once fullCloset mode is on. usedAnchorItemIds
+  // is threaded the same way as the outerwear/footwear caps, since real
+  // generation is one day per HTTP request (progressive), not one batched call.
+  const closetAnchorItems = (request.anchors ?? [])
+    .filter((anchor) => anchor.source === 'closet' && anchor.closetItemId && itemsById.has(anchor.closetItemId))
+    .map((anchor) => itemsById.get(anchor.closetItemId!)!);
+  const usedAnchorItemIds = new Set(request.usedAnchorItemIds ?? []);
+
   // Sequential, not parallel — the outerwear/footwear cap must be threaded
   // day-by-day in order (each day narrows or updates the running "used" list
   // the next day reads).
   const days: TripOutfitDayDto[] = [];
   for (const shape of shapeResult.days) {
+    const targetFormalityRank = TRIP_DAY_TYPE_FORMALITY_TARGET[shape.dayType] ?? FORMALITY_RANK['Smart Casual'];
+    const pinnedItem = pickAnchorForDay({ targetFormalityRank, closetAnchorItems, usedAnchorItemIds });
+    if (pinnedItem) usedAnchorItemIds.add(pinnedItem.id);
+
     const chosen = await chooseFullClosetDay({
       index: shape.dayIndex,
       closetItems,
@@ -416,6 +479,7 @@ async function generateFullClosetTripOutfits(
       usedFootwearTitles,
       jacketsCap,
       shoesCap,
+      pinnedItem,
       supabaseUserId,
     });
     usedOuterwearTitles = chosen.usedOuterwearTitles;

@@ -57,6 +57,8 @@ export type GenerateTripOutfitsRequest = {
   usedOuterwear?: string[];
   /** Shoes already used on earlier days of this trip — same purpose as usedOuterwear, for the shoes cap. */
   usedFootwear?: string[];
+  /** Closet-sourced "definitely bring" anchor item ids already featured on earlier days — fullCloset mode only. */
+  usedAnchorItemIds?: string[];
   carryOnOnly: boolean;
   rewearOk?: boolean;
   specialNeeds?: string;

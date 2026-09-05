@@ -454,9 +454,10 @@ export function buildTripDayChoiceSystemPrompt(): string {
     '1. COLOR COORDINATION: do not choose 3 or more pieces in the same color/color-family for one day — build real contrast.',
     '2. TEXTURE & SILHOUETTE: use each item\'s material/silhouette metadata to create intentional contrast and balance.',
     '3. CAPSULE WARDROBE: treat the wardrobe as one coherent travel capsule — prefer reusing the same versatile pieces across days over picking a fully different item every day. Seeing the same item appear in multiple days\' shortlists is expected; deliberate reuse is a feature, not a failure.',
-    '4. Give the day a short evocative title (e.g. "Arrival in Kyoto", "Temple District Morning", "Black-Tie Gala") and a 1-2 sentence rationale referencing the actual chosen pieces by their descriptive name and the day\'s type/climate/activities.',
-    '5. NEVER include an item\'s id in the title or rationale text — ids belong only in chosenIds. Refer to every piece by name only.',
-    '6. Return one entry per day index provided, matched by "index". Do not skip or reorder.',
+    '4. SUITS: a Suit item is ONE physical piece that is both the trousers AND the jacket — it can appear in both the BOTTOMS and OUTERWEAR options. If you choose a Suit id for BOTTOMS, you MUST choose that exact same Suit id for OUTERWEAR too (never a different jacket/blazer, and never a different suit). A suit is always worn with a proper collared dress shirt underneath — never pair it with a polo or t-shirt for TOPS.',
+    '5. Give the day a short evocative title (e.g. "Arrival in Kyoto", "Temple District Morning", "Black-Tie Gala") and a 1-2 sentence rationale referencing the actual chosen pieces by their descriptive name and the day\'s type/climate/activities.',
+    '6. NEVER include an item\'s id in the title or rationale text — ids belong only in chosenIds. Refer to every piece by name only.',
+    '7. Return one entry per day index provided, matched by "index". Do not skip or reorder.',
     '',
     'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');

@@ -13,6 +13,7 @@ import {
   buildStoredTripPlanFromDraft,
   buildStoredTripPlanFromSavedTrip,
   buildTripDayGenerationParams,
+  collectUsedAnchorItemIds,
   collectUsedFootwear,
   collectUsedOuterwear,
 } from './trip-results-mappers';
@@ -88,6 +89,7 @@ export function useTripResultsData({
           previousDaysSummary: buildPreviousTripDaysSummary(generatedDays),
           usedOuterwear: collectUsedOuterwear(generatedDays),
           usedFootwear: collectUsedFootwear(generatedDays),
+          usedAnchorItemIds: collectUsedAnchorItemIds(generatedDays),
         }));
       } catch (err) {
         setErrorMessage(err instanceof Error ? err.message : 'Generation failed. Please go back and try again.');

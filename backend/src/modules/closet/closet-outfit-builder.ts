@@ -57,6 +57,23 @@ function formalityDistance(item: BuilderClosetItem, targetRank: number): number 
   return Math.abs(rank - targetRank);
 }
 
+/**
+ * Narrows to the tightest formality band that isn't empty: exact match
+ * first, widening to ±1 rank, then to the full candidate set only as a last
+ * resort. Trying ±1 first (the old behavior) let an adjacent-formality item
+ * (e.g. a Smart-Casual blazer) win a slot even when the closet had plenty of
+ * exact-formality options — visible as a "relaxed" day getting a linen sports
+ * jacket. Exact-first keeps the model's shortlist honestly matched to the
+ * requested formality whenever the wardrobe supports it.
+ */
+function filterByFormalityBand<TItem extends BuilderClosetItem>(candidates: TItem[], targetRank: number): TItem[] {
+  const exact = candidates.filter((item) => formalityDistance(item, targetRank) === 0);
+  if (exact.length > 0) return exact;
+  const withinOne = candidates.filter((item) => formalityDistance(item, targetRank) <= 1);
+  if (withinOne.length > 0) return withinOne;
+  return candidates;
+}
+
 function pickForSlot<TItem extends BuilderClosetItem>(
   slot: OutfitSlot,
   closetItems: TItem[],
@@ -72,10 +89,7 @@ function pickForSlot<TItem extends BuilderClosetItem>(
   });
   if (candidates.length === 0) return null;
 
-  // Formality band: prefer items within 1 rank of the target; widen to all
-  // candidates only if nothing qualifies (better a slightly-off item than none).
-  const withinBand = candidates.filter((item) => formalityDistance(item, targetFormalityRank) <= 1);
-  const pool = withinBand.length > 0 ? withinBand : candidates;
+  const pool = filterByFormalityBand(candidates, targetFormalityRank);
 
   // Weighted random favoring garment groups not recently used in this slot,
   // so footwear (for example) doesn't always land on the same shoe type.
@@ -170,8 +184,7 @@ export function buildOutfitSlotShortlists<TItem extends BuilderClosetItem>(
     });
     if (candidates.length === 0) continue;
 
-    const withinBand = candidates.filter((item) => formalityDistance(item, params.targetFormalityRank) <= 1);
-    const pool = withinBand.length > 0 ? withinBand : candidates;
+    const pool = filterByFormalityBand(candidates, params.targetFormalityRank);
 
     // Shuffle so a long shortlist doesn't always present the same items in
     // the same position — models can anchor on list order.
@@ -205,9 +218,35 @@ export function buildVariantCandidates<TItem extends BuilderClosetItem>(
   });
   if (candidates.length === 0) return [];
 
-  const withinBand = candidates.filter((item) => formalityDistance(item, targetFormalityRank) <= 1);
-  const pool = withinBand.length > 0 ? withinBand : candidates;
+  const pool = filterByFormalityBand(candidates, targetFormalityRank);
 
   const shuffled = [...pool].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, maxCandidates);
+}
+
+function isSuit(item: BuilderClosetItem | undefined): boolean {
+  return !!item && CATEGORY_TO_GROUP[item.category] === 'suit';
+}
+
+/**
+ * A Suit is one physical item that supplies BOTH the bottoms and outerwear
+ * roles at once (trousers + jacket) — never a top-half garment meant to be
+ * paired with a separate, different jacket. Because bottoms/outerwear are
+ * chosen as independent schema fields, a model can still pick a suit for one
+ * slot and something else (or a different suit) for the other; this
+ * normalizes the result in place so exactly one suit ends up occupying both
+ * slots whenever either slot resolved to one.
+ */
+export function normalizeSuitDualRole<TItem extends BuilderClosetItem>(bySlot: Partial<Record<OutfitSlot, TItem>>): void {
+  const bottomsIsSuit = isSuit(bySlot.bottoms);
+  const outerwearIsSuit = isSuit(bySlot.outerwear);
+
+  if (bottomsIsSuit && !outerwearIsSuit) {
+    bySlot.outerwear = bySlot.bottoms;
+  } else if (outerwearIsSuit && !bottomsIsSuit) {
+    bySlot.bottoms = bySlot.outerwear;
+  } else if (bottomsIsSuit && outerwearIsSuit && bySlot.bottoms!.id !== bySlot.outerwear!.id) {
+    // Two different suits picked for the two slots — collapse to one.
+    bySlot.outerwear = bySlot.bottoms;
+  }
 }
