@@ -64,17 +64,30 @@ function VariantCard({
   onSelect: () => void;
 }) {
   const { theme } = useTheme();
-  const items = useMemo(
-    () =>
-      buildTripDayLabeledPieces(variant, closetItems)
-        .filter((piece) => piece.matchedClosetItem)
-        .map((piece) => ({
-          id: piece.matchedClosetItem!.id,
-          title: piece.matchedClosetItem!.title,
-          imageUrl: piece.matchedClosetItem!.sketchImageUrl ?? piece.matchedClosetItem!.uploadedImageUrl,
-        })),
-    [variant, closetItems],
-  );
+  // Direct id lookup, not fuzzy text matching — variant.closetItemIds already
+  // carries the exact real item ids for every slot, and fuzzy-matching plain
+  // descriptions back against the closet can confidently pick the wrong item
+  // when two owned pieces are similarly described (e.g. two navy tops).
+  const items = useMemo(() => {
+    if (variant.closetItemIds?.length) {
+      const closetItemsById = new Map(closetItems.map((item) => [item.id, item]));
+      return variant.closetItemIds
+        .map((id) => closetItemsById.get(id))
+        .filter((item): item is ClosetItem => !!item)
+        .map((item) => ({
+          id: item.id,
+          title: item.title,
+          imageUrl: item.sketchImageUrl ?? item.uploadedImageUrl,
+        }));
+    }
+    return buildTripDayLabeledPieces(variant, closetItems)
+      .filter((piece) => piece.matchedClosetItem)
+      .map((piece) => ({
+        id: piece.matchedClosetItem!.id,
+        title: piece.matchedClosetItem!.title,
+        imageUrl: piece.matchedClosetItem!.sketchImageUrl ?? piece.matchedClosetItem!.uploadedImageUrl,
+      }));
+  }, [variant, closetItems]);
 
   return (
     <Pressable

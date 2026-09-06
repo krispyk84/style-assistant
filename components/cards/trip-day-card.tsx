@@ -100,17 +100,31 @@ export function TripDayCard({
   const closetItemsById = useMemo(() => new Map(closetItems?.map((item) => [item.id, item]) ?? []), [closetItems]);
   const hasHat = (day.closetItemIds ?? []).some((id) => closetItemsById.get(id)?.category === 'Hat');
   const hasBag = (day.closetItemIds ?? []).some((id) => closetItemsById.get(id)?.category === 'Bag');
-  const thumbnailItems = useMemo(
-    () =>
-      labeledPieces
-        .filter((piece) => piece.matchedClosetItem)
-        .map((piece) => ({
-          id: piece.matchedClosetItem!.id,
-          title: piece.matchedClosetItem!.title,
-          imageUrl: piece.matchedClosetItem!.sketchImageUrl ?? piece.matchedClosetItem!.uploadedImageUrl,
-        })),
-    [labeledPieces],
-  );
+  // fullCloset days already carry the exact real item ids for every slot
+  // (day.closetItemIds) — look those up directly instead of re-deriving them
+  // via fuzzy text matching (buildTripDayLabeledPieces/findBestClosetMatch),
+  // which can confidently match the wrong item when the closet has two
+  // similarly-described pieces (e.g. two navy tops). Direct id lookup can't
+  // mismatch: it's the same real item the framework breakdown shows.
+  const thumbnailItems = useMemo(() => {
+    if (day.closetItemIds?.length) {
+      return day.closetItemIds
+        .map((id) => closetItemsById.get(id))
+        .filter((item): item is ClosetItem => !!item)
+        .map((item) => ({
+          id: item.id,
+          title: item.title,
+          imageUrl: item.sketchImageUrl ?? item.uploadedImageUrl,
+        }));
+    }
+    return labeledPieces
+      .filter((piece) => piece.matchedClosetItem)
+      .map((piece) => ({
+        id: piece.matchedClosetItem!.id,
+        title: piece.matchedClosetItem!.title,
+        imageUrl: piece.matchedClosetItem!.sketchImageUrl ?? piece.matchedClosetItem!.uploadedImageUrl,
+      }));
+  }, [day.closetItemIds, closetItemsById, labeledPieces]);
 
   // Animate layout when sketch becomes ready so the card expands smoothly.
   const prevHasSketch = useRef(hasSketch);
