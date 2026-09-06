@@ -32,6 +32,7 @@ import {
   CATEGORY_TO_GROUP,
   FORMALITY_RANK,
   GROUP_TO_SLOTS,
+  TIER_FORMALITY_TARGET,
   TIER_SLOT_RULES,
   TRIP_DAY_TYPE_FORMALITY_TARGET,
   tierForFormalityRank,
@@ -413,6 +414,8 @@ async function chooseFullClosetDay(params: {
   index: number;
   closetItems: BuilderItem[];
   dayType: string;
+  /** Resolved formality for this day — user's per-day override when present, else the model's shape-decided value. Authoritative; not re-derived from dayType here. */
+  formalityTier: TierSlug;
   destination: string;
   climateLabel?: string;
   avgHighC?: number;
@@ -433,8 +436,8 @@ async function chooseFullClosetDay(params: {
   usedOuterwearTitles: string[];
   usedFootwearTitles: string[];
 }> {
-  const targetFormalityRank = TRIP_DAY_TYPE_FORMALITY_TARGET[params.dayType] ?? FORMALITY_RANK['Smart Casual'];
-  const tier = tierForFormalityRank(targetFormalityRank);
+  const tier = params.formalityTier;
+  const targetFormalityRank = TIER_FORMALITY_TARGET[tier] ?? FORMALITY_RANK['Smart Casual'];
   const { includeThermalLayer, includeOuterwear } = weatherGates(params.avgHighC ?? params.avgLowC ?? null, tier);
 
   const shortlists = buildOutfitSlotShortlists({
@@ -624,7 +627,15 @@ async function generateFullClosetTripOutfits(
   // the next day reads).
   const days: TripOutfitDayDto[] = [];
   for (const shape of shapeResult.days) {
-    const targetFormalityRank = TRIP_DAY_TYPE_FORMALITY_TARGET[shape.dayType] ?? FORMALITY_RANK['Smart Casual'];
+    // The user's per-day formality picker (trip form, defaults to 'casual')
+    // is authoritative for the day it targets — a direct choice, not a
+    // suggestion for the model to weigh. Falls back to the model's own
+    // shape-decided formality (itself informed by dayType + any freeform
+    // notes) when no override was sent for this specific day.
+    const formalityOverride =
+      request.formalityTier && request.generateOnlyDayIndex === shape.dayIndex ? request.formalityTier : null;
+    const resolvedTier = formalityOverride ?? shape.formalityTier;
+    const targetFormalityRank = TIER_FORMALITY_TARGET[resolvedTier] ?? FORMALITY_RANK['Smart Casual'];
     const pinnedItem = pickAnchorForDay({ targetFormalityRank, closetAnchorItems, usedAnchorItemIds });
     if (pinnedItem) usedAnchorItemIds.add(pinnedItem.id);
 
@@ -632,6 +643,7 @@ async function generateFullClosetTripOutfits(
       index: shape.dayIndex,
       closetItems,
       dayType: shape.dayType,
+      formalityTier: resolvedTier,
       destination: request.destination,
       climateLabel: request.climateLabel,
       avgHighC: request.avgHighC,
@@ -653,9 +665,10 @@ async function generateFullClosetTripOutfits(
       date: shape.date,
       title: chosen.title,
       dayType: shape.dayType,
+      formalityTier: resolvedTier,
       rationale: chosen.rationale,
       contextTags: shape.contextTags,
-      ...mapDaySlotsToDto(chosen.bySlot, chosen.accessoryItems, tierForFormalityRank(targetFormalityRank)),
+      ...mapDaySlotsToDto(chosen.bySlot, chosen.accessoryItems, resolvedTier),
     });
   }
 
@@ -680,10 +693,17 @@ async function regenerateFullClosetDay(
     closetItems.filter((item) => previousTitles.has(item.title.toLowerCase())).map((item) => item.id),
   );
 
+  // Preserve the day's originally-decided formality across regeneration
+  // rather than re-deriving it from dayType, which could silently drop a
+  // user override the day was actually generated with.
+  const resolvedTier =
+    request.formalityTier ?? tierForFormalityRank(TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual']);
+
   const chosen = await chooseFullClosetDay({
     index: 0,
     closetItems,
     dayType: request.dayType,
+    formalityTier: resolvedTier,
     destination: request.destination,
     climateLabel: request.climateLabel,
     avgHighC: request.avgHighC,
@@ -703,13 +723,10 @@ async function regenerateFullClosetDay(
     date: request.date,
     title: chosen.title,
     dayType: request.dayType,
+    formalityTier: resolvedTier,
     rationale: chosen.rationale,
     contextTags: [],
-    ...mapDaySlotsToDto(
-      chosen.bySlot,
-      chosen.accessoryItems,
-      tierForFormalityRank(TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual']),
-    ),
+    ...mapDaySlotsToDto(chosen.bySlot, chosen.accessoryItems, resolvedTier),
   };
 }
 
@@ -834,7 +851,11 @@ export const tripsService = {
       throw new HttpError(422, 'INVALID_SWAP_ITEMS', 'Select 1 or 2 items from this day to swap.');
     }
 
-    const targetFormalityRank = TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual'];
+    // Preserve the day's originally-decided formality rather than re-deriving
+    // it from dayType, which could silently drop a user override.
+    const resolvedTier =
+      request.formalityTier ?? tierForFormalityRank(TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual']);
+    const targetFormalityRank = TIER_FORMALITY_TARGET[resolvedTier] ?? FORMALITY_RANK['Smart Casual'];
     const excludeIds = new Set([...validKeepIds, ...validSwapIds]);
 
     // Each swap slot is constrained to the SAME garment group as the item
@@ -907,9 +928,10 @@ export const tripsService = {
         date: request.date,
         title: day.title,
         dayType: request.dayType,
+        formalityTier: resolvedTier,
         rationale: day.rationale,
         contextTags: [],
-        ...mapDaySlotsToDto(bySlot, accessoryItems, tierForFormalityRank(targetFormalityRank)),
+        ...mapDaySlotsToDto(bySlot, accessoryItems, resolvedTier),
       });
     }
 
@@ -932,8 +954,11 @@ export const tripsService = {
       throw new HttpError(422, 'INVALID_BASE_OUTFIT', 'This day no longer matches your closet.');
     }
 
-    const targetFormalityRank = TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual'];
-    const tier = tierForFormalityRank(targetFormalityRank);
+    // Preserve the day's originally-decided formality rather than re-deriving
+    // it from dayType, which could silently drop a user override.
+    const tier =
+      request.formalityTier ?? tierForFormalityRank(TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual']);
+    const targetFormalityRank = TIER_FORMALITY_TARGET[tier] ?? FORMALITY_RANK['Smart Casual'];
     const currentHatId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'hat');
     const currentBagId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'bag');
 

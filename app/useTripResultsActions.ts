@@ -85,6 +85,7 @@ export function useTripResultsActions({
         dayIndex: day.dayIndex,
         date: day.date,
         dayType: day.dayType,
+        formalityTier: day.formalityTier,
         destination: plan.destination,
         country: plan.country,
         climateLabel: plan.climateLabel,
@@ -125,6 +126,7 @@ export function useTripResultsActions({
       dayIndex: day.dayIndex,
       date: day.date,
       dayType: day.dayType,
+      formalityTier: day.formalityTier,
       destination: plan.destination,
       country: plan.country,
       climateLabel: plan.climateLabel,
@@ -165,6 +167,7 @@ export function useTripResultsActions({
       const result = await tripOutfitsService.updateDayAccessories({
         itemIds: day.closetItemIds ?? [],
         dayType: day.dayType,
+        formalityTier: day.formalityTier,
         includeHat: toggle.includeHat,
         includeBag: toggle.includeBag,
       });

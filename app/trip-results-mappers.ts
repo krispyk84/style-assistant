@@ -138,5 +138,6 @@ export function buildTripDayGenerationParams({
     usedOuterwear,
     usedFootwear,
     usedAnchorItemIds,
+    formalityTier: draft.dayFormality?.[dayIndex] ?? 'casual',
   };
 }

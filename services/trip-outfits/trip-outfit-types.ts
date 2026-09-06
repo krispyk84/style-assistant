@@ -19,6 +19,8 @@ export type TripOutfitDay = {
   date: string;           // YYYY-MM-DD
   title: string;
   dayType: TripDayType;
+  /** Set only for "From My Closet" (fullCloset) days — the model's (or user's) explicit per-day formality. Pass this back on regenerate/variants/accessory-toggle requests for this day so it stays consistent. */
+  formalityTier?: 'casual' | 'smart-casual' | 'business';
   rationale: string;
   pieces: string[];
   shoes: string;
@@ -40,6 +42,8 @@ export type RegenerateTripDayParams = {
   dayIndex: number;
   date: string;
   dayType: TripDayType;
+  /** The day's originally-decided formality (from its own TripOutfitDay.formalityTier) — pass this through so regeneration preserves it. */
+  formalityTier?: 'casual' | 'smart-casual' | 'business';
   destination: string;
   country: string;
   climateLabel: string;
@@ -59,6 +63,8 @@ export type GenerateTripDayVariantsParams = {
   dayIndex: number;
   date: string;
   dayType: TripDayType;
+  /** The day's originally-decided formality — see RegenerateTripDayParams' note. */
+  formalityTier?: 'casual' | 'smart-casual' | 'business';
   destination: string;
   country: string;
   climateLabel: string;
@@ -125,6 +131,8 @@ export type GenerateTripOutfitsParams = {
   specialNeeds?: string;
   generateOnlyDayIndex?: number;
   previousDaysSummary?: string[];
+  /** User-selected formality for the day at generateOnlyDayIndex (trip form's per-day picker, defaults to 'casual') — authoritative when set. */
+  formalityTier?: 'casual' | 'smart-casual' | 'business';
 };
 
 export type GenerateTripOutfitsResponse = {
@@ -149,6 +157,8 @@ export type RegenerateTripDayResponse = {
 export type UpdateTripDayAccessoriesParams = {
   itemIds: string[];
   dayType: TripDayType;
+  /** The day's originally-decided formality — see RegenerateTripDayParams' note. */
+  formalityTier?: 'casual' | 'smart-casual' | 'business';
   includeHat: boolean;
   includeBag: boolean;
 };

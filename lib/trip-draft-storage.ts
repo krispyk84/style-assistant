@@ -50,6 +50,8 @@ export type TripDraft = {
   carryOnOnly: boolean;
   rewearOk?: boolean;
   specialNeeds?: string;
+  /** Per-day formality picker (0-based day index → tier), defaults to 'casual' for any day not explicitly set. */
+  dayFormality?: Record<number, 'casual' | 'smart-casual' | 'business'>;
   // Anchors saved just before progressive generation starts
   pendingAnchors?: PendingAnchorInput[];
   pendingAnchorMode?: 'guided' | 'auto' | 'manual' | 'fullCloset';

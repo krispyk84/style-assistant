@@ -55,6 +55,7 @@ type BuildTripDraftParams = {
   carryOnOnly: YesNo;
   rewearOk: YesNo;
   specialNeeds: string;
+  dayFormality: Record<number, 'casual' | 'smart-casual' | 'business'>;
 };
 
 export function buildTripDraft({
@@ -78,6 +79,7 @@ export function buildTripDraft({
   carryOnOnly,
   rewearOk,
   specialNeeds,
+  dayFormality,
 }: BuildTripDraftParams): TripDraft {
   return {
     draftId: `draft-${Date.now()}`,
@@ -110,6 +112,7 @@ export function buildTripDraft({
     carryOnOnly: carryOnOnly === 'Yes',
     rewearOk: rewearOk === 'Yes',
     specialNeeds: specialNeeds.trim() || undefined,
+    dayFormality: Object.keys(dayFormality).length > 0 ? dayFormality : undefined,
     createdAt: new Date().toISOString(),
   };
 }

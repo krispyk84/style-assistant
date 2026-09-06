@@ -68,6 +68,7 @@ export const generateTripOutfitsSchema = z.object({
   specialNeeds: z.string().optional(),
   generateOnlyDayIndex: z.number().int().min(0).optional(),
   previousDaysSummary: z.array(z.string()).optional(),
+  formalityTier: z.enum(['casual', 'smart-casual', 'business']).optional(),
 });
 
 export const generateTripDaySketchSchema = z.object({
@@ -101,6 +102,7 @@ export const regenerateTripDaySchema = z.object({
   // Closet" mode — keeps the replacement day closet-constrained too, instead
   // of silently falling back to freeform (non-owned) generation.
   isFullCloset:  z.boolean().optional(),
+  formalityTier: z.enum(['casual', 'smart-casual', 'business']).optional(),
 });
 
 export const generateTripDayVariantsSchema = z.object({
@@ -108,6 +110,7 @@ export const generateTripDayVariantsSchema = z.object({
   dayIndex:      z.number().int().min(0),
   date:          z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   dayType:       z.enum(['travel_day', 'sightseeing', 'business', 'meeting', 'dinner_out', 'beach_pool', 'adventure', 'wedding_event', 'relaxed', 'conference']),
+  formalityTier: z.enum(['casual', 'smart-casual', 'business']).optional(),
   destination:   z.string().min(1),
   country:       z.string().min(1),
   climateLabel:  z.string().default(''),
@@ -132,11 +135,18 @@ export const tripDayVariantsResponseSchema = z.object({
 // applied per-day in trips.service.ts) ────────────────────────────────────────
 
 const dayTypeEnum = z.enum(['travel_day', 'sightseeing', 'business', 'meeting', 'dinner_out', 'beach_pool', 'adventure', 'wedding_event', 'relaxed', 'conference']);
+const formalityTierEnum = z.enum(['casual', 'smart-casual', 'business']);
 
 export const tripDayShapeSchema = z.object({
   dayIndex: z.number().int().min(0),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   dayType: dayTypeEnum,
+  // Explicit per-day formality — the model decides this directly (informed
+  // by dayType AND any user-supplied override in ADDITIONAL USER DETAILS,
+  // e.g. "smart casual on non-business days") rather than it being rigidly
+  // derived from dayType alone, which can't express a user's explicit
+  // day-specific formality request.
+  formalityTier: formalityTierEnum,
   contextTags: z.array(z.string().min(1)).min(1).max(4),
 });
 
@@ -285,6 +295,7 @@ export function buildTripDayVariantsChoiceJsonSchema(params: {
 export const updateTripDayAccessoriesSchema = z.object({
   itemIds: z.array(z.string()).min(2),
   dayType: dayTypeEnum,
+  formalityTier: z.enum(['casual', 'smart-casual', 'business']).optional(),
   includeHat: z.boolean(),
   includeBag: z.boolean(),
 });

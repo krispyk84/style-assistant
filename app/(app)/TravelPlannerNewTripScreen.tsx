@@ -41,6 +41,7 @@ export function TravelPlannerNewTripScreen() {
     carryOnOnly, setCarryOnOnly,
     rewearOk, setRewearOk,
     specialNeeds, setSpecialNeeds,
+    dayFormality, setDayFormalityForIndex,
     numDays, canContinueStep1, isSubmitting, submitError,
     step, goNext, goBack,
     saveDraft,
@@ -150,6 +151,8 @@ export function TravelPlannerNewTripScreen() {
             setJacketsCount={setJacketsCount}
             specialNeeds={specialNeeds}
             setSpecialNeeds={setSpecialNeeds}
+            dayFormality={dayFormality}
+            setDayFormalityForIndex={setDayFormalityForIndex}
             wantToBring={wantToBring}
             onAddWantToBring={openClosetPicker}
             onRemoveWantToBring={removeWantToBring}
@@ -281,6 +284,8 @@ function Step3Context({
   setJacketsCount,
   specialNeeds,
   setSpecialNeeds,
+  dayFormality,
+  setDayFormalityForIndex,
   wantToBring,
   onAddWantToBring,
   onRemoveWantToBring,
@@ -306,6 +311,8 @@ function Step3Context({
   setJacketsCount: (v: JacketCount) => void;
   specialNeeds: string;
   setSpecialNeeds: (v: string) => void;
+  dayFormality: Record<number, 'casual' | 'smart-casual' | 'business'>;
+  setDayFormalityForIndex: (dayIndex: number, tier: 'casual' | 'smart-casual' | 'business') => void;
   wantToBring: ClosetItem[];
   onAddWantToBring: () => void;
   onRemoveWantToBring: (id: string) => void;
@@ -417,6 +424,36 @@ function Step3Context({
           </View>
         ) : null}
       </Card>
+
+      {/* Per-day formality — defaults to Casual for every day; the stylist
+          already knows each day's date from Step 1, so the picker lives here
+          rather than asking the user to describe it in free text. */}
+      {numDays > 0 && departureDate ? (
+        <Card>
+          <FieldLabel>Formality per day</FieldLabel>
+          <AppText tone="muted" style={{ fontSize: 12, lineHeight: 17 }}>
+            Defaults to Casual — set specific days to Smart Casual or Business as needed.
+          </AppText>
+          <View style={{ gap: spacing.lg }}>
+            {Array.from({ length: numDays }, (_, dayIndex) => {
+              const dayDate = new Date(departureDate);
+              dayDate.setDate(dayDate.getDate() + dayIndex);
+              const label = `Day ${dayIndex + 1} — ${dayDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}`;
+              const value = dayFormality[dayIndex] ?? 'casual';
+              return (
+                <View key={dayIndex} style={{ gap: spacing.xs }}>
+                  <AppText style={{ fontSize: 13 }}>{label}</AppText>
+                  <SegmentedControl<'casual' | 'smart-casual' | 'business'>
+                    options={['casual', 'smart-casual', 'business']}
+                    value={value}
+                    onChange={(tier) => setDayFormalityForIndex(dayIndex, tier)}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        </Card>
+      ) : null}
 
       {/* Anything you definitely want to bring */}
       <Card>

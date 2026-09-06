@@ -42,6 +42,13 @@ export function useTravelPlannerForm() {
   const [carryOnOnly, setCarryOnOnly] = useState<YesNo>('No');
   const [rewearOk, setRewearOk] = useState<YesNo>('No');
   const [specialNeeds, setSpecialNeeds] = useState('');
+  // Per-day formality picker (0-based day index → tier) — defaults to
+  // 'casual' for any day not present in this map; only explicit overrides
+  // are stored, so a trip resized to fewer days doesn't carry stale entries.
+  const [dayFormality, setDayFormality] = useState<Record<number, 'casual' | 'smart-casual' | 'business'>>({});
+  const setDayFormalityForIndex = useCallback((dayIndex: number, tier: 'casual' | 'smart-casual' | 'business') => {
+    setDayFormality((prev) => ({ ...prev, [dayIndex]: tier }));
+  }, []);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -122,6 +129,7 @@ export function useTravelPlannerForm() {
     setCarryOnOnly('No');
     setRewearOk('No');
     setSpecialNeeds('');
+    setDayFormality({});
     setSubmitError(null);
     setStep(1);
   }, []);
@@ -165,6 +173,7 @@ export function useTravelPlannerForm() {
         carryOnOnly,
         rewearOk,
         specialNeeds,
+        dayFormality,
       });
       if (options?.wantToBring && options.wantToBring.length > 0) {
         draft.pendingAnchors = options.wantToBring.map((item) => ({
@@ -189,6 +198,7 @@ export function useTravelPlannerForm() {
     rewearOk,
     climate,
     climateProfile,
+    dayFormality,
     departureDate,
     destination,
     dressCode,
@@ -247,6 +257,8 @@ export function useTravelPlannerForm() {
     setRewearOk,
     specialNeeds,
     setSpecialNeeds,
+    dayFormality,
+    setDayFormalityForIndex,
     isSubmitting,
     submitError,
     numDays,
