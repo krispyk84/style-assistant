@@ -24,12 +24,25 @@ async function exportToReminders(destination: string, groups: PackingGroup[]): P
   if (status !== 'granted') throw new Error('Reminders permission denied.');
 
   const reminderCalendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.REMINDER);
-  const sourceId = reminderCalendars.find((c) => c.allowsModifications)?.source.id
-    ?? reminderCalendars[0]?.source.id;
+  // Picking "whichever modifiable calendar comes back first" put the new
+  // list under whatever account the OS happened to return first — for a
+  // user with a work/school account (e.g. Exchange) also synced for
+  // Reminders, that could easily win over their personal iCloud account,
+  // landing the list somewhere they'd never think to look. Prefer iCloud by
+  // name explicitly; if it's genuinely absent, prefer the on-device Local
+  // account (private to this phone, never a work/school account) before
+  // ever falling back to "first modifiable, whatever it is".
+  const sourceId = reminderCalendars.find((c) => c.source.name === 'iCloud' && c.allowsModifications)?.source.id
+    ?? reminderCalendars.find((c) => c.source.type === Calendar.SourceType.LOCAL && c.allowsModifications)?.source.id
+    ?? reminderCalendars.find((c) => c.allowsModifications)?.source.id;
   if (!sourceId) throw new Error('No reminders source available.');
 
+  // "Basel, Basel-Stadt, Switzerland" -> "Basel" — the list should be titled
+  // as the city, not the full region/country string.
+  const cityName = destination.split(',')[0]?.trim() || destination;
+
   const listId = await Calendar.createCalendarAsync({
-    title: `Pack for ${destination}`,
+    title: cityName,
     color: '#A56A1F',
     entityType: Calendar.EntityTypes.REMINDER,
     sourceId,
