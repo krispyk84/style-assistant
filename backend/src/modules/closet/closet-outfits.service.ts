@@ -31,12 +31,16 @@ import {
 import {
   buildAccessoryShortlist,
   buildDeterministicOutfit,
+  buildFrameworkBreakdown,
   buildOutfitSlotShortlists,
   buildVariantCandidates,
   effectiveAllowedGroups,
   filterByFormalityBand,
+  normalizeSuitDualRole,
+  type FrameworkBreakdown,
 } from './closet-outfit-builder.js';
 import {
+  ACCESSORY_GROUPS,
   CATEGORY_TO_GROUP,
   FORMALITY_RANK,
   GROUP_TO_SLOTS,
@@ -92,6 +96,7 @@ type ResolvedOutfit = {
   title: string;
   whyItWorks: string;
   items: MappedClosetItem[];
+  framework: FrameworkBreakdown;
   feedbackId: string;
   feedback: 'love' | 'hate' | null;
   sketchJobId: string;
@@ -165,6 +170,30 @@ function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
   };
 }
 
+// Classifies a flat resolved item-id list back into slots (plus any multi-
+// pick "Additional Accessories" items, which don't fit a single-item slot)
+// for the framework breakdown — mirrors trips.service.ts's equivalent.
+function classifyItemsBySlot(
+  itemIds: string[],
+  itemsById: Map<string, BuilderItem>,
+): { bySlot: Partial<Record<OutfitSlot, BuilderItem>>; accessoryItems: BuilderItem[] } {
+  const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
+  const accessoryItems: BuilderItem[] = [];
+  for (const id of itemIds) {
+    const item = itemsById.get(id);
+    if (!item) continue;
+    const group = CATEGORY_TO_GROUP[item.category];
+    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
+    if (slot) {
+      bySlot[slot] = item;
+    } else if (group && ACCESSORY_GROUPS.includes(group)) {
+      accessoryItems.push(item);
+    }
+  }
+  normalizeSuitDualRole(bySlot);
+  return { bySlot, accessoryItems };
+}
+
 type ChoiceOutfit = {
   index: number;
   title: string;
@@ -187,10 +216,11 @@ function resolveChoiceOutfits(params: {
   fixedItemIds: string[];
   itemsById: Map<string, BuilderItem>;
   idPrefix: string;
-}): { id: string; title: string; whyItWorks: string; items: MappedClosetItem[] }[] {
+  tier: TierSlug;
+}): { id: string; title: string; whyItWorks: string; items: MappedClosetItem[]; framework: FrameworkBreakdown }[] {
   const validIdSets = new Map(Object.entries(params.idsBySlot).map(([slot, ids]) => [slot, new Set(ids)]));
   const seenKeys = new Set<string>();
-  const resolved: { id: string; title: string; whyItWorks: string; items: MappedClosetItem[] }[] = [];
+  const resolved: { id: string; title: string; whyItWorks: string; items: MappedClosetItem[]; framework: FrameworkBreakdown }[] = [];
 
   for (const outfit of params.outfits) {
     const chosenEntries = Object.entries(outfit.chosenIds).filter((entry): entry is [string, string] => entry[1] !== null);
@@ -229,11 +259,14 @@ function resolveChoiceOutfits(params: {
     if (seenKeys.has(key)) continue;
     seenKeys.add(key);
 
+    const { bySlot: framedBySlot, accessoryItems: framedAccessoryItems } = classifyItemsBySlot(itemIds, params.itemsById);
+
     resolved.push({
       id: `${params.idPrefix}-${outfit.index}-${itemIds.join('-')}`,
       title: outfit.title,
       whyItWorks: outfit.whyItWorks,
       items: itemIds.map((id) => mapClosetItem(params.itemsById.get(id)!)),
+      framework: buildFrameworkBreakdown({ tier: params.tier, bySlot: framedBySlot, accessoryItems: framedAccessoryItems }),
     });
   }
 
@@ -375,7 +408,7 @@ function pickAccessory(
 // the shortlist) for the rare case a resolved outfit still came out without
 // one.
 function ensureFootwearPresent(
-  outfits: { items: MappedClosetItem[] }[],
+  outfits: { items: MappedClosetItem[]; framework: FrameworkBreakdown }[],
   closetItems: BuilderItem[],
   tier: TierSlug,
   targetFormalityRank: number,
@@ -398,6 +431,8 @@ function ensureFootwearPresent(
     candidates = filterByFormalityBand(candidates, targetFormalityRank);
     const picked = candidates[0]!;
     outfit.items = [...outfit.items, mapClosetItem(picked)];
+    const footwearSlot = outfit.framework.slots.find((slot) => slot.label === 'Footwear');
+    if (footwearSlot) footwearSlot.items = [{ title: picked.title, closetItemId: picked.id }];
   }
 }
 
@@ -483,6 +518,7 @@ export const closetOutfitsService = {
       fixedItemIds: [],
       itemsById,
       idPrefix: 'outfit',
+      tier,
     });
 
     if (resolved.length === 0) {
@@ -580,6 +616,7 @@ export const closetOutfitsService = {
       fixedItemIds: keepItemIds,
       itemsById,
       idPrefix: 'outfit-variant',
+      tier: tierForFormalityRank(targetFormalityRank),
     });
 
     if (resolved.length === 0) {
@@ -625,11 +662,14 @@ export const closetOutfitsService = {
       { title: payload.title, itemIds },
     ]);
 
+    const { bySlot: framedBySlot, accessoryItems: framedAccessoryItems } = classifyItemsBySlot(itemIds, itemsById);
+
     const outfit = {
       id: `outfit-${itemIds.join('-')}`,
       title: payload.title,
       whyItWorks: payload.whyItWorks,
       items,
+      framework: buildFrameworkBreakdown({ tier, bySlot: framedBySlot, accessoryItems: framedAccessoryItems }),
       feedbackId: feedbackRow!.id,
       feedback: null as 'love' | 'hate' | null,
     };

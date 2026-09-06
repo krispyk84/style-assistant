@@ -1,3 +1,5 @@
+import type { OutfitFrameworkDisplay } from '@/types/api';
+
 export type TripDayType =
   | 'travel_day'
   | 'sightseeing'
@@ -25,6 +27,8 @@ export type TripOutfitDay = {
   contextTags: string[];
   /** Set only for "From My Closet" (fullCloset) days — real closet item ids the pieces above resolve to. */
   closetItemIds?: string[];
+  /** Set only for "From My Closet" (fullCloset) days — the enforced framework's slot breakdown. */
+  framework?: OutfitFrameworkDisplay;
   sketchStatus: 'not_started' | 'loading' | 'ready' | 'failed';
   sketchUrl?: string;
   sketchJobId?: string;

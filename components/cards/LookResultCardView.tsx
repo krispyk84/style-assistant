@@ -12,6 +12,7 @@ import type { LookRecommendation } from '@/types/look-request';
 import type { ClosetItem } from '@/types/closet';
 import { AppText } from '@/components/ui/app-text';
 import { OutfitActionsAccordion } from './OutfitActionsAccordion';
+import { OutfitFrameworkView } from './OutfitFrameworkView';
 import { OutfitPieceListView } from './OutfitPieceListView';
 import { buildLabeledPieces } from './look-result-card-helpers';
 
@@ -144,6 +145,8 @@ export function LookResultCardView({
             </AppText>
           ) : null}
         </View>
+
+        {recommendation.framework ? <OutfitFrameworkView framework={recommendation.framework} /> : null}
 
         {recommendation.fitNotes.length > 0 ? (
           <View style={{ gap: spacing.xs }}>

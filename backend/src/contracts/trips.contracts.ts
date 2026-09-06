@@ -1,3 +1,14 @@
+export type OutfitFrameworkSlotDto = {
+  label: string;
+  items: { title: string; closetItemId: string }[];
+};
+
+/** The enforced outfit framework's slot-by-slot breakdown, for display on the card. */
+export type OutfitFrameworkDto = {
+  frameworkLabel: string;
+  slots: OutfitFrameworkSlotDto[];
+};
+
 export type TripOutfitDayDto = {
   id: string;
   tripId: string;
@@ -13,6 +24,8 @@ export type TripOutfitDayDto = {
   contextTags: string[];  // e.g. ["layered", "beach-ready", "wrinkle-resistant"]
   /** Set only for "From My Closet" (fullCloset) days — real closet item ids the pieces above resolve to. */
   closetItemIds?: string[];
+  /** Set only for "From My Closet" (fullCloset) days — the enforced framework's slot breakdown. */
+  framework?: OutfitFrameworkDto;
 };
 
 export type TripAnchorInputDto = {

@@ -13,6 +13,7 @@ import { buildTripDayLabeledPieces } from '@/lib/outfit-piece-display';
 import type { TripOutfitDay } from '@/services/trip-outfits';
 import type { ClosetItem } from '@/types/closet';
 import { OutfitActionsAccordion } from './OutfitActionsAccordion';
+import { OutfitFrameworkView } from './OutfitFrameworkView';
 import { OutfitItemThumbnailRow, type OutfitThumbnailItem } from './OutfitItemThumbnailRow';
 import { OutfitPieceListView } from './OutfitPieceListView';
 
@@ -177,6 +178,7 @@ export function TripDayCard({
               selectedItemIds={onGenerateVariants ? selectedItemIds : undefined}
               onToggleSelect={onGenerateVariants ? toggleItemSelected : undefined}
             />
+            {day.framework ? <OutfitFrameworkView framework={day.framework} /> : null}
             {onGenerateVariants ? (
               <>
                 <AppText tone="subtle" style={{ fontSize: 12 }}>

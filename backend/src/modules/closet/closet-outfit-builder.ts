@@ -357,3 +357,68 @@ export function fillMissingRequiredSlots<TItem extends BuilderClosetItem>(params
     if (picked) params.bySlot[slot] = picked;
   }
 }
+
+// ── Framework breakdown — for displaying the enforced structure on cards ────
+
+export type FrameworkSlotItem = { title: string; closetItemId: string };
+export type FrameworkSlotDisplay = { label: string; items: FrameworkSlotItem[] };
+export type FrameworkBreakdown = { frameworkLabel: string; slots: FrameworkSlotDisplay[] };
+
+function frameworkSlotEntry<TItem extends BuilderClosetItem>(label: string, item: TItem | undefined | null): FrameworkSlotDisplay {
+  return { label, items: item ? [{ title: item.title, closetItemId: item.id }] : [] };
+}
+
+/**
+ * Builds the exact per-framework slot breakdown described in the outfit
+ * framework spec — the labeled structure shown on outfit cards so the
+ * enforced framework (and which optional slots weren't used) is visible,
+ * not just a flat thumbnail grid. One shared builder for all three closet-
+ * only surfaces (Generate 5 Outfits, Trip Planner, Create a Look), since all
+ * three already resolve to the same bySlot/accessoryItems shape internally.
+ *
+ * Suit dual-role collapses Bottoms + Secondary Top into one "Suit" row
+ * (Framework B in the spec); otherwise both show as separate rows
+ * (Framework A). Hat/Bag are deliberately excluded — those stay pure opt-in
+ * toggles on the card, not part of the enforced framework.
+ */
+export function buildFrameworkBreakdown<TItem extends BuilderClosetItem>(params: {
+  tier: TierSlug;
+  bySlot: Partial<Record<OutfitSlot, TItem>>;
+  accessoryItems?: TItem[];
+}): FrameworkBreakdown {
+  const { tier, bySlot } = params;
+  const accessoryItems = params.accessoryItems ?? [];
+  const bottomsIsSuit = !!bySlot.bottoms && CATEGORY_TO_GROUP[bySlot.bottoms.category] === 'suit';
+  const secondaryTopIsSuit = !!bySlot.secondaryTop && CATEGORY_TO_GROUP[bySlot.secondaryTop.category] === 'suit';
+  const usedSuit = bottomsIsSuit && secondaryTopIsSuit && bySlot.bottoms!.id === bySlot.secondaryTop!.id;
+
+  const tierDisplayName = tier === 'business' ? 'Business/Formal' : tier === 'smart-casual' ? 'Smart Casual' : 'Casual';
+  const frameworkLabel = usedSuit ? `${tierDisplayName} (Suit)` : tierDisplayName;
+
+  const slots: FrameworkSlotDisplay[] = [frameworkSlotEntry('Footwear', bySlot.footwear)];
+
+  if (usedSuit) {
+    slots.push(frameworkSlotEntry('Suit', bySlot.bottoms));
+  } else {
+    slots.push(frameworkSlotEntry('Bottoms', bySlot.bottoms));
+  }
+
+  slots.push(frameworkSlotEntry('Primary Top', bySlot.primaryTop));
+
+  if (!usedSuit) {
+    slots.push(frameworkSlotEntry('Secondary Top', bySlot.secondaryTop));
+  }
+
+  slots.push(
+    frameworkSlotEntry('Thermal Layer', bySlot.thermalLayer),
+    frameworkSlotEntry('Outerwear', bySlot.outerwear),
+    frameworkSlotEntry('Sunglasses', bySlot.sunglasses),
+    {
+      label: 'Additional Accessories',
+      items: accessoryItems.map((item) => ({ title: item.title, closetItemId: item.id })),
+    },
+    frameworkSlotEntry('Watch', bySlot.watch),
+  );
+
+  return { frameworkLabel, slots };
+}

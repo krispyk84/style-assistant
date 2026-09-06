@@ -25,6 +25,18 @@ const outfitPieceSchema = z.object({
   metadata: outfitPieceMetaSchema,
 });
 
+// The enforced outfit framework's slot-by-slot breakdown — never part of the
+// LLM's raw output, only ever attached post-resolution for closetOnly
+// recommendations (see closet-outfit-builder.ts's buildFrameworkBreakdown).
+const outfitFrameworkSlotSchema = z.object({
+  label: z.string(),
+  items: z.array(z.object({ title: z.string(), closetItemId: z.string() })),
+});
+const outfitFrameworkSchema = z.object({
+  frameworkLabel: z.string(),
+  slots: z.array(outfitFrameworkSlotSchema),
+});
+
 export const outfitRecommendationSchema = z.object({
   tier: tierEnum,
   title: z.string().min(1),
@@ -42,6 +54,8 @@ export const outfitRecommendationSchema = z.object({
   // Set only when the request was closetOnly — real closet item ids
   // this recommendation's keyPieces/shoes/accessories resolve to.
   closetItemIds: z.array(z.string()).optional(),
+  // Set only when the request was closetOnly — the enforced framework's slot breakdown.
+  framework: outfitFrameworkSchema.optional(),
 });
 
 export const tieredOutfitGenerationSchema = z.object({

@@ -471,11 +471,12 @@ export function buildTripDayChoiceSystemPrompt(): string {
     '3. CAPSULE WARDROBE: treat the wardrobe as one coherent travel capsule — prefer reusing the same versatile pieces across days over picking a fully different item every day. Seeing the same item appear in multiple days\' shortlists is expected; deliberate reuse is a feature, not a failure.',
     '4. SUITS: a Suit item is ONE physical piece that is both the trousers AND the jacket — it can appear in both the BOTTOMS and SECONDARY TOP options. If you choose a Suit id for BOTTOMS, you MUST choose that exact same Suit id for SECONDARY TOP too (never a different jacket/blazer, and never a different suit) — a suit is always worn as its own matching pair. A suit is always worn with a proper collared dress shirt underneath — never pair it with a polo or t-shirt for PRIMARY TOP. A true weatherproof OUTERWEAR piece (overcoat) can still be layered over a suit independently when the weather calls for it.',
     '5. OPTIONAL SLOTS: SECONDARY TOP, THERMAL LAYER, and OUTERWEAR are resolved to null when the day genuinely doesn\'t call for one — do not force one in just because it was offered. When a slot is marked required in its options heading, it must never be null.',
-    '6. ADDITIONAL ACCESSORIES: accessoryIds is a separate, optional multi-pick list (belt/scarf/tie/socks) — include 0 or more only where they genuinely complete the look; do not pad it out for the sake of it.',
-    '7. Give the day a short evocative title (e.g. "Arrival in Kyoto", "Temple District Morning", "Black-Tie Gala") and a 1-2 sentence rationale referencing the actual chosen pieces by their descriptive name and the day\'s type/climate/activities.',
-    '8. NEVER include an item\'s id in the title or rationale text — ids belong only in chosenIds/accessoryIds. Refer to every piece by name only.',
-    '9. NEVER mention or imply a piece that isn\'t one of your actual chosenIds/accessoryIds for that day. If a slot wasn\'t offered to you at all for this day, or you resolved it to null, that piece does not exist on this day — do not invent one in the rationale ("a light jacket adds...") or title. Only describe the exact pieces you actually chose ids for.',
-    '10. Return one entry per day index provided, matched by "index". Do not skip or reorder.',
+    '6. LAYERING OVER A STRUCTURED SECONDARY TOP: if SECONDARY TOP is a blazer, sport coat, or Suit, a THERMAL LAYER (if you choose one) must be a plain sweater/knitwear worn UNDER that jacket — never a hoodie, cardigan, or overshirt, which are meant to be worn as a visible outer layer and would look like a mismatch stacked over a blazer or suit. Likewise, OUTERWEAR (if you choose one) must be an overcoat/trench coat able to accommodate that structured layer underneath — never a casual bomber/field/chore jacket over a blazer or suit.',
+    '7. ADDITIONAL ACCESSORIES: accessoryIds is a separate, optional multi-pick list (belt/scarf/tie/socks) — include 0 or more only where they genuinely complete the look; do not pad it out for the sake of it.',
+    '8. Give the day a short evocative title (e.g. "Arrival in Kyoto", "Temple District Morning", "Black-Tie Gala") and a 1-2 sentence rationale referencing the actual chosen pieces by their descriptive name and the day\'s type/climate/activities.',
+    '9. NEVER include an item\'s id in the title or rationale text — ids belong only in chosenIds/accessoryIds. Refer to every piece by name only.',
+    '10. NEVER mention or imply a piece that isn\'t one of your actual chosenIds/accessoryIds for that day. If a slot wasn\'t offered to you at all for this day, or you resolved it to null, that piece does not exist on this day — do not invent one in the rationale ("a light jacket adds...") or title. Only describe the exact pieces you actually chose ids for.',
+    '11. Return one entry per day index provided, matched by "index". Do not skip or reorder.',
     '',
     'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');
@@ -618,9 +619,13 @@ export function buildTripDaySketchPrompt(params: {
     'Every listed item is a REAL garment the wearer already owns — render each one true to its stated color, pattern, and material rather than inventing a different interpretation.',
     QUALITY_ADDENDUM,
     QUALITY_ADDENDUM_2,
-    hasOuterwearOrExtraLayer
-      ? 'GARMENT COUNT VERIFICATION (check before finalizing): count the garments you have drawn on the figure — does the count match exactly the garments listed at the top of this prompt, no more? If you have added any unlisted jacket, layer, or top, that is a hard failure — remove it before finalizing.'
-      : 'GARMENT COUNT VERIFICATION (check before finalizing): this figure wears exactly ONE top and nothing else layered over or under it. If you have drawn a jacket, cardigan, hoodie, or second top of any kind, that is a hard failure — remove it before finalizing.',
+    // Named-checklist verification, not just a count — a right-count-wrong-
+    // garment substitution (e.g. a listed suit jacket replaced by a generic
+    // dark jacket) passes a bare count check but fails this one.
+    `FINAL VERIFICATION CHECKLIST (check every line before finalizing): go through each item listed at the top of this prompt one by one — garments: ${pieces.join(', ') || 'none'}; shoes: ${shoes}; accessories: ${accessories.join(', ') || 'none'}. For each one, confirm it is actually visible on the figure, drawn as its own named color/material/construction — not substituted, not simplified, not omitted. Then confirm nothing else is visible that isn't on this exact list. Both directions are hard failures: a listed item missing from the image, or an unlisted item present in the image (including any accessory or footwear only mentioned by name here but never drawn).` +
+      (hasOuterwearOrExtraLayer
+        ? ' The garments listed already include every layer this figure wears — do not add a further layer beyond what is listed.'
+        : ' This figure wears exactly ONE top and nothing else layered over or under it — no jacket, cardigan, hoodie, or second top of any kind.'),
   ].filter(Boolean);
 
   return parts.join('\n\n');

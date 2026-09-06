@@ -1,6 +1,17 @@
 export type OutfitTierSlug = 'business' | 'smart-casual' | 'casual';
 export type TierSketchStatus = 'pending' | 'ready' | 'failed';
 
+export type OutfitFrameworkSlotDto = {
+  label: string;
+  items: { title: string; closetItemId: string }[];
+};
+
+/** The enforced outfit framework's slot-by-slot breakdown, for display on the card. */
+export type OutfitFrameworkDto = {
+  frameworkLabel: string;
+  slots: OutfitFrameworkSlotDto[];
+};
+
 export type OutfitPieceMeta = {
   category: string;
   color: string;
@@ -94,6 +105,8 @@ export type TierRecommendationDto = {
   variantIndex: number;
   /** Set only when the request was closetOnly — real closet item ids this recommendation's pieces resolve to. */
   closetItemIds?: string[];
+  /** Set only when the request was closetOnly — the enforced framework's slot breakdown. */
+  framework?: OutfitFrameworkDto;
 };
 
 export type OutfitResponse = {

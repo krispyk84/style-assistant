@@ -19,8 +19,15 @@ import {
   type TieredOutfitGeneration,
 } from './outfits.schemas.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
-import { buildAccessoryShortlist, buildOutfitSlotShortlists, fillMissingRequiredSlots, normalizeSuitDualRole } from '../closet/closet-outfit-builder.js';
 import {
+  buildAccessoryShortlist,
+  buildFrameworkBreakdown,
+  buildOutfitSlotShortlists,
+  fillMissingRequiredSlots,
+  normalizeSuitDualRole,
+} from '../closet/closet-outfit-builder.js';
+import {
+  ACCESSORY_GROUPS,
   CATEGORY_TO_GROUP,
   FORMALITY_RANK,
   GROUP_TO_SLOTS,
@@ -208,6 +215,30 @@ function isSuit(item: BuilderItem | undefined): boolean {
   return !!item && CATEGORY_TO_GROUP[item.category] === 'suit';
 }
 
+// Classifies a flat resolved item-id list back into slots (plus any multi-
+// pick "Additional Accessories" items) for the framework breakdown — mirrors
+// closet-outfits.service.ts's/trips.service.ts's equivalent.
+function classifyItemsBySlot(
+  itemIds: string[],
+  itemsById: Map<string, BuilderItem>,
+): { bySlot: Partial<Record<OutfitSlot, BuilderItem>>; accessoryItems: BuilderItem[] } {
+  const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
+  const accessoryItems: BuilderItem[] = [];
+  for (const id of itemIds) {
+    const item = itemsById.get(id);
+    if (!item) continue;
+    const group = CATEGORY_TO_GROUP[item.category];
+    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
+    if (slot) {
+      bySlot[slot] = item;
+    } else if (group && ACCESSORY_GROUPS.includes(group)) {
+      accessoryItems.push(item);
+    }
+  }
+  normalizeSuitDualRole(bySlot);
+  return { bySlot, accessoryItems };
+}
+
 const KEY_PIECE_SLOTS: OutfitSlot[] = ['bottoms', 'primaryTop', 'secondaryTop', 'thermalLayer', 'outerwear'];
 
 /**
@@ -280,6 +311,8 @@ function resolveClosetOnlyRecommendation(
   );
   const shoeIds = resolveRole(recommendation.shoeIds, idSets.shoes, true);
   const accessoryIds = resolveRole(recommendation.accessoryIds, idSets.accessories, false);
+  const closetItemIds = [...keyPieceIds, ...shoeIds, ...accessoryIds];
+  const { bySlot: framedBySlot, accessoryItems: framedAccessoryItems } = classifyItemsBySlot(closetItemIds, itemsById);
 
   return {
     tier: recommendation.tier,
@@ -293,7 +326,8 @@ function resolveClosetOnlyRecommendation(
     whyItWorks: recommendation.whyItWorks,
     stylingDirection: recommendation.stylingDirection,
     detailNotes: recommendation.detailNotes,
-    closetItemIds: [...keyPieceIds, ...shoeIds, ...accessoryIds],
+    closetItemIds,
+    framework: buildFrameworkBreakdown({ tier: recommendation.tier, bySlot: framedBySlot, accessoryItems: framedAccessoryItems }),
   };
 }
 

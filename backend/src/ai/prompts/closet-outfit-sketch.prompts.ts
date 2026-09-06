@@ -98,6 +98,13 @@ export function buildClosetOutfitSketchPrompt(input: {
     'If a name includes "hoodie", draw an attached hood. ' +
     'Match every other named detail (crewneck vs. collar, zip vs. button, short vs. long sleeve, pattern, silhouette) exactly as stated rather than defaulting to the simplest/most generic version of that garment category.';
 
+  // Named-checklist verification, not just a count — a right-count-wrong-
+  // garment substitution (e.g. a listed suit jacket replaced by a generic
+  // dark jacket) passes a bare count check but fails this one.
+  const allNamedItems = input.items.map(describeItem).join(', ') || 'none';
+  const verificationRule =
+    `FINAL VERIFICATION CHECKLIST (check every line before finalizing): go through this exact item list one by one — ${allNamedItems}. For each one, confirm it is actually visible on the figure, drawn as its own named color/material/construction — not substituted, not simplified, not omitted. Then confirm nothing else is visible that isn't on this exact list. Both directions are hard failures: a listed item missing from the image, or an unlisted item present in the image (including any accessory or footwear only mentioned by name here but never drawn).`;
+
   const parts = [
     HEADLESS_GUARD,
     STYLE_GUARD,
@@ -110,6 +117,7 @@ export function buildClosetOutfitSketchPrompt(input: {
     'Every listed item is a REAL garment the wearer already owns — render each one true to its stated color, pattern, and material rather than inventing a different interpretation.',
     QUALITY_ADDENDUM,
     QUALITY_ADDENDUM_2,
+    verificationRule,
   ].filter(Boolean);
 
   return parts.join('\n\n');

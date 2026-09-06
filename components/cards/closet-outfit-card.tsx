@@ -12,6 +12,7 @@ import { outfitChatFlow } from '@/lib/outfit-chat-flow';
 import { buildSecondOpinionSubjectFromClosetOutfit } from '@/lib/outfit-utils';
 import type { ClosetGeneratedOutfit } from '@/types/api';
 import { OutfitActionsAccordion } from './OutfitActionsAccordion';
+import { OutfitFrameworkView } from './OutfitFrameworkView';
 import { OutfitItemThumbnailRow } from './OutfitItemThumbnailRow';
 
 const MAX_SWAP_SELECTION = 2;
@@ -108,6 +109,8 @@ export function ClosetOutfitCard({
         onToggleSelect={onGenerateVariants ? toggleItemSelected : undefined}
       />
       </View>
+
+      {outfit.framework ? <OutfitFrameworkView framework={outfit.framework} /> : null}
 
       {onToggleHat || onToggleBag ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>

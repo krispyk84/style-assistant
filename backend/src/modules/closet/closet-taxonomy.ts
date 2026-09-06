@@ -12,9 +12,12 @@
  * Outfits, Trip Planner From My Closet, Create a Look closet-only):
  *
  *   Footwear (required) · Bottoms (required) · Primary Top (required)
- *   Secondary Top (optional; blazer/sport jacket — REQUIRED for business)
- *   Thermal Layer (optional, weather-gated — sweaters/hoodies/overshirts)
- *   Outerwear (optional, weather-gated — jackets/coats)
+ *   Secondary Top (optional; blazer/sport jacket, or a thin sweater for
+ *   smart-casual — REQUIRED for business, blazer/sport jacket only)
+ *   Thermal Layer (optional, weather-gated — sweaters/hoodies/overshirts/
+ *   vests; business restricts this to a plain sweater worn under the jacket)
+ *   Outerwear (optional, weather-gated — jackets/coats; business restricts
+ *   this to overcoats, never a casual jacket, so it can accommodate a suit)
  *   Sunglasses (required) · Watch (required)
  *   Additional Accessories (optional, any number — belt/scarf/tie/socks)
  *
@@ -40,6 +43,7 @@ export const CATEGORY_TO_GROUP: Record<string, string> = {
   'Sports Jacket': 'blazer',
   Jacket:          'jacket',
   Overshirt:       'overshirt',
+  Vest:            'vest',
   Coat:            'coat',
   Suit:            'suit',
   Shoes:           'formal_shoes',
@@ -98,7 +102,7 @@ export const SLOT_GROUPS: Record<OutfitSlot, readonly string[]> = {
   bottoms:      ['trousers', 'denim', 'shorts', 'suit'],
   primaryTop:   ['shirt', 'polo', 'tee'],
   secondaryTop: ['blazer', 'suit'],
-  thermalLayer: ['knitwear', 'cardigan', 'hoodie', 'overshirt'],
+  thermalLayer: ['knitwear', 'cardigan', 'hoodie', 'overshirt', 'vest'],
   outerwear:    ['jacket', 'coat'],
   hat:          ['hat'],
   bag:          ['bag'],
@@ -165,7 +169,9 @@ export const TIER_SLOT_RULES: Record<TierSlug, Partial<Record<OutfitSlot, TierSl
     footwear:     { required: true },
     bottoms:      { required: true, allowedGroups: ['trousers', 'denim', 'shorts'] },
     primaryTop:   { required: true },
-    secondaryTop: { required: false },
+    // A thin sweater can stand in as the secondary top itself (not layered
+    // under something else) alongside the usual blazer/sport coat.
+    secondaryTop: { required: false, allowedGroups: ['blazer', 'knitwear'] },
     thermalLayer: { required: false },
     outerwear:    { required: false },
     watch:        { required: true },

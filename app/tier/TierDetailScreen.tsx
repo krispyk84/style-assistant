@@ -1,6 +1,7 @@
 import { Pressable, View } from 'react-native';
 
 import { LookTierDetailCard } from '@/components/cards/look-tier-detail-card';
+import { OutfitFrameworkView } from '@/components/cards/OutfitFrameworkView';
 import { OutfitPieceListView } from '@/components/cards/OutfitPieceListView';
 import { StylistChooserModal } from '@/components/second-opinion/stylist-chooser-modal';
 import { AppIcon } from '@/components/ui/app-icon';
@@ -142,6 +143,8 @@ export function TierDetailScreen() {
             );
           })}
         </View>
+
+        {liveRecommendation.framework ? <OutfitFrameworkView framework={liveRecommendation.framework} /> : null}
 
         <View style={{ gap: spacing.md }}>
           <AppText variant="sectionTitle">Check recommended pieces</AppText>

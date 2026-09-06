@@ -369,6 +369,24 @@ export type SavedHaircutSessionsResponse = {
   sessions: SavedHaircutSession[];
 };
 
+// ── Outfit framework breakdown (shared across all closet-only generation) ────
+// The enforced outfit framework's slot-by-slot structure, for labeled display
+// on outfit cards — e.g. "Footwear, Bottoms, Primary Top, Secondary Top (x),
+// Thermal Layer (x), Outerwear (x), Sunglasses, Additional Accessories (x),
+// Watch" for a Casual outfit, with `items` empty meaning "show x" for an
+// unused optional slot. Suit-path frameworks collapse Bottoms + Secondary Top
+// into a single "Suit" row instead.
+
+export type OutfitFrameworkSlotDisplay = {
+  label: string;
+  items: { title: string; closetItemId: string }[];
+};
+
+export type OutfitFrameworkDisplay = {
+  frameworkLabel: string;
+  slots: OutfitFrameworkSlotDisplay[];
+};
+
 // ── Generate 5 Outfits (closet-only) ──────────────────────────────────────────
 
 export type ClosetOutfitFeedbackValue = 'love' | 'hate' | null;
@@ -378,6 +396,7 @@ export type ClosetGeneratedOutfit = {
   title: string;
   whyItWorks: string;
   items: ClosetItem[];
+  framework: OutfitFrameworkDisplay;
   feedbackId: string;
   feedback: ClosetOutfitFeedbackValue;
   sketchJobId: string;

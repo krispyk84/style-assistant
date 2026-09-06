@@ -91,6 +91,20 @@ export function buildTierSketchPrompt(input: {
   }
 
   const outfitSection = `Outfit:\n${outfitLines.join('\n')}`;
+
+  // Hard "exact item list" constraint — without this, the model sometimes
+  // adds an unlisted piece (most often a jacket or extra layer) to make the
+  // look feel more "complete", even though the outfit decision (this list)
+  // was already finalized in a separate step before the sketch is drawn.
+  const exclusivityRule =
+    'EXACT ITEM LIST — HARD CONSTRAINT: the items listed above are the ONLY items the figure wears. Do not add any garment, layer, or accessory that is not explicitly listed — no extra jacket, blazer, coat, cardigan, undershirt, scarf, hat, bag, jewelry, or any other piece, no matter how much more "complete" or "editorial" the look would feel with one. If a category (e.g. outerwear, accessories) has no items listed above, the figure must NOT wear or carry anything from that category.';
+
+  // Named-checklist verification, not just a count — a right-count-wrong-
+  // garment substitution passes a bare count check but fails this one.
+  const allNamedItems = outfitLines.map((line) => line.replace(/^-\s*[^:]+:\s*/, '')).join('; ') || 'none';
+  const verificationRule =
+    `FINAL VERIFICATION CHECKLIST (check every line before finalizing): go through this exact item list one by one — ${allNamedItems}. For each one, confirm it is actually visible on the figure, drawn as its own named color/material/construction — not substituted, not simplified, not omitted. Then confirm nothing else is visible that isn't on this exact list. Both directions are hard failures: a listed item missing from the image, or an unlisted item present in the image.`;
+
   const parts = [
     HEADLESS_GUARD,
     STYLE_GUARD,
@@ -98,8 +112,10 @@ export function buildTierSketchPrompt(input: {
     STYLE_PREAMBLE,
     anchorColorBlock ?? null,
     outfitSection,
+    exclusivityRule,
     QUALITY_ADDENDUM,
     QUALITY_ADDENDUM_2,
+    verificationRule,
   ].filter(Boolean);
 
   return parts.join('\n\n');

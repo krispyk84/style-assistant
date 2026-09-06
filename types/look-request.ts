@@ -1,6 +1,7 @@
 import type { ClosetItemFitStatus } from '@/types/closet';
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 import type { WeatherContext, WeatherSeason } from '@/types/weather';
+import type { OutfitFrameworkDisplay } from '@/types/api';
 
 export const LOOK_TIER_OPTIONS = ['business', 'smart-casual', 'casual'] as const;
 
@@ -154,6 +155,8 @@ export type LookRecommendation = {
   sketchMimeType?: string | null;
   /** Set only when the request was closetOnly — real closet item ids this recommendation's pieces resolve to. */
   closetItemIds?: string[];
+  /** Set only when the request was closetOnly — the enforced framework's slot breakdown. */
+  framework?: OutfitFrameworkDisplay;
 };
 
 export type LookRequestResponse = {

@@ -7,7 +7,7 @@ type MatchSuggestion = ClosetMatchPayload['suggestions'][number];
 
 // ── analyzeItem prompt vocabulary (static — defined once at module scope) ──────
 
-const ANALYZE_CATEGORY_LIST = 'Suit, Blazer, Sports Jacket, Coat, Shirt, Polo, Knitwear, Cardigan, Hoodie, Trousers, Denim, Shorts, Shoes, Sneakers, Loafers, Boots, Belt, Bag, Watch, Scarf, Hat, Tie, Socks, Sunglasses, Clothing';
+const ANALYZE_CATEGORY_LIST = 'Suit, Blazer, Sports Jacket, Jacket, Overshirt, Vest, Coat, Shirt, Polo, Knitwear, Cardigan, Hoodie, Trousers, Denim, Shorts, Shoes, Sneakers, Loafers, Boots, Belt, Bag, Watch, Scarf, Hat, Tie, Socks, Sunglasses, Clothing';
 const ANALYZE_LENS_SHAPE_OPTIONS = 'aviator, wayfarer, round, square, cat_eye, oversized, shield, wraparound';
 const ANALYZE_FRAME_COLOR_OPTIONS = 'black, tortoise, gold, silver, clear, brown, navy, white, pink, green, red';
 const ANALYZE_FORMALITY_OPTIONS = 'Casual, Smart Casual, Refined Casual, Formal';

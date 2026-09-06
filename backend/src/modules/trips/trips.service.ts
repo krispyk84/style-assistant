@@ -21,6 +21,7 @@ import { closetRepository } from '../closet/closet.repository.js';
 import {
   buildAccessoryShortlist,
   buildDeterministicOutfit,
+  buildFrameworkBreakdown,
   buildOutfitSlotShortlists,
   buildVariantCandidates,
   fillMissingRequiredSlots,
@@ -52,6 +53,7 @@ import type {
   GenerateTripDayVariantsResponse,
   GenerateTripOutfitsRequest,
   GenerateTripOutfitsResponse,
+  OutfitFrameworkDto,
   RegenerateTripDayRequest,
   TripOutfitDayDto,
   UpdateTripDayAccessoriesRequest,
@@ -228,12 +230,14 @@ function guardAgainstHallucinatedRationale(bySlot: Partial<Record<OutfitSlot, Bu
 function mapDaySlotsToDto(
   bySlot: Partial<Record<OutfitSlot, BuilderItem>>,
   extraAccessoryItems: BuilderItem[] = [],
+  tier?: TierSlug,
 ): {
   pieces: string[];
   shoes: string;
   bag: string | null;
   accessories: string[];
   closetItemIds: string[];
+  framework?: OutfitFrameworkDto;
 } {
   const pieces = dedupeById([bySlot.bottoms, bySlot.primaryTop, bySlot.secondaryTop, bySlot.thermalLayer, bySlot.outerwear]).map((item) => item.title);
   const accessories = dedupeById([bySlot.watch, bySlot.sunglasses, bySlot.hat, ...extraAccessoryItems]).map((item) => item.title);
@@ -245,6 +249,7 @@ function mapDaySlotsToDto(
     bag: bySlot.bag?.title ?? null,
     accessories,
     closetItemIds,
+    framework: tier ? buildFrameworkBreakdown({ tier, bySlot, accessoryItems: extraAccessoryItems }) : undefined,
   };
 }
 
@@ -637,7 +642,7 @@ async function generateFullClosetTripOutfits(
       dayType: shape.dayType,
       rationale: chosen.rationale,
       contextTags: shape.contextTags,
-      ...mapDaySlotsToDto(chosen.bySlot, chosen.accessoryItems),
+      ...mapDaySlotsToDto(chosen.bySlot, chosen.accessoryItems, tierForFormalityRank(targetFormalityRank)),
     });
   }
 
@@ -687,7 +692,11 @@ async function regenerateFullClosetDay(
     dayType: request.dayType,
     rationale: chosen.rationale,
     contextTags: [],
-    ...mapDaySlotsToDto(chosen.bySlot, chosen.accessoryItems),
+    ...mapDaySlotsToDto(
+      chosen.bySlot,
+      chosen.accessoryItems,
+      tierForFormalityRank(TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual']),
+    ),
   };
 }
 
@@ -887,7 +896,7 @@ export const tripsService = {
         dayType: request.dayType,
         rationale: day.rationale,
         contextTags: [],
-        ...mapDaySlotsToDto(bySlot, accessoryItems),
+        ...mapDaySlotsToDto(bySlot, accessoryItems, tierForFormalityRank(targetFormalityRank)),
       });
     }
 
@@ -928,7 +937,7 @@ export const tripsService = {
     }
 
     const { bySlot, accessoryItems } = buildBySlotFromItemIds(itemIds, itemsById);
-    return mapDaySlotsToDto(bySlot, accessoryItems);
+    return mapDaySlotsToDto(bySlot, accessoryItems, tier);
   },
 
   async getDaySketchStatus(jobId: string) {
