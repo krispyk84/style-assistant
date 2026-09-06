@@ -154,6 +154,18 @@ export function TripDayCard({
     prevHasSketch.current = hasSketch;
   }, [hasSketch]);
 
+  // A swap (Generate Variants) or a removal replaces this day's item ids —
+  // a selection made before that (e.g. the swapped-out shoe) no longer
+  // matches any current thumbnail, so no thumbnail highlights, but the
+  // stale id count still passed selectedItemIds.length === 1, leaving
+  // "Remove from Outfit"/"See Item Details" visibly rendered with nothing
+  // selected. Clear the selection whenever the underlying item set changes.
+  const closetItemIdsKey = (day.closetItemIds ?? []).join(',');
+  useEffect(() => {
+    setSelectedItemIds([]);
+    setDetailsItemId(null);
+  }, [closetItemIdsKey]);
+
   const detailsItem = detailsItemId ? closetItemsById.get(detailsItemId) ?? null : null;
 
   return (

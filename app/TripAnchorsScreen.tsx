@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -9,6 +10,7 @@ import { ManualPanel } from '@/components/trip-anchors/ManualPanel';
 import { SourcePickerSheet } from '@/components/trip-anchors/SourcePickerSheet';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
+import { FloatingBackButton } from '@/components/ui/floating-back-button';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { parseTripAnchorMode } from '@/lib/trip-route';
@@ -18,6 +20,7 @@ import { useTripAnchorSubmit } from './useTripAnchorSubmit';
 
 export function TripAnchorsScreen() {
   const { theme } = useTheme();
+  const [showFloatingBack, setShowFloatingBack] = useState(false);
 
   // Mode is selected on the preceding /trip-mode screen and passed as a URL param
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
@@ -104,6 +107,8 @@ export function TripAnchorsScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'bottom']}>
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.xl }}
+        onScroll={(e) => setShowFloatingBack(e.nativeEvent.contentOffset.y > 80)}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}>
 
         {/* Header */}
@@ -271,6 +276,8 @@ export function TripAnchorsScreen() {
         onSelect={handleClosetItemSelected}
         onClose={() => setClosetPickerVisible(false)}
       />
+
+      {showFloatingBack && <FloatingBackButton />}
     </SafeAreaView>
   );
 }

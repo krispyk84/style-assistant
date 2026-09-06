@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { ClosetReadinessTracker, joinWithAnd } from '@/components/closet/ClosetReadinessTracker';
 import { AppIcon, type AppIconName } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
+import { FloatingBackButton } from '@/components/ui/floating-back-button';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { evaluateClosetReadiness, type ClosetReadiness } from '@/lib/closet-readiness';
@@ -44,6 +45,7 @@ export function TripModeScreen() {
   const [draft, setDraft] = useState<TripDraft | null>(null);
   const [readiness, setReadiness] = useState<ClosetReadiness | null>(null);
   const [isBuilding, setIsBuilding] = useState(false);
+  const [showFloatingBack, setShowFloatingBack] = useState(false);
   const [buildError, setBuildError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -134,6 +136,8 @@ export function TripModeScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'bottom']}>
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.xl }}
+        onScroll={(e) => setShowFloatingBack(e.nativeEvent.contentOffset.y > 80)}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}>
 
         {/* Header */}
@@ -267,6 +271,8 @@ export function TripModeScreen() {
           </AppText>
         </Pressable>
       </View>
+
+      {showFloatingBack && <FloatingBackButton />}
     </SafeAreaView>
   );
 }

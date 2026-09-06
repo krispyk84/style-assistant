@@ -6,6 +6,7 @@ import * as Calendar from 'expo-calendar';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
+import { FloatingBackButton } from '@/components/ui/floating-back-button';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { buildMatchedItemNameSet } from '@/lib/outfit-piece-display';
@@ -62,6 +63,7 @@ export default function PackingList() {
   const [loadError,   setLoadError]   = useState(false);
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
+  const [showFloatingBack, setShowFloatingBack] = useState(false);
 
   useEffect(() => {
     closetService.getItems().then((res) => {
@@ -178,6 +180,8 @@ export default function PackingList() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'bottom']}>
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.xl }}
+        onScroll={(e) => setShowFloatingBack(e.nativeEvent.contentOffset.y > 80)}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}>
 
         {/* Header */}
@@ -297,6 +301,8 @@ export default function PackingList() {
           </>
         )}
       </ScrollView>
+
+      {showFloatingBack && <FloatingBackButton />}
     </SafeAreaView>
   );
 }

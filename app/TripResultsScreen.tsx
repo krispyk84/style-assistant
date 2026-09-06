@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -5,6 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { TripDayCard } from '@/components/cards/trip-day-card';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
+import { FloatingBackButton } from '@/components/ui/floating-back-button';
 import { LoadingState } from '@/components/ui/loading-state';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
@@ -23,6 +25,7 @@ export function TripResultsScreen() {
     isProgressiveGeneration?: string;
   }>();
   const { theme } = useTheme();
+  const [showFloatingBack, setShowFloatingBack] = useState(false);
 
   const isProgressive = isProgressiveGeneration === '1';
 
@@ -77,6 +80,8 @@ export function TripResultsScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'bottom']}>
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.lg + 72, gap: spacing.xl }}
+        onScroll={(e) => setShowFloatingBack(e.nativeEvent.contentOffset.y > 80)}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}>
 
         {/* Header */}
@@ -208,6 +213,8 @@ export function TripResultsScreen() {
           </Pressable>
         </View>
       )}
+
+      {showFloatingBack && <FloatingBackButton />}
     </SafeAreaView>
   );
 }
