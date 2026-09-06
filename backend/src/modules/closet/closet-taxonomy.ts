@@ -176,8 +176,13 @@ export const TIER_SLOT_RULES: Record<TierSlug, Partial<Record<OutfitSlot, TierSl
     bottoms:      { required: true, allowedGroups: ['trousers'] },
     primaryTop:   { required: true, allowedGroups: ['shirt'] },
     secondaryTop: { required: true, allowedGroups: ['blazer'] },
-    thermalLayer: { required: false },
-    outerwear:    { required: false },
+    // Business always has a secondary top (blazer or suit jacket), so a
+    // thermal layer here means a thin sweater/vest worn UNDER that jacket —
+    // never a bulky hoodie/cardigan/overshirt meant to be worn as a visible
+    // outer layer, which reads as a mismatch layered on top of a suit.
+    // Outerwear means a proper overcoat, never a casual jacket, over a suit.
+    thermalLayer: { required: false, allowedGroups: ['knitwear'] },
+    outerwear:    { required: false, allowedGroups: ['coat'] },
     watch:        { required: true },
     sunglasses:   { required: true },
   },
