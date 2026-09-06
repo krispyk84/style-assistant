@@ -1,7 +1,7 @@
 import type { TripDraft } from '@/lib/trip-draft-storage';
 import type { StoredTripPlan } from '@/lib/trip-outfits-storage';
 import { categorizeTripItem } from '@/lib/outfit-piece-display';
-import type { SavedTripDetail } from '@/services/saved-trips';
+import type { SavedTripDetail, SaveTripParams } from '@/services/saved-trips';
 import type { GenerateTripOutfitsParams, TripOutfitDay } from '@/services/trip-outfits';
 
 export function buildStoredTripPlanFromDraft(tripId: string, draft: TripDraft): StoredTripPlan {
@@ -39,6 +39,29 @@ export function buildStoredTripPlanFromSavedTrip(detail: SavedTripDetail): Store
     dressCode: detail.dressCode,
     days: detail.days,
     generatedAt: detail.savedAt,
+  };
+}
+
+// The saved-trips POST endpoint upserts on (userId, tripId), so re-posting
+// with the same plan.tripId and a freshly-edited days array is how any
+// mutation on an already-saved trip (love/hate, sketch, variant swap, hat/
+// bag toggle, remove-from-outfit) gets persisted past the current screen
+// session — without this, those edits only ever lived in local React state
+// and reverted to the last-saved version the moment you navigated away.
+export function buildSaveTripPayload(plan: StoredTripPlan, days: TripOutfitDay[]): SaveTripParams {
+  return {
+    tripId: plan.tripId,
+    destination: plan.destination,
+    country: plan.country,
+    departureDate: plan.departureDate ?? '',
+    returnDate: plan.returnDate ?? '',
+    travelParty: plan.travelParty ?? 'Solo',
+    climateLabel: plan.climateLabel,
+    styleVibe: plan.styleVibe,
+    purposes: plan.purposes,
+    activities: plan.activities,
+    dressCode: plan.dressCode,
+    days: days.map((day) => (day.sketchStatus === 'loading' ? { ...day, sketchStatus: 'not_started' as const } : day)),
   };
 }
 

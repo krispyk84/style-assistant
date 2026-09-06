@@ -9,6 +9,7 @@ import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
 import { savedTripsService } from '@/services/saved-trips';
 import { tripOutfitsService } from '@/services/trip-outfits';
 import type { TripOutfitDay } from '@/services/trip-outfits';
+import { buildSaveTripPayload } from './trip-results-mappers';
 
 type UseTripResultsActionsParams = {
   plan: StoredTripPlan | null;
@@ -34,6 +35,21 @@ export function useTripResultsActions({
   const [savedDbId, setSavedDbId] = useState<string | null>(savedTripId ?? null);
   const [updatingAccessoryDayId, setUpdatingAccessoryDayId] = useState<string | null>(null);
 
+  // Persists a single day's edit past this screen session. An unsaved trip
+  // lives only in local AsyncStorage (tripOutfitsStorage); an already-saved
+  // trip has to be re-posted to the backend (upserts on tripId) — without
+  // this, every mutation below (love/hate, sketch, variant swap, hat/bag
+  // toggle, remove-from-outfit) only ever updated in-memory `days` and
+  // reverted to the last-saved version on the next visit.
+  const persistDay = useCallback(async (activeTripId: string, updatedDay: TripOutfitDay) => {
+    if (savedTripId && plan) {
+      const nextDays = days.map((d) => (d.id === updatedDay.id ? updatedDay : d));
+      await savedTripsService.save(buildSaveTripPayload(plan, nextDays)).catch(() => {});
+    } else {
+      await tripOutfitsStorage.updateDay(activeTripId, updatedDay);
+    }
+  }, [days, plan, savedTripId]);
+
   const handleGenerateSketch = useCallback(async (day: TripOutfitDay) => {
     const activeTripId = plan?.tripId ?? tripId;
     if (!activeTripId || !plan) return;
@@ -53,15 +69,15 @@ export function useTripResultsActions({
 
       const withJob: TripOutfitDay = { ...updatedLoading, sketchJobId: jobId };
       setDays((prev) => prev.map((current) => (current.id === day.id ? withJob : current)));
-      if (!savedTripId) await tripOutfitsStorage.updateDay(activeTripId, withJob);
+      await persistDay(activeTripId, withJob);
 
       startSketchPoll(day.id, jobId, activeTripId);
     } catch {
       const failed: TripOutfitDay = { ...day, sketchStatus: 'failed' };
       setDays((prev) => prev.map((current) => (current.id === day.id ? failed : current)));
-      if (!savedTripId) await tripOutfitsStorage.updateDay(activeTripId, failed);
+      await persistDay(activeTripId, failed);
     }
-  }, [plan, savedTripId, setDays, startSketchPoll, tripId]);
+  }, [persistDay, plan, setDays, startSketchPoll, tripId]);
 
   const handleLove = useCallback(async (day: TripOutfitDay) => {
     const activeTripId = plan?.tripId ?? tripId;
@@ -69,8 +85,8 @@ export function useTripResultsActions({
     const newFeedback = day.feedback === 'love' ? null : 'love' as const;
     const updated: TripOutfitDay = { ...day, feedback: newFeedback };
     setDays((prev) => prev.map((current) => (current.id === day.id ? updated : current)));
-    if (!savedTripId) await tripOutfitsStorage.updateDay(activeTripId, updated);
-  }, [plan?.tripId, savedTripId, setDays, tripId]);
+    await persistDay(activeTripId, updated);
+  }, [persistDay, plan?.tripId, setDays, tripId]);
 
   const handleHate = useCallback(async (day: TripOutfitDay) => {
     const activeTripId = plan?.tripId ?? tripId;
@@ -101,7 +117,7 @@ export function useTripResultsActions({
       });
 
       setDays((prev) => prev.map((current) => (current.id === day.id ? newDay : current)));
-      if (!savedTripId) await tripOutfitsStorage.updateDay(activeTripId, newDay);
+      await persistDay(activeTripId, newDay);
     } catch {
       // Regeneration failed: leave the card as-is.
     } finally {
@@ -111,7 +127,7 @@ export function useTripResultsActions({
         return next;
       });
     }
-  }, [plan, savedTripId, setDays, stopSketchPoll, tripId]);
+  }, [persistDay, plan, setDays, stopSketchPoll, tripId]);
 
   // Swap 1-2 items on a fullCloset day: push a request for the dedicated
   // variant-selection screen, then wait for it to hand back the chosen day.
@@ -145,11 +161,11 @@ export function useTripResultsActions({
       stopSketchPoll(day.id);
       const merged: TripOutfitDay = { ...selectedDay, id: day.id, feedback: null };
       setDays((prev) => prev.map((current) => (current.id === day.id ? merged : current)));
-      if (!savedTripId) void tripOutfitsStorage.updateDay(activeTripId, merged);
+      void persistDay(activeTripId, merged);
     });
 
     router.push(buildTripDayVariantsHref());
-  }, [plan, savedTripId, setDays, stopSketchPoll, tripId]);
+  }, [persistDay, plan, setDays, stopSketchPoll, tripId]);
 
   // Clear any dangling listener if the screen unmounts before a selection is made.
   useEffect(() => () => tripDayVariantFlow.clearListener(), []);
@@ -185,7 +201,7 @@ export function useTripResultsActions({
         sketchJobId: undefined,
       };
       setDays((prev) => prev.map((current) => (current.id === day.id ? updatedDay : current)));
-      if (!savedTripId) await tripOutfitsStorage.updateDay(activeTripId, updatedDay);
+      await persistDay(activeTripId, updatedDay);
 
       const { jobId } = await tripOutfitsService.startDaySketch({
         destination: plan.destination,
@@ -197,14 +213,14 @@ export function useTripResultsActions({
       });
       const withJob: TripOutfitDay = { ...updatedDay, sketchJobId: jobId };
       setDays((prev) => prev.map((current) => (current.id === day.id ? withJob : current)));
-      if (!savedTripId) await tripOutfitsStorage.updateDay(activeTripId, withJob);
+      await persistDay(activeTripId, withJob);
       startSketchPoll(day.id, jobId, activeTripId);
     } catch {
       // Update failed: leave the card as-is.
     } finally {
       setUpdatingAccessoryDayId(null);
     }
-  }, [plan, savedTripId, setDays, startSketchPoll, stopSketchPoll, tripId, updatingAccessoryDayId]);
+  }, [persistDay, plan, setDays, startSketchPoll, stopSketchPoll, tripId, updatingAccessoryDayId]);
 
   // Drops exactly one piece from a fullCloset day, keeping the title/
   // rationale and every other item untouched — mirrors handleToggleDayAccessory's
@@ -245,35 +261,19 @@ export function useTripResultsActions({
         sketchJobId: undefined,
       };
       setDays((prev) => prev.map((current) => (current.id === day.id ? updatedDay : current)));
-      if (!savedTripId) await tripOutfitsStorage.updateDay(activeTripId, updatedDay);
+      await persistDay(activeTripId, updatedDay);
     } catch {
       // Update failed: leave the card as-is.
     } finally {
       setUpdatingAccessoryDayId(null);
     }
-  }, [plan, savedTripId, setDays, stopSketchPoll, tripId, updatingAccessoryDayId]);
+  }, [persistDay, plan, setDays, stopSketchPoll, tripId, updatingAccessoryDayId]);
 
   const handleSaveTrip = useCallback(async () => {
     if (!plan || isSaving) return;
     setIsSaving(true);
     try {
-      const daysToSave = days.map((day) =>
-        day.sketchStatus === 'loading' ? { ...day, sketchStatus: 'not_started' as const } : day,
-      );
-      const saved = await savedTripsService.save({
-        tripId: plan.tripId,
-        destination: plan.destination,
-        country: plan.country,
-        departureDate: plan.departureDate ?? '',
-        returnDate: plan.returnDate ?? '',
-        travelParty: plan.travelParty ?? 'Solo',
-        climateLabel: plan.climateLabel,
-        styleVibe: plan.styleVibe,
-        purposes: plan.purposes,
-        activities: plan.activities,
-        dressCode: plan.dressCode,
-        days: daysToSave,
-      });
+      const saved = await savedTripsService.save(buildSaveTripPayload(plan, days));
       setSavedDbId(saved.id);
     } catch {
       // User can retry.
