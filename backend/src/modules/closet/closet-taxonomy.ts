@@ -65,6 +65,31 @@ export const CATEGORY_TO_GROUP: Record<string, string> = {
   Sunglasses:      'sunglasses',
 };
 
+// A structured, tailored jacket is sometimes catalogued under the generic
+// 'Jacket' category rather than 'Blazer'/'Sports Jacket' (common when photo
+// analysis doesn't distinguish a sports coat from a casual jacket) — this
+// would otherwise put it in the outerwear slot instead of secondaryTop,
+// where it structurally belongs. The item's own title reliably says which
+// one it actually is (a true casual outerwear jacket — bomber, field jacket,
+// denim jacket — never carries these words), so it's used as a correction
+// on top of the stored category rather than trusting category alone here.
+const BLAZER_LIKE_TITLE_KEYWORDS = ['blazer', 'sports jacket', 'sport jacket', 'sport coat', 'sportcoat'];
+
+/**
+ * Resolves an item's canonical garment group — CATEGORY_TO_GROUP's lookup,
+ * corrected for a 'Jacket'-categorized item whose own title identifies it as
+ * a blazer/sports jacket. Use this instead of indexing CATEGORY_TO_GROUP
+ * directly wherever an item's title is available.
+ */
+export function resolveGarmentGroup(item: { category: string; title: string }): string | undefined {
+  const group = CATEGORY_TO_GROUP[item.category];
+  if (group === 'jacket') {
+    const title = item.title.toLowerCase();
+    if (BLAZER_LIKE_TITLE_KEYWORDS.some((keyword) => title.includes(keyword))) return 'blazer';
+  }
+  return group;
+}
+
 // Casual=0 -> Formal=3, mirrors OUTFIT_PIECE_CATEGORIES' formality enum.
 export const FORMALITY_RANK: Record<string, number> = {
   'Casual':         0,

@@ -1,7 +1,7 @@
 import {
   ACCESSORY_GROUPS,
-  CATEGORY_TO_GROUP,
   FORMALITY_RANK,
+  resolveGarmentGroup,
   SLOT_GROUPS,
   TIER_ALLOWS_SUIT,
   TIER_SLOT_RULES,
@@ -114,7 +114,7 @@ function pickForSlot<TItem extends BuilderClosetItem>(
   const allowedGroups = effectiveAllowedGroups(slot, tier);
   const candidates = closetItems.filter((item) => {
     if (excludeItemIds.has(item.id)) return false;
-    const group = CATEGORY_TO_GROUP[item.category];
+    const group = resolveGarmentGroup(item);
     return group !== undefined && allowedGroups.includes(group);
   });
   if (candidates.length === 0) return null;
@@ -124,7 +124,7 @@ function pickForSlot<TItem extends BuilderClosetItem>(
   // Weighted random favoring garment groups not recently used in this slot,
   // so footwear (for example) doesn't always land on the same shoe type.
   const weighted = pool.map((item) => {
-    const group = CATEGORY_TO_GROUP[item.category]!;
+    const group = resolveGarmentGroup(item)!;
     return { item, weight: recentGroups.has(group) ? 1 : 4 };
   });
   const totalWeight = weighted.reduce((sum, w) => sum + w.weight, 0);
@@ -216,7 +216,7 @@ export function buildOutfitSlotShortlists<TItem extends BuilderClosetItem>(
     const allowedGroups = effectiveAllowedGroups(slot, params.tier);
     const candidates = params.closetItems.filter((item) => {
       if (excludeItemIds.has(item.id)) return false;
-      const group = CATEGORY_TO_GROUP[item.category];
+      const group = resolveGarmentGroup(item);
       return group !== undefined && allowedGroups.includes(group);
     });
     if (candidates.length === 0) continue;
@@ -245,7 +245,7 @@ export function buildAccessoryShortlist<TItem extends BuilderClosetItem>(
 ): TItem[] {
   const candidates = closetItems.filter((item) => {
     if (excludeItemIds.has(item.id)) return false;
-    const group = CATEGORY_TO_GROUP[item.category];
+    const group = resolveGarmentGroup(item);
     return group !== undefined && ACCESSORY_GROUPS.includes(group);
   });
   if (candidates.length === 0) return [];
@@ -271,12 +271,12 @@ export function buildVariantCandidates<TItem extends BuilderClosetItem>(
   excludeItemIds: ReadonlySet<string>,
   maxCandidates: number = DEFAULT_MAX_PER_SLOT,
 ): TItem[] {
-  const group = CATEGORY_TO_GROUP[originalItem.category];
+  const group = resolveGarmentGroup(originalItem);
   if (!group) return [];
 
   const candidates = closetItems.filter((item) => {
     if (excludeItemIds.has(item.id) || item.id === originalItem.id) return false;
-    return CATEGORY_TO_GROUP[item.category] === group;
+    return resolveGarmentGroup(item) === group;
   });
   if (candidates.length === 0) return [];
 
@@ -287,7 +287,7 @@ export function buildVariantCandidates<TItem extends BuilderClosetItem>(
 }
 
 function isSuit(item: BuilderClosetItem | undefined): boolean {
-  return !!item && CATEGORY_TO_GROUP[item.category] === 'suit';
+  return !!item && resolveGarmentGroup(item) === 'suit';
 }
 
 /**
@@ -341,13 +341,13 @@ export function fillMissingRequiredSlots<TItem extends BuilderClosetItem>(params
     const usedIds = new Set(Object.values(params.bySlot).map((item) => (item as TItem).id));
     const restrictedGroups = effectiveAllowedGroups(slot, params.tier);
     let candidates = params.closetItems.filter((item) => {
-      const group = CATEGORY_TO_GROUP[item.category];
+      const group = resolveGarmentGroup(item);
       return group !== undefined && restrictedGroups.includes(group);
     });
     if (candidates.length === 0) {
       const fallbackGroups = SLOT_GROUPS[slot];
       candidates = params.closetItems.filter((item) => {
-        const group = CATEGORY_TO_GROUP[item.category];
+        const group = resolveGarmentGroup(item);
         return group !== undefined && fallbackGroups.includes(group);
       });
     }
@@ -388,8 +388,8 @@ export function buildFrameworkBreakdown<TItem extends BuilderClosetItem>(params:
 }): FrameworkBreakdown {
   const { tier, bySlot } = params;
   const accessoryItems = params.accessoryItems ?? [];
-  const bottomsIsSuit = !!bySlot.bottoms && CATEGORY_TO_GROUP[bySlot.bottoms.category] === 'suit';
-  const secondaryTopIsSuit = !!bySlot.secondaryTop && CATEGORY_TO_GROUP[bySlot.secondaryTop.category] === 'suit';
+  const bottomsIsSuit = !!bySlot.bottoms && resolveGarmentGroup(bySlot.bottoms) === 'suit';
+  const secondaryTopIsSuit = !!bySlot.secondaryTop && resolveGarmentGroup(bySlot.secondaryTop) === 'suit';
   const usedSuit = bottomsIsSuit && secondaryTopIsSuit && bySlot.bottoms!.id === bySlot.secondaryTop!.id;
 
   const tierDisplayName = tier === 'business' ? 'Business/Formal' : tier === 'smart-casual' ? 'Smart Casual' : 'Casual';

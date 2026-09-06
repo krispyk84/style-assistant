@@ -41,8 +41,8 @@ import {
 } from './closet-outfit-builder.js';
 import {
   ACCESSORY_GROUPS,
-  CATEGORY_TO_GROUP,
   FORMALITY_RANK,
+  resolveGarmentGroup,
   GROUP_TO_SLOTS,
   SLOT_GROUPS,
   TIER_FORMALITY_TARGET,
@@ -195,7 +195,7 @@ function classifyItemsBySlot(
   for (const id of itemIds) {
     const item = itemsById.get(id);
     if (!item) continue;
-    const group = CATEGORY_TO_GROUP[item.category];
+    const group = resolveGarmentGroup(item);
     const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
     if (slot) {
       bySlot[slot] = item;
@@ -248,9 +248,9 @@ function resolveChoiceOutfits(params: {
     const bySlot = new Map(chosenEntries);
     const bottomsItem = bySlot.has('bottoms') ? params.itemsById.get(bySlot.get('bottoms')!) : undefined;
     const secondaryTopItem = bySlot.has('secondaryTop') ? params.itemsById.get(bySlot.get('secondaryTop')!) : undefined;
-    if (bottomsItem && CATEGORY_TO_GROUP[bottomsItem.category] === 'suit' && bySlot.has('secondaryTop')) {
+    if (bottomsItem && resolveGarmentGroup(bottomsItem) === 'suit' && bySlot.has('secondaryTop')) {
       bySlot.set('secondaryTop', bottomsItem.id);
-    } else if (secondaryTopItem && CATEGORY_TO_GROUP[secondaryTopItem.category] === 'suit' && bySlot.has('bottoms')) {
+    } else if (secondaryTopItem && resolveGarmentGroup(secondaryTopItem) === 'suit' && bySlot.has('bottoms')) {
       bySlot.set('bottoms', secondaryTopItem.id);
     }
 
@@ -261,7 +261,7 @@ function resolveChoiceOutfits(params: {
     const hasIllegitimateDuplicate = [...idCounts.entries()].some(([id, count]) => {
       if (count <= 1) return false;
       const item = params.itemsById.get(id);
-      return !(item && CATEGORY_TO_GROUP[item.category] === 'suit');
+      return !(item && resolveGarmentGroup(item) === 'suit');
     });
     if (hasIllegitimateDuplicate) continue;
 
@@ -399,7 +399,7 @@ function pickAccessory(
   targetFormalityRank: number,
   excludeItemIds: ReadonlySet<string>,
 ): BuilderItem | null {
-  const candidates = closetItems.filter((item) => CATEGORY_TO_GROUP[item.category] === group);
+  const candidates = closetItems.filter((item) => resolveGarmentGroup(item) === group);
   const result = buildDeterministicOutfit({
     closetItems: candidates,
     targetFormalityRank,
@@ -427,17 +427,17 @@ function ensureFootwearPresent(
   targetFormalityRank: number,
 ): void {
   for (const outfit of outfits) {
-    const hasFootwear = outfit.items.some((item) => SLOT_GROUPS.footwear.includes(CATEGORY_TO_GROUP[item.category] ?? ''));
+    const hasFootwear = outfit.items.some((item) => SLOT_GROUPS.footwear.includes(resolveGarmentGroup(item) ?? ''));
     if (hasFootwear) continue;
 
     const usedIds = new Set(outfit.items.map((item) => item.id));
     const restrictedGroups = effectiveAllowedGroups('footwear', tier);
     let candidates = closetItems.filter(
-      (item) => restrictedGroups.includes(CATEGORY_TO_GROUP[item.category] ?? '') && !usedIds.has(item.id),
+      (item) => restrictedGroups.includes(resolveGarmentGroup(item) ?? '') && !usedIds.has(item.id),
     );
     if (candidates.length === 0) {
       candidates = closetItems.filter(
-        (item) => SLOT_GROUPS.footwear.includes(CATEGORY_TO_GROUP[item.category] ?? '') && !usedIds.has(item.id),
+        (item) => SLOT_GROUPS.footwear.includes(resolveGarmentGroup(item) ?? '') && !usedIds.has(item.id),
       );
     }
     if (candidates.length === 0) continue;
@@ -573,7 +573,7 @@ export const closetOutfitsService = {
 
     for (const swapId of swapItemIds) {
       const originalItem = itemsById.get(swapId)!;
-      const group = CATEGORY_TO_GROUP[originalItem.category];
+      const group = resolveGarmentGroup(originalItem);
       const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
       if (!slot) continue;
       const candidates = buildVariantCandidates(originalItem, closetItems, targetFormalityRank, excludeIds);
@@ -655,8 +655,8 @@ export const closetOutfitsService = {
     const targetFormalityRank = TIER_FORMALITY_TARGET[payload.formality] ?? FORMALITY_RANK['Refined Casual'];
     const tier = tierForFormalityRank(targetFormalityRank);
 
-    const currentHatId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'hat');
-    const currentBagId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'bag');
+    const currentHatId = validItemIds.find((id) => resolveGarmentGroup(itemsById.get(id)!) === 'hat');
+    const currentBagId = validItemIds.find((id) => resolveGarmentGroup(itemsById.get(id)!) === 'bag');
 
     let itemIds = validItemIds.filter((id) => id !== currentHatId || payload.includeHat);
     itemIds = itemIds.filter((id) => id !== currentBagId || payload.includeBag);

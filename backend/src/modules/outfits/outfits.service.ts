@@ -28,8 +28,8 @@ import {
 } from '../closet/closet-outfit-builder.js';
 import {
   ACCESSORY_GROUPS,
-  CATEGORY_TO_GROUP,
   FORMALITY_RANK,
+  resolveGarmentGroup,
   GROUP_TO_SLOTS,
   TIER_FORMALITY_TARGET,
   TIER_SLOT_RULES,
@@ -225,7 +225,7 @@ function buildTierRoleShortlists(params: {
 }
 
 function isSuit(item: BuilderItem | undefined): boolean {
-  return !!item && CATEGORY_TO_GROUP[item.category] === 'suit';
+  return !!item && resolveGarmentGroup(item) === 'suit';
 }
 
 // Classifies a flat resolved item-id list back into slots (plus any multi-
@@ -240,7 +240,7 @@ function classifyItemsBySlot(
   for (const id of itemIds) {
     const item = itemsById.get(id);
     if (!item) continue;
-    const group = CATEGORY_TO_GROUP[item.category];
+    const group = resolveGarmentGroup(item);
     const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
     if (slot) {
       bySlot[slot] = item;
@@ -276,7 +276,7 @@ function normalizeKeyPieceRoles(
   const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
 
   for (const item of items) {
-    const group = CATEGORY_TO_GROUP[item.category];
+    const group = resolveGarmentGroup(item);
     const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
     if (!slot || !KEY_PIECE_SLOTS.includes(slot)) continue;
     if (!bySlot[slot] || (isSuit(item) && !isSuit(bySlot[slot]))) {

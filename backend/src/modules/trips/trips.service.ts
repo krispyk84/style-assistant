@@ -29,8 +29,8 @@ import {
 } from '../closet/closet-outfit-builder.js';
 import {
   ACCESSORY_GROUPS,
-  CATEGORY_TO_GROUP,
   FORMALITY_RANK,
+  resolveGarmentGroup,
   GROUP_TO_SLOTS,
   TIER_FORMALITY_TARGET,
   TIER_SLOT_RULES,
@@ -281,7 +281,7 @@ function buildBySlotFromItemIds(
   for (const id of itemIds) {
     const item = itemsById.get(id);
     if (!item) continue;
-    const group = CATEGORY_TO_GROUP[item.category];
+    const group = resolveGarmentGroup(item);
     const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
     if (slot) {
       bySlot[slot] = item;
@@ -306,7 +306,7 @@ function pickAccessory(
   targetFormalityRank: number,
   excludeItemIds: ReadonlySet<string>,
 ): BuilderItem | null {
-  const candidates = closetItems.filter((item) => CATEGORY_TO_GROUP[item.category] === group);
+  const candidates = closetItems.filter((item) => resolveGarmentGroup(item) === group);
   const result = buildDeterministicOutfit({
     closetItems: candidates,
     targetFormalityRank,
@@ -459,7 +459,7 @@ async function chooseFullClosetDay(params: {
   // narrowing that slot's shortlist to just this one id guarantees it gets
   // used rather than hoping the model notices it among everything offered.
   if (params.pinnedItem) {
-    const pinnedGroup = CATEGORY_TO_GROUP[params.pinnedItem.category];
+    const pinnedGroup = resolveGarmentGroup(params.pinnedItem);
     for (const slot of pinnedGroup ? GROUP_TO_SLOTS[pinnedGroup] ?? [] : []) {
       // hat/bag stay strictly opt-in via the toggle — never force-worn by a pin.
       if (slot === 'hat' || slot === 'bag') continue;
@@ -617,7 +617,7 @@ async function generateFullClosetTripOutfits(
     .filter((anchor) => anchor.source === 'closet' && anchor.closetItemId && itemsById.has(anchor.closetItemId))
     .map((anchor) => itemsById.get(anchor.closetItemId!)!)
     .filter((item) => {
-      const group = CATEGORY_TO_GROUP[item.category];
+      const group = resolveGarmentGroup(item);
       return group !== 'hat' && group !== 'bag';
     });
   const usedAnchorItemIds = new Set(request.usedAnchorItemIds ?? []);
@@ -868,7 +868,7 @@ export const tripsService = {
 
     for (const swapId of validSwapIds) {
       const originalItem = itemsById.get(swapId)!;
-      const group = CATEGORY_TO_GROUP[originalItem.category];
+      const group = resolveGarmentGroup(originalItem);
       const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
       if (!slot) continue;
       const candidates = buildVariantCandidates(originalItem, closetItems, targetFormalityRank, excludeIds);
@@ -959,8 +959,8 @@ export const tripsService = {
     const tier =
       request.formalityTier ?? tierForFormalityRank(TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual']);
     const targetFormalityRank = TIER_FORMALITY_TARGET[tier] ?? FORMALITY_RANK['Smart Casual'];
-    const currentHatId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'hat');
-    const currentBagId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'bag');
+    const currentHatId = validItemIds.find((id) => resolveGarmentGroup(itemsById.get(id)!) === 'hat');
+    const currentBagId = validItemIds.find((id) => resolveGarmentGroup(itemsById.get(id)!) === 'bag');
 
     let itemIds = validItemIds.filter((id) => id !== currentHatId || request.includeHat);
     itemIds = itemIds.filter((id) => id !== currentBagId || request.includeBag);
