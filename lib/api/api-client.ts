@@ -32,7 +32,13 @@ export class ApiClient {
         signal: options.signal,
       });
 
-      const payload = (await response.json()) as ApiResponse<T>;
+      // A 204 has no body by definition — calling .json() on it throws
+      // (e.g. DELETE /trips/saved/:id), which this catch-all would otherwise
+      // silently turn into a generic failure even though the request itself
+      // succeeded, leaving callers unable to tell "deleted" from "failed".
+      const payload: ApiResponse<T> = response.status === 204
+        ? { success: true, data: null as T, error: null }
+        : ((await response.json()) as ApiResponse<T>);
 
       if (!response.ok) {
         return {
