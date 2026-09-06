@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from './app-icon';
 import { AppText } from './app-text';
@@ -15,8 +16,14 @@ type FloatingBackButtonProps = {
 // contentContainerStyle and/or a fixed bottom bar) rather than going through
 // AppScreen, so they can track scroll offset themselves and still get the
 // same "persists once you scroll past the inline header" affordance.
+//
+// A position:'absolute' child is positioned relative to its parent's border
+// box, NOT the padding SafeAreaView adds for the notch/status bar — so this
+// needs its own insets.top on top of spacing.md, same as AppScreen's own
+// floatingBack pill does, or it renders under the status bar.
 export function FloatingBackButton({ onPress }: FloatingBackButtonProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Pressable
@@ -31,7 +38,7 @@ export function FloatingBackButton({ onPress }: FloatingBackButtonProps) {
         flexDirection: 'row',
         gap: spacing.xs,
         left: spacing.lg,
-        top: spacing.md,
+        top: insets.top + spacing.md,
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm,
         position: 'absolute',
