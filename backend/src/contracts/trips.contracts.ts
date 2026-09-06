@@ -159,4 +159,5 @@ export type UpdateTripDayAccessoriesResponse = {
   bag: string | null;
   accessories: string[];
   closetItemIds: string[];
+  framework?: OutfitFrameworkDto;
 };

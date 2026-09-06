@@ -10,6 +10,8 @@ export type OutfitThumbnailItem = {
   id: string;
   title: string;
   imageUrl?: string | null;
+  /** Small category label (e.g. "Footwear") shown under the thumbnail instead of the item's full name, when known. */
+  label?: string;
 };
 
 type OutfitItemThumbnailRowProps = {
@@ -67,8 +69,18 @@ export function OutfitItemThumbnailRow({ items, selectedItemIds, onToggleSelect 
                 </View>
               ) : null}
             </View>
-            <AppText tone="subtle" numberOfLines={1} style={{ fontSize: 10, marginTop: 2, textAlign: 'center', width: 72 }}>
-              {item.title}
+            <AppText
+              tone="subtle"
+              numberOfLines={1}
+              style={{
+                fontSize: 9,
+                letterSpacing: 0.4,
+                marginTop: 2,
+                textAlign: 'center',
+                textTransform: item.label ? 'uppercase' : 'none',
+                width: 72,
+              }}>
+              {item.label ?? item.title}
             </AppText>
           </>
         );

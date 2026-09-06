@@ -3,6 +3,7 @@ import { LayoutAnimation, Platform, Pressable, UIManager, View } from 'react-nat
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPanel';
+import { ClosetItemSheet } from '@/components/closet/closet-item-sheet';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
 import { PrimaryButton } from '@/components/ui/primary-button';
@@ -13,7 +14,6 @@ import { buildTripDayLabeledPieces } from '@/lib/outfit-piece-display';
 import type { TripOutfitDay } from '@/services/trip-outfits';
 import type { ClosetItem } from '@/types/closet';
 import { OutfitActionsAccordion } from './OutfitActionsAccordion';
-import { OutfitFrameworkView } from './OutfitFrameworkView';
 import { OutfitItemThumbnailRow, type OutfitThumbnailItem } from './OutfitItemThumbnailRow';
 import { OutfitPieceListView } from './OutfitPieceListView';
 
@@ -52,6 +52,8 @@ type Props = {
   /** fullCloset days only — toggles a hat/bag in or out of this day, reloading just this day's item list and sketch. */
   onToggleAccessory?: (day: TripOutfitDay, toggle: { includeHat: boolean; includeBag: boolean }) => void;
   isUpdatingAccessories?: boolean;
+  /** fullCloset days only — drops exactly one piece from this day and clears the sketch (the user re-taps Generate Sketch for the new composition). */
+  onRemoveFromOutfit?: (day: TripOutfitDay, itemId: string, accessoryState: { includeHat: boolean; includeBag: boolean }) => void;
 };
 
 export function TripDayCard({
@@ -64,9 +66,11 @@ export function TripDayCard({
   onGenerateVariants,
   onToggleAccessory,
   isUpdatingAccessories = false,
+  onRemoveFromOutfit,
 }: Props) {
   const { theme } = useTheme();
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [detailsItemId, setDetailsItemId] = useState<string | null>(null);
 
   function toggleItemSelected(itemId: string) {
     setSelectedItemIds((current) => {
@@ -106,6 +110,17 @@ export function TripDayCard({
   // which can confidently match the wrong item when the closet has two
   // similarly-described pieces (e.g. two navy tops). Direct id lookup can't
   // mismatch: it's the same real item the framework breakdown shows.
+  // Small category label per item (e.g. "Footwear") — read directly from the
+  // framework breakdown so the label shown on the thumbnail can never
+  // disagree with the framework's own slot assignment for that item.
+  const labelByItemId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const slot of day.framework?.slots ?? []) {
+      for (const slotItem of slot.items) map.set(slotItem.closetItemId, slot.label);
+    }
+    return map;
+  }, [day.framework]);
+
   const thumbnailItems = useMemo(() => {
     if (day.closetItemIds?.length) {
       return day.closetItemIds
@@ -115,6 +130,7 @@ export function TripDayCard({
           id: item.id,
           title: item.title,
           imageUrl: item.sketchImageUrl ?? item.uploadedImageUrl,
+          label: labelByItemId.get(item.id),
         }));
     }
     return labeledPieces
@@ -123,8 +139,9 @@ export function TripDayCard({
         id: piece.matchedClosetItem!.id,
         title: piece.matchedClosetItem!.title,
         imageUrl: piece.matchedClosetItem!.sketchImageUrl ?? piece.matchedClosetItem!.uploadedImageUrl,
+        label: piece.label,
       }));
-  }, [day.closetItemIds, closetItemsById, labeledPieces]);
+  }, [day.closetItemIds, closetItemsById, labeledPieces, labelByItemId]);
 
   // Animate layout when sketch becomes ready so the card expands smoothly.
   const prevHasSketch = useRef(hasSketch);
@@ -137,7 +154,10 @@ export function TripDayCard({
     prevHasSketch.current = hasSketch;
   }, [hasSketch]);
 
+  const detailsItem = detailsItemId ? closetItemsById.get(detailsItemId) ?? null : null;
+
   return (
+    <>
     <View
       style={{
         backgroundColor: theme.colors.surface,
@@ -192,7 +212,6 @@ export function TripDayCard({
               selectedItemIds={onGenerateVariants ? selectedItemIds : undefined}
               onToggleSelect={onGenerateVariants ? toggleItemSelected : undefined}
             />
-            {day.framework ? <OutfitFrameworkView framework={day.framework} /> : null}
             {onGenerateVariants ? (
               <>
                 <AppText tone="subtle" style={{ fontSize: 12 }}>
@@ -206,6 +225,32 @@ export function TripDayCard({
                     variant="secondary"
                     onPress={() => onGenerateVariants(day, selectedItemIds, thumbnailItems.filter((item) => selectedItemIds.includes(item.id)))}
                   />
+                ) : null}
+                {selectedItemIds.length === 1 ? (
+                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                    {onRemoveFromOutfit ? (
+                      <PrimaryButton
+                        label="Remove from Outfit"
+                        variant="secondary"
+                        style={{ flex: 1 }}
+                        onPress={() => {
+                          const itemId = selectedItemIds[0]!;
+                          const removedItem = closetItemsById.get(itemId);
+                          onRemoveFromOutfit(day, itemId, {
+                            includeHat: hasHat && removedItem?.category !== 'Hat',
+                            includeBag: hasBag && removedItem?.category !== 'Bag',
+                          });
+                          setSelectedItemIds([]);
+                        }}
+                      />
+                    ) : null}
+                    <PrimaryButton
+                      label="See Item Details"
+                      variant="secondary"
+                      style={{ flex: 1 }}
+                      onPress={() => setDetailsItemId(selectedItemIds[0]!)}
+                    />
+                  </View>
                 ) : null}
               </>
             ) : null}
@@ -385,5 +430,13 @@ export function TripDayCard({
         </OutfitActionsAccordion>
       </View>
     </View>
+    {detailsItemId ? (
+      <ClosetItemSheet
+        item={detailsItem}
+        suggestion={labelByItemId.get(detailsItemId) ?? detailsItem?.title ?? ''}
+        onClose={() => setDetailsItemId(null)}
+      />
+    ) : null}
+    </>
   );
 }

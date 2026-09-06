@@ -48,6 +48,7 @@ export function TripResultsScreen() {
     handleGenerateVariants,
     handleSaveTrip,
     handleToggleDayAccessory,
+    handleRemoveItemFromDay,
   } = useTripResultsActions({
     plan,
     days,
@@ -153,6 +154,7 @@ export function TripResultsScreen() {
                 onGenerateVariants={handleGenerateVariants}
                 onToggleAccessory={(targetDay, toggle) => void handleToggleDayAccessory(targetDay, toggle)}
                 isUpdatingAccessories={updatingAccessoryDayId === day.id}
+                onRemoveFromOutfit={(targetDay, itemId, accessoryState) => void handleRemoveItemFromDay(targetDay, itemId, accessoryState)}
               />
             ))}
 

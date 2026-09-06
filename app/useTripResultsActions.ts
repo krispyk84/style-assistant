@@ -206,6 +206,53 @@ export function useTripResultsActions({
     }
   }, [plan, savedTripId, setDays, startSketchPoll, stopSketchPoll, tripId, updatingAccessoryDayId]);
 
+  // Drops exactly one piece from a fullCloset day, keeping the title/
+  // rationale and every other item untouched — mirrors handleToggleDayAccessory's
+  // recompute-only-what-changed approach, but deliberately does NOT auto-start
+  // a new sketch job: the composition just changed, so the old sketch no
+  // longer matches it, and the user should explicitly ask for a new one
+  // rather than an automatic redraw happening behind them.
+  const handleRemoveItemFromDay = useCallback(async (
+    day: TripOutfitDay,
+    itemId: string,
+    accessoryState: { includeHat: boolean; includeBag: boolean },
+  ) => {
+    const activeTripId = plan?.tripId ?? tripId;
+    if (!activeTripId || !plan || updatingAccessoryDayId) return;
+
+    setUpdatingAccessoryDayId(day.id);
+    try {
+      const filteredItemIds = (day.closetItemIds ?? []).filter((id) => id !== itemId);
+      const result = await tripOutfitsService.updateDayAccessories({
+        itemIds: filteredItemIds,
+        dayType: day.dayType,
+        formalityTier: day.formalityTier,
+        includeHat: accessoryState.includeHat,
+        includeBag: accessoryState.includeBag,
+      });
+
+      stopSketchPoll(day.id);
+      const updatedDay: TripOutfitDay = {
+        ...day,
+        pieces: result.pieces,
+        shoes: result.shoes,
+        bag: result.bag,
+        accessories: result.accessories,
+        closetItemIds: result.closetItemIds,
+        framework: result.framework,
+        sketchStatus: 'not_started',
+        sketchUrl: undefined,
+        sketchJobId: undefined,
+      };
+      setDays((prev) => prev.map((current) => (current.id === day.id ? updatedDay : current)));
+      if (!savedTripId) await tripOutfitsStorage.updateDay(activeTripId, updatedDay);
+    } catch {
+      // Update failed: leave the card as-is.
+    } finally {
+      setUpdatingAccessoryDayId(null);
+    }
+  }, [plan, savedTripId, setDays, stopSketchPoll, tripId, updatingAccessoryDayId]);
+
   const handleSaveTrip = useCallback(async () => {
     if (!plan || isSaving) return;
     setIsSaving(true);
@@ -246,5 +293,6 @@ export function useTripResultsActions({
     handleGenerateVariants,
     handleSaveTrip,
     handleToggleDayAccessory,
+    handleRemoveItemFromDay,
   };
 }
