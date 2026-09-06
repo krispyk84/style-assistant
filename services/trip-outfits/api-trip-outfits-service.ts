@@ -94,6 +94,7 @@ export const tripOutfitsService = {
     pieces: string[];
     shoes: string;
     accessories: string[];
+    bag?: string | null;
   }): Promise<TripDaySketchResponse> {
     const response = await createApiClient().request<TripDaySketchResponse>('/trips/sketch-day', {
       method: 'POST',

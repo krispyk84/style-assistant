@@ -78,6 +78,7 @@ export const generateTripDaySketchSchema = z.object({
   pieces:       z.array(z.string().min(1)).min(1),
   shoes:        z.string().min(1),
   accessories:  z.array(z.string()).default([]),
+  bag:          z.string().nullable().optional(),
   profileId:    z.string().optional(),
 });
 

@@ -562,14 +562,16 @@ export function buildTripDaySketchPrompt(params: {
   pieces: string[];
   shoes: string;
   accessories: string[];
+  bag?: string | null;
   subjectBrief: string;
 }): string {
-  const { destination, dayTitle, climateLabel, pieces, shoes, accessories, subjectBrief } = params;
+  const { destination, dayTitle, climateLabel, pieces, shoes, accessories, bag, subjectBrief } = params;
 
   const outfitLines: string[] = [
     ...pieces.map((p) => `- garment: ${p}`),
     `- shoes: ${shoes}`,
     ...accessories.map((a) => `- accessory: ${a}`),
+    ...(bag ? [`- bag: ${bag}`] : []),
   ];
 
   // Setting note sits inside the outfit section so it informs garment rendering
@@ -588,10 +590,18 @@ export function buildTripDaySketchPrompt(params: {
   // right after the headless/style guards — same reasoning as HEADLESS_GUARD
   // being slot 0: a hard constraint buried after several paragraphs of
   // editorial styling language gets diluted by the time the model reaches it.
+  // "bag" is only ever a forbidden extra when none is listed above — when
+  // one IS listed, saying "no ... bag ..." here would directly contradict
+  // the outfit section and risk the model dropping it to satisfy this rule.
+  const forbiddenExtras = ['extra jacket', 'blazer', 'coat', 'cardigan', 'hoodie', 'sweater', 'undershirt', 'scarf', 'hat']
+    .concat(bag ? [] : ['bag'])
+    .concat('jewelry');
+
   const exclusivityRule =
     'EXACT ITEM LIST — HARD CONSTRAINT, read this before anything else below: the garments/shoes/accessories listed here are the ONLY items the figure wears. ' +
     `${outfitSection}\n` +
-    'Do not add any garment, layer, or accessory that is not explicitly listed above — no extra jacket, blazer, coat, cardigan, hoodie, sweater, undershirt, scarf, hat, bag, jewelry, or any other piece, no matter how much more "complete", "editorial", or weather-appropriate the look would feel with one. ' +
+    `Do not add any garment, layer, or accessory that is not explicitly listed above — no ${forbiddenExtras.join(', ')}, or any other piece, no matter how much more "complete", "editorial", or weather-appropriate the look would feel with one. ` +
+    (bag ? `The bag listed above (${bag}) MUST be visibly worn or carried — do not omit it. ` : '') +
     (hasOuterwearOrExtraLayer
       ? 'The garments listed above already include every layer this figure wears — do not add a further layer beyond what is listed.'
       : 'No jacket, coat, blazer, cardigan, hoodie, or sweater is listed above — the figure wears ONLY the single top listed, with nothing else over or under it, regardless of season or climate.');
@@ -624,7 +634,7 @@ export function buildTripDaySketchPrompt(params: {
     // Named-checklist verification, not just a count — a right-count-wrong-
     // garment substitution (e.g. a listed suit jacket replaced by a generic
     // dark jacket) passes a bare count check but fails this one.
-    `FINAL VERIFICATION CHECKLIST (check every line before finalizing): go through each item listed at the top of this prompt one by one — garments: ${pieces.join(', ') || 'none'}; shoes: ${shoes}; accessories: ${accessories.join(', ') || 'none'}. For each one, confirm it is actually visible on the figure, drawn as its own named color/material/construction — not substituted, not simplified, not omitted. Then confirm nothing else is visible that isn't on this exact list. Both directions are hard failures: a listed item missing from the image, or an unlisted item present in the image (including any accessory or footwear only mentioned by name here but never drawn).` +
+    `FINAL VERIFICATION CHECKLIST (check every line before finalizing): go through each item listed at the top of this prompt one by one — garments: ${pieces.join(', ') || 'none'}; shoes: ${shoes}; accessories: ${accessories.join(', ') || 'none'}${bag ? `; bag: ${bag}` : ''}. For each one, confirm it is actually visible on the figure, drawn as its own named color/material/construction — not substituted, not simplified, not omitted. Then confirm nothing else is visible that isn't on this exact list. Both directions are hard failures: a listed item missing from the image, or an unlisted item present in the image (including any accessory or footwear only mentioned by name here but never drawn).` +
       (hasOuterwearOrExtraLayer
         ? ' The garments listed already include every layer this figure wears — do not add a further layer beyond what is listed.'
         : ' This figure wears exactly ONE top and nothing else layered over or under it — no jacket, cardigan, hoodie, or second top of any kind.'),

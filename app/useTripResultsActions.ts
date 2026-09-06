@@ -65,6 +65,7 @@ export function useTripResultsActions({
         pieces: day.pieces,
         shoes: day.shoes,
         accessories: day.accessories,
+        bag: day.bag,
       });
 
       const withJob: TripOutfitDay = { ...updatedLoading, sketchJobId: jobId };
@@ -210,6 +211,7 @@ export function useTripResultsActions({
         pieces: updatedDay.pieces,
         shoes: updatedDay.shoes,
         accessories: updatedDay.accessories,
+        bag: updatedDay.bag,
       });
       const withJob: TripOutfitDay = { ...updatedDay, sketchJobId: jobId };
       setDays((prev) => prev.map((current) => (current.id === day.id ? withJob : current)));

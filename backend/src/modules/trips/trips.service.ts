@@ -793,6 +793,7 @@ export const tripsService = {
     pieces: string[];
     shoes: string;
     accessories: string[];
+    bag?: string | null;
     profileId?: string;
     supabaseUserId: string;
   }): Promise<string> {
@@ -1083,6 +1084,7 @@ async function generateDaySketch(
     pieces: string[];
     shoes: string;
     accessories: string[];
+    bag?: string | null;
     profileId?: string;
     supabaseUserId: string;
   },
@@ -1110,6 +1112,7 @@ async function generateDaySketch(
       pieces: params.pieces,
       shoes: params.shoes,
       accessories: params.accessories,
+      bag: params.bag,
       subjectBrief,
     });
 
