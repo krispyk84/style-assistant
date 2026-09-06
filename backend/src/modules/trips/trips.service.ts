@@ -154,11 +154,24 @@ function parseShoesCap(shoesCount: string | undefined): number {
 type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
 type BuilderProfile = Awaited<ReturnType<typeof profileRepository.findByUserId>>;
 
-function weatherGates(temperatureC: number | null): { includeThermalLayer: boolean; includeOuterwear: boolean } {
-  if (temperatureC == null) return { includeThermalLayer: true, includeOuterwear: true };
-  if (temperatureC >= 24) return { includeThermalLayer: false, includeOuterwear: false };
-  if (temperatureC >= 18) return { includeThermalLayer: false, includeOuterwear: true };
-  return { includeThermalLayer: true, includeOuterwear: true };
+function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThermalLayer: boolean; includeOuterwear: boolean } {
+  const gates =
+    temperatureC == null
+      ? { includeThermalLayer: true, includeOuterwear: true }
+      : temperatureC >= 24
+        ? { includeThermalLayer: false, includeOuterwear: false }
+        : temperatureC >= 18
+          ? { includeThermalLayer: false, includeOuterwear: true }
+          : { includeThermalLayer: true, includeOuterwear: true };
+
+  // Business always has a structured secondary top (blazer or suit jacket)
+  // already providing warmth/structure — a genuine overcoat only belongs
+  // over that when it's actually cold, not just "mild-cool" like the base
+  // gate above allows for casual/smart-casual's optional secondary top.
+  if (tier === 'business' && gates.includeOuterwear && temperatureC != null) {
+    gates.includeOuterwear = temperatureC < 10;
+  }
+  return gates;
 }
 
 // Required-slot keys for a tier, per closet-taxonomy.ts's TIER_SLOT_RULES —
@@ -422,7 +435,7 @@ async function chooseFullClosetDay(params: {
 }> {
   const targetFormalityRank = TRIP_DAY_TYPE_FORMALITY_TARGET[params.dayType] ?? FORMALITY_RANK['Smart Casual'];
   const tier = tierForFormalityRank(targetFormalityRank);
-  const { includeThermalLayer, includeOuterwear } = weatherGates(params.avgHighC ?? params.avgLowC ?? null);
+  const { includeThermalLayer, includeOuterwear } = weatherGates(params.avgHighC ?? params.avgLowC ?? null, tier);
 
   const shortlists = buildOutfitSlotShortlists({
     closetItems: params.closetItems,

@@ -114,11 +114,24 @@ function profileToSubject(profile: ProfileLike): SubjectRenderingInput {
 
 type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
 
-function weatherGates(temperatureC: number | null): { includeThermalLayer: boolean; includeOuterwear: boolean } {
-  if (temperatureC == null) return { includeThermalLayer: true, includeOuterwear: true };
-  if (temperatureC >= 24) return { includeThermalLayer: false, includeOuterwear: false };
-  if (temperatureC >= 18) return { includeThermalLayer: false, includeOuterwear: true };
-  return { includeThermalLayer: true, includeOuterwear: true };
+function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThermalLayer: boolean; includeOuterwear: boolean } {
+  const gates =
+    temperatureC == null
+      ? { includeThermalLayer: true, includeOuterwear: true }
+      : temperatureC >= 24
+        ? { includeThermalLayer: false, includeOuterwear: false }
+        : temperatureC >= 18
+          ? { includeThermalLayer: false, includeOuterwear: true }
+          : { includeThermalLayer: true, includeOuterwear: true };
+
+  // Business always has a structured secondary top (blazer or suit jacket)
+  // already providing warmth/structure — a genuine overcoat only belongs
+  // over that when it's actually cold, not just "mild-cool" like the base
+  // gate above allows for casual/smart-casual's optional secondary top.
+  if (tier === 'business' && gates.includeOuterwear && temperatureC != null) {
+    gates.includeOuterwear = temperatureC < 10;
+  }
+  return gates;
 }
 
 function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
@@ -399,12 +412,12 @@ export const outfitsService = {
     const itemsById = input.closetOnly ? (await buildClosetIndex(supabaseUserId)).itemsById : new Map<string, BuilderItem>();
     const closetItems = [...itemsById.values()];
     const temperatureC = input.weatherContext?.apparentTemperatureC ?? input.weatherContext?.temperatureC ?? null;
-    const { includeThermalLayer, includeOuterwear } = weatherGates(temperatureC);
 
     const shortlistsByTier: Record<string, ClosetOutfitSlotShortlists> = {};
     const idSetsByTier: Record<string, TierRoleIdSets> = {};
     if (input.closetOnly) {
       for (const tier of tiersToGenerate) {
+        const { includeThermalLayer, includeOuterwear } = weatherGates(temperatureC, tier);
         const { forPrompt, idSets } = buildTierRoleShortlists({
           closetItems,
           tier,
@@ -562,7 +575,7 @@ export const outfitsService = {
     let idSets: TierRoleIdSets | undefined;
     if (existing.input.closetOnly) {
       const temperatureC = existing.input.weatherContext?.apparentTemperatureC ?? existing.input.weatherContext?.temperatureC ?? null;
-      const { includeThermalLayer, includeOuterwear } = weatherGates(temperatureC);
+      const { includeThermalLayer, includeOuterwear } = weatherGates(temperatureC, tier);
       const built = buildTierRoleShortlists({
         closetItems,
         tier,
