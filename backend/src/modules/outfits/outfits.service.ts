@@ -19,8 +19,16 @@ import {
   type TieredOutfitGeneration,
 } from './outfits.schemas.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
-import { buildOutfitSlotShortlists } from '../closet/closet-outfit-builder.js';
-import { CATEGORY_TO_GROUP, FORMALITY_RANK, GROUP_TO_SLOTS, TIER_FORMALITY_TARGET, type OutfitSlot } from '../closet/closet-taxonomy.js';
+import { buildAccessoryShortlist, buildOutfitSlotShortlists, fillMissingRequiredSlots, normalizeSuitDualRole } from '../closet/closet-outfit-builder.js';
+import {
+  CATEGORY_TO_GROUP,
+  FORMALITY_RANK,
+  GROUP_TO_SLOTS,
+  TIER_FORMALITY_TARGET,
+  TIER_SLOT_RULES,
+  type OutfitSlot,
+  type TierSlug,
+} from '../closet/closet-taxonomy.js';
 import { closetRepository } from '../closet/closet.repository.js';
 import type { ClosetOutfitIndexItem, ClosetOutfitSlotShortlists } from '../../ai/prompts/closet-outfits.prompts.js';
 import { buildGenerateOutfitsInstructions, buildGenerateOutfitsUserPrompt, buildRegenerateTierInstructions, buildRegenerateTierUserPrompt } from '../../ai/prompts/outfits.prompts.js';
@@ -99,11 +107,11 @@ function profileToSubject(profile: ProfileLike): SubjectRenderingInput {
 
 type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
 
-function weatherGates(temperatureC: number | null): { includeLayering: boolean; includeOuterwear: boolean } {
-  if (temperatureC == null) return { includeLayering: true, includeOuterwear: true };
-  if (temperatureC >= 24) return { includeLayering: false, includeOuterwear: false };
-  if (temperatureC >= 18) return { includeLayering: false, includeOuterwear: true };
-  return { includeLayering: true, includeOuterwear: true };
+function weatherGates(temperatureC: number | null): { includeThermalLayer: boolean; includeOuterwear: boolean } {
+  if (temperatureC == null) return { includeThermalLayer: true, includeOuterwear: true };
+  if (temperatureC >= 24) return { includeThermalLayer: false, includeOuterwear: false };
+  if (temperatureC >= 18) return { includeThermalLayer: false, includeOuterwear: true };
+  return { includeThermalLayer: true, includeOuterwear: true };
 }
 
 function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
@@ -154,7 +162,7 @@ type TierRoleIdSets = { keyPieces: Set<string>; shoes: Set<string>; accessories:
 function buildTierRoleShortlists(params: {
   closetItems: BuilderItem[];
   tier: OutfitTierSlug;
-  includeLayering: boolean;
+  includeThermalLayer: boolean;
   includeOuterwear: boolean;
   includeHat: boolean;
   includeBag: boolean;
@@ -163,7 +171,8 @@ function buildTierRoleShortlists(params: {
   const shortlists = buildOutfitSlotShortlists({
     closetItems: params.closetItems,
     targetFormalityRank,
-    includeLayering: params.includeLayering,
+    tier: params.tier,
+    includeThermalLayer: params.includeThermalLayer,
     includeOuterwear: params.includeOuterwear,
     includeHat: params.includeHat,
     includeBag: params.includeBag,
@@ -180,10 +189,64 @@ function buildTierRoleShortlists(params: {
     const ids = items.map((item) => item.id);
     if (slot === 'footwear') ids.forEach((id) => idSets.shoes.add(id));
     else if (accessorySlots.has(slot)) ids.forEach((id) => idSets.accessories.add(id));
-    else ids.forEach((id) => idSets.keyPieces.add(id)); // bottoms/tops/layering/outerwear
+    else ids.forEach((id) => idSets.keyPieces.add(id)); // bottoms/primaryTop/secondaryTop/thermalLayer/outerwear
+  }
+
+  // "Additional Accessories" — belt/scarf/tie/socks — folded into the same
+  // accessories role as watch/sunglasses/hat/bag (the closetOnly schema
+  // doesn't split this out into its own field the way trips/closet-outfits do).
+  const additionalAccessories = buildAccessoryShortlist(params.closetItems, targetFormalityRank);
+  if (additionalAccessories.length) {
+    forPrompt.accessory = additionalAccessories.map(toIndexItem);
+    additionalAccessories.forEach((item) => idSets.accessories.add(item.id));
   }
 
   return { forPrompt, idSets };
+}
+
+function isSuit(item: BuilderItem | undefined): boolean {
+  return !!item && CATEGORY_TO_GROUP[item.category] === 'suit';
+}
+
+const KEY_PIECE_SLOTS: OutfitSlot[] = ['bottoms', 'primaryTop', 'secondaryTop', 'thermalLayer', 'outerwear'];
+
+/**
+ * Enforces the outfit framework on the flat keyPieces bucket (which has no
+ * per-role schema keys the way trips/closet-outfits' chosenIds map does):
+ * classifies each chosen id by the slot its garment group fills, keeps at
+ * most one item per slot (a suit wins over an already-placed separate
+ * trousers/blazer for bottoms/secondaryTop — one physical piece fills both
+ * at once; any other second pick for an already-filled slot is a real model
+ * error, not a suit, and is dropped), then force-fills bottoms/primaryTop
+ * always and secondaryTop additionally for business if still missing.
+ * thermalLayer/outerwear stay independent of the suit and of each other.
+ */
+function normalizeKeyPieceRoles(
+  keyPieceIds: string[],
+  itemsById: Map<string, BuilderItem>,
+  tier: OutfitTierSlug,
+  targetFormalityRank: number,
+  closetItems: BuilderItem[],
+): string[] {
+  const items = keyPieceIds.map((id) => itemsById.get(id)).filter((item): item is BuilderItem => Boolean(item));
+  const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
+
+  for (const item of items) {
+    const group = CATEGORY_TO_GROUP[item.category];
+    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
+    if (!slot || !KEY_PIECE_SLOTS.includes(slot)) continue;
+    if (!bySlot[slot] || (isSuit(item) && !isSuit(bySlot[slot]))) {
+      bySlot[slot] = item;
+    }
+  }
+  normalizeSuitDualRole(bySlot);
+
+  const requiredSlots: OutfitSlot[] = ['bottoms', 'primaryTop'];
+  if (TIER_SLOT_RULES[tier as TierSlug].secondaryTop?.required) requiredSlots.push('secondaryTop');
+  fillMissingRequiredSlots({ bySlot, closetItems, requiredSlots, tier: tier as TierSlug, targetFormalityRank });
+  normalizeSuitDualRole(bySlot);
+
+  return [...new Set(Object.values(bySlot).map((item) => (item as BuilderItem).id))];
 }
 
 /**
@@ -191,27 +254,14 @@ function buildTierRoleShortlists(params: {
  * outfitPieceSchema-shaped pieces — the result converges with the freeform
  * path's shape so mapOutfitRecommendation/downstream code needs no changes.
  * Falls back to this tier's own first available id per required role if the
- * model's picks don't validate (never leaves keyPieces/shoes empty).
+ * model's picks don't validate (never leaves keyPieces/shoes empty), and
+ * normalizeKeyPieceRoles enforces one-per-slot + the tier's required roles.
  */
-// keyPieces bundles bottoms/tops/layering/outerwear into one flat list (no
-// per-role schema keys the way trips/closet-outfits have) — a Suit item
-// supplies BOTH the bottoms and outerwear roles at once, so once one is
-// present, drop any OTHER separate trousers/denim/shorts/blazer/jacket/coat
-// pick as redundant rather than doubling up on the same role.
-function dropRedundantBottomsOrOuterwear(keyPieceIds: string[], itemsById: Map<string, BuilderItem>): string[] {
-  const items = keyPieceIds.map((id) => itemsById.get(id)).filter((item): item is BuilderItem => Boolean(item));
-  const suit = items.find((item) => CATEGORY_TO_GROUP[item.category] === 'suit');
-  if (!suit) return keyPieceIds;
-
-  const redundantGroups = new Set(['trousers', 'denim', 'shorts', 'blazer', 'jacket', 'coat']);
-  const filtered = items.filter((item) => item.id === suit.id || !redundantGroups.has(CATEGORY_TO_GROUP[item.category] ?? ''));
-  return [...new Set(filtered.map((item) => item.id))];
-}
-
 function resolveClosetOnlyRecommendation(
   recommendation: ClosetOnlyOutfitRecommendation,
   idSets: TierRoleIdSets,
   itemsById: Map<string, BuilderItem>,
+  closetItems: BuilderItem[],
 ): TieredOutfitGeneration['recommendations'][number] {
   const resolveRole = (ids: string[], validIds: Set<string>, required: boolean): string[] => {
     const valid = ids.filter((id) => validIds.has(id) && itemsById.has(id));
@@ -220,7 +270,14 @@ function resolveClosetOnlyRecommendation(
     return [];
   };
 
-  const keyPieceIds = dropRedundantBottomsOrOuterwear(resolveRole(recommendation.keyPieceIds, idSets.keyPieces, true), itemsById);
+  const targetFormalityRank = TIER_FORMALITY_TARGET[recommendation.tier] ?? FORMALITY_RANK['Refined Casual'];
+  const keyPieceIds = normalizeKeyPieceRoles(
+    resolveRole(recommendation.keyPieceIds, idSets.keyPieces, true),
+    itemsById,
+    recommendation.tier,
+    targetFormalityRank,
+    closetItems,
+  );
   const shoeIds = resolveRole(recommendation.shoeIds, idSets.shoes, true);
   const accessoryIds = resolveRole(recommendation.accessoryIds, idSets.accessories, false);
 
@@ -308,7 +365,7 @@ export const outfitsService = {
     const itemsById = input.closetOnly ? (await buildClosetIndex(supabaseUserId)).itemsById : new Map<string, BuilderItem>();
     const closetItems = [...itemsById.values()];
     const temperatureC = input.weatherContext?.apparentTemperatureC ?? input.weatherContext?.temperatureC ?? null;
-    const { includeLayering, includeOuterwear } = weatherGates(temperatureC);
+    const { includeThermalLayer, includeOuterwear } = weatherGates(temperatureC);
 
     const shortlistsByTier: Record<string, ClosetOutfitSlotShortlists> = {};
     const idSetsByTier: Record<string, TierRoleIdSets> = {};
@@ -317,7 +374,7 @@ export const outfitsService = {
         const { forPrompt, idSets } = buildTierRoleShortlists({
           closetItems,
           tier,
-          includeLayering,
+          includeThermalLayer,
           includeOuterwear,
           includeHat: !!input.includeHat,
           includeBag: !!input.includeBag,
@@ -386,7 +443,7 @@ export const outfitsService = {
       recommendationMap = new Map(
         aiOutput.recommendations.map((recommendation) => [
           recommendation.tier,
-          resolveClosetOnlyRecommendation(recommendation, idSetsByTier[recommendation.tier]!, itemsById),
+          resolveClosetOnlyRecommendation(recommendation, idSetsByTier[recommendation.tier]!, itemsById, closetItems),
         ]),
       );
     } else {
@@ -471,11 +528,11 @@ export const outfitsService = {
     let idSets: TierRoleIdSets | undefined;
     if (existing.input.closetOnly) {
       const temperatureC = existing.input.weatherContext?.apparentTemperatureC ?? existing.input.weatherContext?.temperatureC ?? null;
-      const { includeLayering, includeOuterwear } = weatherGates(temperatureC);
+      const { includeThermalLayer, includeOuterwear } = weatherGates(temperatureC);
       const built = buildTierRoleShortlists({
         closetItems,
         tier,
-        includeLayering,
+        includeThermalLayer,
         includeOuterwear,
         includeHat: !!existing.input.includeHat,
         includeBag: !!existing.input.includeBag,
@@ -528,7 +585,7 @@ export const outfitsService = {
         supabaseUserId,
         feature: 'tier-regeneration',
       });
-      regeneratedRecommendation = resolveClosetOnlyRecommendation(aiOutput.recommendation, idSets, itemsById);
+      regeneratedRecommendation = resolveClosetOnlyRecommendation(aiOutput.recommendation, idSets, itemsById, closetItems);
     } else {
       const aiOutput = await openAiClient.createStructuredResponse({
         schema: singleTierRegenerationSchema,

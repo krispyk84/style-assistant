@@ -222,22 +222,43 @@ const closetOutfitChoiceItemSchema = z.object({
   index: z.number(),
   title: z.string().min(1),
   whyItWorks: z.string().min(1),
-  chosenIds: z.record(z.string(), z.string()),
+  chosenIds: z.record(z.string(), z.string().nullable()),
+  accessoryIds: z.array(z.string()).default([]),
 });
 
 export const closetOutfitsChoiceResponseSchema = z.object({
   outfits: z.array(closetOutfitChoiceItemSchema).min(1),
 });
 
+// Builds the chosenIds property schema for a slot: required slots must
+// resolve to a real id (enum-constrained), optional slots may resolve to
+// null (the model's explicit "this slot doesn't apply here" choice) —
+// OpenAI strict mode requires every key present in `required`, so "optional"
+// is expressed as a nullable value rather than an absent key.
+function chosenIdSlotSchema(ids: string[], required: boolean): Record<string, unknown> {
+  return required ? { type: 'string', enum: ids } : { type: ['string', 'null'], enum: [...ids, null] };
+}
+
 /**
- * `slots`: ordered slot keys to require in every outfit's chosenIds (only
+ * `slots`: ordered slot keys to offer in every outfit's chosenIds (only
  * slots with at least one shortlist candidate should be passed).
+ * `requiredSlots`: subset of `slots` that must resolve to a real id — the
+ * rest may resolve to null.
  * `idsBySlot`: the exact real ids allowed for each slot — enforced via enum.
+ * `accessoryIds`: the exact real ids allowed for the multi-pick "Additional
+ * Accessories" pool (belt/scarf/tie/socks) — 0 to 4 chosen at once.
  */
-export function buildClosetOutfitsChoiceJsonSchema(params: { slots: string[]; idsBySlot: Record<string, string[]>; count: number }) {
+export function buildClosetOutfitsChoiceJsonSchema(params: {
+  slots: string[];
+  requiredSlots: string[];
+  idsBySlot: Record<string, string[]>;
+  accessoryIds: string[];
+  count: number;
+}) {
+  const requiredSet = new Set(params.requiredSlots);
   const chosenIdsProperties: Record<string, unknown> = {};
   for (const slot of params.slots) {
-    chosenIdsProperties[slot] = { type: 'string', enum: params.idsBySlot[slot] ?? [] };
+    chosenIdsProperties[slot] = chosenIdSlotSchema(params.idsBySlot[slot] ?? [], requiredSet.has(slot));
   }
   return {
     name: 'closet_outfits_choice_response',
@@ -260,8 +281,14 @@ export function buildClosetOutfitsChoiceJsonSchema(params: { slots: string[]; id
                 required: params.slots,
                 additionalProperties: false,
               },
+              accessoryIds: {
+                type: 'array',
+                items: { type: 'string', enum: params.accessoryIds },
+                maxItems: 4,
+                description: 'Additional accessories (belt/scarf/tie/socks) — 0 or more, only if they genuinely add to the look.',
+              },
             },
-            required: ['index', 'title', 'whyItWorks', 'chosenIds'],
+            required: ['index', 'title', 'whyItWorks', 'chosenIds', 'accessoryIds'],
             additionalProperties: false,
           },
         },
@@ -274,10 +301,17 @@ export function buildClosetOutfitsChoiceJsonSchema(params: { slots: string[]; id
 }
 
 /** Same shape, for the variant-swap flow — up to 5 variants, not exactly 5. */
-export function buildClosetOutfitVariationsChoiceJsonSchema(params: { slots: string[]; idsBySlot: Record<string, string[]>; maxCount: number }) {
+export function buildClosetOutfitVariationsChoiceJsonSchema(params: {
+  slots: string[];
+  requiredSlots: string[];
+  idsBySlot: Record<string, string[]>;
+  accessoryIds: string[];
+  maxCount: number;
+}) {
+  const requiredSet = new Set(params.requiredSlots);
   const chosenIdsProperties: Record<string, unknown> = {};
   for (const slot of params.slots) {
-    chosenIdsProperties[slot] = { type: 'string', enum: params.idsBySlot[slot] ?? [] };
+    chosenIdsProperties[slot] = chosenIdSlotSchema(params.idsBySlot[slot] ?? [], requiredSet.has(slot));
   }
   return {
     name: 'closet_outfit_variations_choice_response',
@@ -300,8 +334,14 @@ export function buildClosetOutfitVariationsChoiceJsonSchema(params: { slots: str
                 required: params.slots,
                 additionalProperties: false,
               },
+              accessoryIds: {
+                type: 'array',
+                items: { type: 'string', enum: params.accessoryIds },
+                maxItems: 4,
+                description: 'Additional accessories (belt/scarf/tie/socks) — 0 or more, only if they genuinely add to the look.',
+              },
             },
-            required: ['index', 'title', 'whyItWorks', 'chosenIds'],
+            required: ['index', 'title', 'whyItWorks', 'chosenIds', 'accessoryIds'],
             additionalProperties: false,
           },
         },

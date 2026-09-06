@@ -18,8 +18,25 @@ import { describeError, HttpError } from '../../lib/http-error.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
 import { closetRepository } from '../closet/closet.repository.js';
-import { buildDeterministicOutfit, buildOutfitSlotShortlists, buildVariantCandidates, fillMissingRequiredSlots, normalizeSuitDualRole } from '../closet/closet-outfit-builder.js';
-import { CATEGORY_TO_GROUP, FORMALITY_RANK, GROUP_TO_SLOTS, TRIP_DAY_TYPE_FORMALITY_TARGET, type OutfitSlot } from '../closet/closet-taxonomy.js';
+import {
+  buildAccessoryShortlist,
+  buildDeterministicOutfit,
+  buildOutfitSlotShortlists,
+  buildVariantCandidates,
+  fillMissingRequiredSlots,
+  normalizeSuitDualRole,
+} from '../closet/closet-outfit-builder.js';
+import {
+  ACCESSORY_GROUPS,
+  CATEGORY_TO_GROUP,
+  FORMALITY_RANK,
+  GROUP_TO_SLOTS,
+  TIER_SLOT_RULES,
+  TRIP_DAY_TYPE_FORMALITY_TARGET,
+  tierForFormalityRank,
+  type OutfitSlot,
+  type TierSlug,
+} from '../closet/closet-taxonomy.js';
 import { uploadsRepository } from '../uploads/uploads.repository.js';
 import { styleGuideService } from '../style-guides/style-guide.service.js';
 import {
@@ -135,11 +152,20 @@ function parseShoesCap(shoesCount: string | undefined): number {
 type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
 type BuilderProfile = Awaited<ReturnType<typeof profileRepository.findByUserId>>;
 
-function weatherGates(temperatureC: number | null): { includeLayering: boolean; includeOuterwear: boolean } {
-  if (temperatureC == null) return { includeLayering: true, includeOuterwear: true };
-  if (temperatureC >= 24) return { includeLayering: false, includeOuterwear: false };
-  if (temperatureC >= 18) return { includeLayering: false, includeOuterwear: true };
-  return { includeLayering: true, includeOuterwear: true };
+function weatherGates(temperatureC: number | null): { includeThermalLayer: boolean; includeOuterwear: boolean } {
+  if (temperatureC == null) return { includeThermalLayer: true, includeOuterwear: true };
+  if (temperatureC >= 24) return { includeThermalLayer: false, includeOuterwear: false };
+  if (temperatureC >= 18) return { includeThermalLayer: false, includeOuterwear: true };
+  return { includeThermalLayer: true, includeOuterwear: true };
+}
+
+// Required-slot keys for a tier, per closet-taxonomy.ts's TIER_SLOT_RULES —
+// the code-enforced framework (footwear/bottoms/primaryTop/watch/sunglasses
+// always; secondaryTop additionally for business).
+function requiredSlotsForTier(tier: TierSlug): OutfitSlot[] {
+  return (Object.entries(TIER_SLOT_RULES[tier]) as [OutfitSlot, { required: boolean }][])
+    .filter(([, rule]) => rule.required)
+    .map(([slot]) => slot);
 }
 
 function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
@@ -175,8 +201,9 @@ function dedupeById(items: (BuilderItem | undefined)[]): BuilderItem[] {
 // chosen for the day) — this is a code-level backstop: if a category wasn't
 // selected but its name still shows up in the rationale, the rationale is
 // untrustworthy and gets replaced with one built purely from the real items.
-const OUTERWEAR_HALLUCINATION_KEYWORDS = ['jacket', 'blazer', 'coat', 'windbreaker', 'parka', 'trench', 'overcoat', 'anorak', 'bomber'];
-const LAYERING_HALLUCINATION_KEYWORDS = ['sweater', 'cardigan', 'hoodie', 'sweatshirt', 'jumper', 'pullover', 'fleece'];
+const OUTERWEAR_HALLUCINATION_KEYWORDS = ['jacket', 'coat', 'windbreaker', 'parka', 'trench', 'overcoat', 'anorak', 'bomber'];
+const SECONDARY_TOP_HALLUCINATION_KEYWORDS = ['blazer', 'sport jacket', 'sports jacket', 'sport coat'];
+const THERMAL_LAYER_HALLUCINATION_KEYWORDS = ['sweater', 'cardigan', 'hoodie', 'sweatshirt', 'jumper', 'pullover', 'fleece', 'overshirt'];
 
 function textMentionsAny(text: string, keywords: string[]): boolean {
   const lower = text.toLowerCase();
@@ -190,23 +217,27 @@ function buildSafeRationale(bySlot: Partial<Record<OutfitSlot, BuilderItem>>): s
 
 function guardAgainstHallucinatedRationale(bySlot: Partial<Record<OutfitSlot, BuilderItem>>, rationale: string): string {
   const mentionsUnselectedOuterwear = !bySlot.outerwear && textMentionsAny(rationale, OUTERWEAR_HALLUCINATION_KEYWORDS);
-  const mentionsUnselectedLayering = !bySlot.layering && textMentionsAny(rationale, LAYERING_HALLUCINATION_KEYWORDS);
-  if (mentionsUnselectedOuterwear || mentionsUnselectedLayering) {
+  const mentionsUnselectedSecondaryTop = !bySlot.secondaryTop && textMentionsAny(rationale, SECONDARY_TOP_HALLUCINATION_KEYWORDS);
+  const mentionsUnselectedThermalLayer = !bySlot.thermalLayer && textMentionsAny(rationale, THERMAL_LAYER_HALLUCINATION_KEYWORDS);
+  if (mentionsUnselectedOuterwear || mentionsUnselectedSecondaryTop || mentionsUnselectedThermalLayer) {
     return buildSafeRationale(bySlot);
   }
   return rationale;
 }
 
-function mapDaySlotsToDto(bySlot: Partial<Record<OutfitSlot, BuilderItem>>): {
+function mapDaySlotsToDto(
+  bySlot: Partial<Record<OutfitSlot, BuilderItem>>,
+  extraAccessoryItems: BuilderItem[] = [],
+): {
   pieces: string[];
   shoes: string;
   bag: string | null;
   accessories: string[];
   closetItemIds: string[];
 } {
-  const pieces = dedupeById([bySlot.bottoms, bySlot.tops, bySlot.layering, bySlot.outerwear]).map((item) => item.title);
-  const accessories = dedupeById([bySlot.watch, bySlot.sunglasses, bySlot.hat]).map((item) => item.title);
-  const closetItemIds = dedupeById(Object.values(bySlot)).map((item) => item.id);
+  const pieces = dedupeById([bySlot.bottoms, bySlot.primaryTop, bySlot.secondaryTop, bySlot.thermalLayer, bySlot.outerwear]).map((item) => item.title);
+  const accessories = dedupeById([bySlot.watch, bySlot.sunglasses, bySlot.hat, ...extraAccessoryItems]).map((item) => item.title);
+  const closetItemIds = dedupeById([...Object.values(bySlot), ...extraAccessoryItems]).map((item) => item.id);
 
   return {
     pieces,
@@ -217,26 +248,32 @@ function mapDaySlotsToDto(bySlot: Partial<Record<OutfitSlot, BuilderItem>>): {
   };
 }
 
-// Reconstructs a bySlot map from a flat item-id list — needed by
-// generateDayVariants/updateDayAccessories, which work with real item ids
-// (from a swap/toggle request) rather than a fresh choice result that
-// already carries slots.
+// Reconstructs a bySlot map (plus any multi-pick "Additional Accessories"
+// items, which don't fit the single-item-per-slot bySlot model) from a flat
+// item-id list — needed by generateDayVariants/updateDayAccessories, which
+// work with real item ids (from a swap/toggle request) rather than a fresh
+// choice result that already carries slots.
 function buildBySlotFromItemIds(
   itemIds: string[],
   itemsById: Map<string, BuilderItem>,
-): Partial<Record<OutfitSlot, BuilderItem>> {
+): { bySlot: Partial<Record<OutfitSlot, BuilderItem>>; accessoryItems: BuilderItem[] } {
   const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
+  const accessoryItems: BuilderItem[] = [];
   for (const id of itemIds) {
     const item = itemsById.get(id);
     if (!item) continue;
     const group = CATEGORY_TO_GROUP[item.category];
     const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
-    if (slot) bySlot[slot] = item;
+    if (slot) {
+      bySlot[slot] = item;
+    } else if (group && ACCESSORY_GROUPS.includes(group)) {
+      accessoryItems.push(item);
+    }
   }
   // A suit in a flat id list only ever lands in 'bottoms' (GROUP_TO_SLOTS
-  // takes the first slot) — this promotes it to also fill 'outerwear'.
+  // takes the first slot) — this promotes it to also fill 'secondaryTop'.
   normalizeSuitDualRole(bySlot);
-  return bySlot;
+  return { bySlot, accessoryItems };
 }
 
 // Reuses the shared deterministic builder to pick a single hat/bag by
@@ -246,6 +283,7 @@ function buildBySlotFromItemIds(
 function pickAccessory(
   group: 'hat' | 'bag',
   closetItems: BuilderItem[],
+  tier: TierSlug,
   targetFormalityRank: number,
   excludeItemIds: ReadonlySet<string>,
 ): BuilderItem | null {
@@ -253,7 +291,8 @@ function pickAccessory(
   const result = buildDeterministicOutfit({
     closetItems: candidates,
     targetFormalityRank,
-    includeLayering: false,
+    tier,
+    includeThermalLayer: false,
     includeOuterwear: false,
     includeHat: group === 'hat',
     includeBag: group === 'bag',
@@ -370,28 +409,32 @@ async function chooseFullClosetDay(params: {
   supabaseUserId: string;
 }): Promise<{
   bySlot: Partial<Record<OutfitSlot, BuilderItem>>;
+  accessoryItems: BuilderItem[];
   title: string;
   rationale: string;
   usedOuterwearTitles: string[];
   usedFootwearTitles: string[];
 }> {
   const targetFormalityRank = TRIP_DAY_TYPE_FORMALITY_TARGET[params.dayType] ?? FORMALITY_RANK['Smart Casual'];
-  const { includeLayering, includeOuterwear } = weatherGates(params.avgHighC ?? params.avgLowC ?? null);
+  const tier = tierForFormalityRank(targetFormalityRank);
+  const { includeThermalLayer, includeOuterwear } = weatherGates(params.avgHighC ?? params.avgLowC ?? null);
 
   const shortlists = buildOutfitSlotShortlists({
     closetItems: params.closetItems,
     targetFormalityRank,
-    includeLayering,
+    tier,
+    includeThermalLayer,
     includeOuterwear,
     excludeItemIds: params.excludeItemIds,
   });
+  const accessoryShortlist = buildAccessoryShortlist(params.closetItems, targetFormalityRank, params.excludeItemIds);
 
   narrowShortlistForCap(shortlists, 'outerwear', params.usedOuterwearTitles, params.jacketsCap, true, params.closetItems, targetFormalityRank);
   narrowShortlistForCap(shortlists, 'footwear', params.usedFootwearTitles, params.shoesCap, false, params.closetItems, targetFormalityRank);
 
   // Force the pinned "definitely bring" anchor into whichever slot(s) its
-  // category fills (both bottoms+outerwear for a Suit) — applied AFTER cap
-  // narrowing so a pinned anchor always wins over a cap-driven reuse, and
+  // category fills (both bottoms+secondaryTop for a Suit) — applied AFTER
+  // cap narrowing so a pinned anchor always wins over a cap-driven reuse, and
   // narrowing that slot's shortlist to just this one id guarantees it gets
   // used rather than hoping the model notices it among everything offered.
   if (params.pinnedItem) {
@@ -404,6 +447,10 @@ async function chooseFullClosetDay(params: {
   }
 
   const slots = (Object.keys(shortlists) as OutfitSlot[]).filter((slot) => (shortlists[slot]?.length ?? 0) > 0);
+  const tierRequiredSlots = requiredSlotsForTier(tier);
+  const requiredSlots: OutfitSlot[] = [...tierRequiredSlots];
+  if (includeThermalLayer) requiredSlots.push('thermalLayer');
+  if (includeOuterwear) requiredSlots.push('outerwear');
 
   if (slots.length === 0) {
     // Even with every shortlist empty (unexpected, but not impossible after
@@ -411,13 +458,11 @@ async function chooseFullClosetDay(params: {
     // required categories directly from the raw closet — never return a
     // fully-empty day when the closet has anything at all to offer.
     const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
-    const requiredSlots: OutfitSlot[] = ['footwear', 'bottoms', 'tops', 'watch', 'sunglasses'];
-    if (includeLayering) requiredSlots.push('layering');
-    if (includeOuterwear) requiredSlots.push('outerwear');
-    fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots, targetFormalityRank });
+    fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots, tier, targetFormalityRank });
     normalizeSuitDualRole(bySlot);
     return {
       bySlot,
+      accessoryItems: [],
       title: FALLBACK_TRIP_TITLE,
       rationale: FALLBACK_TRIP_RATIONALE,
       usedOuterwearTitles: updateUsedTitles(bySlot, 'outerwear', params.usedOuterwearTitles),
@@ -432,19 +477,33 @@ async function chooseFullClosetDay(params: {
     shortlistsForPrompt[slot] = items.map(toIndexItem);
     idsBySlot[slot] = items.map((item) => item.id);
   }
+  const requiredSlotsOffered = requiredSlots.filter((slot) => slots.includes(slot));
+  const optionalSlots = new Set(slots.filter((slot) => !requiredSlotsOffered.includes(slot)));
 
   const userPrompt = buildTripDayChoiceUserPrompt({
-    days: [{ index: params.index, dayType: params.dayType, shortlists: shortlistsForPrompt }],
+    days: [{
+      index: params.index,
+      dayType: params.dayType,
+      shortlists: shortlistsForPrompt,
+      optionalSlots,
+      accessoryShortlist: accessoryShortlist.map(toIndexItem),
+    }],
     destination: params.destination,
     climateLabel: params.climateLabel,
     avgHighC: params.avgHighC,
   });
 
-  let chosen: { title: string; rationale: string; chosenIds: Record<string, string> } | null = null;
+  let chosen: { title: string; rationale: string; chosenIds: Record<string, string | null>; accessoryIds: string[] } | null = null;
   try {
     const aiResult = await openAiClient.createStructuredResponse({
       schema: tripDayChoiceResponseSchema,
-      jsonSchema: buildTripDayChoiceJsonSchema({ slots, idsBySlot, count: 1 }),
+      jsonSchema: buildTripDayChoiceJsonSchema({
+        slots,
+        requiredSlots: requiredSlotsOffered,
+        idsBySlot,
+        accessoryIds: accessoryShortlist.map((item) => item.id),
+        count: 1,
+      }),
       instructions: buildTripDayChoiceSystemPrompt(),
       userContent: [{ type: 'input_text' as const, text: userPrompt }],
       supabaseUserId: params.supabaseUserId,
@@ -453,10 +512,10 @@ async function chooseFullClosetDay(params: {
     const dayResult = aiResult.days.find((day) => day.index === params.index) ?? aiResult.days[0];
     if (dayResult) {
       const validIdSets = new Map(Object.entries(idsBySlot).map(([slot, ids]) => [slot, new Set(ids)]));
-      const chosenEntries = Object.entries(dayResult.chosenIds);
+      const chosenEntries = Object.entries(dayResult.chosenIds).filter((entry): entry is [string, string] => entry[1] !== null);
       const valid = chosenEntries.length > 0 && chosenEntries.every(([slot, id]) => validIdSets.get(slot)?.has(id));
       if (valid) {
-        chosen = { title: dayResult.title, rationale: dayResult.rationale, chosenIds: dayResult.chosenIds };
+        chosen = { title: dayResult.title, rationale: dayResult.rationale, chosenIds: dayResult.chosenIds, accessoryIds: dayResult.accessoryIds };
       }
     }
   } catch (error) {
@@ -466,24 +525,30 @@ async function chooseFullClosetDay(params: {
 
   const itemsById = new Map(params.closetItems.map((item) => [item.id, item]));
   const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = chosen
-    ? (Object.fromEntries(Object.entries(chosen.chosenIds).map(([slot, id]) => [slot, itemsById.get(id)!])) as Partial<Record<OutfitSlot, BuilderItem>>)
+    ? (Object.fromEntries(
+        Object.entries(chosen.chosenIds).filter(([, id]) => id !== null).map(([slot, id]) => [slot, itemsById.get(id!)!]),
+      ) as Partial<Record<OutfitSlot, BuilderItem>>)
     : (Object.fromEntries(slots.map((slot) => [slot, shortlists[slot]![0]!])) as Partial<Record<OutfitSlot, BuilderItem>>);
   normalizeSuitDualRole(bySlot);
 
-  // Hard guarantee, no exceptions: footwear/bottoms/tops/watch/sunglasses
-  // always, plus layering/outerwear whenever the weather calls for them —
-  // never leave a required category silently unfilled, whatever upstream
-  // reason (empty shortlist, model omission, validation fallback) caused it.
-  const requiredSlots: OutfitSlot[] = ['footwear', 'bottoms', 'tops', 'watch', 'sunglasses'];
-  if (includeLayering) requiredSlots.push('layering');
-  if (includeOuterwear) requiredSlots.push('outerwear');
-  fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots, targetFormalityRank });
+  const validAccessoryIds = new Set(accessoryShortlist.map((item) => item.id));
+  const accessoryItems = [...new Set(chosen?.accessoryIds ?? [])]
+    .filter((id) => validAccessoryIds.has(id))
+    .map((id) => itemsById.get(id)!);
+
+  // Hard guarantee, no exceptions: footwear/bottoms/primaryTop/watch/
+  // sunglasses always, secondaryTop additionally for business, plus thermal
+  // layer/outerwear whenever the weather calls for them — never leave a
+  // required category silently unfilled, whatever upstream reason (empty
+  // shortlist, model omission, validation fallback) caused it.
+  fillMissingRequiredSlots({ bySlot, closetItems: params.closetItems, requiredSlots, tier, targetFormalityRank });
   normalizeSuitDualRole(bySlot);
 
   const rationale = guardAgainstHallucinatedRationale(bySlot, chosen?.rationale ?? FALLBACK_TRIP_RATIONALE);
 
   return {
     bySlot,
+    accessoryItems,
     title: chosen?.title ?? FALLBACK_TRIP_TITLE,
     rationale,
     usedOuterwearTitles: updateUsedTitles(bySlot, 'outerwear', params.usedOuterwearTitles),
@@ -572,7 +637,7 @@ async function generateFullClosetTripOutfits(
       dayType: shape.dayType,
       rationale: chosen.rationale,
       contextTags: shape.contextTags,
-      ...mapDaySlotsToDto(chosen.bySlot),
+      ...mapDaySlotsToDto(chosen.bySlot, chosen.accessoryItems),
     });
   }
 
@@ -622,7 +687,7 @@ async function regenerateFullClosetDay(
     dayType: request.dayType,
     rationale: chosen.rationale,
     contextTags: [],
-    ...mapDaySlotsToDto(chosen.bySlot),
+    ...mapDaySlotsToDto(chosen.bySlot, chosen.accessoryItems),
   };
 }
 
@@ -788,7 +853,7 @@ export const tripsService = {
 
     const aiResult = await openAiClient.createStructuredResponse({
       schema: tripDayChoiceResponseSchema,
-      jsonSchema: buildTripDayVariantsChoiceJsonSchema({ slots, idsBySlot, maxCount: 5 }),
+      jsonSchema: buildTripDayVariantsChoiceJsonSchema({ slots, requiredSlots: slots, idsBySlot, accessoryIds: [], maxCount: 5 }),
       instructions: buildTripDayChoiceSystemPrompt(),
       userContent: [{ type: 'input_text' as const, text: userPrompt }],
       supabaseUserId,
@@ -800,7 +865,7 @@ export const tripsService = {
     const variants: TripOutfitDayDto[] = [];
 
     for (const day of aiResult.days) {
-      const chosenEntries = Object.entries(day.chosenIds);
+      const chosenEntries = Object.entries(day.chosenIds).filter((entry): entry is [string, string] => entry[1] !== null);
       const valid = chosenEntries.length > 0 && chosenEntries.every(([slot, id]) => validIdSets.get(slot)?.has(id));
       if (!valid) continue;
 
@@ -812,6 +877,7 @@ export const tripsService = {
       if (seenKeys.has(key)) continue;
       seenKeys.add(key);
 
+      const { bySlot, accessoryItems } = buildBySlotFromItemIds(itemIds, itemsById);
       variants.push({
         id: `${request.tripId}-day-${request.dayIndex}-v${Date.now()}-${variants.length}`,
         tripId: request.tripId,
@@ -821,7 +887,7 @@ export const tripsService = {
         dayType: request.dayType,
         rationale: day.rationale,
         contextTags: [],
-        ...mapDaySlotsToDto(buildBySlotFromItemIds(itemIds, itemsById)),
+        ...mapDaySlotsToDto(bySlot, accessoryItems),
       });
     }
 
@@ -845,6 +911,7 @@ export const tripsService = {
     }
 
     const targetFormalityRank = TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual'];
+    const tier = tierForFormalityRank(targetFormalityRank);
     const currentHatId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'hat');
     const currentBagId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'bag');
 
@@ -852,15 +919,16 @@ export const tripsService = {
     itemIds = itemIds.filter((id) => id !== currentBagId || request.includeBag);
 
     if (request.includeHat && !currentHatId) {
-      const hat = pickAccessory('hat', closetItems, targetFormalityRank, new Set(itemIds));
+      const hat = pickAccessory('hat', closetItems, tier, targetFormalityRank, new Set(itemIds));
       if (hat) itemIds.push(hat.id);
     }
     if (request.includeBag && !currentBagId) {
-      const bag = pickAccessory('bag', closetItems, targetFormalityRank, new Set(itemIds));
+      const bag = pickAccessory('bag', closetItems, tier, targetFormalityRank, new Set(itemIds));
       if (bag) itemIds.push(bag.id);
     }
 
-    return mapDaySlotsToDto(buildBySlotFromItemIds(itemIds, itemsById));
+    const { bySlot, accessoryItems } = buildBySlotFromItemIds(itemIds, itemsById);
+    return mapDaySlotsToDto(bySlot, accessoryItems);
   },
 
   async getDaySketchStatus(jobId: string) {

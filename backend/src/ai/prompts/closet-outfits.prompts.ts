@@ -200,11 +200,28 @@ function buildContextBlock(params: {
 
 export type ClosetOutfitSlotShortlists = Partial<Record<string, ClosetOutfitIndexItem[]>>;
 
-function buildShortlistBlock(shortlists: ClosetOutfitSlotShortlists, heading: string): string {
+const SLOT_DISPLAY_LABELS: Record<string, string> = {
+  footwear: 'FOOTWEAR',
+  bottoms: 'BOTTOMS',
+  primaryTop: 'PRIMARY TOP',
+  secondaryTop: 'SECONDARY TOP (blazer/sport jacket, or a suit — see the SUITS rule)',
+  thermalLayer: 'THERMAL LAYER (sweater/hoodie/overshirt — insulation, not styling)',
+  outerwear: 'OUTERWEAR (true weatherproof shell — jacket/coat)',
+  watch: 'WATCH',
+  sunglasses: 'SUNGLASSES',
+  hat: 'HAT',
+  bag: 'BAG',
+};
+
+function buildShortlistBlock(shortlists: ClosetOutfitSlotShortlists, heading: string, optionalSlots?: ReadonlySet<string>): string {
   const lines: string[] = [heading];
   for (const [slot, items] of Object.entries(shortlists)) {
     if (!items?.length) continue;
-    lines.push(`\n${slot.toUpperCase()} options (choose exactly one id):`, JSON.stringify(items, null, 2));
+    const label = SLOT_DISPLAY_LABELS[slot] ?? slot.toUpperCase();
+    const instruction = optionalSlots?.has(slot)
+      ? 'choose exactly one id, or null if this outfit genuinely doesn\'t call for one'
+      : 'choose exactly one id';
+    lines.push(`\n${label} options (${instruction}):`, JSON.stringify(items, null, 2));
   }
   return lines.join('\n');
 }
@@ -221,12 +238,14 @@ export function buildClosetOutfitsChoiceSystemPrompt(): string {
     '3. Choose exactly 5 outfits, and make them meaningfully different from each other — vary the anchor piece, colour story, and silhouette across the 5. Do not return near-duplicate combinations.',
     '4. VARIETY ACROSS REQUESTS: if the user message lists "Recently featured items", deliberately minimise reusing them — actively draw on other pieces from the shortlists that still satisfy every rule above, rather than defaulting to the same "obvious" combination every time. Only reuse a recently-featured item when the shortlist genuinely offers no suitable alternative for that slot.',
     '5. PREFERENCE SIGNAL: if the user message lists items the client has loved or hated in past outfits, lean toward the loved items and the styles they represent where they fit the brief, and avoid the hated items where a reasonable alternative exists — but never let this override rules 1-3.',
-    '6. SUITS: a Suit item is ONE physical piece that is both the trousers AND the jacket — it can appear in both the BOTTOMS and OUTERWEAR options. If you choose a Suit id for BOTTOMS, you MUST choose that exact same Suit id for OUTERWEAR too (never a different jacket/blazer, and never a different suit). A suit is always worn with a proper collared dress shirt underneath — never pair it with a polo or t-shirt for TOPS.',
-    '7. Within all of the above, look cool, current, and intentional — this is a client who cares about their aesthetic, not a rote uniform.',
+    '6. SUITS: a Suit item is ONE physical piece that is both the trousers AND the jacket — it can appear in both the BOTTOMS and SECONDARY TOP options. If you choose a Suit id for BOTTOMS, you MUST choose that exact same Suit id for SECONDARY TOP too (never a different jacket/blazer, and never a different suit) — a suit is always worn as its own matching pair, never mixed with a separate blazer or separate trousers. A suit is always worn with a proper collared dress shirt underneath — never pair it with a polo or t-shirt for PRIMARY TOP. A true weatherproof OUTERWEAR piece (overcoat) can still be layered over a suit independently when the weather calls for it.',
+    '7. OPTIONAL SLOTS: SECONDARY TOP, THERMAL LAYER, and OUTERWEAR are resolved to null when this outfit genuinely doesn\'t call for one (e.g. no thermal layer needed in warm weather, no secondary top for a plain relaxed casual look) — do not force one in just because it was offered. When a slot is marked required in its options heading, it must never be null.',
+    '8. ADDITIONAL ACCESSORIES: accessoryIds is a separate, optional multi-pick list (belt/scarf/tie/socks) — include 0 or more only where they genuinely complete the look; do not pad it out for the sake of it.',
+    '9. Within all of the above, look cool, current, and intentional — this is a client who cares about their aesthetic, not a rote uniform.',
     '',
     'For each outfit, also write a short evocative title and one sentence on why the combination works — reference the actual chosen pieces by their descriptive name (e.g. "the olive green knitted polo"), not generic praise.',
-    'NEVER include an item\'s id in the title or whyItWorks text — ids belong only in chosenIds. Refer to every piece by name only.',
-    'NEVER mention or imply a piece that isn\'t one of your actual chosenIds for that outfit. If a slot (e.g. LAYERING or OUTERWEAR) wasn\'t offered to you at all, that means the wardrobe has nothing for it right now — do not invent one in whyItWorks or the title. Only describe the exact pieces you actually chose ids for.',
+    'NEVER include an item\'s id in the title or whyItWorks text — ids belong only in chosenIds/accessoryIds. Refer to every piece by name only.',
+    'NEVER mention or imply a piece that isn\'t one of your actual chosenIds/accessoryIds for that outfit. If a slot wasn\'t offered to you at all, or you resolved it to null, that piece does not exist in this outfit — do not invent one in whyItWorks or the title. Only describe the exact pieces you actually chose ids for.',
     '',
     'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');
@@ -234,6 +253,8 @@ export function buildClosetOutfitsChoiceSystemPrompt(): string {
 
 export function buildClosetOutfitsChoiceUserPrompt(params: {
   shortlists: ClosetOutfitSlotShortlists;
+  optionalSlots?: ReadonlySet<string>;
+  accessoryShortlist?: ClosetOutfitIndexItem[];
   formality: string;
   weatherSummary?: string | null;
   weatherStylingHint?: string | null;
@@ -248,7 +269,10 @@ export function buildClosetOutfitsChoiceUserPrompt(params: {
   return [
     buildContextBlock(params),
     '',
-    buildShortlistBlock(params.shortlists, 'WARDROBE OPTIONS BY SLOT:'),
+    buildShortlistBlock(params.shortlists, 'WARDROBE OPTIONS BY SLOT:', params.optionalSlots),
+    params.accessoryShortlist?.length
+      ? `\nADDITIONAL ACCESSORIES options (accessoryIds — 0 or more):\n${JSON.stringify(params.accessoryShortlist, null, 2)}`
+      : '',
     '',
     'Build exactly 5 distinct, complete outfits from these options for the formality and weather context above.',
   ].join('\n');

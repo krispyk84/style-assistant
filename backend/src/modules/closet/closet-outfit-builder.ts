@@ -1,4 +1,13 @@
-import { CATEGORY_TO_GROUP, FORMALITY_RANK, SLOT_GROUPS, type OutfitSlot } from './closet-taxonomy.js';
+import {
+  ACCESSORY_GROUPS,
+  CATEGORY_TO_GROUP,
+  FORMALITY_RANK,
+  SLOT_GROUPS,
+  TIER_ALLOWS_SUIT,
+  TIER_SLOT_RULES,
+  type OutfitSlot,
+  type TierSlug,
+} from './closet-taxonomy.js';
 
 /**
  * Shared closet-only outfit-building primitives — used by Generate 5
@@ -6,16 +15,17 @@ import { CATEGORY_TO_GROUP, FORMALITY_RANK, SLOT_GROUPS, type OutfitSlot } from 
  * closet-only path.
  *
  * The main selection primitive is `buildOutfitSlotShortlists`: it filters
- * each slot (footwear, bottoms, tops, ...) down to real closet items within
- * the target formality band, but does NOT pick a winner — it hands back a
- * generously-sized, per-slot candidate list. The caller then puts those
- * shortlists in front of an LLM (alongside color/texture/silhouette/vibe/
- * trendiness context) and asks it to CHOOSE and narrate a coherent outfit
- * from real ids only. This is what actually fixes formality mismatches
- * (a business-formality shortlist structurally cannot contain sneakers when
- * the closet has dress shoes) and phantom pieces (every id is real and
- * slot-correct by construction) while keeping the model's styling judgment
- * intact — a shortlist is a guardrail, not a substitute for taste.
+ * each slot (footwear, bottoms, primaryTop, ...) down to real closet items
+ * within the target formality band AND the tier's hard-enforced garment-
+ * group restrictions (closet-taxonomy.ts's TIER_SLOT_RULES — e.g. business
+ * footwear structurally cannot include sneakers), but does NOT pick a
+ * winner — it hands back a generously-sized, per-slot candidate list. The
+ * caller then puts those shortlists in front of an LLM (alongside color/
+ * texture/silhouette/vibe/trendiness context) and asks it to CHOOSE and
+ * narrate a coherent outfit from real ids only. This is what actually fixes
+ * formality mismatches and phantom pieces while keeping the model's styling
+ * judgment intact for WHICH real, already-tier-legal item to wear — a
+ * shortlist is a guardrail, not a substitute for taste.
  *
  * `buildDeterministicOutfit` (pure code, no LLM) is kept for the narrower
  * "add a hat/bag to an already-composed outfit" toggle, where a single,
@@ -33,8 +43,9 @@ export type DeterministicOutfitParams<TItem extends BuilderClosetItem> = {
   closetItems: TItem[];
   /** Target FORMALITY_RANK value (0-3) for this outfit. */
   targetFormalityRank: number;
+  tier: TierSlug;
   /** Weather-gated — caller decides based on temperature. */
-  includeLayering: boolean;
+  includeThermalLayer: boolean;
   includeOuterwear: boolean;
   includeHat?: boolean;
   includeBag?: boolean;
@@ -74,29 +85,33 @@ export function filterByFormalityBand<TItem extends BuilderClosetItem>(candidate
   return candidates;
 }
 
-// Footwear formality is more reliably signaled by garment GROUP than by an
-// item's own (often inconsistently cataloged) formality tag — a "Shoes"/
-// "Loafers" category item is inherently dressier than "Sneakers"/"Boots"
-// regardless of how each happens to be tagged. On a genuinely Formal-target
-// day, prefer the dressier groups outright rather than trusting formality
-// tags alone to sort it out; only fall back to the full footwear pool if the
-// closet has nothing in those groups at all.
-const FORMAL_FOOTWEAR_GROUPS = new Set(['formal_shoes', 'loafers']);
-
-export function preferFormalFootwearGroups<TItem extends BuilderClosetItem>(candidates: TItem[], targetRank: number): TItem[] {
-  if (targetRank < FORMALITY_RANK['Formal']) return candidates;
-  const dressy = candidates.filter((item) => FORMAL_FOOTWEAR_GROUPS.has(CATEGORY_TO_GROUP[item.category] ?? ''));
-  return dressy.length > 0 ? dressy : candidates;
+/**
+ * Resolves which garment groups a slot may draw from for a given tier —
+ * TIER_SLOT_RULES' hard restriction when one is set (e.g. business
+ * footwear → dress shoes/loafers only), otherwise the slot's full
+ * SLOT_GROUPS membership. A suit is added back in as a valid candidate for
+ * bottoms/secondaryTop whenever the tier allows the suit dual-role, since
+ * TIER_SLOT_RULES' allowedGroups lists are expressed in terms of the
+ * separates path and shouldn't need to repeat "or a suit" every time.
+ */
+export function effectiveAllowedGroups(slot: OutfitSlot, tier: TierSlug): readonly string[] {
+  const rule = TIER_SLOT_RULES[tier][slot];
+  const base = (rule?.allowedGroups ?? SLOT_GROUPS[slot]).filter((group) => group !== 'suit');
+  if (TIER_ALLOWS_SUIT[tier] && SLOT_GROUPS[slot].includes('suit')) {
+    return [...base, 'suit'];
+  }
+  return base;
 }
 
 function pickForSlot<TItem extends BuilderClosetItem>(
   slot: OutfitSlot,
   closetItems: TItem[],
+  tier: TierSlug,
   targetFormalityRank: number,
   excludeItemIds: ReadonlySet<string>,
   recentGroups: ReadonlySet<string>,
 ): TItem | null {
-  const allowedGroups = SLOT_GROUPS[slot];
+  const allowedGroups = effectiveAllowedGroups(slot, tier);
   const candidates = closetItems.filter((item) => {
     if (excludeItemIds.has(item.id)) return false;
     const group = CATEGORY_TO_GROUP[item.category];
@@ -127,15 +142,15 @@ export function buildDeterministicOutfit<TItem extends BuilderClosetItem>(
   const excludeItemIds = new Set(params.excludeItemIds ?? []);
   const bySlot: Partial<Record<OutfitSlot, TItem>> = {};
 
-  const slotsToFill: OutfitSlot[] = ['footwear', 'bottoms', 'tops', 'watch', 'sunglasses'];
-  if (params.includeLayering) slotsToFill.push('layering');
+  const slotsToFill: OutfitSlot[] = ['footwear', 'bottoms', 'primaryTop', 'watch', 'sunglasses'];
+  if (params.includeThermalLayer) slotsToFill.push('thermalLayer');
   if (params.includeOuterwear) slotsToFill.push('outerwear');
   if (params.includeHat) slotsToFill.push('hat');
   if (params.includeBag) slotsToFill.push('bag');
 
   for (const slot of slotsToFill) {
     const recentGroups = params.recentGroupsBySlot?.[slot] ?? new Set<string>();
-    const picked = pickForSlot(slot, params.closetItems, params.targetFormalityRank, excludeItemIds, recentGroups);
+    const picked = pickForSlot(slot, params.closetItems, params.tier, params.targetFormalityRank, excludeItemIds, recentGroups);
     if (picked) {
       bySlot[slot] = picked;
       excludeItemIds.add(picked.id);
@@ -159,8 +174,9 @@ export type SlotShortlistParams<TItem extends BuilderClosetItem> = {
   closetItems: TItem[];
   /** Target FORMALITY_RANK value (0-3) for this outfit/day/tier. */
   targetFormalityRank: number;
+  tier: TierSlug;
   /** Weather-gated — caller decides based on temperature. */
-  includeLayering: boolean;
+  includeThermalLayer: boolean;
   includeOuterwear: boolean;
   includeHat?: boolean;
   includeBag?: boolean;
@@ -171,10 +187,16 @@ export type SlotShortlistParams<TItem extends BuilderClosetItem> = {
 
 /**
  * Builds a generous, formality-filtered candidate list per slot — the
- * shortlist an LLM chooses from, not a single deterministic pick. Widens to
- * the full candidate set for a slot if nothing qualifies within the target
- * formality band (a slightly-off option beats none), matching the same
- * graceful-degradation behavior as buildDeterministicOutfit.
+ * shortlist an LLM chooses from, not a single deterministic pick. secondary
+ * top is always offered (not weather-gated) since it's a style/formality
+ * choice, not insulation — every tier's framework includes it, optional for
+ * casual/smart-casual and required for business. Widens to the full
+ * candidate set for a slot if nothing qualifies within the target formality
+ * band (a slightly-off option beats none), matching the same graceful-
+ * degradation behavior as buildDeterministicOutfit — but NEVER widens past
+ * the tier's hard-restricted allowedGroups (business footwear never widens
+ * into sneakers just because the closet lacks dress shoes at the right
+ * formality tag; that's what fillMissingRequiredSlots' fallback is for).
  */
 export function buildOutfitSlotShortlists<TItem extends BuilderClosetItem>(
   params: SlotShortlistParams<TItem>,
@@ -182,8 +204,8 @@ export function buildOutfitSlotShortlists<TItem extends BuilderClosetItem>(
   const excludeItemIds = params.excludeItemIds ?? new Set<string>();
   const maxPerSlot = params.maxPerSlot ?? DEFAULT_MAX_PER_SLOT;
 
-  const slotsToInclude: OutfitSlot[] = ['footwear', 'bottoms', 'tops', 'watch', 'sunglasses'];
-  if (params.includeLayering) slotsToInclude.push('layering');
+  const slotsToInclude: OutfitSlot[] = ['footwear', 'bottoms', 'primaryTop', 'secondaryTop', 'watch', 'sunglasses'];
+  if (params.includeThermalLayer) slotsToInclude.push('thermalLayer');
   if (params.includeOuterwear) slotsToInclude.push('outerwear');
   if (params.includeHat) slotsToInclude.push('hat');
   if (params.includeBag) slotsToInclude.push('bag');
@@ -191,17 +213,13 @@ export function buildOutfitSlotShortlists<TItem extends BuilderClosetItem>(
   const bySlot: SlotShortlists<TItem> = {};
 
   for (const slot of slotsToInclude) {
-    const allowedGroups = SLOT_GROUPS[slot];
-    let candidates = params.closetItems.filter((item) => {
+    const allowedGroups = effectiveAllowedGroups(slot, params.tier);
+    const candidates = params.closetItems.filter((item) => {
       if (excludeItemIds.has(item.id)) return false;
       const group = CATEGORY_TO_GROUP[item.category];
       return group !== undefined && allowedGroups.includes(group);
     });
     if (candidates.length === 0) continue;
-
-    if (slot === 'footwear') {
-      candidates = preferFormalFootwearGroups(candidates, params.targetFormalityRank);
-    }
 
     const pool = filterByFormalityBand(candidates, params.targetFormalityRank);
 
@@ -215,11 +233,36 @@ export function buildOutfitSlotShortlists<TItem extends BuilderClosetItem>(
 }
 
 /**
+ * "Additional Accessories" shortlist — belt/scarf/tie/socks, offered as its
+ * own multi-pick pool (0 or more chosen at once) rather than a single-item
+ * OutfitSlot, since the framework explicitly allows more than one at a time.
+ */
+export function buildAccessoryShortlist<TItem extends BuilderClosetItem>(
+  closetItems: TItem[],
+  targetFormalityRank: number,
+  excludeItemIds: ReadonlySet<string> = new Set(),
+  maxCandidates: number = DEFAULT_MAX_PER_SLOT,
+): TItem[] {
+  const candidates = closetItems.filter((item) => {
+    if (excludeItemIds.has(item.id)) return false;
+    const group = CATEGORY_TO_GROUP[item.category];
+    return group !== undefined && ACCESSORY_GROUPS.includes(group);
+  });
+  if (candidates.length === 0) return [];
+  const pool = filterByFormalityBand(candidates, targetFormalityRank);
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, maxCandidates);
+}
+
+/**
  * Same shortlist philosophy, scoped to a single swap: every candidate in the
  * SAME garment group as the item being replaced (never a different slot),
  * within the formality band — so a shoe swap only ever offers other shoes,
  * and the LLM picks a genuinely different, thoughtfully-coordinated
- * replacement rather than a random one.
+ * replacement rather than a random one. Doesn't need tier-restriction
+ * re-application: the original item was already tier-legal when first
+ * chosen, and "same group as original" can never cross into a different,
+ * tier-forbidden group.
  */
 export function buildVariantCandidates<TItem extends BuilderClosetItem>(
   originalItem: TItem,
@@ -248,67 +291,67 @@ function isSuit(item: BuilderClosetItem | undefined): boolean {
 }
 
 /**
- * A Suit is one physical item that supplies BOTH the bottoms and outerwear
- * roles at once (trousers + jacket) — never a top-half garment meant to be
- * paired with a separate, different jacket. Because bottoms/outerwear are
- * chosen as independent schema fields, a model can still pick a suit for one
- * slot and something else (or a different suit) for the other; this
- * normalizes the result in place so exactly one suit ends up occupying both
- * slots whenever either slot resolved to one.
+ * A Suit is one physical item that supplies BOTH the bottoms and secondary-
+ * top roles at once (trousers + matching jacket) — never a top-half garment
+ * meant to be paired with a separate, different blazer. Because bottoms/
+ * secondaryTop are chosen as independent schema fields, a model can still
+ * pick a suit for one slot and something else (or a different suit) for the
+ * other; this normalizes the result in place so exactly one suit ends up
+ * occupying both slots whenever either slot resolved to one. Outerwear
+ * (a true weatherproof shell) is untouched by this — an overcoat can still
+ * be layered over a suit independently.
  */
 export function normalizeSuitDualRole<TItem extends BuilderClosetItem>(bySlot: Partial<Record<OutfitSlot, TItem>>): void {
   const bottomsIsSuit = isSuit(bySlot.bottoms);
-  const outerwearIsSuit = isSuit(bySlot.outerwear);
+  const secondaryTopIsSuit = isSuit(bySlot.secondaryTop);
 
-  if (bottomsIsSuit && !outerwearIsSuit) {
-    bySlot.outerwear = bySlot.bottoms;
-  } else if (outerwearIsSuit && !bottomsIsSuit) {
-    bySlot.bottoms = bySlot.outerwear;
-  } else if (bottomsIsSuit && outerwearIsSuit && bySlot.bottoms!.id !== bySlot.outerwear!.id) {
+  if (bottomsIsSuit && !secondaryTopIsSuit) {
+    bySlot.secondaryTop = bySlot.bottoms;
+  } else if (secondaryTopIsSuit && !bottomsIsSuit) {
+    bySlot.bottoms = bySlot.secondaryTop;
+  } else if (bottomsIsSuit && secondaryTopIsSuit && bySlot.bottoms!.id !== bySlot.secondaryTop!.id) {
     // Two different suits picked for the two slots — collapse to one.
-    bySlot.outerwear = bySlot.bottoms;
+    bySlot.secondaryTop = bySlot.bottoms;
   }
 }
 
 /**
  * Last-resort safety net: a slot the caller has decided is required for this
- * outfit (footwear/bottoms/tops always; layering/outerwear only when the
- * weather calls for them) must never end up silently unfilled just because
- * the model's response didn't include it or validation fell back to a
- * narrower path. This ignores formality banding and exclusions entirely —
- * it only runs for a slot that's STILL empty after the normal shortlist-
- * driven choice, so a formality-mismatched pick beats no pick at all.
- * Every already-used id (across all slots, not just this one) is avoided
- * where possible so this never duplicates an item into two roles.
+ * outfit (per TIER_SLOT_RULES — footwear/bottoms/primaryTop/watch/sunglasses
+ * always, secondaryTop additionally for business, thermalLayer/outerwear
+ * only when the weather calls for them) must never end up silently unfilled
+ * just because the model's response didn't include it or validation fell
+ * back to a narrower path. Tries the tier's hard-restricted groups first
+ * (never fills required business footwear with sneakers); only widens to
+ * the slot's full group membership if the restricted pool is completely
+ * empty (a mismatched pick beats no pick at all). Every already-used id
+ * (across all slots) is avoided where possible so this never duplicates an
+ * item into two roles.
  */
 export function fillMissingRequiredSlots<TItem extends BuilderClosetItem>(params: {
   bySlot: Partial<Record<OutfitSlot, TItem>>;
   closetItems: TItem[];
   requiredSlots: readonly OutfitSlot[];
-  /**
-   * Target FORMALITY_RANK for this outfit. When provided, footwear is
-   * forced to a dressier group on Formal-target days rather than grabbing
-   * whatever's first — "there must be footwear, always" isn't satisfied by
-   * sneakers under a business suit. Optional because a couple of callers
-   * (e.g. the fully-empty-shortlist trip fallback) don't track a rank.
-   */
-  targetFormalityRank?: number;
+  tier: TierSlug;
+  targetFormalityRank: number;
 }): void {
   for (const slot of params.requiredSlots) {
     if (params.bySlot[slot]) continue;
 
     const usedIds = new Set(Object.values(params.bySlot).map((item) => (item as TItem).id));
-    const allowedGroups = SLOT_GROUPS[slot];
+    const restrictedGroups = effectiveAllowedGroups(slot, params.tier);
     let candidates = params.closetItems.filter((item) => {
       const group = CATEGORY_TO_GROUP[item.category];
-      return group !== undefined && allowedGroups.includes(group);
+      return group !== undefined && restrictedGroups.includes(group);
     });
-    if (slot === 'footwear' && params.targetFormalityRank !== undefined) {
-      candidates = preferFormalFootwearGroups(candidates, params.targetFormalityRank);
+    if (candidates.length === 0) {
+      const fallbackGroups = SLOT_GROUPS[slot];
+      candidates = params.closetItems.filter((item) => {
+        const group = CATEGORY_TO_GROUP[item.category];
+        return group !== undefined && fallbackGroups.includes(group);
+      });
     }
-    if (params.targetFormalityRank !== undefined) {
-      candidates = filterByFormalityBand(candidates, params.targetFormalityRank);
-    }
+    candidates = filterByFormalityBand(candidates, params.targetFormalityRank);
     const fresh = candidates.find((item) => !usedIds.has(item.id));
     const picked = fresh ?? candidates[0];
     if (picked) params.bySlot[slot] = picked;

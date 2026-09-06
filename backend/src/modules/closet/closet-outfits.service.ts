@@ -29,13 +29,24 @@ import {
   buildClosetOutfitVariationsChoiceJsonSchema,
 } from './closet.schemas.js';
 import {
+  buildAccessoryShortlist,
   buildDeterministicOutfit,
   buildOutfitSlotShortlists,
   buildVariantCandidates,
+  effectiveAllowedGroups,
   filterByFormalityBand,
-  preferFormalFootwearGroups,
 } from './closet-outfit-builder.js';
-import { CATEGORY_TO_GROUP, FORMALITY_RANK, GROUP_TO_SLOTS, SLOT_GROUPS, TIER_FORMALITY_TARGET } from './closet-taxonomy.js';
+import {
+  CATEGORY_TO_GROUP,
+  FORMALITY_RANK,
+  GROUP_TO_SLOTS,
+  SLOT_GROUPS,
+  TIER_FORMALITY_TARGET,
+  TIER_SLOT_RULES,
+  tierForFormalityRank,
+  type OutfitSlot,
+  type TierSlug,
+} from './closet-taxonomy.js';
 import type {
   GenerateClosetOutfitsPayload,
   GenerateClosetOutfitVariationsPayload,
@@ -100,14 +111,23 @@ async function loadIndex(supabaseUserId: string) {
   return { itemsById };
 }
 
-// ── Weather gating — translates temperature into whether a layering/
+// ── Weather gating — translates temperature into whether a thermal-layer/
 // outerwear slot should be offered at all (the caller's job, not the shared
 // builder's concern). ─────────────────────────────────────────────────────────
-function weatherGates(temperatureC: number | null): { includeLayering: boolean; includeOuterwear: boolean } {
-  if (temperatureC == null) return { includeLayering: true, includeOuterwear: true };
-  if (temperatureC >= 24) return { includeLayering: false, includeOuterwear: false };
-  if (temperatureC >= 18) return { includeLayering: false, includeOuterwear: true };
-  return { includeLayering: true, includeOuterwear: true };
+function weatherGates(temperatureC: number | null): { includeThermalLayer: boolean; includeOuterwear: boolean } {
+  if (temperatureC == null) return { includeThermalLayer: true, includeOuterwear: true };
+  if (temperatureC >= 24) return { includeThermalLayer: false, includeOuterwear: false };
+  if (temperatureC >= 18) return { includeThermalLayer: false, includeOuterwear: true };
+  return { includeThermalLayer: true, includeOuterwear: true };
+}
+
+// Required-slot keys for a tier, per closet-taxonomy.ts's TIER_SLOT_RULES —
+// the code-enforced framework (footwear/bottoms/primaryTop/watch/sunglasses
+// always; secondaryTop additionally for business).
+function requiredSlotsForTier(tier: TierSlug): OutfitSlot[] {
+  return (Object.entries(TIER_SLOT_RULES[tier]) as [OutfitSlot, { required: boolean }][])
+    .filter(([, rule]) => rule.required)
+    .map(([slot]) => slot);
 }
 
 async function buildVarietyContext(
@@ -145,17 +165,25 @@ function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
   };
 }
 
-type ChoiceOutfit = { index: number; title: string; whyItWorks: string; chosenIds: Record<string, string> };
+type ChoiceOutfit = {
+  index: number;
+  title: string;
+  whyItWorks: string;
+  chosenIds: Record<string, string | null>;
+  accessoryIds: string[];
+};
 
 // Resolves the model's per-slot choices back into real items — validates
 // every chosen id against the exact shortlist offered for its slot (a
 // defensive double-check on top of the schema's own enum constraint), merges
 // in any items the caller wants fixed on every outfit (e.g. kept pieces for
-// a variant swap), and drops any outfit that duplicates an earlier one's
-// final item set.
+// a variant swap) plus any chosen additional accessories, and drops any
+// outfit that duplicates an earlier one's final item set. A null chosenIds
+// value means the model deliberately left that optional slot out.
 function resolveChoiceOutfits(params: {
   outfits: ChoiceOutfit[];
   idsBySlot: Record<string, string[]>;
+  validAccessoryIds: ReadonlySet<string>;
   fixedItemIds: string[];
   itemsById: Map<string, BuilderItem>;
   idPrefix: string;
@@ -165,22 +193,22 @@ function resolveChoiceOutfits(params: {
   const resolved: { id: string; title: string; whyItWorks: string; items: MappedClosetItem[] }[] = [];
 
   for (const outfit of params.outfits) {
-    const chosenEntries = Object.entries(outfit.chosenIds);
+    const chosenEntries = Object.entries(outfit.chosenIds).filter((entry): entry is [string, string] => entry[1] !== null);
     if (chosenEntries.length === 0) continue;
 
     const valid = chosenEntries.every(([slot, id]) => validIdSets.get(slot)?.has(id));
     if (!valid) continue;
 
-    // Suit dual-role: bottoms/outerwear may legitimately share the same Suit
-    // id (one physical piece is both trousers and jacket) — force them
+    // Suit dual-role: bottoms/secondaryTop may legitimately share the same
+    // Suit id (one physical piece is both trousers and jacket) — force them
     // consistent rather than rejecting the outfit or double-counting the item.
     const bySlot = new Map(chosenEntries);
     const bottomsItem = bySlot.has('bottoms') ? params.itemsById.get(bySlot.get('bottoms')!) : undefined;
-    const outerwearItem = bySlot.has('outerwear') ? params.itemsById.get(bySlot.get('outerwear')!) : undefined;
-    if (bottomsItem && CATEGORY_TO_GROUP[bottomsItem.category] === 'suit' && bySlot.has('outerwear')) {
-      bySlot.set('outerwear', bottomsItem.id);
-    } else if (outerwearItem && CATEGORY_TO_GROUP[outerwearItem.category] === 'suit' && bySlot.has('bottoms')) {
-      bySlot.set('bottoms', outerwearItem.id);
+    const secondaryTopItem = bySlot.has('secondaryTop') ? params.itemsById.get(bySlot.get('secondaryTop')!) : undefined;
+    if (bottomsItem && CATEGORY_TO_GROUP[bottomsItem.category] === 'suit' && bySlot.has('secondaryTop')) {
+      bySlot.set('secondaryTop', bottomsItem.id);
+    } else if (secondaryTopItem && CATEGORY_TO_GROUP[secondaryTopItem.category] === 'suit' && bySlot.has('bottoms')) {
+      bySlot.set('bottoms', secondaryTopItem.id);
     }
 
     // Any OTHER duplicate (two different slots landing on the same non-suit
@@ -194,8 +222,9 @@ function resolveChoiceOutfits(params: {
     });
     if (hasIllegitimateDuplicate) continue;
 
+    const accessoryIds = [...new Set(outfit.accessoryIds)].filter((id) => params.validAccessoryIds.has(id));
     const chosenIds = [...new Set(bySlot.values())]; // dedupe the suit id appearing under both slots
-    const itemIds = [...params.fixedItemIds, ...chosenIds];
+    const itemIds = [...params.fixedItemIds, ...chosenIds, ...accessoryIds];
     const key = [...itemIds].sort().join('|');
     if (seenKeys.has(key)) continue;
     seenKeys.add(key);
@@ -209,33 +238,6 @@ function resolveChoiceOutfits(params: {
   }
 
   return resolved;
-}
-
-// Last-resort, no-exceptions guarantee: every outfit must have footwear, and
-// on a Formal-target tier it must be a dressy pair — not left to chance even
-// though the schema already requires a valid footwear choice per outfit.
-// Mutates outfits in place, appending a formality-preferenced item straight
-// from the closet (bypassing the shortlist) for the rare case a resolved
-// outfit still came out without one.
-function ensureFootwearPresent(
-  outfits: { items: MappedClosetItem[] }[],
-  closetItems: BuilderItem[],
-  targetFormalityRank: number,
-): void {
-  for (const outfit of outfits) {
-    const hasFootwear = outfit.items.some((item) => SLOT_GROUPS.footwear.includes(CATEGORY_TO_GROUP[item.category] ?? ''));
-    if (hasFootwear) continue;
-
-    const usedIds = new Set(outfit.items.map((item) => item.id));
-    let candidates = closetItems.filter(
-      (item) => SLOT_GROUPS.footwear.includes(CATEGORY_TO_GROUP[item.category] ?? '') && !usedIds.has(item.id),
-    );
-    if (candidates.length === 0) continue;
-    candidates = preferFormalFootwearGroups(candidates, targetFormalityRank);
-    candidates = filterByFormalityBand(candidates, targetFormalityRank);
-    const picked = candidates[0]!;
-    outfit.items = [...outfit.items, mapClosetItem(picked)];
-  }
 }
 
 async function generateOutfitSketch(
@@ -347,6 +349,7 @@ async function attachSketchJobs(
 function pickAccessory(
   group: 'hat' | 'bag',
   closetItems: BuilderItem[],
+  tier: TierSlug,
   targetFormalityRank: number,
   excludeItemIds: ReadonlySet<string>,
 ): BuilderItem | null {
@@ -354,13 +357,48 @@ function pickAccessory(
   const result = buildDeterministicOutfit({
     closetItems: candidates,
     targetFormalityRank,
-    includeLayering: false,
+    tier,
+    includeThermalLayer: false,
     includeOuterwear: false,
     includeHat: group === 'hat',
     includeBag: group === 'bag',
     excludeItemIds,
   });
   return result.bySlot.hat ?? result.bySlot.bag ?? null;
+}
+
+// Last-resort, no-exceptions guarantee: every outfit must have footwear, and
+// on a Formal-target tier it must be a dressy pair (dress shoes/loafers) —
+// not left to chance even though the schema already requires a valid
+// footwear choice per outfit. Mutates outfits in place, appending a tier-
+// restricted, formality-preferenced item straight from the closet (bypassing
+// the shortlist) for the rare case a resolved outfit still came out without
+// one.
+function ensureFootwearPresent(
+  outfits: { items: MappedClosetItem[] }[],
+  closetItems: BuilderItem[],
+  tier: TierSlug,
+  targetFormalityRank: number,
+): void {
+  for (const outfit of outfits) {
+    const hasFootwear = outfit.items.some((item) => SLOT_GROUPS.footwear.includes(CATEGORY_TO_GROUP[item.category] ?? ''));
+    if (hasFootwear) continue;
+
+    const usedIds = new Set(outfit.items.map((item) => item.id));
+    const restrictedGroups = effectiveAllowedGroups('footwear', tier);
+    let candidates = closetItems.filter(
+      (item) => restrictedGroups.includes(CATEGORY_TO_GROUP[item.category] ?? '') && !usedIds.has(item.id),
+    );
+    if (candidates.length === 0) {
+      candidates = closetItems.filter(
+        (item) => SLOT_GROUPS.footwear.includes(CATEGORY_TO_GROUP[item.category] ?? '') && !usedIds.has(item.id),
+      );
+    }
+    if (candidates.length === 0) continue;
+    candidates = filterByFormalityBand(candidates, targetFormalityRank);
+    const picked = candidates[0]!;
+    outfit.items = [...outfit.items, mapClosetItem(picked)];
+  }
 }
 
 export const closetOutfitsService = {
@@ -374,24 +412,30 @@ export const closetOutfitsService = {
     ]);
 
     const temperatureC = payload.weatherContext?.apparentTemperatureC ?? payload.weatherContext?.temperatureC ?? null;
-    const { includeLayering, includeOuterwear } = weatherGates(temperatureC);
+    const { includeThermalLayer, includeOuterwear } = weatherGates(temperatureC);
     const targetFormalityRank = TIER_FORMALITY_TARGET[payload.formality] ?? FORMALITY_RANK['Refined Casual'];
+    const tier = tierForFormalityRank(targetFormalityRank);
 
     const shortlists = buildOutfitSlotShortlists({
       closetItems,
       targetFormalityRank,
-      includeLayering,
+      tier,
+      includeThermalLayer,
       includeOuterwear,
     });
+    const accessoryShortlist = buildAccessoryShortlist(closetItems, targetFormalityRank);
 
     const slots = Object.keys(shortlists).filter((slot) => (shortlists[slot as keyof typeof shortlists]?.length ?? 0) > 0);
-    if (!slots.includes('footwear') || !slots.includes('bottoms') || !slots.includes('tops')) {
+    if (!slots.includes('footwear') || !slots.includes('bottoms') || !slots.includes('primaryTop')) {
       throw new HttpError(
         422,
         'CLOSET_OUTFITS_INVALID',
-        'Your closet needs footwear, bottoms, and tops to build a complete outfit.',
+        'Your closet needs footwear, bottoms, and a top to build a complete outfit.',
       );
     }
+
+    const requiredSlots = requiredSlotsForTier(tier).filter((slot) => slots.includes(slot));
+    const optionalSlots = new Set(slots.filter((slot) => !requiredSlots.includes(slot as OutfitSlot)));
 
     const shortlistsForPrompt: ClosetOutfitSlotShortlists = {};
     const idsBySlot: Record<string, string[]> = {};
@@ -403,6 +447,8 @@ export const closetOutfitsService = {
 
     const userPrompt = buildClosetOutfitsChoiceUserPrompt({
       shortlists: shortlistsForPrompt,
+      optionalSlots,
+      accessoryShortlist: accessoryShortlist.map(toIndexItem),
       formality: payload.formality,
       weatherSummary: payload.weatherContext?.summary,
       weatherStylingHint: payload.weatherContext?.stylingHint,
@@ -417,7 +463,13 @@ export const closetOutfitsService = {
 
     const aiResult = await openAiClient.createStructuredResponse({
       schema: closetOutfitsChoiceResponseSchema,
-      jsonSchema: buildClosetOutfitsChoiceJsonSchema({ slots, idsBySlot, count: TARGET_OUTFIT_COUNT }),
+      jsonSchema: buildClosetOutfitsChoiceJsonSchema({
+        slots,
+        requiredSlots,
+        idsBySlot,
+        accessoryIds: accessoryShortlist.map((item) => item.id),
+        count: TARGET_OUTFIT_COUNT,
+      }),
       instructions: buildClosetOutfitsChoiceSystemPrompt(),
       userContent: [{ type: 'input_text' as const, text: userPrompt }],
       supabaseUserId,
@@ -427,6 +479,7 @@ export const closetOutfitsService = {
     const resolved = resolveChoiceOutfits({
       outfits: aiResult.outfits,
       idsBySlot,
+      validAccessoryIds: new Set(accessoryShortlist.map((item) => item.id)),
       fixedItemIds: [],
       itemsById,
       idPrefix: 'outfit',
@@ -435,7 +488,7 @@ export const closetOutfitsService = {
     if (resolved.length === 0) {
       throw new HttpError(502, 'CLOSET_OUTFITS_INVALID', 'Could not assemble outfits from your closet. Please try again.');
     }
-    ensureFootwearPresent(resolved, closetItems, targetFormalityRank);
+    ensureFootwearPresent(resolved, closetItems, tier, targetFormalityRank);
 
     const withFeedbackIds = await attachFeedbackIds(resolved, payload.formality, supabaseUserId);
     return { outfits: await attachSketchJobs(withFeedbackIds, supabaseUserId) };
@@ -507,7 +560,13 @@ export const closetOutfitsService = {
 
     const aiResult = await openAiClient.createStructuredResponse({
       schema: closetOutfitsChoiceResponseSchema,
-      jsonSchema: buildClosetOutfitVariationsChoiceJsonSchema({ slots, idsBySlot, maxCount: TARGET_OUTFIT_COUNT }),
+      jsonSchema: buildClosetOutfitVariationsChoiceJsonSchema({
+        slots,
+        requiredSlots: slots,
+        idsBySlot,
+        accessoryIds: [],
+        maxCount: TARGET_OUTFIT_COUNT,
+      }),
       instructions: buildClosetOutfitsChoiceSystemPrompt(),
       userContent: [{ type: 'input_text' as const, text: userPrompt }],
       supabaseUserId,
@@ -517,6 +576,7 @@ export const closetOutfitsService = {
     const resolved = resolveChoiceOutfits({
       outfits: aiResult.outfits,
       idsBySlot,
+      validAccessoryIds: new Set(),
       fixedItemIds: keepItemIds,
       itemsById,
       idPrefix: 'outfit-variant',
@@ -543,6 +603,7 @@ export const closetOutfitsService = {
     }
 
     const targetFormalityRank = TIER_FORMALITY_TARGET[payload.formality] ?? FORMALITY_RANK['Refined Casual'];
+    const tier = tierForFormalityRank(targetFormalityRank);
 
     const currentHatId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'hat');
     const currentBagId = validItemIds.find((id) => CATEGORY_TO_GROUP[itemsById.get(id)!.category] === 'bag');
@@ -551,11 +612,11 @@ export const closetOutfitsService = {
     itemIds = itemIds.filter((id) => id !== currentBagId || payload.includeBag);
 
     if (payload.includeHat && !currentHatId) {
-      const hat = pickAccessory('hat', closetItems, targetFormalityRank, new Set(itemIds));
+      const hat = pickAccessory('hat', closetItems, tier, targetFormalityRank, new Set(itemIds));
       if (hat) itemIds.push(hat.id);
     }
     if (payload.includeBag && !currentBagId) {
-      const bag = pickAccessory('bag', closetItems, targetFormalityRank, new Set(itemIds));
+      const bag = pickAccessory('bag', closetItems, tier, targetFormalityRank, new Set(itemIds));
       if (bag) itemIds.push(bag.id);
     }
 
