@@ -5,7 +5,7 @@ import { setApiAuthToken } from '@/lib/api/api-client';
 import { logAuthEvent } from '@/lib/auth-event-log';
 import { clearAllLocalUserData, syncUserDataOnSignIn } from '@/lib/user-data-sync';
 import { setAnalyticsUserId } from '@/lib/analytics';
-import { setCrashlyticsUserId } from '@/lib/crashlytics';
+import { recordError, setCrashlyticsUserId } from '@/lib/crashlytics';
 
 // Synthetic event emitted by useSupabaseAuth during getSession() hydration.
 // Supabase's onAuthStateChange does not fire for the restored session on launch,
@@ -50,7 +50,7 @@ export function useAuthSideEffects(): AuthEventCallback {
       }
     } else {
       if (event === 'SIGNED_OUT') {
-        void clearAllLocalUserData().catch(() => undefined);
+        void clearAllLocalUserData().catch((error) => recordError(error, 'clear_all_local_user_data'));
       }
     }
   }, []);

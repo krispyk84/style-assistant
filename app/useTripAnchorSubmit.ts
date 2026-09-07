@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 
+import { recordError } from '@/lib/crashlytics';
 import type { TripDraft } from '@/lib/trip-draft-storage';
 import { tripDraftStorage } from '@/lib/trip-draft-storage';
 import { buildTripResultsHref, createTripId } from '@/lib/trip-route';
@@ -24,9 +25,15 @@ export function useTripAnchorSubmit({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const planIdRef = useRef<string | null>(null);
+  // Guards against saveTripPlanDraft calls resolving out of order across
+  // rapid [draft, mode] changes (e.g. quickly switching guided/auto/manual) —
+  // only the result matching the latest-dispatched call is applied, so an
+  // earlier, slower-resolving call can't overwrite planIdRef with a stale id.
+  const draftSaveTokenRef = useRef(0);
 
   useEffect(() => {
     if (!draft) return;
+    const token = ++draftSaveTokenRef.current;
     saveTripPlanDraft({
       destination: draft.destinationLabel,
       country: draft.country,
@@ -47,7 +54,9 @@ export function useTripAnchorSubmit({
       dressCode: draft.dressCode,
       specialNeeds: draft.specialNeeds,
       anchorMode: mode,
-    }).then((id) => { planIdRef.current = id; });
+    }).then((id) => {
+      if (draftSaveTokenRef.current === token) planIdRef.current = id;
+    }).catch((error) => recordError(error, 'trip_anchor_save_plan_draft'));
   }, [draft, mode]);
 
   const handleContinue = useCallback(async () => {
@@ -70,7 +79,8 @@ export function useTripAnchorSubmit({
 
     try {
       if (planIdRef.current) {
-        void saveTripPlanAnchors(planIdRef.current, mode, anchorInputs);
+        void saveTripPlanAnchors(planIdRef.current, mode, anchorInputs)
+          .catch((error) => recordError(error, 'trip_anchor_save_plan_anchors'));
       }
 
       await tripDraftStorage.save({

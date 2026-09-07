@@ -3,6 +3,7 @@ import { Appearance, type ColorSchemeName } from 'react-native';
 
 import { lightTheme, darkTheme, type AppTheme } from '@/constants/themes';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
+import { recordError } from '@/lib/crashlytics';
 
 export type AppearanceMode = 'light' | 'dark' | 'system';
 
@@ -29,9 +30,11 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
   const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(Appearance.getColorScheme());
 
   useEffect(() => {
-    void loadAppSettings().then((s) => {
-      if (s.appearanceMode) setMode(s.appearanceMode);
-    });
+    void loadAppSettings()
+      .then((s) => {
+        if (s.appearanceMode) setMode(s.appearanceMode);
+      })
+      .catch((error) => recordError(error, 'load_app_settings_theme'));
     const sub = Appearance.addChangeListener(({ colorScheme }) => setSystemScheme(colorScheme));
     return () => sub.remove();
   }, []);

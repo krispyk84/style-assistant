@@ -37,6 +37,8 @@ export function useClosetFitCheck() {
   useEffect(() => {
     void closetService.getItems().then((response) => {
       if (response.success && response.data) setClosetItems(response.data.items);
+    }).catch((error) => {
+      recordError(error instanceof Error ? error : new Error(String(error)), 'closet_fit_check_load_closet_items');
     });
   }, []);
 

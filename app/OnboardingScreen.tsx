@@ -49,6 +49,26 @@ export function OnboardingScreen() {
     trackOnboardingStarted();
   }, []);
 
+  // selectAndAdvance/handleGenderSelect below schedule a delayed advance() so
+  // the user sees their selection highlight before the step transitions. If
+  // they tap "back" inside that window, the pending advance still fires and
+  // silently re-advances past the step they just backed into — clearing it
+  // on back-navigation (and on unmount) prevents that stale transition.
+  const pendingAdvanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (pendingAdvanceTimeoutRef.current) clearTimeout(pendingAdvanceTimeoutRef.current);
+    };
+  }, []);
+
+  function handleGoBack() {
+    if (pendingAdvanceTimeoutRef.current) {
+      clearTimeout(pendingAdvanceTimeoutRef.current);
+      pendingAdvanceTimeoutRef.current = null;
+    }
+    flowHook.goBack();
+  }
+
   // Scroll to top whenever the step changes (covers advance, goBack, and the
   // safety-net redirect inside handleComplete)
   useEffect(() => {
@@ -75,12 +95,14 @@ export function OnboardingScreen() {
 
   function selectAndAdvance<K extends keyof WizardProfile>(key: K, value: WizardProfile[K]) {
     formsHook.setField(key, value);
-    setTimeout(flowHook.advance, 160);
+    if (pendingAdvanceTimeoutRef.current) clearTimeout(pendingAdvanceTimeoutRef.current);
+    pendingAdvanceTimeoutRef.current = setTimeout(flowHook.advance, 160);
   }
 
   function handleGenderSelect(gender: Profile['gender']) {
     formsHook.setGender(gender);
-    setTimeout(flowHook.advance, 160);
+    if (pendingAdvanceTimeoutRef.current) clearTimeout(pendingAdvanceTimeoutRef.current);
+    pendingAdvanceTimeoutRef.current = setTimeout(flowHook.advance, 160);
   }
 
   // ── Step content ──────────────────────────────────────────────────────────────
@@ -210,7 +232,7 @@ export function OnboardingScreen() {
           gap: spacing.sm,
         }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Pressable onPress={flowHook.goBack} hitSlop={12}>
+          <Pressable onPress={handleGoBack} hitSlop={12}>
             <AppIcon name="chevron-left" size={24} color={theme.colors.text} />
           </Pressable>
           <AppText tone="subtle" style={{ fontSize: 12 }}>

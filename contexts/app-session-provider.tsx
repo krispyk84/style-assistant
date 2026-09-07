@@ -2,6 +2,7 @@ import { PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } 
 import { AppState } from 'react-native';
 
 import { useAuth } from '@/contexts/auth-context';
+import { recordError } from '@/lib/crashlytics';
 import { defaultProfile } from '@/lib/default-profile';
 import { loadSession as loadStoredSession, saveProfile as saveStoredProfile } from '@/lib/profile-storage';
 import { ensureSeasonalTrends } from '@/lib/seasonal-trends-ensure';
@@ -26,9 +27,16 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
   const lastBackgroundedAtRef = useRef<number | null>(null);
   // undefined = not yet initialized (auth still loading); null = signed out
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
+  // refreshSessionFromBackend is called from 3 independent triggers (initial
+  // hydrate, AppState foreground, user-identity change) that can overlap —
+  // incremented per call so an older, slower-resolving call can never
+  // overwrite state after a newer one has already applied its result.
+  const refreshTokenRef = useRef(0);
 
   async function refreshSessionFromBackend() {
+    const token = ++refreshTokenRef.current;
     const response = await profileService.loadSession();
+    if (refreshTokenRef.current !== token) return;
 
     if (!response.success) {
       setErrorMessage(response.error?.message ?? 'Failed to load session.');
@@ -113,7 +121,7 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
       }
 
       void refreshSessionFromBackend()
-        .catch(() => undefined)
+        .catch((error) => recordError(error, 'refresh_session_from_backend_foreground'))
         .finally(() => setIsReconnecting(false));
 
       if (shouldRestartApp) {
@@ -152,7 +160,7 @@ export function AppSessionProvider({ children }: PropsWithChildren) {
     // Local storage was cleared by auth-context on SIGNED_OUT so this loads
     // a fresh session for the new account.
     void refreshSessionFromBackend()
-      .catch(() => undefined)
+      .catch((error) => recordError(error, 'refresh_session_from_backend_identity_change'))
       .finally(() => setIsHydrated(true));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, isAuthLoading]);

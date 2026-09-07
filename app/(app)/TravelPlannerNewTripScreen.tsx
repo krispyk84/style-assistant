@@ -12,6 +12,7 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { recordError } from '@/lib/crashlytics';
 import { buildTripModeHref } from '@/lib/trip-route';
 import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
@@ -56,7 +57,7 @@ export function TravelPlannerNewTripScreen() {
     if (closetItems.length === 0) {
       void closetService.getItems().then((res) => {
         if (res.success && res.data) setClosetItems(res.data.items);
-      });
+      }).catch((error) => recordError(error, 'travel_planner_want_to_bring_closet_items'));
     }
   }
 

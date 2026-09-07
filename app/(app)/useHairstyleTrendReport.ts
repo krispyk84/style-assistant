@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 
 import { useAppSession } from '@/hooks/use-app-session';
+import { recordError } from '@/lib/crashlytics';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { haircutTrendsService } from '@/services/haircut-trends';
 import type { HaircutTrendStyle } from '@/types/api';
@@ -37,42 +38,51 @@ export function useHairstyleTrendReport() {
     setError(null);
     setStyles(null);
 
-    const weatherContext = await loadWeatherContext();
-    const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
-    const region = weatherContext?.countryCode ?? undefined;
-    const fashionGender = profile.gender === 'woman' ? 'womenswear' : 'menswear';
+    try {
+      const weatherContext = await loadWeatherContext();
+      const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
+      const region = weatherContext?.countryCode ?? undefined;
+      const fashionGender = profile.gender === 'woman' ? 'womenswear' : 'menswear';
 
-    // Opening the report is what actually triggers generation if nothing
-    // exists yet — ensure() is idempotent, so this is safe even if a
-    // background check already fired one on screen mount.
-    void haircutTrendsService.ensure({ fashionGender, hemisphere, region });
+      // Opening the report is what actually triggers generation if nothing
+      // exists yet — ensure() is idempotent, so this is safe even if a
+      // background check already fired one on screen mount.
+      void haircutTrendsService.ensure({ fashionGender, hemisphere, region });
 
-    let firstAttempt = true;
-    while (generationTokenRef.current === token) {
-      const response = await haircutTrendsService.getCurrent(fashionGender, hemisphere);
-      if (generationTokenRef.current !== token) return; // closed or reopened while this was in flight
+      let firstAttempt = true;
+      while (generationTokenRef.current === token) {
+        const response = await haircutTrendsService.getCurrent(fashionGender, hemisphere);
+        if (generationTokenRef.current !== token) return; // closed or reopened while this was in flight
 
-      if (response.success && response.data?.available) {
-        setStyles(response.data.styles);
-        setIsStale(response.data.isStale);
-        setIsLoading(false);
-        setIsGenerating(false);
-        return;
+        if (response.success && response.data?.available) {
+          setStyles(response.data.styles);
+          setIsStale(response.data.isStale);
+          setIsLoading(false);
+          setIsGenerating(false);
+          return;
+        }
+
+        if (!response.success) {
+          setStyles(null);
+          setError(response.error?.message ?? 'Could not load the trend report.');
+          setIsLoading(false);
+          setIsGenerating(false);
+          return;
+        }
+
+        // available: false — a generation is (or should be) in flight; keep polling
+        // for as long as the modal stays open.
+        if (!firstAttempt) setIsGenerating(true);
+        firstAttempt = false;
+        await wait(POLL_INTERVAL_MS);
       }
-
-      if (!response.success) {
-        setStyles(null);
-        setError(response.error?.message ?? 'Could not load the trend report.');
-        setIsLoading(false);
-        setIsGenerating(false);
-        return;
-      }
-
-      // available: false — a generation is (or should be) in flight; keep polling
-      // for as long as the modal stays open.
-      if (!firstAttempt) setIsGenerating(true);
-      firstAttempt = false;
-      await wait(POLL_INTERVAL_MS);
+    } catch (error) {
+      if (generationTokenRef.current !== token) return; // superseded — don't touch newer state
+      recordError(error instanceof Error ? error : new Error(String(error)), 'hairstyle_trend_report_open');
+      setStyles(null);
+      setError('Could not load the trend report.');
+      setIsLoading(false);
+      setIsGenerating(false);
     }
   }
 

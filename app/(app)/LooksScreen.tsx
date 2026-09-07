@@ -48,6 +48,10 @@ export function LooksScreen() {
   const [historySeasonFilter, setHistorySeasonFilter] = useState<SeasonFilter>('all');
   // Ref guards against duplicate loadMore calls on the same scroll event burst
   const loadingMoreRef = useRef(false);
+  // Cancels the previous historyHook.load() (if still in flight) before starting
+  // a new one, so a fast re-tap onto the History tab can't let a stale response
+  // overwrite whatever the latest tap started.
+  const cancelHistoryLoadRef = useRef<(() => void) | null>(null);
 
   const favouritesHook = useFavouritesData();
   const historyHook = useHistoryData();
@@ -55,12 +59,15 @@ export function LooksScreen() {
 
   const { theme } = useTheme();
 
-  // Reset to Favourites + reload on every screen focus
+  // Reset to Favourites + reload on every screen focus. favouritesHook.load()
+  // returns an isMounted-style cancel function — it must be returned here (not
+  // just called) so useFocusEffect actually runs it on defocus/unmount; otherwise
+  // a fast re-focus starts an overlapping load whose stale result can win the race.
   useFocusEffect(
     useCallback(() => {
       setActiveTab('favourites');
       historyHook.resetFetch(); // re-fetch history next time that tab is opened
-      favouritesHook.load();
+      return favouritesHook.load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),
   );
@@ -68,7 +75,8 @@ export function LooksScreen() {
   function handleTabChange(tab: ActiveTab) {
     setActiveTab(tab);
     if (tab === 'history' && !historyHook.historyFetched) {
-      historyHook.load();
+      cancelHistoryLoadRef.current?.();
+      cancelHistoryLoadRef.current = historyHook.load();
     }
   }
 

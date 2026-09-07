@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 
 import { useToast } from '@/components/ui/toast-provider';
+import { recordError } from '@/lib/crashlytics';
 import {
   loadRecommendationFeedback,
   saveRecommendationFeedback,
@@ -57,17 +58,23 @@ export function useTierDetailActions({
       setOutfitFeedback(null);
       return;
     }
+    const previousFeedback = outfitFeedback;
     setOutfitFeedback(thumb);
-    await saveRecommendationFeedback({
-      id: `${requestId}:${liveRecommendation.tier}:outfit`,
-      requestId,
-      tier: liveRecommendation.tier,
-      outfitTitle: liveRecommendation.title,
-      thumb,
-      regenerated: false,
-      createdAt: new Date().toISOString(),
-    });
-    showToast(thumb === 'love' ? 'Noted — glad you love it.' : 'Noted — we\'ll keep that in mind.');
+    try {
+      await saveRecommendationFeedback({
+        id: `${requestId}:${liveRecommendation.tier}:outfit`,
+        requestId,
+        tier: liveRecommendation.tier,
+        outfitTitle: liveRecommendation.title,
+        thumb,
+        regenerated: false,
+        createdAt: new Date().toISOString(),
+      });
+      showToast(thumb === 'love' ? 'Noted — glad you love it.' : 'Noted — we\'ll keep that in mind.');
+    } catch (error) {
+      recordError(error, 'outfit_feedback_save');
+      setOutfitFeedback(previousFeedback);
+    }
   }
 
   function handleCheckPiece(pieceName: string) {

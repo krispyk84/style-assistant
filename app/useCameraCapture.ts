@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
 import { cameraCaptureResult } from '@/lib/camera-capture-result';
+import { recordError } from '@/lib/crashlytics';
 
 export const TIMER_OPTIONS = [0, 3, 5, 10] as const;
 export type TimerOption = (typeof TIMER_OPTIONS)[number];
@@ -42,6 +43,9 @@ export function useCameraCapture() {
           mimeType: 'image/jpeg',
         });
       }
+    } catch (error) {
+      recordError(error instanceof Error ? error : new Error(String(error)), 'camera_capture');
+      return;
     } finally {
       setIsCapturing(false);
     }
@@ -53,6 +57,7 @@ export function useCameraCapture() {
       void capturePhoto();
       return;
     }
+    clearCountdown();
     setCountdown(timerDelay);
     let remaining = timerDelay;
     countdownRef.current = setInterval(() => {

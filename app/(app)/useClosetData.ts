@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 
+import { recordError } from '@/lib/crashlytics';
 import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
 import {
@@ -47,7 +48,7 @@ export function useClosetData() {
         if (response.success && response.data) {
           setItems(response.data.items);
         }
-      });
+      }).catch((error) => recordError(error, 'closet_pending_sketch_poll'));
     }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [hasPendingItems]);

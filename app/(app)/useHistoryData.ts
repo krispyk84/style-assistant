@@ -51,13 +51,18 @@ export function useHistoryData() {
 
   const { showToast } = useToast();
 
-  function load() {
+  // Returns a cancel function — call it when a newer load() supersedes this one
+  // (or the screen unmounts) so this call's result can't overwrite fresher state
+  // once it resolves.
+  function load(): () => void {
+    let isMounted = true;
     setHistoryLoading(true);
     setHistoryError(null);
 
     void (async () => {
       try {
         const res = await outfitsService.getOutfitHistory({ page: 1, limit: PAGE_LIMIT });
+        if (!isMounted) return;
         if (!res.success || !res.data) {
           setHistoryError(res.error?.message ?? 'Failed to load history.');
           setHistoryLoading(false);
@@ -69,10 +74,15 @@ export function useHistoryData() {
         setHistoryFetched(true);
         setHistoryLoading(false);
       } catch {
+        if (!isMounted) return;
         setHistoryError('Failed to load history.');
         setHistoryLoading(false);
       }
     })();
+
+    return () => {
+      isMounted = false;
+    };
   }
 
   function loadMore() {

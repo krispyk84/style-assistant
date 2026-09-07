@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { useAppSession } from '@/hooks/use-app-session';
+import { recordError } from '@/lib/crashlytics';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { seasonalTrendsService } from '@/services/seasonal-trends';
 import { seasonalColorsService } from '@/services/seasonal-colors';
@@ -68,38 +69,47 @@ export function useFashionTrendReport() {
     void seasonalTrendsService.ensure({ fashionGender, hemisphere, region });
 
     let firstAttempt = true;
-    while (generationTokenRef.current === token) {
-      const response = await seasonalTrendsService.getReport(fashionGender, hemisphere);
-      if (generationTokenRef.current !== token) return; // closed or reopened while this was in flight
+    try {
+      while (generationTokenRef.current === token) {
+        const response = await seasonalTrendsService.getReport(fashionGender, hemisphere);
+        if (generationTokenRef.current !== token) return; // closed or reopened while this was in flight
 
-      if (response.success && response.data?.available) {
-        setTrends(response.data.trends);
-        setIsStale(response.data.isStale);
-        setIsLoading(false);
-        setIsGenerating(false);
+        if (response.success && response.data?.available) {
+          setTrends(response.data.trends);
+          setIsStale(response.data.isStale);
+          setIsLoading(false);
+          setIsGenerating(false);
 
-        // The list itself is ready — sketches for individual trends may
-        // still be generating in the background. Keep this same loop going
-        // (without blocking the "isLoading" UI any further) so images pop in
-        // progressively as they finish, until none are left pending.
-        if (!hasPendingSketch(response.data.trends)) return;
+          // The list itself is ready — sketches for individual trends may
+          // still be generating in the background. Keep this same loop going
+          // (without blocking the "isLoading" UI any further) so images pop in
+          // progressively as they finish, until none are left pending.
+          if (!hasPendingSketch(response.data.trends)) return;
+          await wait(POLL_INTERVAL_MS);
+          continue;
+        }
+
+        if (!response.success) {
+          setTrends(null);
+          setError(response.error?.message ?? 'Could not load the trend report.');
+          setIsLoading(false);
+          setIsGenerating(false);
+          return;
+        }
+
+        // available: false — a generation is (or should be) in flight; keep polling
+        // for as long as the modal stays open.
+        if (!firstAttempt) setIsGenerating(true);
+        firstAttempt = false;
         await wait(POLL_INTERVAL_MS);
-        continue;
       }
-
-      if (!response.success) {
-        setTrends(null);
-        setError(response.error?.message ?? 'Could not load the trend report.');
-        setIsLoading(false);
-        setIsGenerating(false);
-        return;
-      }
-
-      // available: false — a generation is (or should be) in flight; keep polling
-      // for as long as the modal stays open.
-      if (!firstAttempt) setIsGenerating(true);
-      firstAttempt = false;
-      await wait(POLL_INTERVAL_MS);
+    } catch (error) {
+      if (generationTokenRef.current !== token) return; // superseded — don't touch newer state
+      recordError(error instanceof Error ? error : new Error(String(error)), 'fashion_trend_report_poll_trends');
+      setTrends(null);
+      setError('Could not load the trend report.');
+      setIsLoading(false);
+      setIsGenerating(false);
     }
   }
 
@@ -107,31 +117,40 @@ export function useFashionTrendReport() {
     void seasonalColorsService.ensure({ fashionGender, hemisphere, region });
 
     let firstAttempt = true;
-    while (generationTokenRef.current === token) {
-      const response = await seasonalColorsService.getReport(fashionGender, hemisphere);
-      if (generationTokenRef.current !== token) return;
+    try {
+      while (generationTokenRef.current === token) {
+        const response = await seasonalColorsService.getReport(fashionGender, hemisphere);
+        if (generationTokenRef.current !== token) return;
 
-      if (response.success && response.data?.available) {
-        setColors(response.data.colors);
-        setIsLoadingColors(false);
-        setIsGeneratingColors(false);
+        if (response.success && response.data?.available) {
+          setColors(response.data.colors);
+          setIsLoadingColors(false);
+          setIsGeneratingColors(false);
 
-        if (!hasPendingSketch(response.data.colors)) return;
+          if (!hasPendingSketch(response.data.colors)) return;
+          await wait(POLL_INTERVAL_MS);
+          continue;
+        }
+
+        if (!response.success) {
+          setColors(null);
+          setColorsError(response.error?.message ?? 'Could not load the colour palette.');
+          setIsLoadingColors(false);
+          setIsGeneratingColors(false);
+          return;
+        }
+
+        if (!firstAttempt) setIsGeneratingColors(true);
+        firstAttempt = false;
         await wait(POLL_INTERVAL_MS);
-        continue;
       }
-
-      if (!response.success) {
-        setColors(null);
-        setColorsError(response.error?.message ?? 'Could not load the colour palette.');
-        setIsLoadingColors(false);
-        setIsGeneratingColors(false);
-        return;
-      }
-
-      if (!firstAttempt) setIsGeneratingColors(true);
-      firstAttempt = false;
-      await wait(POLL_INTERVAL_MS);
+    } catch (error) {
+      if (generationTokenRef.current !== token) return;
+      recordError(error instanceof Error ? error : new Error(String(error)), 'fashion_trend_report_poll_colors');
+      setColors(null);
+      setColorsError('Could not load the colour palette.');
+      setIsLoadingColors(false);
+      setIsGeneratingColors(false);
     }
   }
 
@@ -147,15 +166,26 @@ export function useFashionTrendReport() {
     setColorsError(null);
     setColors(null);
 
-    const weatherContext = await loadWeatherContext();
-    const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
-    const region = weatherContext?.countryCode ?? undefined;
-    const fashionGender = profile.gender === 'woman' ? 'womenswear' : 'menswear';
+    try {
+      const weatherContext = await loadWeatherContext();
+      const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
+      const region = weatherContext?.countryCode ?? undefined;
+      const fashionGender = profile.gender === 'woman' ? 'womenswear' : 'menswear';
 
-    // Independent loops — colours finishing (or failing) never blocks trends
-    // and vice versa.
-    void pollTrends(token, fashionGender, hemisphere, region);
-    void pollColors(token, fashionGender, hemisphere, region);
+      // Independent loops — colours finishing (or failing) never blocks trends
+      // and vice versa.
+      void pollTrends(token, fashionGender, hemisphere, region);
+      void pollColors(token, fashionGender, hemisphere, region);
+    } catch (error) {
+      if (generationTokenRef.current !== token) return;
+      recordError(error instanceof Error ? error : new Error(String(error)), 'fashion_trend_report_open');
+      setError('Could not load the trend report.');
+      setColorsError('Could not load the colour palette.');
+      setIsLoading(false);
+      setIsGenerating(false);
+      setIsLoadingColors(false);
+      setIsGeneratingColors(false);
+    }
   }
 
   function close() {
@@ -178,8 +208,13 @@ export function useFashionTrendReport() {
       });
     });
 
-    const response = await seasonalTrendsService.setFeedback({ fashionGender, trendName, feedback });
-    if (!response.success) {
+    try {
+      const response = await seasonalTrendsService.setFeedback({ fashionGender, trendName, feedback });
+      if (!response.success) {
+        setTrends((prev) => prev?.map((t) => (t.name === trendName ? { ...t, userFeedback: previous } : t)) ?? prev);
+      }
+    } catch (error) {
+      recordError(error instanceof Error ? error : new Error(String(error)), 'fashion_trend_feedback');
       setTrends((prev) => prev?.map((t) => (t.name === trendName ? { ...t, userFeedback: previous } : t)) ?? prev);
     }
   }
@@ -197,8 +232,13 @@ export function useFashionTrendReport() {
       });
     });
 
-    const response = await seasonalColorsService.setFeedback({ fashionGender, colorName, feedback });
-    if (!response.success) {
+    try {
+      const response = await seasonalColorsService.setFeedback({ fashionGender, colorName, feedback });
+      if (!response.success) {
+        setColors((prev) => prev?.map((c) => (c.name === colorName ? { ...c, userFeedback: previous } : c)) ?? prev);
+      }
+    } catch (error) {
+      recordError(error instanceof Error ? error : new Error(String(error)), 'fashion_color_feedback');
       setColors((prev) => prev?.map((c) => (c.name === colorName ? { ...c, userFeedback: previous } : c)) ?? prev);
     }
   }

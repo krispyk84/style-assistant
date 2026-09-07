@@ -10,17 +10,24 @@ type UseTripSketchPollingParams = {
 
 export function useTripSketchPolling({ setDays }: UseTripSketchPollingParams) {
   const pollIntervals = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  // Per-day in-flight guard — setInterval doesn't wait for its async callback,
+  // so a slow getDaySketchStatus call could otherwise still be pending when
+  // the next tick fires, letting two overlap.
+  const pollInFlight = useRef<Record<string, boolean>>({});
 
   const stopSketchPoll = useCallback((dayId: string) => {
     if (!pollIntervals.current[dayId]) return;
     clearInterval(pollIntervals.current[dayId]);
     delete pollIntervals.current[dayId];
+    delete pollInFlight.current[dayId];
   }, []);
 
   const startSketchPoll = useCallback((dayId: string, jobId: string, tripId: string) => {
     stopSketchPoll(dayId);
 
     pollIntervals.current[dayId] = setInterval(async () => {
+      if (pollInFlight.current[dayId]) return;
+      pollInFlight.current[dayId] = true;
       try {
         const status = await tripOutfitsService.getDaySketchStatus(jobId);
 
@@ -46,6 +53,8 @@ export function useTripSketchPolling({ setDays }: UseTripSketchPollingParams) {
         }
       } catch {
         // Network glitch: keep polling.
+      } finally {
+        pollInFlight.current[dayId] = false;
       }
     }, 4000);
   }, [setDays, stopSketchPoll]);

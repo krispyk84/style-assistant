@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useUploadedImage } from '@/hooks/use-uploaded-image';
 import { useAppSession } from '@/hooks/use-app-session';
 import { cameraCaptureResult } from '@/lib/camera-capture-result';
+import { recordError } from '@/lib/crashlytics';
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { haircutService } from '@/services/haircut';
 import { haircutTrendsService } from '@/services/haircut-trends';
@@ -85,6 +86,10 @@ export function useHaircutPlanner() {
       if (cancelled) return;
       if (response.success && response.data) setSavedSessions(response.data.sessions);
       setIsLoadingSavedSessions(false);
+    }).catch((error) => {
+      if (cancelled) return;
+      recordError(error instanceof Error ? error : new Error(String(error)), 'haircut_list_saved_sessions');
+      setIsLoadingSavedSessions(false);
     });
     return () => {
       cancelled = true;
@@ -100,7 +105,9 @@ export function useHaircutPlanner() {
       const hemisphere: Hemisphere = weatherContext?.hemisphere ?? 'northern';
       const fashionGender = profile.gender === 'woman' ? 'womenswear' : 'menswear';
       await haircutTrendsService.ensure({ fashionGender, hemisphere, region: weatherContext?.countryCode ?? undefined });
-    })().catch(() => undefined);
+    })().catch((error) => {
+      recordError(error instanceof Error ? error : new Error(String(error)), 'haircut_trends_ensure');
+    });
     // profile is stable for the life of this screen; re-running this on every
     // profile object identity change would refire the ensure() network call
     // needlessly — intentional mount-only effect.
@@ -110,32 +117,42 @@ export function useHaircutPlanner() {
   function handleOpenCamera() {
     cameraCaptureResult.setListener(async (captured) => {
       setImage(captured);
-      await uploadImage(captured);
+      try {
+        await uploadImage(captured);
+      } catch (uploadErr) {
+        recordError(uploadErr instanceof Error ? uploadErr : new Error(String(uploadErr)), 'haircut_camera_upload');
+      }
     });
     router.push('/camera-capture');
   }
 
   async function startSession() {
-    if (!uploadedImage) return;
+    if (!uploadedImage || stage === 'generating') return;
     setError(null);
     setLikedOptions([]);
     setSwipedIds(new Set());
     setCurrentBatch([]);
     setBatchIndex(0);
     setStage('generating');
-    const weatherContext = await loadWeatherContext();
-    const response = await haircutService.createSession({
-      headshotImageUrl: uploadedImage.publicUrl,
-      hemisphere: weatherContext?.hemisphere ?? undefined,
-      region: weatherContext?.countryCode ?? undefined,
-    });
-    if (!response.success || !response.data) {
-      setError(response.error?.message ?? 'Could not start the haircut planner. Please try again.');
+    try {
+      const weatherContext = await loadWeatherContext();
+      const response = await haircutService.createSession({
+        headshotImageUrl: uploadedImage.publicUrl,
+        hemisphere: weatherContext?.hemisphere ?? undefined,
+        region: weatherContext?.countryCode ?? undefined,
+      });
+      if (!response.success || !response.data) {
+        setError(response.error?.message ?? 'Could not start the haircut planner. Please try again.');
+        setStage('error');
+        return;
+      }
+      setSession(response.data);
+      setActiveSessionId(response.data.sessionId);
+    } catch (error) {
+      recordError(error instanceof Error ? error : new Error(String(error)), 'haircut_start_session');
+      setError('Could not start the haircut planner. Please try again.');
       setStage('error');
-      return;
     }
-    setSession(response.data);
-    setActiveSessionId(response.data.sessionId);
   }
 
   // Poll while generating (initial batch or a "see more" batch) — stop once every
@@ -147,37 +164,43 @@ export function useHaircutPlanner() {
     const sessionId = activeSessionId;
 
     const interval = setInterval(async () => {
-      const response = await haircutService.getSession(sessionId);
-      if (!response.success || !response.data) return;
-      setSession(response.data);
-      if (response.data.status === 'ready') {
-        clearInterval(interval);
+      try {
+        const response = await haircutService.getSession(sessionId);
+        if (!response.success || !response.data) return;
+        setSession(response.data);
+        if (response.data.status === 'ready') {
+          clearInterval(interval);
 
-        setSwipedIds((currentSwipedIds) => {
-          const freshBatch = response.data!.options.filter(
-            (option) => option.status === 'ready' && !currentSwipedIds.has(option.id),
-          );
+          setSwipedIds((currentSwipedIds) => {
+            const freshBatch = response.data!.options.filter(
+              (option) => option.status === 'ready' && !currentSwipedIds.has(option.id),
+            );
 
-          if (freshBatch.length === 0) {
-            // First-ever batch fully failed — a hard dead end. A "more" batch that
-            // fully failed just returns to the choice screen with existing favorites intact.
-            if (currentSwipedIds.size === 0) {
-              setError('None of the haircuts could be generated. Please try a different photo.');
-              setStage('error');
+            if (freshBatch.length === 0) {
+              // First-ever batch fully failed — a hard dead end. A "more" batch that
+              // fully failed just returns to the choice screen with existing favorites intact.
+              if (currentSwipedIds.size === 0) {
+                setError('None of the haircuts could be generated. Please try a different photo.');
+                setStage('error');
+              } else {
+                setError('Those didn\'t come through. Try again, or review your favorites.');
+                setStage('swipe-choice');
+              }
             } else {
-              setError('Those didn\'t come through. Try again, or review your favorites.');
-              setStage('swipe-choice');
+              setCurrentBatch(freshBatch);
+              setBatchIndex((i) => i + 1);
+              setStage('swipe');
             }
-          } else {
-            setCurrentBatch(freshBatch);
-            setBatchIndex((i) => i + 1);
-            setStage('swipe');
-          }
 
-          // Unchanged here — swipedIds only grows as the user actually swipes
-          // (see markSwiped), not when a batch is merely dealt.
-          return currentSwipedIds;
-        });
+            // Unchanged here — swipedIds only grows as the user actually swipes
+            // (see markSwiped), not when a batch is merely dealt.
+            return currentSwipedIds;
+          });
+        }
+      } catch (error) {
+        // Logged only — a transient blip on one tick shouldn't stop polling,
+        // the next tick tries again on its own.
+        recordError(error instanceof Error ? error : new Error(String(error)), 'haircut_poll_session');
       }
     }, POLL_INTERVAL_MS);
 
@@ -215,16 +238,22 @@ export function useHaircutPlanner() {
   }
 
   async function requestMoreHaircuts() {
-    if (!activeSessionId) return;
+    if (!activeSessionId || stage === 'more-loading') return;
     setError(null);
     setStage('more-loading');
-    const response = await haircutService.addMoreOptions(activeSessionId);
-    if (!response.success || !response.data) {
-      setError(response.error?.message ?? 'No more haircut styles to try for this photo.');
+    try {
+      const response = await haircutService.addMoreOptions(activeSessionId);
+      if (!response.success || !response.data) {
+        setError(response.error?.message ?? 'No more haircut styles to try for this photo.');
+        setStage('swipe-choice');
+        return;
+      }
+      setSession(response.data);
+    } catch (error) {
+      recordError(error instanceof Error ? error : new Error(String(error)), 'haircut_request_more');
+      setError('No more haircut styles to try for this photo.');
       setStage('swipe-choice');
-      return;
     }
-    setSession(response.data);
   }
 
   async function selectFinal(option: HaircutOption) {
@@ -264,18 +293,33 @@ export function useHaircutPlanner() {
         });
     }
 
-    const response = await haircutService.generateGuide({
-      styleLabel: option.styleLabel,
-      styleSummary: option.styleSummary,
-    });
-    if (!response.success || !response.data) {
-      setError(response.error?.message ?? 'Could not generate the guide. Please try again.');
+    try {
+      const response = await haircutService.generateGuide({
+        styleLabel: option.styleLabel,
+        styleSummary: option.styleSummary,
+      });
+      if (!response.success || !response.data) {
+        setError(response.error?.message ?? 'Could not generate the guide. Please try again.');
+        setStage('narrowed');
+        return;
+      }
+      setGuide(response.data);
+      setStage('guide');
+    } catch (error) {
+      recordError(error instanceof Error ? error : new Error(String(error)), 'haircut_generate_guide');
+      setError('Could not generate the guide. Please try again.');
       setStage('narrowed');
-      return;
     }
-    setGuide(response.data);
-    setStage('guide');
   }
+
+  // Derived scalar (not the angleShots object itself) so the effect below only
+  // re-runs when a status actually flips — setAngleShots creates a new object
+  // reference every poll tick even when the underlying statuses haven't
+  // changed, which previously tore down and recreated this interval on every
+  // single tick instead of only when there was a real reason to.
+  const angleShotsStatusKey = angleShots
+    ? `${angleShots.top.status}|${angleShots.side.status}|${angleShots.back.status}`
+    : null;
 
   // Poll the angle shots (top/side/back) while any are still pending —
   // reuses the same session-status endpoint since they're just more HaircutOption
@@ -287,21 +331,27 @@ export function useHaircutPlanner() {
     const sessionId = activeSessionId;
 
     const interval = setInterval(async () => {
-      const response = await haircutService.getSession(sessionId);
-      if (!response.success || !response.data) return;
-      const byId = new Map(response.data.options.map((o) => [o.id, o]));
-      setAngleShots((prev) => {
-        if (!prev) return prev;
-        return {
-          top: byId.get(prev.top.id) ?? prev.top,
-          side: byId.get(prev.side.id) ?? prev.side,
-          back: byId.get(prev.back.id) ?? prev.back,
-        };
-      });
+      try {
+        const response = await haircutService.getSession(sessionId);
+        if (!response.success || !response.data) return;
+        const byId = new Map(response.data.options.map((o) => [o.id, o]));
+        setAngleShots((prev) => {
+          if (!prev) return prev;
+          return {
+            top: byId.get(prev.top.id) ?? prev.top,
+            side: byId.get(prev.side.id) ?? prev.side,
+            back: byId.get(prev.back.id) ?? prev.back,
+          };
+        });
+      } catch (error) {
+        recordError(error instanceof Error ? error : new Error(String(error)), 'haircut_poll_angle_shots');
+      }
     }, POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [stage, activeSessionId, angleShots]);
+    // angleShotsStatusKey stands in for angleShots — see its comment above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, activeSessionId, angleShotsStatusKey]);
 
   // Only 'narrowed' (the liked-options list) and 'guide' have a meaningful
   // prior stage to step back to. Every other stage is either the entry point
@@ -350,51 +400,69 @@ export function useHaircutPlanner() {
   async function saveHaircut() {
     if (!activeSessionId || !selectedOption || !guide || isSavingSession) return;
     setIsSavingSession(true);
-    const response = await haircutService.saveSession(activeSessionId, { optionId: selectedOption.id, guide });
-    setIsSavingSession(false);
-    if (!response.success) {
-      setError(response.error?.message ?? 'Could not save this haircut. Please try again.');
-      return;
+    try {
+      const response = await haircutService.saveSession(activeSessionId, { optionId: selectedOption.id, guide });
+      if (!response.success) {
+        setError(response.error?.message ?? 'Could not save this haircut. Please try again.');
+        return;
+      }
+      setIsCurrentSessionSaved(true);
+      setSavedSessions((prev) => [
+        {
+          sessionId: activeSessionId,
+          styleLabel: selectedOption.styleLabel,
+          savedAt: new Date().toISOString(),
+          option: selectedOption,
+          angleShots,
+          guide,
+        },
+        ...prev.filter((saved) => saved.sessionId !== activeSessionId),
+      ]);
+    } catch (error) {
+      recordError(error instanceof Error ? error : new Error(String(error)), 'haircut_save_session');
+      setError('Could not save this haircut. Please try again.');
+    } finally {
+      setIsSavingSession(false);
     }
-    setIsCurrentSessionSaved(true);
-    setSavedSessions((prev) => [
-      {
-        sessionId: activeSessionId,
-        styleLabel: selectedOption.styleLabel,
-        savedAt: new Date().toISOString(),
-        option: selectedOption,
-        angleShots,
-        guide,
-      },
-      ...prev.filter((saved) => saved.sessionId !== activeSessionId),
-    ]);
   }
 
   async function unsaveHaircut() {
     if (!activeSessionId || isSavingSession) return;
     setIsSavingSession(true);
-    const response = await haircutService.unsaveSession(activeSessionId);
-    setIsSavingSession(false);
-    if (!response.success) {
-      setError(response.error?.message ?? 'Could not remove this saved haircut. Please try again.');
-      return;
+    try {
+      const response = await haircutService.unsaveSession(activeSessionId);
+      if (!response.success) {
+        setError(response.error?.message ?? 'Could not remove this saved haircut. Please try again.');
+        return;
+      }
+      setIsCurrentSessionSaved(false);
+      setSavedSessions((prev) => prev.filter((saved) => saved.sessionId !== activeSessionId));
+    } catch (error) {
+      recordError(error instanceof Error ? error : new Error(String(error)), 'haircut_unsave_session');
+      setError('Could not remove this saved haircut. Please try again.');
+    } finally {
+      setIsSavingSession(false);
     }
-    setIsCurrentSessionSaved(false);
-    setSavedSessions((prev) => prev.filter((saved) => saved.sessionId !== activeSessionId));
   }
 
   async function deleteSavedSession(sessionId: string) {
     if (deletingSessionId) return;
     setDeletingSessionId(sessionId);
-    const response = await haircutService.unsaveSession(sessionId);
-    setDeletingSessionId(null);
-    if (!response.success) {
-      setError(response.error?.message ?? 'Could not remove this saved haircut. Please try again.');
-      return;
-    }
-    setSavedSessions((prev) => prev.filter((saved) => saved.sessionId !== sessionId));
-    if (activeSessionId === sessionId) {
-      setIsCurrentSessionSaved(false);
+    try {
+      const response = await haircutService.unsaveSession(sessionId);
+      if (!response.success) {
+        setError(response.error?.message ?? 'Could not remove this saved haircut. Please try again.');
+        return;
+      }
+      setSavedSessions((prev) => prev.filter((saved) => saved.sessionId !== sessionId));
+      if (activeSessionId === sessionId) {
+        setIsCurrentSessionSaved(false);
+      }
+    } catch (error) {
+      recordError(error instanceof Error ? error : new Error(String(error)), 'haircut_delete_saved_session');
+      setError('Could not remove this saved haircut. Please try again.');
+    } finally {
+      setDeletingSessionId(null);
     }
   }
 

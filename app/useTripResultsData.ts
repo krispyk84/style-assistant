@@ -1,5 +1,6 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
 
+import { recordError } from '@/lib/crashlytics';
 import { tripDraftStorage } from '@/lib/trip-draft-storage';
 import type { StoredTripPlan } from '@/lib/trip-outfits-storage';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
@@ -53,69 +54,108 @@ export function useTripResultsData({
   useEffect(() => {
     closetService.getItems().then((res) => {
       if (res.success && res.data) setClosetItems(res.data.items ?? []);
-    }).catch(() => {});
+    }).catch((error) => recordError(error, 'trip_results_closet_items_load'));
   }, []);
 
+  // Wrapped in an outer try/catch/finally so ANY throw here — including from
+  // tripOutfitsStorage.save/appendDay below, not just the per-day generation
+  // call — logs, surfaces a message, and clears isLoading/progressiveRunning.
+  // Before this fix, a throw from those storage calls left the caller
+  // (`void runProgressiveGeneration(tripId)`, uncaught) on an infinite
+  // spinner with progressiveRunning stuck true forever.
   const runProgressiveGeneration = useCallback(async (activeTripId: string) => {
     if (progressiveRunning.current) return;
     progressiveRunning.current = true;
 
-    const draft = await tripDraftStorage.load().catch(() => null);
-    if (!draft) {
-      setErrorMessage('Trip details not found. Please go back and try again.');
-      setIsLoading(false);
-      progressiveRunning.current = false;
-      return;
-    }
-
-    const totalDays = Math.min(8, draft.numDays);
-    setTotalProgressDays(totalDays);
-    setProgressDay(0);
-
-    const planMeta = buildStoredTripPlanFromDraft(activeTripId, draft);
-    await tripOutfitsStorage.save(planMeta);
-
-    const generatedDays: TripOutfitDay[] = [];
-
-    for (let index = 0; index < totalDays; index++) {
-      setProgressDay(index);
-
-      let result;
-      try {
-        result = await tripOutfitsService.generateTripOutfits(buildTripDayGenerationParams({
-          tripId: activeTripId,
-          draft,
-          dayIndex: index,
-          previousDaysSummary: buildPreviousTripDaysSummary(generatedDays),
-          usedOuterwear: collectUsedOuterwear(generatedDays),
-          usedFootwear: collectUsedFootwear(generatedDays),
-          usedAnchorItemIds: collectUsedAnchorItemIds(generatedDays),
-        }));
-      } catch (err) {
-        setErrorMessage(err instanceof Error ? err.message : 'Generation failed. Please go back and try again.');
+    try {
+      const draft = await tripDraftStorage.load().catch(() => null);
+      if (!draft) {
+        setErrorMessage('Trip details not found. Please go back and try again.');
         setIsLoading(false);
-        progressiveRunning.current = false;
         return;
       }
 
-      const newDay = result.days[0];
-      if (!newDay) continue;
+      const totalDays = Math.min(8, draft.numDays);
 
-      generatedDays.push(newDay);
-      setDays([...generatedDays]);
+      // Resume rather than restart from day 0 if a previous run for this
+      // exact tripId already generated some days — protects against the
+      // common case of a remount (e.g. back-then-forward navigation) after
+      // the earlier run had already made progress, which would otherwise
+      // silently re-run (and re-bill) already-generated days. This does NOT
+      // protect against an old run still ACTIVELY generating in the
+      // background when a new one starts — unmounting doesn't cancel
+      // in-flight JS execution, and closing that race would need a
+      // cross-invocation lock (e.g. a persisted heartbeat), which is a
+      // larger architectural change left out of this fix.
+      const existingPlan = await tripOutfitsStorage.load(activeTripId).catch(() => null);
+      const generatedDays: TripOutfitDay[] = existingPlan?.days ? [...existingPlan.days] : [];
 
-      if (index === 0) {
+      if (generatedDays.length >= totalDays && existingPlan) {
+        setTotalProgressDays(0);
+        setPlan(existingPlan);
+        setDays(generatedDays);
+        setIsLoading(false);
+        void tripDraftStorage.clear();
+        return;
+      }
+
+      setTotalProgressDays(totalDays);
+      setProgressDay(generatedDays.length);
+
+      const planMeta = existingPlan ?? buildStoredTripPlanFromDraft(activeTripId, draft);
+      if (!existingPlan) await tripOutfitsStorage.save(planMeta);
+
+      if (generatedDays.length > 0) {
+        setDays([...generatedDays]);
         setPlan({ ...planMeta, days: generatedDays });
         setIsLoading(false);
       }
 
-      await tripOutfitsStorage.appendDay(activeTripId, newDay);
-    }
+      for (let index = generatedDays.length; index < totalDays; index++) {
+        setProgressDay(index);
 
-    setPlan((prev) => prev ? { ...prev, days: generatedDays } : null);
-    setTotalProgressDays(0);
-    void tripDraftStorage.clear();
-    progressiveRunning.current = false;
+        let result;
+        try {
+          result = await tripOutfitsService.generateTripOutfits(buildTripDayGenerationParams({
+            tripId: activeTripId,
+            draft,
+            dayIndex: index,
+            previousDaysSummary: buildPreviousTripDaysSummary(generatedDays),
+            usedOuterwear: collectUsedOuterwear(generatedDays),
+            usedFootwear: collectUsedFootwear(generatedDays),
+            usedAnchorItemIds: collectUsedAnchorItemIds(generatedDays),
+          }));
+        } catch (err) {
+          recordError(err, 'trip_progressive_generation_day_failed');
+          setErrorMessage(err instanceof Error ? err.message : 'Generation failed. Please go back and try again.');
+          setIsLoading(false);
+          return;
+        }
+
+        const newDay = result.days[0];
+        if (!newDay) continue;
+
+        generatedDays.push(newDay);
+        setDays([...generatedDays]);
+
+        if (index === 0) {
+          setPlan({ ...planMeta, days: generatedDays });
+          setIsLoading(false);
+        }
+
+        await tripOutfitsStorage.appendDay(activeTripId, newDay);
+      }
+
+      setPlan((prev) => prev ? { ...prev, days: generatedDays } : null);
+      setTotalProgressDays(0);
+      void tripDraftStorage.clear();
+    } catch (err) {
+      recordError(err, 'trip_progressive_generation_failed');
+      setErrorMessage(err instanceof Error ? err.message : 'Something went wrong generating your trip. Please go back and try again.');
+      setIsLoading(false);
+    } finally {
+      progressiveRunning.current = false;
+    }
   }, []);
 
   useEffect(() => {

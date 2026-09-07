@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { findBestClosetMatch } from '@/lib/closet-match';
+import { recordError } from '@/lib/crashlytics';
 import { hapticThumbsDown, hapticThumbsUp } from '@/lib/haptics';
 import {
   buildMatchFeedbackId,
@@ -74,7 +75,7 @@ export function useMatchFeedback({
       thumb: 'up',
       createdAt: new Date().toISOString(),
       excludedItemIds: [],
-    });
+    }).catch((error) => recordError(error, 'match_feedback_thumbs_up'));
   }
 
   function handleMatchThumbsDown(
@@ -87,27 +88,35 @@ export function useMatchFeedback({
     if (regeneratingMatches.has(suggestion)) return;
 
     hapticThumbsDown();
+    const previousFeedback = matchFeedbackMap[suggestion] ?? null;
     setMatchFeedbackMap((prev) => ({ ...prev, [suggestion]: 'down' }));
 
     void (async () => {
-      // Accumulate all previously rejected IDs for this slot + the new one
-      const prevExcluded = await getExcludedItemIdsForSlot(requestId, tier, suggestion);
-      const excludedItemIds = [...new Set([...prevExcluded, matchedItemId])];
+      try {
+        // Accumulate all previously rejected IDs for this slot + the new one
+        const prevExcluded = await getExcludedItemIdsForSlot(requestId, tier, suggestion);
+        const excludedItemIds = [...new Set([...prevExcluded, matchedItemId])];
 
-      void saveMatchFeedback({
-        id: buildMatchFeedbackId(requestId, tier, suggestion),
-        requestId,
-        tier,
-        outfitTitle,
-        suggestion,
-        matchedItemId,
-        matchedItemTitle: closetItems.find((c) => c.id === matchedItemId)?.title ?? null,
-        thumb: 'down',
-        createdAt: new Date().toISOString(),
-        excludedItemIds,
-      });
+        void saveMatchFeedback({
+          id: buildMatchFeedbackId(requestId, tier, suggestion),
+          requestId,
+          tier,
+          outfitTitle,
+          suggestion,
+          matchedItemId,
+          matchedItemTitle: closetItems.find((c) => c.id === matchedItemId)?.title ?? null,
+          thumb: 'down',
+          createdAt: new Date().toISOString(),
+          excludedItemIds,
+        }).catch((error) => recordError(error, 'match_feedback_thumbs_down_save'));
 
-      await rematchSlot(suggestion, excludedItemIds);
+        await rematchSlot(suggestion, excludedItemIds);
+      } catch (error) {
+        recordError(error, 'match_feedback_thumbs_down_rematch');
+        // Rematch never ran (or never resolved) — revert so the UI doesn't show
+        // "down" feedback with no rematch and no indication anything failed.
+        setMatchFeedbackMap((prev) => ({ ...prev, [suggestion]: previousFeedback }));
+      }
     })();
   }
 

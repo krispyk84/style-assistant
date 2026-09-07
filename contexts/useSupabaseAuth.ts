@@ -4,6 +4,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
+import { recordError } from '@/lib/crashlytics';
 import { supabase, type SupabaseProfile } from '@/lib/supabase';
 import { AUTH_EVENT_HYDRATED, type AuthEventCallback } from './useAuthSideEffects';
 
@@ -37,14 +38,25 @@ export function useSupabaseAuth(onAuthEvent: AuthEventCallback): UseSupabaseAuth
   const onAuthEventRef = useRef(onAuthEvent);
   onAuthEventRef.current = onAuthEvent;
 
+  // Guards fetchSupabaseProfile's result against a fast sign-out/sign-in-as-
+  // different-user: incremented on every auth event, so a profile fetch
+  // started for an earlier event can never overwrite state once a later
+  // event has already superseded it.
+  const profileFetchTokenRef = useRef(0);
+
   // ── Session hydration and ongoing listener ────────────────────────────────
   useEffect(() => {
     // Restore session from AsyncStorage on app launch.
     void supabase.auth.getSession().then(({ data: { session: stored } }) => {
       setSession(stored);
       setUser(stored?.user ?? null);
+      const token = ++profileFetchTokenRef.current;
       if (stored?.user) {
-        void fetchSupabaseProfile(stored.user.id).then(setSupabaseProfile);
+        void fetchSupabaseProfile(stored.user.id)
+          .then((profile) => {
+            if (profileFetchTokenRef.current === token) setSupabaseProfile(profile);
+          })
+          .catch((error) => recordError(error, 'fetch_supabase_profile'));
       }
       // Fire side effects synchronously before marking auth as loaded,
       // preserving the original order: token sync + analytics ID fire first.
@@ -58,8 +70,13 @@ export function useSupabaseAuth(onAuthEvent: AuthEventCallback): UseSupabaseAuth
     } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next);
       setUser(next?.user ?? null);
+      const token = ++profileFetchTokenRef.current;
       if (next?.user) {
-        void fetchSupabaseProfile(next.user.id).then(setSupabaseProfile);
+        void fetchSupabaseProfile(next.user.id)
+          .then((profile) => {
+            if (profileFetchTokenRef.current === token) setSupabaseProfile(profile);
+          })
+          .catch((error) => recordError(error, 'fetch_supabase_profile'));
       } else {
         setSupabaseProfile(null);
       }

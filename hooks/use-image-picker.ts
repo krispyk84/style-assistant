@@ -3,6 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { Keyboard } from 'react-native';
 
+import { recordError } from '@/lib/crashlytics';
 import { normalizePickedImage } from '@/lib/media-utils';
 import type { LocalImageAsset } from '@/types/media';
 
@@ -78,29 +79,34 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
     setPickingSource('library');
     setError(null);
 
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (!permission.granted) {
-      setError('Photo library access is required to choose an image.');
-      setPickingSource(null);
+      if (!permission.granted) {
+        setError('Photo library access is required to choose an image.');
+        return null;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+        selectionLimit: 1,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const normalized = await compressForUpload(normalizePickedImage(result.assets[0]));
+        setImage(normalized);
+        return normalized;
+      }
+
       return null;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 1,
-      selectionLimit: 1,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const normalized = await compressForUpload(normalizePickedImage(result.assets[0]));
-      setImage(normalized);
+    } catch (pickError) {
+      recordError(pickError, 'image_picker_pick_from_library');
+      setError(pickError instanceof Error ? pickError.message : 'Unable to choose that photo.');
+      return null;
+    } finally {
       setPickingSource(null);
-      return normalized;
     }
-
-    setPickingSource(null);
-    return null;
   }
 
   /**
@@ -112,30 +118,35 @@ export function useImagePicker(initialImage: LocalImageAsset | null = null) {
     setPickingSource('library');
     setError(null);
 
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (!permission.granted) {
-      setError('Photo library access is required to choose images.');
-      setPickingSource(null);
+      if (!permission.granted) {
+        setError('Photo library access is required to choose images.');
+        return [];
+      }
+
+      const options: MultiSelectImageLibraryOptions = {
+        allowsMultipleSelection: true,
+        allowsEditing: false,   // mutually exclusive with allowsMultipleSelection on iOS
+        mediaTypes: ['images'],
+        quality: 1,
+        selectionLimit: 10,
+      };
+
+      const result = await ImagePicker.launchImageLibraryAsync(options);
+
+      if (!result.canceled && result.assets.length > 0) {
+        return await Promise.all(result.assets.map(a => compressForUpload(normalizePickedImage(a))));
+      }
       return [];
+    } catch (pickError) {
+      recordError(pickError, 'image_picker_pick_multiple_from_library');
+      setError(pickError instanceof Error ? pickError.message : 'Unable to choose those photos.');
+      return [];
+    } finally {
+      setPickingSource(null);
     }
-
-    const options: MultiSelectImageLibraryOptions = {
-      allowsMultipleSelection: true,
-      allowsEditing: false,   // mutually exclusive with allowsMultipleSelection on iOS
-      mediaTypes: ['images'],
-      quality: 1,
-      selectionLimit: 10,
-    };
-
-    const result = await ImagePicker.launchImageLibraryAsync(options);
-
-    setPickingSource(null);
-
-    if (!result.canceled && result.assets.length > 0) {
-      return await Promise.all(result.assets.map(a => compressForUpload(normalizePickedImage(a))));
-    }
-    return [];
   }
 
   async function takePhoto() {

@@ -9,6 +9,7 @@ import { AppText } from '@/components/ui/app-text';
 import { FloatingBackButton } from '@/components/ui/floating-back-button';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { recordError } from '@/lib/crashlytics';
 import { evaluateClosetReadiness, type ClosetReadiness } from '@/lib/closet-readiness';
 import { tripDraftStorage } from '@/lib/trip-draft-storage';
 import type { TripDraft } from '@/lib/trip-draft-storage';
@@ -64,7 +65,7 @@ export function TripModeScreen() {
       if (res.success && res.data) {
         setReadiness(evaluateClosetReadiness(res.data.items));
       }
-    });
+    }).catch((error) => recordError(error, 'trip_mode_closet_readiness'));
   }, []);
 
   // Never leave "From My Closet" selected if the closet turns out not to be
@@ -74,11 +75,13 @@ export function TripModeScreen() {
   }, [readiness, mode]);
 
   async function handleBuild() {
-    if (!draft) return;
+    if (!draft || isBuilding) return;
 
     if (mode !== 'fullCloset') {
+      setIsBuilding(true);
       await tripDraftStorage.save({ ...draft, pendingAnchorMode: mode }).catch(() => {});
       router.push(buildTripAnchorsHref(mode));
+      setIsBuilding(false);
       return;
     }
 

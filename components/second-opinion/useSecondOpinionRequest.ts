@@ -23,23 +23,28 @@ export function useSecondOpinionRequest() {
     setErrorMessage(null);
     trackSecondOpinionRequested({ stylist_id: selectedId });
 
-    const response = await secondOpinionService.getOpinion({
-      stylistId: selectedId,
-      ...subject,
-    });
+    try {
+      const response = await secondOpinionService.getOpinion({
+        stylistId: selectedId,
+        ...subject,
+      });
 
-    setIsLoading(false);
+      if (!response.success || !response.data) {
+        setErrorMessage(response.error?.message ?? 'Could not get a second opinion. Please try again.');
+        recordError(
+          new Error(response.error?.message ?? 'Second opinion request failed'),
+          'second_opinion_request'
+        );
+        return;
+      }
 
-    if (!response.success || !response.data) {
-      setErrorMessage(response.error?.message ?? 'Could not get a second opinion. Please try again.');
-      recordError(
-        new Error(response.error?.message ?? 'Second opinion request failed'),
-        'second_opinion_request'
-      );
-      return;
+      setResult(response.data);
+    } catch (err) {
+      recordError(err instanceof Error ? err : new Error(String(err)), 'second_opinion_request');
+      setErrorMessage('Could not get a second opinion. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
-
-    setResult(response.data);
   }
 
   function clearResult() {

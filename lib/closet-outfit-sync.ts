@@ -16,7 +16,8 @@ export async function fetchClosetOutfitFavouritesFromBackend(): Promise<SavedClo
 }
 
 export async function upsertClosetOutfitFavouriteToBackend(favourite: SavedClosetOutfit): Promise<void> {
-  await createApiClient().request('/closet-outfit-sync/favourites', { method: 'POST', body: favourite });
+  const response = await createApiClient().request('/closet-outfit-sync/favourites', { method: 'POST', body: favourite });
+  if (!response.success) throw new Error(response.error?.message ?? 'Failed to upsert closet outfit favourite.');
 }
 
 export async function upsertManyClosetOutfitFavouritesToBackend(favourites: SavedClosetOutfit[]): Promise<void> {
@@ -24,7 +25,8 @@ export async function upsertManyClosetOutfitFavouritesToBackend(favourites: Save
 }
 
 export async function deleteClosetOutfitFavouriteFromBackend(id: string): Promise<void> {
-  await createApiClient().request(`/closet-outfit-sync/favourites/${id}`, { method: 'DELETE' });
+  const response = await createApiClient().request(`/closet-outfit-sync/favourites/${id}`, { method: 'DELETE' });
+  if (!response.success) throw new Error(response.error?.message ?? 'Failed to delete closet outfit favourite.');
 }
 
 export async function fetchClosetOutfitWeekPlanFromBackend(): Promise<ClosetWeekPlanItem[]> {
@@ -34,7 +36,8 @@ export async function fetchClosetOutfitWeekPlanFromBackend(): Promise<ClosetWeek
 }
 
 export async function upsertClosetOutfitWeekPlanItemToBackend(item: ClosetWeekPlanItem): Promise<void> {
-  await createApiClient().request('/closet-outfit-sync/week-plan', { method: 'POST', body: item });
+  const response = await createApiClient().request('/closet-outfit-sync/week-plan', { method: 'POST', body: item });
+  if (!response.success) throw new Error(response.error?.message ?? 'Failed to upsert closet outfit week-plan item.');
 }
 
 export async function upsertManyClosetOutfitWeekPlanItemsToBackend(items: ClosetWeekPlanItem[]): Promise<void> {
@@ -42,5 +45,6 @@ export async function upsertManyClosetOutfitWeekPlanItemsToBackend(items: Closet
 }
 
 export async function deleteClosetOutfitWeekPlanItemFromBackend(dayKey: string): Promise<void> {
-  await createApiClient().request(`/closet-outfit-sync/week-plan/${dayKey}`, { method: 'DELETE' });
+  const response = await createApiClient().request(`/closet-outfit-sync/week-plan/${dayKey}`, { method: 'DELETE' });
+  if (!response.success) throw new Error(response.error?.message ?? 'Failed to delete closet outfit week-plan item.');
 }

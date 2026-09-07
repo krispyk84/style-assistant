@@ -335,7 +335,7 @@ export function installShareHandoffListener() {
     .then((url) => {
       if (url) importShareFromUrl(url);
     })
-    .catch(() => undefined);
+    .catch((error) => recordError(error, 'share_handoff_get_initial_url'));
 
   // 2) Warm-foreground URLs — same code path.
   urlSubscription = Linking.addEventListener('url', (event) => {

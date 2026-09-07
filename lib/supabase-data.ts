@@ -79,17 +79,20 @@ export async function fetchClosetItemsFromSupabase(): Promise<ClosetItem[]> {
 export async function upsertClosetItemToSupabase(item: ClosetItem): Promise<void> {
   const userId = await getCurrentUserId();
   if (!userId) return;
-  await supabase.from('closet_items').upsert(toRow(item, userId));
+  const { error } = await supabase.from('closet_items').upsert(toRow(item, userId));
+  if (error) throw error;
 }
 
 export async function upsertManyClosetItemsToSupabase(items: ClosetItem[], explicitUserId?: string): Promise<void> {
   const userId = explicitUserId ?? await getCurrentUserId();
   if (!userId || items.length === 0) return;
-  await supabase.from('closet_items').upsert(items.map((item) => toRow(item, userId)));
+  const { error } = await supabase.from('closet_items').upsert(items.map((item) => toRow(item, userId)));
+  if (error) throw error;
 }
 
 export async function deleteClosetItemFromSupabase(id: string): Promise<void> {
-  await supabase.from('closet_items').delete().eq('id', id);
+  const { error } = await supabase.from('closet_items').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ── Saved Outfits ──────────────────────────────────────────────────────────────
@@ -112,7 +115,7 @@ export async function fetchSavedOutfitsFromSupabase(): Promise<SavedOutfit[]> {
 export async function upsertSavedOutfitToSupabase(outfit: SavedOutfit): Promise<void> {
   const userId = await getCurrentUserId();
   if (!userId) return;
-  await supabase.from('saved_outfits').upsert({
+  const { error } = await supabase.from('saved_outfits').upsert({
     id: outfit.id,
     user_id: userId,
     request_id: outfit.requestId,
@@ -120,12 +123,13 @@ export async function upsertSavedOutfitToSupabase(outfit: SavedOutfit): Promise<
     input: outfit.input,
     recommendation: outfit.recommendation,
   });
+  if (error) throw error;
 }
 
 export async function upsertManySavedOutfitsToSupabase(outfits: SavedOutfit[], explicitUserId?: string): Promise<void> {
   const userId = explicitUserId ?? await getCurrentUserId();
   if (!userId || outfits.length === 0) return;
-  await supabase.from('saved_outfits').upsert(
+  const { error } = await supabase.from('saved_outfits').upsert(
     outfits.map((o) => ({
       id: o.id,
       user_id: userId,
@@ -135,10 +139,12 @@ export async function upsertManySavedOutfitsToSupabase(outfits: SavedOutfit[], e
       recommendation: o.recommendation,
     }))
   );
+  if (error) throw error;
 }
 
 export async function deleteSavedOutfitFromSupabase(id: string): Promise<void> {
-  await supabase.from('saved_outfits').delete().eq('id', id);
+  const { error } = await supabase.from('saved_outfits').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ── Week Plan ──────────────────────────────────────────────────────────────────
@@ -162,7 +168,7 @@ export async function fetchWeekPlanFromSupabase(): Promise<WeekPlannedOutfit[]> 
 export async function upsertWeekPlanItemToSupabase(item: WeekPlannedOutfit): Promise<void> {
   const userId = await getCurrentUserId();
   if (!userId) return;
-  await supabase.from('week_plan').upsert({
+  const { error } = await supabase.from('week_plan').upsert({
     user_id: userId,
     day_key: item.dayKey,
     day_label: item.dayLabel,
@@ -171,12 +177,13 @@ export async function upsertWeekPlanItemToSupabase(item: WeekPlannedOutfit): Pro
     input: item.input,
     recommendation: item.recommendation,
   });
+  if (error) throw error;
 }
 
 export async function upsertManyWeekPlanItemsToSupabase(items: WeekPlannedOutfit[], explicitUserId?: string): Promise<void> {
   const userId = explicitUserId ?? await getCurrentUserId();
   if (!userId || items.length === 0) return;
-  await supabase.from('week_plan').upsert(
+  const { error } = await supabase.from('week_plan').upsert(
     items.map((item) => ({
       user_id: userId,
       day_key: item.dayKey,
@@ -187,10 +194,12 @@ export async function upsertManyWeekPlanItemsToSupabase(items: WeekPlannedOutfit
       recommendation: item.recommendation,
     }))
   );
+  if (error) throw error;
 }
 
 export async function deleteWeekPlanItemFromSupabase(dayKey: string): Promise<void> {
   const userId = await getCurrentUserId();
   if (!userId) return;
-  await supabase.from('week_plan').delete().eq('day_key', dayKey).eq('user_id', userId);
+  const { error } = await supabase.from('week_plan').delete().eq('day_key', dayKey).eq('user_id', userId);
+  if (error) throw error;
 }

@@ -5,6 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { useAppSession } from '@/hooks/use-app-session';
 import { useCurrentWeather } from '@/hooks/use-current-weather';
 import { evaluateClosetReadiness, type ClosetReadiness } from '@/lib/closet-readiness';
+import { recordError } from '@/lib/crashlytics';
 import { homeReadiness } from '@/lib/home-readiness';
 import { loadSavedOutfits } from '@/lib/saved-outfits-storage';
 import {
@@ -72,6 +73,12 @@ export function useHomeData() {
         if (!isMounted) return;
         setClosetCarouselImages(shuffled);
         setIsClosetCarouselResolved(true);
+      }).catch((error) => {
+        recordError(error, 'home_closet_carousel_load');
+        // Mirrors the hero carousel's own .catch(() => setIsResolved(true)) below —
+        // without this, a throw here would leave isClosetCarouselResolved stuck
+        // false forever, which permanently blocks the splash overlay from hiding.
+        if (isMounted) setIsClosetCarouselResolved(true);
       });
       return () => {
         isMounted = false;

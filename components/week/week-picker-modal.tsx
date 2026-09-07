@@ -8,6 +8,7 @@ import { RemoteImagePanel } from '@/components/ui/remote-image-panel';
 import { SectionHeader } from '@/components/ui/section-header';
 import { spacing, theme } from '@/constants/theme';
 import { useAppSession } from '@/hooks/use-app-session';
+import { recordError } from '@/lib/crashlytics';
 import { formatTemperatureRange } from '@/lib/temperature-format';
 import { formatTierLabel } from '@/lib/outfit-utils';
 import { getNextSevenDays, loadWeekPlan } from '@/lib/week-plan-storage';
@@ -48,7 +49,9 @@ export function WeekPickerModal({ visible, onClose, onSelectDay }: WeekPickerMod
     }
 
     if (visible) {
-      void hydrateModal();
+      void hydrateModal().catch((error) => {
+        recordError(error instanceof Error ? error : new Error(String(error)), 'week_picker_hydrate');
+      });
       setReplacementCandidate(null);
     }
 

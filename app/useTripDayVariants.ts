@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 
 import type { OutfitThumbnailItem } from '@/components/cards/OutfitItemThumbnailRow';
+import { recordError } from '@/lib/crashlytics';
 import { tripDayVariantFlow } from '@/lib/trip-day-variant-flow';
 import { closetService } from '@/services/closet';
 import { tripOutfitsService } from '@/services/trip-outfits';
@@ -18,7 +19,7 @@ export function useTripDayVariants() {
   useEffect(() => {
     closetService.getItems().then((res) => {
       if (res.success && res.data) setClosetItems(res.data.items ?? []);
-    });
+    }).catch((error) => recordError(error, 'trip_day_variants_closet_items_load'));
 
     const request = tripDayVariantFlow.consumePendingRequest();
     if (!request) {

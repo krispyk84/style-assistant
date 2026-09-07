@@ -9,6 +9,7 @@ import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
 import { loadRecommendationFeedback, saveRecommendationFeedback } from '@/lib/recommendation-feedback-storage';
 import { useToast } from '@/components/ui/toast-provider';
 import { trackSaveOutfit, trackAddToWeek } from '@/lib/analytics';
+import { recordError } from '@/lib/crashlytics';
 
 type UseResultsActionsParams = {
   response: GenerateOutfitsResponse | null;
@@ -158,17 +159,28 @@ export function useResultsActions({
       setOutfitFeedbackMap((prev) => { const next = { ...prev }; delete next[tier]; return next; });
       return;
     }
+    const previousFeedback = outfitFeedbackMap[tier];
     setOutfitFeedbackMap((prev) => ({ ...prev, [tier]: thumb }));
-    await saveRecommendationFeedback({
-      id: `${response.requestId}:${tier}:outfit`,
-      requestId: response.requestId,
-      tier,
-      outfitTitle: recommendation.title,
-      thumb,
-      regenerated: false,
-      createdAt: new Date().toISOString(),
-    });
-    showToast(thumb === 'love' ? 'Noted — glad you love it.' : "Noted — we'll keep that in mind.");
+    try {
+      await saveRecommendationFeedback({
+        id: `${response.requestId}:${tier}:outfit`,
+        requestId: response.requestId,
+        tier,
+        outfitTitle: recommendation.title,
+        thumb,
+        regenerated: false,
+        createdAt: new Date().toISOString(),
+      });
+      showToast(thumb === 'love' ? 'Noted — glad you love it.' : "Noted — we'll keep that in mind.");
+    } catch (error) {
+      recordError(error, 'outfit_feedback_save');
+      setOutfitFeedbackMap((prev) => {
+        const next = { ...prev };
+        if (previousFeedback) next[tier] = previousFeedback;
+        else delete next[tier];
+        return next;
+      });
+    }
   }
 
   return {
