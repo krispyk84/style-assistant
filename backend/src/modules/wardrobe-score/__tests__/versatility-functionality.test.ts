@@ -43,7 +43,7 @@ describe('scoreOccasionSpread', () => {
   // Quarantined 2026-09-07 (Maintenance Checkpoint 2) — known pre-existing
   // failure, narrowly isolated so it doesn't block the CI test gate while
   // every other test (including its sibling "uses category inference..."
-  // below) still does.
+  // below) still does. Follow-up: https://github.com/krispyk84/style-assistant/issues/1
   //
   // This is NOT the same class of bug as the two fixes made alongside this
   // quarantine (BUSINESS_TERMS wrongly containing 'smart', and the casual
