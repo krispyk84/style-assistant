@@ -30,6 +30,6 @@ export function trackImageUsage(params: {
     supabaseUserId: params.supabaseUserId,
     feature: params.feature,
     model: params.model,
-    costUsd: calcImageCost(params.size, params.quality),
+    costUsd: calcImageCost(params.model, params.size, params.quality),
   });
 }

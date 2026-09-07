@@ -11,7 +11,6 @@ import { closetOutfitsService } from './closet-outfits.service.js';
 import { mapClosetItem } from './closet-response-mapper.js';
 import { analyzeClosetItem, matchClosetItems } from './closet-analysis.service.js';
 import { openAiClient } from '../../ai/openai-client.js';
-import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { buildHelpMePickSystemPrompt, buildHelpMePickUserPrompt } from '../../ai/prompts/help-me-pick.prompts.js';
 import { buildClosetItemPairSketchPrompt, type ClosetItemPairPiece } from '../../ai/prompts/closet-item-pair-sketch.prompts.js';
 import {
@@ -472,7 +471,6 @@ async function generatePairedItemSketch(
       outputFormat: 'jpeg',
       supabaseUserId,
       feature: 'closet-sketch',
-      costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
       styleRefImageUrls: styleRefImageUrls.length > 0 ? styleRefImageUrls : undefined,
       logContext: { itemId },
     });

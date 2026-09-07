@@ -1,7 +1,6 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { openAiClient } from '../../ai/openai-client.js';
-import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { describeError } from '../../lib/http-error.js';
 import { buildTierSketchPrompt } from '../../ai/prompts/tier-sketch.prompts.js';
 import { buildSubjectRenderingBrief, type SubjectRenderingInput } from '../../ai/body-type-severity.js';
@@ -53,7 +52,6 @@ async function generateSingleTierSketch(
       outputFormat: 'jpeg',
       supabaseUserId,
       feature: 'outfit-sketch',
-      costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
       logContext: { requestId, tier: recommendation.tier },
     });
 

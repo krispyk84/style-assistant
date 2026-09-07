@@ -4,7 +4,6 @@ import { HttpError, describeError } from '../../lib/http-error.js';
 import { runWithConcurrencyLimit } from '../../lib/concurrency-limit.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
-import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import {
   buildClosetOutfitsChoiceSystemPrompt,
   buildClosetOutfitsChoiceUserPrompt,
@@ -307,7 +306,6 @@ async function generateOutfitSketch(
       outputFormat: 'jpeg',
       supabaseUserId,
       feature: 'outfit-sketch',
-      costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
       logContext: { jobId, outfitTitle: outfit.title },
     });
 

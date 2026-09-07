@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { HttpError } from '../lib/http-error.js';
 import type { AiFeature } from './costs.js';
+import { calcImageCost, calcTextCost } from './costs.js';
 import { buildStructuredRequestBody, buildImageRequestBody, buildImageWithRefRequestBody } from './openai-request-builder.js';
 import type { InputContent, JsonSchemaConfig } from './openai-request-builder.js';
 import { parseStructuredResponse, parseImageResponse, parseImageWithRefResponse } from './openai-response-parser.js';
@@ -159,7 +160,33 @@ export const openAiClient = {
     );
 
     if (input.supabaseUserId && input.feature) {
-      if (input.costUsd !== undefined) {
+      if (useStyleRef) {
+        // The reference-image path calls a completely different model
+        // (env.OPENAI_IMAGE_REF_MODEL, e.g. gpt-4o-mini) via the Responses
+        // API's image_generation tool — a categorically different, more
+        // expensive billing shape than a plain gpt-image-1-mini call, so it
+        // must never be costed off the plain size/quality table, and
+        // `model` above (input.model ?? env.OPENAI_IMAGE_MODEL) is the
+        // WRONG model to record here since it was never actually used for
+        // this dispatch.
+        const refResult = result as unknown as { inputTokens: number; outputTokens: number };
+        const conversationCost = calcTextCost(refResult.inputTokens, refResult.outputTokens);
+        // The image_generation tool's own image-output cost isn't itemized
+        // in this usage object — OpenAI bills the generated image separately
+        // at the underlying image model's rates, which aren't identified in
+        // the response. Using the accurate gpt-image-1-mini per-image price
+        // as the closest available proxy is still far more accurate than the
+        // flat, wrong-model constant this used to charge unconditionally.
+        const imageCost = calcImageCost('gpt-image-1-mini', size, quality);
+        usageService.record({
+          supabaseUserId: input.supabaseUserId,
+          feature: input.feature,
+          model: env.OPENAI_IMAGE_REF_MODEL,
+          costUsd: conversationCost + imageCost,
+          inputTokens: refResult.inputTokens,
+          outputTokens: refResult.outputTokens,
+        });
+      } else if (input.costUsd !== undefined) {
         usageService.record({
           supabaseUserId: input.supabaseUserId,
           feature: input.feature,

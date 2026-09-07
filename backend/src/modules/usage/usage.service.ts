@@ -2,6 +2,15 @@ import { prisma } from '../../db/prisma.js';
 import { logger } from '../../config/logger.js';
 import type { AiFeature } from '../../ai/costs.js';
 
+// Attribution id for AI calls with no real per-user context — shared/global
+// generation jobs (e.g. seasonal color-swatch/trend sketches, backfilled once
+// per season for all users, not triggered by any one user's action). These
+// still cost real OpenAI money against the same billed account, so they must
+// be recorded somewhere rather than silently discarded — but getMonthlyTotal
+// is scoped per supabaseUserId, so entries under this id intentionally never
+// show up on any individual user's own "AI usage this month" total.
+export const SYSTEM_USAGE_SUPABASE_ID = 'system';
+
 function currentMonthKey(): string {
   const now = new Date();
   const year = now.getUTCFullYear();

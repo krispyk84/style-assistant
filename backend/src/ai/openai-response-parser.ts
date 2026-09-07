@@ -111,7 +111,7 @@ export function parseImageResponse(raw: RawHttpResponse, logContext?: Record<str
 // first. Search the array for the actual image-bearing item rather than
 // assuming position.
 
-export function parseImageWithRefResponse(raw: RawHttpResponse): { imageBase64: string } {
+export function parseImageWithRefResponse(raw: RawHttpResponse): { imageBase64: string; inputTokens: number; outputTokens: number } {
   const payload = raw.payload as any;
 
   if (!raw.ok) {
@@ -136,5 +136,15 @@ export function parseImageWithRefResponse(raw: RawHttpResponse): { imageBase64: 
     throw new HttpError(502, 'OPENAI_IMAGE_INVALID', 'The AI provider returned an invalid sketch response.');
   }
 
-  return { imageBase64 };
+  // The Responses API's usage object uses input_tokens/output_tokens (not
+  // Chat Completions' prompt_tokens/completion_tokens) — this covers the
+  // gpt-4o-mini conversation (including the reference image(s) as input
+  // tokens), NOT the image_generation tool's own image-output cost, which
+  // OpenAI bills separately at the underlying image model's rates and isn't
+  // itemized in this usage object. See generateImage's cost calculation for
+  // how the two are combined into one approximate total.
+  const inputTokens: number = payload?.usage?.input_tokens ?? 0;
+  const outputTokens: number = payload?.usage?.output_tokens ?? 0;
+
+  return { imageBase64, inputTokens, outputTokens };
 }

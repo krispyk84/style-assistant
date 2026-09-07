@@ -7,7 +7,6 @@ import { logger } from '../../config/logger.js';
 import { storageConfig } from '../../config/storage.js';
 import { env } from '../../config/env.js';
 import { openAiClient } from '../../ai/openai-client.js';
-import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { describeError } from '../../lib/http-error.js';
 import { buildClosetItemSketchPrompt } from '../../ai/prompts/closet-item-sketch.prompts.js';
 import type { ClosetItemSketchInput } from '../../ai/prompts/closet-item-sketch.prompts.js';
@@ -257,7 +256,6 @@ async function generateClosetItemSketch(
     outputFormat: 'jpeg',
     supabaseUserId,
     feature: 'closet-sketch',
-    costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
     logContext: { jobId },
   });
 

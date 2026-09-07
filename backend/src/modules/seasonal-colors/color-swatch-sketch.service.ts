@@ -3,9 +3,9 @@ import { logger } from '../../config/logger.js';
 import { describeError } from '../../lib/http-error.js';
 import { runWithConcurrencyLimit } from '../../lib/concurrency-limit.js';
 import { openAiClient } from '../../ai/openai-client.js';
-import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { buildColorSwatchSketchPrompt, type ColorSwatchSketchInput } from '../../ai/prompts/color-swatch-sketch.prompts.js';
 import { storageProvider } from '../../storage/index.js';
+import { SYSTEM_USAGE_SUPABASE_ID } from '../usage/usage.service.js';
 import { colorSwatchSketchRepository } from './color-swatch-sketch.repository.js';
 
 // Bounds actual concurrent generations (not just start times) — mirrors
@@ -45,8 +45,8 @@ async function generateSketch(id: string, color: ColorSwatchSketchInput) {
       size: '1024x1536',
       quality: env.OPENAI_OUTFIT_SKETCH_QUALITY,
       outputFormat: 'jpeg',
+      supabaseUserId: SYSTEM_USAGE_SUPABASE_ID,
       feature: 'color-swatch-sketch',
-      costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
       logContext: { colorSwatchSketchId: id, name: color.name },
     });
 

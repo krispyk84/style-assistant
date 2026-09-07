@@ -11,7 +11,6 @@ import {
 } from '../../ai/prompts/trips.prompts.js';
 import type { ClosetOutfitIndexItem, ClosetOutfitSlotShortlists } from '../../ai/prompts/closet-outfits.prompts.js';
 import { buildSubjectRenderingBrief } from '../../ai/body-type-severity.js';
-import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { describeError, HttpError } from '../../lib/http-error.js';
@@ -1148,7 +1147,6 @@ async function generateDaySketch(
       outputFormat: 'jpeg',
       supabaseUserId: params.supabaseUserId,
       feature: 'trip-sketch',
-      costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
       logContext: { jobId },
     });
 

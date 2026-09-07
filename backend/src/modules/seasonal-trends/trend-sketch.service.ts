@@ -3,9 +3,9 @@ import { logger } from '../../config/logger.js';
 import { describeError } from '../../lib/http-error.js';
 import { runWithConcurrencyLimit } from '../../lib/concurrency-limit.js';
 import { openAiClient } from '../../ai/openai-client.js';
-import { OPENAI_MINI_OUTFIT_SKETCH_COST_USD } from '../../ai/costs.js';
 import { buildTrendSketchPrompt, type TrendSketchInput } from '../../ai/prompts/trend-sketch.prompts.js';
 import { storageProvider } from '../../storage/index.js';
+import { SYSTEM_USAGE_SUPABASE_ID } from '../usage/usage.service.js';
 import { trendSketchRepository } from './trend-sketch.repository.js';
 
 // Bounds actual concurrent generations (not just start times) — a top-20
@@ -60,8 +60,8 @@ async function generateSketch(id: string, trend: TrendSketchInput) {
       size: '1024x1536',
       quality: env.OPENAI_OUTFIT_SKETCH_QUALITY,
       outputFormat: 'jpeg',
+      supabaseUserId: SYSTEM_USAGE_SUPABASE_ID,
       feature: 'trend-sketch',
-      costUsd: OPENAI_MINI_OUTFIT_SKETCH_COST_USD,
       logContext: { trendSketchId: id, name: trend.name },
     });
 
