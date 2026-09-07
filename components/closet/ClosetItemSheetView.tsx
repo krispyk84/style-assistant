@@ -118,7 +118,17 @@ export function ClosetItemSheetView({ item, startInEditMode, onClose, onSaved, o
     void incrementClosetItemCounter(id, 'anchorToOutfitCount');
     void closetService.recordAnchorUsed(id);
     onClose();
-    // Defer navigation until after the modal close state update has flushed
+    // Defer navigation until after the modal close state update has flushed —
+    // onClose (a parent-owned setEditingItem(null)) and router.push in the
+    // same tick can race the native Modal's teardown against the incoming
+    // route. Reassessed 2026-09-07 (Maintenance Checkpoint 5): no observed
+    // failure tied to this, and onClose's type (() => void, no completion
+    // signal) offers nothing to await instead — fixing it properly means
+    // changing that prop's contract with its parent (app/(app)/closet.tsx),
+    // which is out of scope here. Revisit only if either (a) a real
+    // navigation/close race is actually observed, or (b) onClose's contract
+    // changes for an unrelated reason and starts offering a completion signal
+    // this could use instead of a fixed delay.
     setTimeout(() => {
       router.push({
         pathname: '/create-look',

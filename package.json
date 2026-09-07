@@ -6,6 +6,7 @@
     "start": "expo start",
     "ios": "expo run:ios",
     "lint": "expo lint",
+    "test": "vitest run",
     "bump": "node scripts/bump-patch.js",
     "deploy": "npx expo prebuild --clean -p ios && xcodebuild -workspace ios/Vesture.xcworkspace -scheme Vesture -configuration Release -destination 'id=00008140-000C6D860082201C' -allowProvisioningUpdates -derivedDataPath /tmp/vesture-build -UseNewBuildSystem=NO && xcrun devicectl device install app --device 00008140-000C6D860082201C /tmp/vesture-build/Build/Products/Release-iphoneos/Vesture.app",
     "deploy:dev": "APP_VARIANT=development EXPO_PUBLIC_API_BASE_URL=${DEV_API_URL:-https://style-assistant-api-dev.onrender.com} EXPO_PUBLIC_SUPABASE_URL=${DEV_SUPABASE_URL:-https://ktwzdsqhvsgnfjklrnlt.supabase.co} EXPO_PUBLIC_SUPABASE_ANON_KEY=${DEV_SUPABASE_ANON_KEY:-sb_publishable_yPoc_v95vd0YvITP3EDobQ_lyeNU3NV} EXPO_PUBLIC_USE_MOCK_SERVICES=false npx expo prebuild --clean -p ios && APP_VARIANT=development EXPO_PUBLIC_API_BASE_URL=${DEV_API_URL:-https://style-assistant-api-dev.onrender.com} EXPO_PUBLIC_SUPABASE_URL=${DEV_SUPABASE_URL:-https://ktwzdsqhvsgnfjklrnlt.supabase.co} EXPO_PUBLIC_SUPABASE_ANON_KEY=${DEV_SUPABASE_ANON_KEY:-sb_publishable_yPoc_v95vd0YvITP3EDobQ_lyeNU3NV} EXPO_PUBLIC_USE_MOCK_SERVICES=false xcodebuild -workspace ios/VestureDev.xcworkspace -scheme VestureDev -configuration Release -destination 'id=00008140-000C6D860082201C' -allowProvisioningUpdates -derivedDataPath /tmp/vesture-dev-build -UseNewBuildSystem=NO && xcrun devicectl device install app --device 00008140-000C6D860082201C /tmp/vesture-dev-build/Build/Products/Release-iphoneos/VestureDev.app",
@@ -64,12 +65,16 @@
     "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "~19.1.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "jsdom": "^29.1.1",
     "patch-package": "^8.0.1",
     "postinstall-postinstall": "^2.1.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "vitest": "^4.1.11"
   },
   "private": true
 }

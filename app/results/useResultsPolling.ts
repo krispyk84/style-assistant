@@ -1,5 +1,6 @@
 import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 
+import { recordError } from '@/lib/crashlytics';
 import { outfitsService } from '@/services/outfits';
 import type { GenerateOutfitsResponse } from '@/types/api';
 import type { LookTierSlug } from '@/types/look-request';
@@ -65,6 +66,11 @@ export function useResultsPolling({
             };
           });
         }
+      } catch (error) {
+        // outfitsService.getOutfitResult goes through ApiClient.request, which
+        // never rejects in practice — this exists so a poll tick can never
+        // become an unhandled rejection if that contract ever changes.
+        recordError(error, 'results_polling_tick_failed');
       } finally {
         isPollingRef.current = false;
       }

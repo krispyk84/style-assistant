@@ -17,6 +17,7 @@ import {
   collectUsedAnchorItemIds,
   collectUsedFootwear,
   collectUsedOuterwear,
+  computeTripGenerationResumePoint,
 } from './trip-results-mappers';
 
 type UseTripResultsDataParams = {
@@ -75,22 +76,31 @@ export function useTripResultsData({
         return;
       }
 
-      const totalDays = Math.min(8, draft.numDays);
-
       // Resume rather than restart from day 0 if a previous run for this
-      // exact tripId already generated some days — protects against the
-      // common case of a remount (e.g. back-then-forward navigation) after
-      // the earlier run had already made progress, which would otherwise
-      // silently re-run (and re-bill) already-generated days. This does NOT
-      // protect against an old run still ACTIVELY generating in the
-      // background when a new one starts — unmounting doesn't cancel
-      // in-flight JS execution, and closing that race would need a
-      // cross-invocation lock (e.g. a persisted heartbeat), which is a
-      // larger architectural change left out of this fix.
+      // exact tripId already generated some days. The realistic trigger is a
+      // cold app relaunch mid-generation (backgrounded, OS reclaims memory,
+      // Expo Router restores this same route from its persisted nav state) —
+      // a fresh process, one instance, no live race, just resuming from what
+      // was already persisted instead of silently re-running (and re-billing)
+      // completed days. Investigated 2026-09-07 (Maintenance Checkpoint 5)
+      // whether a live cross-invocation race (two instances for the same
+      // tripId genuinely running at once) is reachable via normal navigation:
+      // it isn't — createTripId() stamps a fresh id from Date.now() on every
+      // "Build"/"Continue" tap, and the only screen that can reopen an
+      // EXISTING tripId (TravelPlannerScreen's saved-trips list) does so via
+      // savedTripId, a different code path entirely that never sets
+      // isProgressiveGeneration. No cross-invocation lock added — there's
+      // nothing currently reachable for it to guard against; revisit if a
+      // future entry point ever lets a user navigate back into an
+      // already-generating (not-yet-saved) trip by its original tripId.
       const existingPlan = await tripOutfitsStorage.load(activeTripId).catch(() => null);
       const generatedDays: TripOutfitDay[] = existingPlan?.days ? [...existingPlan.days] : [];
+      const { totalDays, isAlreadyComplete } = computeTripGenerationResumePoint({
+        numDays: draft.numDays,
+        existingDays: existingPlan?.days,
+      });
 
-      if (generatedDays.length >= totalDays && existingPlan) {
+      if (isAlreadyComplete && existingPlan) {
         setTotalProgressDays(0);
         setPlan(existingPlan);
         setDays(generatedDays);

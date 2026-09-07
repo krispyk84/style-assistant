@@ -4,6 +4,36 @@ import { categorizeTripItem } from '@/lib/outfit-piece-display';
 import type { SavedTripDetail, SaveTripParams } from '@/services/saved-trips';
 import type { GenerateTripOutfitsParams, TripOutfitDay } from '@/services/trip-outfits';
 
+export type TripGenerationResumePoint = {
+  /** How many days this trip should generate in total (capped at 8). */
+  totalDays: number;
+  /** The first day index still needing generation — 0 for a fresh trip. */
+  startIndex: number;
+  /** True when every day is already generated — nothing left to do. */
+  isAlreadyComplete: boolean;
+};
+
+/**
+ * Pure resume-vs-restart decision for useTripResultsData's progressive
+ * generation loop, extracted so it's testable without rendering the hook.
+ * A remount (e.g. back-then-forward navigation) re-runs the effect that
+ * calls this — resuming from existingDays.length instead of always
+ * restarting at 0 is what stops already-generated (and already-billed)
+ * days from being silently regenerated.
+ */
+export function computeTripGenerationResumePoint(params: {
+  numDays: number;
+  existingDays: TripOutfitDay[] | undefined;
+}): TripGenerationResumePoint {
+  const totalDays = Math.min(8, params.numDays);
+  const startIndex = params.existingDays?.length ?? 0;
+  return {
+    totalDays,
+    startIndex,
+    isAlreadyComplete: params.existingDays !== undefined && startIndex >= totalDays,
+  };
+}
+
 export function buildStoredTripPlanFromDraft(tripId: string, draft: TripDraft): StoredTripPlan {
   return {
     tripId,

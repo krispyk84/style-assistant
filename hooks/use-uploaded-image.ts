@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { useImagePicker } from '@/hooks/use-image-picker';
 import { uploadsService } from '@/services/uploads';
@@ -22,11 +22,22 @@ export function useUploadedImage(category: UploadedImageCategory, initialImage: 
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
+  // Nothing here disables the picker/camera buttons during an upload (callers
+  // only swap the button label, e.g. ImagePickerField's isPicking prop) — so a
+  // second tap mid-upload can start an overlapping uploadSelectedImage call.
+  // Without this guard, whichever call happened to resolve last would win,
+  // silently overwriting a newer photo's result with a stale one. Bumped on
+  // every call; a call only applies its result / clears isUploading if it's
+  // still the most recent one by the time it resolves.
+  const uploadTokenRef = useRef(0);
 
   async function uploadSelectedImage(nextImage: LocalImageAsset | null) {
     if (!nextImage) {
       return;
     }
+
+    const token = ++uploadTokenRef.current;
+    const isCurrent = () => uploadTokenRef.current === token;
 
     setIsUploading(true);
     setUploadProgress(0);
@@ -40,14 +51,16 @@ export function useUploadedImage(category: UploadedImageCategory, initialImage: 
         } catch {
           // Ignore stale-upload cleanup failures and continue with the new upload.
         }
-        setUploadedImage(null);
+        if (isCurrent()) setUploadedImage(null);
       }
 
       const response = await uploadsService.uploadImage({
         image: nextImage,
         category,
-        onProgress: setUploadProgress,
+        onProgress: (progress) => { if (isCurrent()) setUploadProgress(progress); },
       });
+
+      if (!isCurrent()) return; // a newer upload has since started — don't apply this stale result
 
       if (response.success && response.data) {
         setUploadedImage(response.data);
@@ -58,10 +71,12 @@ export function useUploadedImage(category: UploadedImageCategory, initialImage: 
         setUploadError(response.error?.message ?? 'Image upload failed.');
       }
     } catch {
-      setUploadProgress(0);
-      setUploadError('Image upload failed.');
+      if (isCurrent()) {
+        setUploadProgress(0);
+        setUploadError('Image upload failed.');
+      }
     } finally {
-      setIsUploading(false);
+      if (isCurrent()) setIsUploading(false);
     }
   }
 

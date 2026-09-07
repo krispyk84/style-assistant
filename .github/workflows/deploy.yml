@@ -1,16 +1,20 @@
 name: CI / Deploy
 
-# Validates every PR and gates Render deploys on green typecheck + backend tests.
+# Validates every PR and gates Render deploys on green typecheck + tests (frontend + backend).
 #
 # Triggers:
-#   pull_request → typecheck + backend tests only (no deploy)
-#   push to main → typecheck + backend tests + deploy to production Render service
-#   push to dev  → typecheck + backend tests + deploy to dev Render service
+#   pull_request → typecheck + tests only (no deploy)
+#   push to main → typecheck + tests + deploy to production Render service
+#   push to dev  → typecheck + tests + deploy to dev Render service
 #
 # test-backend runs the real-dependency smoke tests (src/__tests__/app.smoke.test.ts
 # and the compiled-build boot check, smoke:build) alongside the rest of the
 # Vitest suite — these are what would have caught the Supabase/WebSocket
 # startup crash that previously reached Render despite typecheck being green.
+#
+# test-frontend runs the frontend Vitest suite (vitest.config.mts, `npm run
+# test` at repo root) — all storage/network boundaries are mocked, no
+# production credentials or real backend calls are involved.
 #
 # Render's "Auto-Deploy" should be DISABLED in the dashboard for BOTH services
 # so deploys only happen through this workflow (one controlled path).
@@ -39,6 +43,18 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npx tsc --noEmit
+
+  test-frontend:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run test
 
   typecheck-backend:
     name: Backend typecheck
@@ -79,7 +95,7 @@ jobs:
   deploy:
     name: Trigger Render deploy
     runs-on: ubuntu-latest
-    needs: [typecheck-frontend, typecheck-backend, test-backend]
+    needs: [typecheck-frontend, test-frontend, typecheck-backend, test-backend]
     # Skip on PR — only deploy on push to a long-lived branch.
     if: github.event_name == 'push'
     steps:
