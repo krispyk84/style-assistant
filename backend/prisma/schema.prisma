@@ -603,11 +603,17 @@ model ColorFeedback {
 // local-storage shape), not scoped into the primary key by user — reads/
 // writes are scoped by supabaseUserId in application code instead.
 model ClosetOutfitFavourite {
-  id             String   @id
+  id             String    @id
   supabaseUserId String
   formality      String
   outfit         Json
-  savedAt        DateTime @default(now())
+  savedAt        DateTime  @default(now())
+  // Sync redesign, Phase 0 (additive only — nothing reads/requires these
+  // yet). syncVersion is the server-managed optimistic-concurrency counter
+  // introduced in Phase 1+; deletedAt is the future tombstone marker. See
+  // migration 20260907000000_add_sync_version_deleted_at_closet_outfit_sync.
+  syncVersion    Int       @default(1)
+  deletedAt      DateTime?
 
   @@index([supabaseUserId])
 }
@@ -616,13 +622,16 @@ model ClosetOutfitFavourite {
 // ClosetOutfitFavourite above. One row per (user, day): assigning a new
 // outfit to an already-planned day replaces that day's row.
 model ClosetOutfitWeekPlanItem {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   supabaseUserId String
   dayKey         String
   dayLabel       String
   formality      String
   outfit         Json
-  assignedAt     DateTime @default(now())
+  assignedAt     DateTime  @default(now())
+  // Sync redesign, Phase 0 — see ClosetOutfitFavourite's comment above.
+  syncVersion    Int       @default(1)
+  deletedAt      DateTime?
 
   @@unique([supabaseUserId, dayKey])
   @@index([supabaseUserId])
