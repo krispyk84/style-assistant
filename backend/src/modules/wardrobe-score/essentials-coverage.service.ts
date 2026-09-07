@@ -55,8 +55,8 @@ function colorFamilyMatches(item: ScoringClosetItem, essential: EssentialItem): 
   const itemPrimary = norm(item.primaryColor);
   return essential.colorFamilies.some((cf) => {
     const ncf = norm(cf);
-    return itemColor.includes(ncf) || ncf.includes(itemColor) ||
-           itemPrimary.includes(ncf) || ncf.includes(itemPrimary);
+    return (!!itemColor && (itemColor.includes(ncf) || ncf.includes(itemColor))) ||
+           (!!itemPrimary && (itemPrimary.includes(ncf) || ncf.includes(itemPrimary)));
   });
 }
 

@@ -18,7 +18,11 @@ function norm(s: string | null | undefined): string {
 
 const CASUAL_TERMS = ['casual', 'streetwear', 'leisurewear', 'relaxed', 'everyday'];
 const SMART_CASUAL_TERMS = ['smart-casual', 'smart casual', 'smart_casual', 'semi-casual', 'weekend'];
-const BUSINESS_TERMS = ['business', 'business casual', 'work', 'office', 'professional', 'smart'];
+// 'smart' is deliberately NOT listed here — it's a substring of "smart casual"/
+// "smart-casual" (SMART_CASUAL_TERMS below), and classifyFormality checks
+// BUSINESS_TERMS first, so including it swallowed every smart-casual item
+// into the business bucket before SMART_CASUAL_TERMS ever got a chance.
+const BUSINESS_TERMS = ['business', 'business casual', 'work', 'office', 'professional'];
 const FORMAL_TERMS = ['formal', 'black tie', 'black-tie', 'evening', 'business-formal', 'cocktail', 'gala'];
 
 function classifyFormality(item: ScoringClosetItem): 'casual' | 'smart-casual' | 'business' | 'formal' | null {
@@ -56,7 +60,7 @@ export function scoreOccasionSpread(items: ScoringClosetItem[]): OccasionSpreadS
 
     if (haystack.match(/suit|tuxedo|blazer|dress trouser|dress shirt/)) counts['business']++;
     else if (haystack.match(/smart|chino|polo|loafer|oxford|derby/)) counts['smart-casual']++;
-    else if (haystack.match(/jeans|t-shirt|tee|sneaker|hoodie|sweatshirt/)) counts['casual']++;
+    else if (haystack.match(/jeans|denim|t-shirt|tee|sneaker|hoodie|sweatshirt/)) counts['casual']++;
     else if (haystack.match(/tuxedo|evening|gala|dinner suit/)) counts['formal']++;
   }
 
