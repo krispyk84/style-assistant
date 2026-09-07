@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Request, Response, NextFunction } from 'express';
+import WebSocket from 'ws';
 
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
@@ -10,8 +11,18 @@ import { logger } from '../config/logger.js';
 // (legacy shared-secret vs. current asymmetric keys). A previous version of
 // this file decoded the JWT's `sub` claim without checking its signature at
 // all, which let a well-formed-but-forged token impersonate any user.
+//
+// createClient() unconditionally constructs a Realtime client even though
+// this module only ever calls auth.getUser() (a plain REST call) — on
+// Node 20 (Render's runtime) that constructor throws synchronously with
+// "Node.js 20 detected without native WebSocket support" unless a `ws`
+// implementation is explicitly provided, which crashed every instance on
+// boot the first time this shipped. Passing `ws` as the transport is
+// Supabase's own documented fix for Node < 22; nothing here ever opens a
+// realtime channel.
 const supabaseAuthClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
+  realtime: { transport: WebSocket as never },
 });
 
 function extractBearerToken(authHeader: string | undefined): string | null {
