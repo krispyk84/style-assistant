@@ -31,8 +31,8 @@ import {
   FORMALITY_RANK,
   resolveGarmentGroup,
   GROUP_TO_SLOTS,
+  requiredSlotsForTier,
   TIER_FORMALITY_TARGET,
-  TIER_SLOT_RULES,
   type OutfitSlot,
   type TierSlug,
 } from '../closet/closet-taxonomy.js';
@@ -285,8 +285,11 @@ function normalizeKeyPieceRoles(
   }
   normalizeSuitDualRole(bySlot);
 
-  const requiredSlots: OutfitSlot[] = ['bottoms', 'primaryTop'];
-  if (TIER_SLOT_RULES[tier as TierSlug].secondaryTop?.required) requiredSlots.push('secondaryTop');
+  // Derived from the same canonical requiredSlotsForTier() trips/closet-outfits
+  // use, filtered to the slots this function is scoped to (KEY_PIECE_SLOTS) —
+  // footwear/watch/sunglasses are guaranteed separately (see resolveRole calls
+  // below), and hat/bag stay strictly opt-in, matching the other two engines.
+  const requiredSlots = requiredSlotsForTier(tier as TierSlug).filter((slot) => KEY_PIECE_SLOTS.includes(slot));
   fillMissingRequiredSlots({ bySlot, closetItems, requiredSlots, tier: tier as TierSlug, targetFormalityRank });
   normalizeSuitDualRole(bySlot);
 
@@ -546,7 +549,9 @@ export const outfitsService = {
     };
 
     await outfitsRepository.upsertGeneratedOutfit(input.profileId, response, supabaseUserId);
-    void tierSketchService.queueSketchesForOutfit(response, profileToSubject(profile), supabaseUserId);
+    tierSketchService.queueSketchesForOutfit(response, profileToSubject(profile), supabaseUserId).catch((error) => {
+      logger.error({ requestId: input.requestId, supabaseUserId, error }, 'Outfit sketch batch generation failed');
+    });
     outfitsService.pruneOutfitHistory(supabaseUserId).catch((error) => {
       logger.error({ supabaseUserId, error }, 'Outfit history prune failed');
     });
@@ -663,7 +668,9 @@ export const outfitsService = {
     };
 
     await outfitsRepository.upsertGeneratedOutfit(undefined, mergedResponse);
-    void tierSketchService.queueSketchForTier(mergedResponse, tier, profileToSubject(profile), supabaseUserId);
+    tierSketchService.queueSketchForTier(mergedResponse, tier, profileToSubject(profile), supabaseUserId).catch((error) => {
+      logger.error({ requestId: existing.requestId, tier, error }, 'Tier sketch regeneration failed');
+    });
     return mergedResponse;
   },
 

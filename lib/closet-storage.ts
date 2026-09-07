@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { recordError } from '@/lib/crashlytics';
 import {
   deleteClosetItemFromSupabase,
   upsertClosetItemToSupabase,
@@ -51,7 +52,7 @@ export async function saveClosetItem(item: ClosetItem): Promise<ClosetItem[]> {
   }
 
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
-  void upsertClosetItemToSupabase(item).catch(() => undefined);
+  void upsertClosetItemToSupabase(item).catch((error) => recordError(error, 'closet_storage_save_upsert'));
   return nextItems;
 }
 
@@ -59,7 +60,7 @@ export async function updateClosetItem(item: ClosetItem): Promise<ClosetItem[]> 
   const items = await loadClosetItems();
   const nextItems = items.map((i) => (i.id === item.id ? item : i));
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
-  void upsertClosetItemToSupabase(item).catch(() => undefined);
+  void upsertClosetItemToSupabase(item).catch((error) => recordError(error, 'closet_storage_update_upsert'));
   return nextItems;
 }
 
@@ -67,7 +68,7 @@ export async function deleteClosetItem(id: string): Promise<ClosetItem[]> {
   const items = await loadClosetItems();
   const nextItems = items.filter((i) => i.id !== id);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
-  void deleteClosetItemFromSupabase(id).catch(() => undefined);
+  void deleteClosetItemFromSupabase(id).catch((error) => recordError(error, 'closet_storage_delete'));
   return nextItems;
 }
 
@@ -81,5 +82,5 @@ export async function incrementClosetItemCounter(
   );
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
   const updated = nextItems.find((item) => item.id === id);
-  if (updated) void upsertClosetItemToSupabase(updated).catch(() => undefined);
+  if (updated) void upsertClosetItemToSupabase(updated).catch((error) => recordError(error, 'closet_storage_counter_upsert'));
 }

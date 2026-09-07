@@ -31,8 +31,8 @@ import {
   FORMALITY_RANK,
   resolveGarmentGroup,
   GROUP_TO_SLOTS,
+  requiredSlotsForTier,
   TIER_FORMALITY_TARGET,
-  TIER_SLOT_RULES,
   TRIP_DAY_TYPE_FORMALITY_TARGET,
   tierForFormalityRank,
   type OutfitSlot,
@@ -172,15 +172,6 @@ function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThe
     gates.includeOuterwear = temperatureC < 10;
   }
   return gates;
-}
-
-// Required-slot keys for a tier, per closet-taxonomy.ts's TIER_SLOT_RULES —
-// the code-enforced framework (footwear/bottoms/primaryTop/watch/sunglasses
-// always; secondaryTop additionally for business).
-function requiredSlotsForTier(tier: TierSlug): OutfitSlot[] {
-  return (Object.entries(TIER_SLOT_RULES[tier]) as [OutfitSlot, { required: boolean }][])
-    .filter(([, rule]) => rule.required)
-    .map(([slot]) => slot);
 }
 
 function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
@@ -821,7 +812,9 @@ export const tripsService = {
     supabaseUserId: string;
   }): Promise<string> {
     const job = await closetRepository.createSketchJob();
-    void generateDaySketch(job.id, params);
+    generateDaySketch(job.id, params).catch((error) => {
+      logger.error({ jobId: job.id, error }, '[trip-sketch] Sketch job crashed outside its own error handling');
+    });
     return job.id;
   },
 
@@ -1166,6 +1159,8 @@ async function generateDaySketch(
     logger.error({ jobId, errorCode: code, err }, '[trip-sketch] Sketch generation failed');
     await closetRepository
       .updateSketchJob(jobId, { status: 'failed', sketchErrorCode: code, sketchErrorMessage: message })
-      .catch(() => {});
+      .catch((updateError) => {
+        logger.error({ jobId, updateError }, '[trip-sketch] Failed to persist sketch failure status — job left stuck');
+      });
   }
 }

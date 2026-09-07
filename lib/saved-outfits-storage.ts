@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { appConfig } from '@/constants/config';
+import { recordError } from '@/lib/crashlytics';
 import { stripLegacySketchImageData } from '@/lib/outfit-utils';
 import {
   deleteSavedOutfitFromSupabase,
@@ -111,7 +112,7 @@ export async function saveSavedOutfit(input: CreateLookInput, recommendation: Lo
 
   const nextSavedOutfits = [nextSavedOutfit, ...savedOutfits.filter((item) => item.id !== id)];
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
-  void upsertSavedOutfitToSupabase(nextSavedOutfit).catch(() => undefined);
+  void upsertSavedOutfitToSupabase(nextSavedOutfit).catch((error) => recordError(error, 'saved_outfit_save_upsert'));
   return normalizeSavedOutfit(nextSavedOutfit);
 }
 
@@ -120,7 +121,7 @@ export async function deleteSavedOutfit(savedOutfitId: string) {
   const nextSavedOutfits = savedOutfits.filter((item) => item.id !== savedOutfitId);
 
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
-  void deleteSavedOutfitFromSupabase(savedOutfitId).catch(() => undefined);
+  void deleteSavedOutfitFromSupabase(savedOutfitId).catch((error) => recordError(error, 'saved_outfit_delete'));
   return nextSavedOutfits;
 }
 

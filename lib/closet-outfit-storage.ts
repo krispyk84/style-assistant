@@ -6,6 +6,7 @@ import {
   upsertClosetOutfitFavouriteToBackend,
   upsertClosetOutfitWeekPlanItemToBackend,
 } from '@/lib/closet-outfit-sync';
+import { recordError } from '@/lib/crashlytics';
 import { getNextSevenDays } from '@/lib/week-plan-storage';
 import type { ClosetGeneratedOutfit } from '@/types/api';
 import type { LookTierSlug } from '@/types/look-request';
@@ -70,7 +71,7 @@ export async function saveClosetOutfitToFavourites(formality: LookTierSlug, outf
   const next: SavedClosetOutfit = { id, formality, outfit, savedAt: new Date().toISOString() };
   const nextList = [next, ...current.filter((item) => item.id !== id)];
   await AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(nextList));
-  void upsertClosetOutfitFavouriteToBackend(next).catch(() => undefined);
+  void upsertClosetOutfitFavouriteToBackend(next).catch((error) => recordError(error, 'closet_outfit_favourite_save_upsert'));
   return next;
 }
 
@@ -78,7 +79,7 @@ export async function deleteSavedClosetOutfit(id: string) {
   const current = await loadSavedClosetOutfits();
   const nextList = current.filter((item) => item.id !== id);
   await AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(nextList));
-  void deleteClosetOutfitFavouriteFromBackend(id).catch(() => undefined);
+  void deleteClosetOutfitFavouriteFromBackend(id).catch((error) => recordError(error, 'closet_outfit_favourite_delete'));
   return nextList;
 }
 
@@ -126,7 +127,7 @@ export async function assignClosetOutfitToWeekDay(
   const next: ClosetWeekPlanItem = { dayKey, dayLabel, formality, outfit, assignedAt: new Date().toISOString() };
   const nextItems = [next, ...current.filter((item) => item.dayKey !== dayKey)];
   await AsyncStorage.setItem(WEEK_PLAN_KEY, JSON.stringify(nextItems));
-  void upsertClosetOutfitWeekPlanItemToBackend(next).catch(() => undefined);
+  void upsertClosetOutfitWeekPlanItemToBackend(next).catch((error) => recordError(error, 'closet_outfit_week_plan_assign_upsert'));
   return next;
 }
 
@@ -134,6 +135,6 @@ export async function removeClosetWeekPlanDay(dayKey: string) {
   const current = await loadClosetWeekPlan();
   const nextItems = current.filter((item) => item.dayKey !== dayKey);
   await AsyncStorage.setItem(WEEK_PLAN_KEY, JSON.stringify(nextItems));
-  void deleteClosetOutfitWeekPlanItemFromBackend(dayKey).catch(() => undefined);
+  void deleteClosetOutfitWeekPlanItemFromBackend(dayKey).catch((error) => recordError(error, 'closet_outfit_week_plan_remove'));
   return nextItems;
 }

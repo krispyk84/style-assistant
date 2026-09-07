@@ -9,6 +9,12 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   CORS_ORIGIN: z.string().default('*'),
+  // Used to verify Supabase-issued JWTs server-side (see middleware/auth.ts).
+  // Same project as the frontend's EXPO_PUBLIC_SUPABASE_URL/ANON_KEY — the
+  // anon key is designed to be public (it's already embedded in the shipped
+  // app bundle), so it's safe as a plain env var here too.
+  SUPABASE_URL: z.string().url(),
+  SUPABASE_ANON_KEY: z.string().min(1),
   API_PREFIX: z.string().default('/api'),
   OPENAI_API_KEY: z.string().min(1),
   OPENAI_RESPONSES_MODEL: z.string().min(1).default('gpt-4o-mini'),

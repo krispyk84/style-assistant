@@ -11,6 +11,8 @@ export default defineConfig({
       OPENAI_API_KEY: 'test-openai-key',
       STORAGE_PUBLIC_BASE_URL: 'http://localhost:4000',
       STORAGE_LOCAL_DIR: '/tmp/style-assistant-test-storage',
+      SUPABASE_URL: 'http://localhost:54321',
+      SUPABASE_ANON_KEY: 'test-supabase-anon-key',
     },
   },
 });

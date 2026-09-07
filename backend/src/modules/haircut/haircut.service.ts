@@ -166,9 +166,16 @@ export const haircutService = {
 
     // Fire-and-forget, bounded-concurrency like trend sketches — the response
     // returns immediately with 'pending' options; the client polls getSession().
-    void runWithConcurrencyLimit(options, GENERATION_CONCURRENCY, (option) => {
+    // .catch() here is a backstop, not the primary failure path: generateOption
+    // already writes a 'failed' status per-option on the common error case —
+    // this only guards against that write itself throwing, which would
+    // otherwise escape as an unhandled promise rejection (see pruneUnsavedSessions
+    // above, which already hit this exact failure mode once this session).
+    runWithConcurrencyLimit(options, GENERATION_CONCURRENCY, (option) => {
       const style: HaircutStyle = { key: option.styleKey, label: option.styleLabel, summary: option.styleSummary };
       return generateOption(option.id, headshotInput.image_url, style, supabaseUserId);
+    }).catch((error) => {
+      logger.error({ sessionId: session.id, error }, 'Haircut option batch generation failed');
     });
 
     // Fire-and-forget with .catch() — an unawaited rejection here is an
@@ -222,9 +229,11 @@ export const haircutService = {
 
     const newOptions = await haircutRepository.createOptions(id, nextStyles);
 
-    void runWithConcurrencyLimit(newOptions, GENERATION_CONCURRENCY, (option) => {
+    runWithConcurrencyLimit(newOptions, GENERATION_CONCURRENCY, (option) => {
       const style: HaircutStyle = { key: option.styleKey, label: option.styleLabel, summary: option.styleSummary };
       return generateOption(option.id, headshotInput.image_url, style, supabaseUserId);
+    }).catch((error) => {
+      logger.error({ sessionId: id, error }, 'Haircut "see more" option batch generation failed');
     });
 
     return { sessionId: id, status: 'generating' as const, options: [...session.options, ...newOptions].map(mapOption) };
@@ -256,9 +265,11 @@ export const haircutService = {
 
     const angleOptions = await haircutRepository.createOptions(id, angleStyles);
 
-    void runWithConcurrencyLimit(angleOptions, GENERATION_CONCURRENCY, (option, index) => {
+    runWithConcurrencyLimit(angleOptions, GENERATION_CONCURRENCY, (option, index) => {
       const angle = HAIRCUT_ANGLES[index]!.angle;
       return generateAngleOption(option.id, haircutInput.image_url, style, angle, supabaseUserId);
+    }).catch((error) => {
+      logger.error({ sessionId: id, optionId, error }, 'Haircut angle-shot batch generation failed');
     });
 
     const mappedAngles = angleOptions.map(mapOption);

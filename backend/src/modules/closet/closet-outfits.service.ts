@@ -43,9 +43,9 @@ import {
   FORMALITY_RANK,
   resolveGarmentGroup,
   GROUP_TO_SLOTS,
+  requiredSlotsForTier,
   SLOT_GROUPS,
   TIER_FORMALITY_TARGET,
-  TIER_SLOT_RULES,
   tierForFormalityRank,
   type OutfitSlot,
   type TierSlug,
@@ -136,15 +136,6 @@ function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThe
     gates.includeOuterwear = temperatureC < 10;
   }
   return gates;
-}
-
-// Required-slot keys for a tier, per closet-taxonomy.ts's TIER_SLOT_RULES —
-// the code-enforced framework (footwear/bottoms/primaryTop/watch/sunglasses
-// always; secondaryTop additionally for business).
-function requiredSlotsForTier(tier: TierSlug): OutfitSlot[] {
-  return (Object.entries(TIER_SLOT_RULES[tier]) as [OutfitSlot, { required: boolean }][])
-    .filter(([, rule]) => rule.required)
-    .map(([slot]) => slot);
 }
 
 async function buildVarietyContext(
@@ -378,10 +369,14 @@ async function attachSketchJobs(
 
   // Fire-and-forget, bounded-concurrency — the response returns immediately
   // with 'pending' sketch jobs; the client polls each via the existing
-  // closet sketch-job endpoint.
-  void runWithConcurrencyLimit(withJobs, SKETCH_GENERATION_CONCURRENCY, (outfit) =>
+  // closet sketch-job endpoint. .catch() is a backstop against generateOutfitSketch's
+  // own failure-path DB write itself throwing, which would otherwise escape
+  // as an unhandled promise rejection.
+  runWithConcurrencyLimit(withJobs, SKETCH_GENERATION_CONCURRENCY, (outfit) =>
     generateOutfitSketch(outfit.sketchJobId, outfit, subjectBrief, supabaseUserId),
-  );
+  ).catch((error) => {
+    logger.error({ supabaseUserId, error }, 'Closet outfit sketch batch generation failed');
+  });
 
   return withJobs;
 }

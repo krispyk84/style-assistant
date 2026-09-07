@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { appConfig } from '@/constants/config';
+import { recordError } from '@/lib/crashlytics';
 import { stripLegacySketchImageData } from '@/lib/outfit-utils';
 import {
   deleteWeekPlanItemFromSupabase,
@@ -122,7 +123,7 @@ export async function assignOutfitToWeekDay(
   });
   const nextItems = [nextItem, ...currentItems.filter((item) => item.dayKey !== dayKey)];
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
-  void upsertWeekPlanItemToSupabase(nextItem).catch(() => undefined);
+  void upsertWeekPlanItemToSupabase(nextItem).catch((error) => recordError(error, 'week_plan_assign_upsert'));
   return nextItem;
 }
 
@@ -130,7 +131,7 @@ export async function removeWeekPlan(dayKey: string) {
   const currentItems = await loadWeekPlan();
   const nextItems = currentItems.filter((item) => item.dayKey !== dayKey);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
-  void deleteWeekPlanItemFromSupabase(dayKey).catch(() => undefined);
+  void deleteWeekPlanItemFromSupabase(dayKey).catch((error) => recordError(error, 'week_plan_remove'));
   return nextItems;
 }
 

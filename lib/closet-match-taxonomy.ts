@@ -57,6 +57,12 @@ export const CATEGORY_TO_GROUP: Record<string, string> = {
   Blazer:          'blazer',
   'Sports Jacket': 'blazer',
   Jacket:          'jacket',
+  // Intentionally grouped with 'jacket' here — for confidence-matching
+  // purposes an overshirt resembles a light jacket closely enough to count.
+  // The backend's closet-taxonomy.ts gives Overshirt its own group instead,
+  // for a different purpose (deterministic outfit-slot assignment: it fills
+  // THERMAL LAYER, never OUTERWEAR) — see backend/src/modules/closet/
+  // __tests__/closet-taxonomy-frontend-drift.test.ts for why both are correct.
   Overshirt:       'jacket',
   Vest:            'vest',
   Coat:            'coat',

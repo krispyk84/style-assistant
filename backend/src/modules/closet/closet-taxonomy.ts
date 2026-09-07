@@ -42,6 +42,12 @@ export const CATEGORY_TO_GROUP: Record<string, string> = {
   Blazer:          'blazer',
   'Sports Jacket': 'blazer',
   Jacket:          'jacket',
+  // Intentionally its own group, distinct from 'jacket' — an overshirt fills
+  // the THERMAL LAYER slot (a mid-layer garment), never OUTERWEAR. The
+  // frontend's lib/closet-match-taxonomy.ts groups Overshirt with 'jacket'
+  // instead, for a different purpose (AI-piece-to-closet-item matching, not
+  // slot assignment) — see __tests__/closet-taxonomy-frontend-drift.test.ts
+  // for why both are correct for their own use.
   Overshirt:       'overshirt',
   Vest:            'vest',
   Coat:            'coat',
@@ -218,6 +224,19 @@ export const TIER_SLOT_RULES: Record<TierSlug, Partial<Record<OutfitSlot, TierSl
     sunglasses:   { required: true },
   },
 };
+
+// The single authoritative reading of "which slots are required for tier X",
+// derived directly from TIER_SLOT_RULES — every caller that needs this
+// answer should call this function rather than re-deriving or hand-listing
+// it, so there is exactly one place that can drift from TIER_SLOT_RULES.
+// (Previously duplicated verbatim in trips.service.ts and
+// closet-outfits.service.ts, and re-derived by hand — incompletely — in
+// outfits.service.ts; all three now call this.)
+export function requiredSlotsForTier(tier: TierSlug): OutfitSlot[] {
+  return (Object.entries(TIER_SLOT_RULES[tier]) as [OutfitSlot, TierSlotRule][])
+    .filter(([, rule]) => rule.required)
+    .map(([slot]) => slot);
+}
 
 // Whether a tier permits the suit dual-role path at all — casual never
 // offers a suit as a bottoms/secondaryTop candidate, no matter what's in

@@ -44,7 +44,15 @@ export function createApp() {
   );
   app.use(
     cors({
-      origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN,
+      // CORS is a browser-only protection — it has no effect on the native
+      // mobile app or server-to-server calls, neither of which send an
+      // Origin header, so tightening this never affects them. There is no
+      // browser-based client for this API today, so production denies
+      // cross-origin browser access by default unless CORS_ORIGIN is
+      // explicitly set to a real origin (or list) for a future web client.
+      origin: env.NODE_ENV === 'production'
+        ? (env.CORS_ORIGIN === '*' ? false : env.CORS_ORIGIN)
+        : (env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN),
     })
   );
   app.use(express.json({ limit: '1mb' }));
