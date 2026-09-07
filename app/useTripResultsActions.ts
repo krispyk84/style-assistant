@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
 
 import type { OutfitThumbnailItem } from '@/components/cards/OutfitItemThumbnailRow';
+import { recordError } from '@/lib/crashlytics';
 import { buildTripDayVariantsHref } from '@/lib/trip-route';
 import { tripDayVariantFlow } from '@/lib/trip-day-variant-flow';
 import type { StoredTripPlan } from '@/lib/trip-outfits-storage';
@@ -48,14 +49,36 @@ export function useTripResultsActions({
   // this, every mutation below (love/hate, sketch, variant swap, hat/bag
   // toggle, remove-from-outfit) only ever updated in-memory `days` and
   // reverted to the last-saved version on the next visit.
+  //
+  // savedTripsService.save already converts a resolved {success:false} API
+  // response into a thrown Error (services/saved-trips/api-saved-trips-service.ts),
+  // so the only two outcomes this needs to distinguish are "resolved" and
+  // "rejected" — both handled by the same catch below. `days` here is a stale
+  // (pre-optimistic-update) closure at the moment each caller invokes this —
+  // every call site does setDays(...) then synchronously `await
+  // persistDay(...)` in the same tick, before React re-renders and this
+  // callback gets recreated with the new `days` — so `previousDay` reliably
+  // holds the last-confirmed value to revert to on failure, with no new
+  // state needed to track it separately.
   const persistDay = useCallback(async (activeTripId: string, updatedDay: TripOutfitDay) => {
     if (savedTripId && plan) {
+      const previousDay = days.find((d) => d.id === updatedDay.id);
       const nextDays = days.map((d) => (d.id === updatedDay.id ? updatedDay : d));
-      await savedTripsService.save(buildSaveTripPayload(plan, nextDays)).catch(() => {});
+      try {
+        await savedTripsService.save(buildSaveTripPayload(plan, nextDays));
+      } catch (error) {
+        recordError(error, 'saved_trip_day_persist_failed');
+        // The optimistic update already showed updatedDay before this ran —
+        // the server never actually got it, so revert rather than leave a
+        // phantom "saved" state that silently disappears on next load.
+        if (previousDay) {
+          setDays((prev) => prev.map((d) => (d.id === updatedDay.id ? previousDay : d)));
+        }
+      }
     } else {
       await tripOutfitsStorage.updateDay(activeTripId, updatedDay);
     }
-  }, [days, plan, savedTripId]);
+  }, [days, plan, savedTripId, setDays]);
 
   const handleGenerateSketch = useCallback(async (day: TripOutfitDay) => {
     const activeTripId = plan?.tripId ?? tripId;
