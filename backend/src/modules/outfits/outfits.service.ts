@@ -112,9 +112,11 @@ function profileToSubject(profile: ProfileLike): SubjectRenderingInput {
 // still makes every styling judgment; it just picks ids from a pre-vetted,
 // formality-correct pool instead of describing invented pieces.
 
-type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
+export type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
 
-function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThermalLayer: boolean; includeOuterwear: boolean } {
+// Exported for characterization tests only (see __tests__/closet-only-accessories.characterization.test.ts) —
+// no behavior change, just visibility into the closet-only accessory resolution this module already performs.
+export function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThermalLayer: boolean; includeOuterwear: boolean } {
   const gates =
     temperatureC == null
       ? { includeThermalLayer: true, includeOuterwear: true }
@@ -170,7 +172,7 @@ function synthesizePiece(item: BuilderItem, tier: OutfitTierSlug) {
   };
 }
 
-type TierRoleIdSets = { keyPieces: Set<string>; shoes: Set<string>; accessories: Set<string> };
+export type TierRoleIdSets = { keyPieces: Set<string>; shoes: Set<string>; accessories: Set<string> };
 
 /**
  * Builds this tier's per-slot shortlists, grouped into the three roles the
@@ -179,7 +181,7 @@ type TierRoleIdSets = { keyPieces: Set<string>; shoes: Set<string>; accessories:
  * includeHat/includeBag (pre-generation checkboxes on Create a Look, not a
  * post-generation toggle).
  */
-function buildTierRoleShortlists(params: {
+export function buildTierRoleShortlists(params: {
   closetItems: BuilderItem[];
   tier: OutfitTierSlug;
   includeThermalLayer: boolean;
@@ -296,6 +298,66 @@ function normalizeKeyPieceRoles(
   return [...new Set(Object.values(bySlot).map((item) => (item as BuilderItem).id))];
 }
 
+// watch/sunglasses are TIER_SLOT_RULES' only `required: true` slots that live
+// inside the closet-only schema's merged accessoryIds bucket (alongside the
+// genuinely-optional hat/bag/belt/scarf/tie/socks) rather than as their own
+// schema fields the way trips.service.ts/closet-outfits.service.ts expose
+// them — so, unlike those two engines, the model here can return an empty
+// accessoryIds array and silently omit a watch or sunglasses item even when
+// one is eligible in the closet. fillRequiredAccessorySlots closes that gap
+// using the SAME canonical primitives (requiredSlotsForTier +
+// fillMissingRequiredSlots) already used to guarantee keyPieces slots above —
+// not a new special-cased rule, just applying the existing shared "required
+// slot, only if an eligible item exists, never fail generation otherwise"
+// contract to the two accessory slots that were incorrectly left out of it.
+// hat/bag/belt/scarf/tie/socks are untouched — they were never in
+// requiredSlotsForTier's output and stay exactly as optional as before.
+const ACCESSORY_REQUIRED_SLOTS: OutfitSlot[] = ['watch', 'sunglasses'];
+
+function fillRequiredAccessorySlots(
+  accessoryIds: string[],
+  idSets: TierRoleIdSets,
+  itemsById: Map<string, BuilderItem>,
+  tier: OutfitTierSlug,
+  targetFormalityRank: number,
+): string[] {
+  const requiredAccessorySlots = requiredSlotsForTier(tier as TierSlug).filter((slot): slot is OutfitSlot =>
+    ACCESSORY_REQUIRED_SLOTS.includes(slot),
+  );
+  if (requiredAccessorySlots.length === 0) return accessoryIds;
+
+  // Classify the model's own accessory picks by slot first, so an
+  // already-chosen watch/sunglasses item is recognized and never
+  // second-guessed or duplicated by the fallback below.
+  const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
+  for (const id of accessoryIds) {
+    const item = itemsById.get(id);
+    if (!item) continue;
+    const group = resolveGarmentGroup(item);
+    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
+    if (slot && ACCESSORY_REQUIRED_SLOTS.includes(slot)) bySlot[slot] = item;
+  }
+
+  // Scoped to idSets.accessories (this tier's already-shortlisted, formality-
+  // filtered candidates) — fillMissingRequiredSlots only ever fills a slot
+  // when a candidate actually exists in that pool; if the closet has no
+  // eligible watch/sunglasses at all, this is a no-op and generation still
+  // succeeds with that slot left empty, exactly like every other slot.
+  const eligibleClosetItems = [...idSets.accessories]
+    .map((id) => itemsById.get(id))
+    .filter((item): item is BuilderItem => Boolean(item));
+  fillMissingRequiredSlots({
+    bySlot,
+    closetItems: eligibleClosetItems,
+    requiredSlots: requiredAccessorySlots,
+    tier: tier as TierSlug,
+    targetFormalityRank,
+  });
+
+  const filledIds = Object.values(bySlot).map((item) => (item as BuilderItem).id);
+  return [...new Set([...accessoryIds, ...filledIds])];
+}
+
 /**
  * Resolves the model's chosen ids back into real items and synthesizes
  * outfitPieceSchema-shaped pieces — the result converges with the freeform
@@ -303,8 +365,11 @@ function normalizeKeyPieceRoles(
  * Falls back to this tier's own first available id per required role if the
  * model's picks don't validate (never leaves keyPieces/shoes empty), and
  * normalizeKeyPieceRoles enforces one-per-slot + the tier's required roles.
+ * fillRequiredAccessorySlots gives watch/sunglasses the same guarantee
+ * whenever the closet has an eligible item, without making hat/bag/belt/
+ * scarf/tie/socks required (they stay purely optional).
  */
-function resolveClosetOnlyRecommendation(
+export function resolveClosetOnlyRecommendation(
   recommendation: ClosetOnlyOutfitRecommendation,
   idSets: TierRoleIdSets,
   itemsById: Map<string, BuilderItem>,
@@ -326,7 +391,8 @@ function resolveClosetOnlyRecommendation(
     closetItems,
   );
   const shoeIds = resolveRole(recommendation.shoeIds, idSets.shoes, true);
-  const accessoryIds = resolveRole(recommendation.accessoryIds, idSets.accessories, false);
+  const rawAccessoryIds = resolveRole(recommendation.accessoryIds, idSets.accessories, false);
+  const accessoryIds = fillRequiredAccessorySlots(rawAccessoryIds, idSets, itemsById, recommendation.tier, targetFormalityRank);
   const closetItemIds = [...keyPieceIds, ...shoeIds, ...accessoryIds];
   const { bySlot: framedBySlot, accessoryItems: framedAccessoryItems } = classifyItemsBySlot(closetItemIds, itemsById);
 

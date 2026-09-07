@@ -39,6 +39,7 @@ yarn-error.*
 backend/*.epub
 backend/style-guides/processed/
 backend/storage/uploads/
+backend/.smoke-build-storage/
 
 # typescript
 *.tsbuildinfo
