@@ -76,13 +76,19 @@ export function GeneratedSketchPanel({
       );
     }
 
+    // Every non-ready state below renders at the SAME aspectRatio as the
+    // eventual image (not a small fixed strip) — otherwise the card visibly
+    // pops from a short placeholder to full sketch height the moment the
+    // image arrives, which reads as a layout jump/glitch rather than a
+    // smooth image reveal inside a card that was already the right size.
     if (isRegenerating) {
       return (
         <View
           style={{
+            alignItems: 'center',
+            aspectRatio,
             backgroundColor: theme.colors.subtleSurface,
             gap: spacing.sm,
-            height: 80,
             justifyContent: 'center',
             paddingHorizontal: spacing.lg,
             width: '100%',
@@ -100,9 +106,9 @@ export function GeneratedSketchPanel({
         <View
           style={{
             alignItems: 'center',
+            aspectRatio,
             backgroundColor: theme.colors.subtleSurface,
             gap: spacing.xs,
-            height: 80,
             justifyContent: 'center',
             width: '100%',
           }}>
@@ -118,10 +124,11 @@ export function GeneratedSketchPanel({
       <View
         style={{
           alignItems: 'center',
+          aspectRatio,
           backgroundColor: theme.colors.subtleSurface,
           gap: spacing.sm,
+          justifyContent: 'center',
           paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.lg,
           width: '100%',
         }}>
         <AppIcon name="sparkles" color={theme.colors.subtleText} size={22} />

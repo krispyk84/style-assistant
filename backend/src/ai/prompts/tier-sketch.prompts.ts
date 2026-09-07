@@ -92,12 +92,20 @@ export function buildTierSketchPrompt(input: {
 
   const outfitSection = `Outfit:\n${outfitLines.join('\n')}`;
 
+  // A bag is folded into `accessories` (metadata.category === 'Bag'), not a
+  // separate field — so "no ... bag ..." below would otherwise directly
+  // contradict a bag that's genuinely listed in the outfit section above,
+  // risking the model dropping it to satisfy this rule.
+  const bagItems = input.recommendation.accessories.filter((p) => (p.metadata?.category ?? '').toLowerCase() === 'bag');
+  const hasBag = bagItems.length > 0;
+
   // Hard "exact item list" constraint — without this, the model sometimes
   // adds an unlisted piece (most often a jacket or extra layer) to make the
   // look feel more "complete", even though the outfit decision (this list)
   // was already finalized in a separate step before the sketch is drawn.
   const exclusivityRule =
-    'EXACT ITEM LIST — HARD CONSTRAINT: the items listed above are the ONLY items the figure wears. Do not add any garment, layer, or accessory that is not explicitly listed — no extra jacket, blazer, coat, cardigan, undershirt, scarf, hat, bag, jewelry, or any other piece, no matter how much more "complete" or "editorial" the look would feel with one. If a category (e.g. outerwear, accessories) has no items listed above, the figure must NOT wear or carry anything from that category.';
+    `EXACT ITEM LIST — HARD CONSTRAINT: the items listed above are the ONLY items the figure wears. Do not add any garment, layer, or accessory that is not explicitly listed — no extra jacket, blazer, coat, cardigan, undershirt, scarf, hat${hasBag ? '' : ', bag'}, jewelry, or any other piece, no matter how much more "complete" or "editorial" the look would feel with one. If a category (e.g. outerwear, accessories) has no items listed above, the figure must NOT wear or carry anything from that category.` +
+    (hasBag ? ` The bag listed above (${bagItems.map(pieceLabel).join(', ')}) MUST be visibly worn or carried — do not omit it.` : '');
 
   // Named-checklist verification, not just a count — a right-count-wrong-
   // garment substitution passes a bare count check but fails this one.

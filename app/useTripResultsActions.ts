@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Dispatch, SetStateAction, useCallback, useEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
 
 import type { OutfitThumbnailItem } from '@/components/cards/OutfitItemThumbnailRow';
 import { buildTripDayVariantsHref } from '@/lib/trip-route';
@@ -35,6 +35,13 @@ export function useTripResultsActions({
   const [savedDbId, setSavedDbId] = useState<string | null>(savedTripId ?? null);
   const [updatingAccessoryDayId, setUpdatingAccessoryDayId] = useState<string | null>(null);
 
+  // Days whose sketch was just cleared by "Remove from Outfit" — that flow
+  // deliberately waits for the user to explicitly tap Generate Sketch for
+  // the new composition rather than auto-redrawing behind them, so these
+  // ids are excluded from the auto-generate effect below until the user
+  // does exactly that (which also clears them from this set).
+  const awaitingManualSketchRef = useRef<Set<string>>(new Set());
+
   // Persists a single day's edit past this screen session. An unsaved trip
   // lives only in local AsyncStorage (tripOutfitsStorage); an already-saved
   // trip has to be re-posted to the backend (upserts on tripId) — without
@@ -54,6 +61,7 @@ export function useTripResultsActions({
     const activeTripId = plan?.tripId ?? tripId;
     if (!activeTripId || !plan) return;
 
+    awaitingManualSketchRef.current.delete(day.id);
     const updatedLoading: TripOutfitDay = { ...day, sketchStatus: 'loading' };
     setDays((prev) => prev.map((current) => (current.id === day.id ? updatedLoading : current)));
 
@@ -262,6 +270,7 @@ export function useTripResultsActions({
         sketchUrl: undefined,
         sketchJobId: undefined,
       };
+      awaitingManualSketchRef.current.add(day.id);
       setDays((prev) => prev.map((current) => (current.id === day.id ? updatedDay : current)));
       await persistDay(activeTripId, updatedDay);
     } catch {
@@ -270,6 +279,26 @@ export function useTripResultsActions({
       setUpdatingAccessoryDayId(null);
     }
   }, [persistDay, plan, setDays, stopSketchPoll, tripId, updatingAccessoryDayId]);
+
+  // Mirrors tierSketchService.queueSketchesForOutfit's auto-generate
+  // behavior (Generate 5 Outfits/Create a Look never require a manual tap)
+  // — any day that arrives at 'not_started' with no sketch job yet gets one
+  // kicked off automatically, EXCEPT a day just cleared by "Remove from
+  // Outfit" (awaitingManualSketchRef), which intentionally still waits for
+  // an explicit tap.
+  useEffect(() => {
+    for (const day of days) {
+      if (
+        day.sketchStatus === 'not_started' &&
+        !day.sketchJobId &&
+        !awaitingManualSketchRef.current.has(day.id) &&
+        !regeneratingDays.has(day.id) &&
+        updatingAccessoryDayId !== day.id
+      ) {
+        void handleGenerateSketch(day);
+      }
+    }
+  }, [days, handleGenerateSketch, regeneratingDays, updatingAccessoryDayId]);
 
   const handleSaveTrip = useCallback(async () => {
     if (!plan || isSaving) return;

@@ -59,6 +59,13 @@ export function buildClosetOutfitSketchPrompt(input: {
 
   const outfitSection = `Outfit "${input.outfitTitle}":\n${outfitLines.join('\n')}`;
 
+  // A bag is folded into `accessories` (category 'Bag'), not a separate
+  // field — so unconditionally saying "no ... bag ..." below would directly
+  // contradict a bag genuinely listed in the outfit section above, risking
+  // the model dropping it to satisfy this rule.
+  const bagItems = accessories.filter((item) => item.category === 'Bag');
+  const hasBag = bagItems.length > 0;
+
   // Hard "exact item list" constraint. Without this, the model sometimes adds
   // an unlisted layering piece (most often a blazer or jacket) to make the
   // look feel more "complete" or editorial — even when the wardrobe selection
@@ -66,8 +73,9 @@ export function buildClosetOutfitSketchPrompt(input: {
   // pattern used for bag/hat opt-outs in outfits.prompts.ts.
   const exclusivityRule =
     'EXACT ITEM LIST — HARD CONSTRAINT: the items listed above are the ONLY items the figure wears. ' +
-    'Do not add any garment, layer, or accessory that is not explicitly listed — no extra jacket, blazer, coat, cardigan, vest, undershirt, scarf, hat, bag, jewelry, or any other piece, no matter how much more "complete" or "editorial" the look would feel with one. ' +
-    'If a category (e.g. outerwear, accessories) has no items listed above, the figure must NOT wear or carry anything from that category.';
+    `Do not add any garment, layer, or accessory that is not explicitly listed — no extra jacket, blazer, coat, cardigan, vest, undershirt, scarf, hat${hasBag ? '' : ', bag'}, jewelry, or any other piece, no matter how much more "complete" or "editorial" the look would feel with one. ` +
+    'If a category (e.g. outerwear, accessories) has no items listed above, the figure must NOT wear or carry anything from that category.' +
+    (hasBag ? ` The bag listed above (${bagItems.map(describeItem).join(', ')}) MUST be visibly worn or carried — do not omit it.` : '');
 
   // Two distinct failure modes need separate hard rules: when there's no
   // outerwear listed, the model sometimes adds one anyway (handled below).
