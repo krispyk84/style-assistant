@@ -1,0 +1,7 @@
+{
+  // Used only by `npm run build` (tsc emits to dist/). Excludes test files so
+  // they never land in the production build artifact — tsconfig.json itself
+  // can't exclude them (see the comment there for why).
+  "extends": "./tsconfig.json",
+  "exclude": ["src/**/__tests__/**/*.ts", "src/**/*.test.ts", "src/**/*.spec.ts"]
+}

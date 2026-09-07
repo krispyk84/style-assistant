@@ -1,4 +1,13 @@
 {
+  // This is the config Vitest auto-detects (it's the nearest tsconfig.json to
+  // every src/ file) — it must NOT exclude test files. Vite's oxc transform
+  // walks up past a tsconfig that excludes the file being transformed, and in
+  // CI (backend-only npm ci, no root node_modules) that walk lands on the
+  // monorepo root's tsconfig.json, whose `extends: "expo/tsconfig.base"` can't
+  // resolve there — breaking every test file's transform with a TSCONFIG_ERROR.
+  // The production build uses tsconfig.build.json instead (excludes tests,
+  // keeps dist/ clean) — don't add an `exclude` back here without re-adding
+  // that same walk-past failure for Vitest.
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",
@@ -12,6 +21,5 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts"],
-  "exclude": ["src/**/__tests__/**/*.ts", "src/**/*.test.ts", "src/**/*.spec.ts"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts"]
 }
