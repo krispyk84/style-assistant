@@ -489,11 +489,16 @@ export function buildTripDayChoiceUserPrompt(params: {
   destination: string;
   climateLabel?: string | null;
   avgHighC?: number | null;
+  /** Freeform notes from the trip form ("Anything else to note?") — e.g. "no hoodies". The shape prompt already uses this for dayType/formality; this is the ONLY place it can affect actual item selection, since shortlists themselves have no keyword-exclusion mechanism. */
+  specialNeeds?: string | null;
 }): string {
   const lines: (string | null)[] = [
     `TRIP: ${params.destination}`,
     params.climateLabel ? `Climate: ${params.climateLabel}` : null,
     ...buildTripTemperatureRuleLines(params.avgHighC ?? undefined),
+    params.specialNeeds
+      ? `USER'S EXPLICIT REQUEST — HARD CONSTRAINT across every day below: ${params.specialNeeds}. If this conflicts with an otherwise-obvious pick, choose a different id from the same slot's options that doesn't conflict; only fall back to a conflicting pick if literally every option in that slot conflicts.`
+      : null,
     '',
   ];
 

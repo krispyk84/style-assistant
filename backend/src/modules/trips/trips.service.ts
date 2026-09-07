@@ -371,29 +371,49 @@ function narrowShortlistForCap(
   // appropriate pair can still be introduced.
 }
 
+// A day/anchor formality mismatch beyond this many ranks is treated as
+// implausible (e.g. a business suit forced onto a beach day) and skipped.
+const ANCHOR_FORMALITY_DISTANCE_TOLERANCE = 1;
+
 /**
  * Closet-sourced "definitely bring" anchors should actually get featured on
  * the trip, not silently ignored once fullCloset mode is on — picks the
  * unused anchor whose own formality is closest to this day's target, but
- * only on days formal enough to plausibly want a dedicated piece (never
- * forces a business suit onto a beach day just because it's on the list).
+ * only pins it when that anchor's OWN formality is plausible for this day
+ * (never forces a business suit onto a beach day just because it's on the
+ * list). This used to gate on the DAY's formality instead (skip pinning
+ * entirely below Refined Casual), which meant an anchor could never be
+ * pinned on any Casual day — the default tier for every day — so a plain
+ * pair of casual sneakers marked "definitely bring" was never scheduled on
+ * an all-Casual trip. Gating on the anchor ITEM's own formality distance
+ * instead still blocks the business-suit-on-a-beach-day case while letting
+ * a casual anchor match a casual day.
  */
 function pickAnchorForDay(params: {
   targetFormalityRank: number;
   closetAnchorItems: BuilderItem[];
   usedAnchorItemIds: ReadonlySet<string>;
 }): BuilderItem | null {
-  if (params.targetFormalityRank < FORMALITY_RANK['Refined Casual']) return null;
-
   const unused = params.closetAnchorItems.filter((item) => !params.usedAnchorItemIds.has(item.id));
   if (unused.length === 0) return null;
 
+  const rankOf = (item: BuilderItem): number | undefined => (item.formality ? FORMALITY_RANK[item.formality] : undefined);
+
   const sorted = [...unused].sort((a, b) => {
-    const rankA = a.formality ? FORMALITY_RANK[a.formality] ?? 2 : 2;
-    const rankB = b.formality ? FORMALITY_RANK[b.formality] ?? 2 : 2;
+    const rankA = rankOf(a) ?? 2;
+    const rankB = rankOf(b) ?? 2;
     return Math.abs(rankA - params.targetFormalityRank) - Math.abs(rankB - params.targetFormalityRank);
   });
-  return sorted[0]!;
+
+  const best = sorted[0]!;
+  const bestRank = rankOf(best);
+  // Unknown formality isn't disqualifying — the user explicitly asked to
+  // bring this exact item, so that intent outweighs an absent metadata
+  // field. Only skip pinning when the anchor's formality is KNOWN and
+  // implausible for this day (e.g. a known-Formal suit on a Casual day).
+  if (bestRank !== undefined && Math.abs(bestRank - params.targetFormalityRank) > ANCHOR_FORMALITY_DISTANCE_TOLERANCE) return null;
+
+  return best;
 }
 
 function updateUsedTitles(bySlot: Partial<Record<OutfitSlot, BuilderItem>>, slot: 'outerwear' | 'footwear', usedTitles: string[]): string[] {
@@ -427,6 +447,8 @@ async function chooseFullClosetDay(params: {
   shoesCap: number;
   /** A closet-sourced "definitely bring" anchor forced into this day — see pickAnchorForDay. */
   pinnedItem?: BuilderItem | null;
+  /** Freeform "Anything else to note?" text (e.g. "no hoodies") — passed to the choice-step LLM since shortlists have no keyword-exclusion mechanism of their own. */
+  specialNeeds?: string | null;
   supabaseUserId: string;
 }): Promise<{
   bySlot: Partial<Record<OutfitSlot, BuilderItem>>;
@@ -512,6 +534,7 @@ async function chooseFullClosetDay(params: {
     destination: params.destination,
     climateLabel: params.climateLabel,
     avgHighC: params.avgHighC,
+    specialNeeds: params.specialNeeds,
   });
 
   let chosen: { title: string; rationale: string; chosenIds: Record<string, string | null>; accessoryIds: string[] } | null = null;
@@ -653,6 +676,7 @@ async function generateFullClosetTripOutfits(
       jacketsCap,
       shoesCap,
       pinnedItem,
+      specialNeeds: request.specialNeeds,
       supabaseUserId,
     });
     usedOuterwearTitles = chosen.usedOuterwearTitles;
