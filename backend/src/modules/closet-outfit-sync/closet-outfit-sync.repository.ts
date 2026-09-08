@@ -52,12 +52,42 @@ export const closetOutfitSyncRepository = {
     });
   },
 
+  // Ownership fix (this session): `id` alone is ClosetOutfitFavourite's
+  // only unique constraint (see schema.prisma — no compound key with
+  // supabaseUserId), and this id is fully client-supplied, just like
+  // saved_outfits'. A plain `prisma.upsert({where:{id}})` decides
+  // create-vs-update purely by whether a row with that id exists at all,
+  // with no owner comparison — so a client that knew or reused another
+  // user's favourite id could silently overwrite that user's formality/
+  // outfit/savedAt while the row stayed attributed to its real owner in
+  // the DB. Fixed by trying an ownership-scoped update first; only
+  // falling through to create if no row this caller owns was updated.
+  // If the id belongs to a different user, the update matches nothing and
+  // the create then hits the id's PK conflict — caught and swallowed
+  // rather than surfaced, since this is a legacy fire-and-forget endpoint
+  // (its route never reads a return value) and the only way this branch
+  // is reached is a cross-user id collision, never a legitimate client
+  // action.
   async upsertFavourite(params: { id: string; supabaseUserId: string; formality: string; outfit: unknown; savedAt: string }) {
-    return prisma.closetOutfitFavourite.upsert({
-      where: { id: params.id },
-      create: { ...params, outfit: params.outfit as never },
-      update: { formality: params.formality, outfit: params.outfit as never, savedAt: params.savedAt },
+    const updated = await prisma.closetOutfitFavourite.updateMany({
+      where: { id: params.id, supabaseUserId: params.supabaseUserId },
+      data: { formality: params.formality, outfit: params.outfit as never, savedAt: params.savedAt },
     });
+    if (updated.count > 0) return;
+
+    try {
+      await prisma.closetOutfitFavourite.create({
+        data: {
+          id: params.id,
+          supabaseUserId: params.supabaseUserId,
+          formality: params.formality,
+          outfit: params.outfit as never,
+          savedAt: params.savedAt,
+        },
+      });
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error;
+    }
   },
 
   async deleteFavourite(id: string, supabaseUserId: string) {
@@ -80,6 +110,16 @@ export const closetOutfitSyncRepository = {
     });
   },
 
+  // Checked for the same ownership mistake as upsertFavourite (this
+  // session): already safe, left unchanged. ClosetOutfitWeekPlanItem's
+  // unique constraint is the COMPOUND key (supabaseUserId, dayKey) (see
+  // schema.prisma's @@unique([supabaseUserId, dayKey])), and Prisma's
+  // upsert `where` must target that exact compound key — it can only ever
+  // match a row that already belongs to params.supabaseUserId (always the
+  // server-derived caller id from the service layer, never client-
+  // supplied). There is no id-alone lookup path here for a client to
+  // collide against, so a cross-user overwrite is not possible through
+  // this method.
   async upsertWeekPlanItem(params: {
     supabaseUserId: string;
     dayKey: string;
