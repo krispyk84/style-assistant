@@ -38,6 +38,10 @@ const OTHER_PER_USER_KEYS = [
   'style-assistant/trip-outfits',             // trip-outfits-storage.ts
   'style-assistant/app-settings',             // app-settings-storage.ts
   'style-assistant/weather-context',          // weather-storage.ts — not identity-bound, but harmless to clear (just refetches)
+  'style-assistant/sync-metadata',            // sync-metadata-storage.ts — Phase 1B. Critical to clear: this carries
+                                               // acknowledged server versions and tombstones, which Phase 2+ will trust
+                                               // as synchronization state, not just UI cache — leaking it across users
+                                               // would be a data-integrity bug, not merely a display glitch.
 ];
 
 /** Wipes all per-user local data. Call on sign-out so the next user starts clean. */

@@ -7,6 +7,7 @@ import {
   deleteSavedOutfitFromSupabase,
   upsertSavedOutfitToSupabase,
 } from '@/lib/supabase-data';
+import { markActive, markDeleted } from '@/lib/sync-metadata-storage';
 import type { CreateLookInput, LookAnchorItem, LookRecommendation } from '@/types/look-request';
 import type { SavedOutfit } from '@/types/style';
 
@@ -113,6 +114,11 @@ export async function saveSavedOutfit(input: CreateLookInput, recommendation: Lo
   const nextSavedOutfits = [nextSavedOutfit, ...savedOutfits.filter((item) => item.id !== id)];
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
   void upsertSavedOutfitToSupabase(nextSavedOutfit).catch((error) => recordError(error, 'saved_outfit_save_upsert'));
+  // Phase 1B bookkeeping only — covers both a brand-new id and an
+  // intentional re-save of a previously-deleted id (this same id is
+  // reachable again if the same requestId+tier is saved after having been
+  // deleted). Never blocks/slows the actual save.
+  void markActive('saved-outfits', id).catch((error) => recordError(error, 'sync_metadata_mark_active'));
   return normalizeSavedOutfit(nextSavedOutfit);
 }
 
@@ -122,6 +128,9 @@ export async function deleteSavedOutfit(savedOutfitId: string) {
 
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
   void deleteSavedOutfitFromSupabase(savedOutfitId).catch((error) => recordError(error, 'saved_outfit_delete'));
+  // Phase 1B bookkeeping only — this tombstone must survive even though
+  // the domain object above is now gone from nextSavedOutfits.
+  void markDeleted('saved-outfits', savedOutfitId).catch((error) => recordError(error, 'sync_metadata_mark_deleted'));
   return nextSavedOutfits;
 }
 

@@ -7,6 +7,7 @@ import {
   upsertClosetOutfitWeekPlanItemToBackend,
 } from '@/lib/closet-outfit-sync';
 import { recordError } from '@/lib/crashlytics';
+import { markActive, markDeleted } from '@/lib/sync-metadata-storage';
 import { getNextSevenDays } from '@/lib/week-plan-storage';
 import type { ClosetGeneratedOutfit } from '@/types/api';
 import type { LookTierSlug } from '@/types/look-request';
@@ -72,6 +73,9 @@ export async function saveClosetOutfitToFavourites(formality: LookTierSlug, outf
   const nextList = [next, ...current.filter((item) => item.id !== id)];
   await AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(nextList));
   void upsertClosetOutfitFavouriteToBackend(next).catch((error) => recordError(error, 'closet_outfit_favourite_save_upsert'));
+  // Phase 1B bookkeeping only — see saved-outfits-storage.ts's equivalent
+  // hook for why markActive (not a plain "create") is correct here too.
+  void markActive('closet-outfit-favourites', id).catch((error) => recordError(error, 'sync_metadata_mark_active'));
   return next;
 }
 
@@ -80,6 +84,8 @@ export async function deleteSavedClosetOutfit(id: string) {
   const nextList = current.filter((item) => item.id !== id);
   await AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(nextList));
   void deleteClosetOutfitFavouriteFromBackend(id).catch((error) => recordError(error, 'closet_outfit_favourite_delete'));
+  // Phase 1B bookkeeping only — tombstone survives past this domain object's removal.
+  void markDeleted('closet-outfit-favourites', id).catch((error) => recordError(error, 'sync_metadata_mark_deleted'));
   return nextList;
 }
 
@@ -128,6 +134,10 @@ export async function assignClosetOutfitToWeekDay(
   const nextItems = [next, ...current.filter((item) => item.dayKey !== dayKey)];
   await AsyncStorage.setItem(WEEK_PLAN_KEY, JSON.stringify(nextItems));
   void upsertClosetOutfitWeekPlanItemToBackend(next).catch((error) => recordError(error, 'closet_outfit_week_plan_assign_upsert'));
+  // Phase 1B bookkeeping only — not touched by loadClosetWeekPlan's
+  // automatic day-rollover pruning above (see week-plan-storage.ts's
+  // equivalent note: staleness, not an intentional deletion).
+  void markActive('closet-outfit-week-plan', dayKey).catch((error) => recordError(error, 'sync_metadata_mark_active'));
   return next;
 }
 
@@ -136,5 +146,7 @@ export async function removeClosetWeekPlanDay(dayKey: string) {
   const nextItems = current.filter((item) => item.dayKey !== dayKey);
   await AsyncStorage.setItem(WEEK_PLAN_KEY, JSON.stringify(nextItems));
   void deleteClosetOutfitWeekPlanItemFromBackend(dayKey).catch((error) => recordError(error, 'closet_outfit_week_plan_remove'));
+  // Phase 1B bookkeeping only — tombstone survives past this domain object's removal.
+  void markDeleted('closet-outfit-week-plan', dayKey).catch((error) => recordError(error, 'sync_metadata_mark_deleted'));
   return nextItems;
 }
