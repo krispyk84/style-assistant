@@ -74,7 +74,7 @@ describe('closet-outfit-storage — Phase 1B sync-metadata hooks (favourites)', 
     await saveClosetOutfitToFavourites('business', OUTFIT);
     await flushMicrotasks();
 
-    expect(await getMetadata('closet-outfit-favourites', 'outfit-1')).toEqual({ lastSeenVersion: null, isDeleted: false });
+    expect(await getMetadata('closet-outfit-favourites', 'outfit-1')).toEqual({ lastSeenVersion: null, isDeleted: false, isDirty: true });
   });
 
   it('deleteSavedClosetOutfit records a tombstone', async () => {
@@ -86,7 +86,7 @@ describe('closet-outfit-storage — Phase 1B sync-metadata hooks (favourites)', 
     await deleteSavedClosetOutfit('outfit-1');
     await flushMicrotasks();
 
-    expect(await getMetadata('closet-outfit-favourites', 'outfit-1')).toEqual({ lastSeenVersion: null, isDeleted: true });
+    expect(await getMetadata('closet-outfit-favourites', 'outfit-1')).toEqual({ lastSeenVersion: null, isDeleted: true, isDirty: true });
   });
 });
 
@@ -100,7 +100,7 @@ describe('closet-outfit-storage — Phase 1B sync-metadata hooks (week plan)', (
     await assignClosetOutfitToWeekDay(dayKey, 'Today', 'business', OUTFIT);
     await flushMicrotasks();
 
-    expect(await getMetadata('closet-outfit-week-plan', dayKey)).toEqual({ lastSeenVersion: null, isDeleted: false });
+    expect(await getMetadata('closet-outfit-week-plan', dayKey)).toEqual({ lastSeenVersion: null, isDeleted: false, isDirty: true });
   });
 
   it('removeClosetWeekPlanDay records a tombstone; day-rollover pruning in loadClosetWeekPlan does not', async () => {
@@ -113,7 +113,7 @@ describe('closet-outfit-storage — Phase 1B sync-metadata hooks (week plan)', (
     await flushMicrotasks();
     await removeClosetWeekPlanDay(dayKey);
     await flushMicrotasks();
-    expect(await getMetadata('closet-outfit-week-plan', dayKey)).toEqual({ lastSeenVersion: null, isDeleted: true });
+    expect(await getMetadata('closet-outfit-week-plan', dayKey)).toEqual({ lastSeenVersion: null, isDeleted: true, isDirty: true });
 
     const staleDayKey = '2000-01-01';
     storageMock.set('style-assistant/closet-outfit-week-plan', JSON.stringify([

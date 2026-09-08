@@ -61,7 +61,7 @@ describe('clearAllLocalUserData — Phase 1B.1: sync metadata is no longer wiped
     await setLastSeenVersion('saved-outfits', 'x', 7);
     await clearAllLocalUserData();
 
-    expect(await getMetadata('saved-outfits', 'x')).toEqual({ lastSeenVersion: 7, isDeleted: false });
+    expect(await getMetadata('saved-outfits', 'x')).toEqual({ lastSeenVersion: 7, isDeleted: false, isDirty: false });
   });
 
   it('User A\'s metadata never appears for User B — isolation comes from the per-user key, not from a sign-out wipe', async () => {
@@ -90,6 +90,6 @@ describe('clearAllLocalUserData — Phase 1B.1: sync metadata is no longer wiped
     await clearAllLocalUserData(); // sign-out
 
     // ... User A signs back in later ...
-    expect(await getMetadata('saved-outfits', 'x')).toEqual({ lastSeenVersion: 3, isDeleted: false });
+    expect(await getMetadata('saved-outfits', 'x')).toEqual({ lastSeenVersion: 3, isDeleted: false, isDirty: false });
   });
 });

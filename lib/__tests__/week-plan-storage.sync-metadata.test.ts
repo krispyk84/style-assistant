@@ -62,7 +62,7 @@ describe('week-plan-storage — Phase 1B sync-metadata hooks (happy path)', () =
 
     await assignOutfitToWeekDay(dayKey, 'Today', INPUT, RECOMMENDATION, 'req-1');
 
-    expect(await getMetadata('week-plan', dayKey)).toEqual({ lastSeenVersion: null, isDeleted: false });
+    expect(await getMetadata('week-plan', dayKey)).toEqual({ lastSeenVersion: null, isDeleted: false, isDirty: true });
   });
 
   it('removeWeekPlan records a tombstone', async () => {
@@ -73,7 +73,7 @@ describe('week-plan-storage — Phase 1B sync-metadata hooks (happy path)', () =
     await assignOutfitToWeekDay(dayKey, 'Today', INPUT, RECOMMENDATION, 'req-1');
     await removeWeekPlan(dayKey);
 
-    expect(await getMetadata('week-plan', dayKey)).toEqual({ lastSeenVersion: null, isDeleted: true });
+    expect(await getMetadata('week-plan', dayKey)).toEqual({ lastSeenVersion: null, isDeleted: true, isDirty: true });
   });
 
   it('reassigning a removed day reactivates the tombstone, preserving any known lastSeenVersion', async () => {
@@ -87,7 +87,7 @@ describe('week-plan-storage — Phase 1B sync-metadata hooks (happy path)', () =
 
     await assignOutfitToWeekDay(dayKey, 'Today', INPUT, RECOMMENDATION, 'req-2');
 
-    expect(await getMetadata('week-plan', dayKey)).toEqual({ lastSeenVersion: 2, isDeleted: false });
+    expect(await getMetadata('week-plan', dayKey)).toEqual({ lastSeenVersion: 2, isDeleted: false, isDirty: true });
   });
 
   it('loadWeekPlan\'s automatic day-rollover pruning does NOT create a tombstone for the pruned day', async () => {
@@ -134,7 +134,7 @@ describe('week-plan-storage — Phase 1B.1 failure modes: remove', () => {
 
     failingKeys.add(DOMAIN_KEY);
     await expect(removeWeekPlan(dayKey)).rejects.toThrow(/injected storage failure/);
-    expect(await getMetadata('week-plan', dayKey)).toEqual({ lastSeenVersion: null, isDeleted: true });
+    expect(await getMetadata('week-plan', dayKey)).toEqual({ lastSeenVersion: null, isDeleted: true, isDirty: true });
 
     failingKeys.delete(DOMAIN_KEY);
     expect((await loadWeekPlan()).find((item) => item.dayKey === dayKey)).toBeDefined();
@@ -168,6 +168,6 @@ describe('week-plan-storage — Phase 1B.1 failure modes: assign / reactivate', 
     expect((await getMetadata('week-plan', dayKey))?.isDeleted).toBe(true); // still honestly tombstoned, not silently cleared
 
     await assignOutfitToWeekDay(dayKey, 'Today', INPUT, RECOMMENDATION, 'req-2');
-    expect(await getMetadata('week-plan', dayKey)).toEqual({ lastSeenVersion: null, isDeleted: false });
+    expect(await getMetadata('week-plan', dayKey)).toEqual({ lastSeenVersion: null, isDeleted: false, isDirty: true });
   });
 });

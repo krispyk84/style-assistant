@@ -757,3 +757,41 @@ Building on the smallest-safe-increment pattern this whole project has followed:
 
 Each step above should land as its own reviewable, testable, independently-revertable
 commit — consistent with every phase so far in this project.
+
+---
+
+## L. Addendum (Phase 2B1) — combinations discovered while implementing step 3
+
+Implementing `lib/reconciliation-decision-engine.ts` against the table above surfaced a
+handful of `(isDeleted, isDirty, server state)` combinations the markdown table didn't
+explicitly enumerate — all involving a local tombstone (`isDeleted: true`) meeting an
+**absent** server (as opposed to Cases F/G/J, which all assumed the server still showed
+*something*). Recorded here rather than silently resolved in code only, per this
+project's practice of keeping the spec and the implementation honest with each other:
+
+- **Dirty tombstone, server absent** (`isDeleted: true, isDirty: true`, `S=absent`): our
+  own pending delete turns out to already be achieved — something (very plausibly a
+  legacy hard delete, possibly even our own earlier attempt) already removed the row
+  entirely. Resolution: `NO_OP`, clearing `isDirty` (nothing left to push) but leaving
+  `lastSeenVersion` alone (there is no successor version to record).
+- **Already-settled tombstone, server absent** (`isDeleted: true, isDirty: false`,
+  `S=absent`): a tombstone this device already fully acknowledged has since vanished
+  entirely. Resolution: `NO_OP`, no metadata change — the outcome still matches our
+  intent.
+- **Already-settled tombstone, server now active** (`isDeleted: true, isDirty: false`,
+  `S=active@V`): another device reactivated the identity *after* our tombstone was fully
+  settled. Resolution: `ADOPT_SERVER`. This is deliberately **not** treated as forbidden
+  resurrection (invariant B.2): that invariant is about this engine spontaneously undoing
+  a local tombstone on its own initiative; it does not forbid adopting a different
+  device's already-authoritative, properly-CAS-guarded reactivation when this device has
+  no pending claim of its own (`isDirty: false`). Structurally the same shape as Case C.
+- **Local-only create-then-delete meets a cross-origin collision**
+  (`lastSeenVersion: null, isDeleted: true, isDirty: true`, `S` shows *something*): this
+  device created and deleted an identity without ever syncing it, and the server
+  unexpectedly already has a row under that exact id. With zero version history for this
+  device's own copy, there is no safe CAS action — resolved as `CONFLICT` rather than
+  guessed either direction.
+
+All four are covered by dedicated tests in `lib/__tests__/reconciliation-decision-engine.test.ts`.
+None required a new named action in §D — each resolves to an action already in the finite
+set, just via a code path the original table's case list didn't name individually.

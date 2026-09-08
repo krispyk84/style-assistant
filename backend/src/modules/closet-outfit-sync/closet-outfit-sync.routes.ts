@@ -153,3 +153,26 @@ closetOutfitSyncRouter.delete(
     return sendSuccess(response, result);
   })
 );
+
+// Sync redesign, Phase 2B1: reconciliation-only reads (§F of
+// docs/sync-phase2a-reconciliation-spec.md). Includes tombstoned rows and
+// syncVersion/deletedAt — never use for an ordinary UI list, which is what
+// the plain GET routes above already correctly serve. No current caller.
+
+closetOutfitSyncRouter.get(
+  '/closet-outfit-sync/favourites/for-reconciliation',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const result = await closetOutfitSyncService.getFavouritesForReconciliation(request.userId!);
+    return sendSuccess(response, { items: result });
+  })
+);
+
+closetOutfitSyncRouter.get(
+  '/closet-outfit-sync/week-plan/for-reconciliation',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const result = await closetOutfitSyncService.getWeekPlanForReconciliation(request.userId!);
+    return sendSuccess(response, { items: result });
+  })
+);

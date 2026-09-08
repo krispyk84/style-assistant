@@ -62,10 +62,26 @@ export type SyncDomain =
  * the corresponding domain object still exists in its own local storage.
  * Nothing in this phase propagates the deletion to the cloud — that is
  * later-phase (outbox) work.
+ *
+ * `isDirty` — Phase 2A/2B1 addition: true whenever a local write (create,
+ * reassign, or delete) has happened that has not yet been acknowledged by
+ * an authoritative server response. Resolves the ambiguity Phase 1B could
+ * not: "I saw server version N and nothing has changed locally" vs. "I saw
+ * server version N and then the user changed it locally" look identical
+ * without this field (see docs/sync-phase2a-reconciliation-spec.md §A.2/§E
+ * for the full analysis of why this specifically matters for the two
+ * slot-shaped domains, week-plan and closet-outfit-week-plan, where
+ * reassigning an already-synced day is a normal, reachable action). Set to
+ * `true` by every local write (`markActive`, `markDeleted`) — never
+ * inferred from content comparison. Cleared to `false` only once a
+ * reconciliation engine has actually incorporated an authoritative server
+ * version (`setLastSeenVersion`) — never speculatively, matching
+ * `lastSeenVersion`'s own "only advances on positive observation" rule.
  */
 export type RecordSyncMetadata = {
   lastSeenVersion: number | null;
   isDeleted: boolean;
+  isDirty: boolean;
 };
 
 const STORAGE_KEY_PREFIX = 'style-assistant/sync-metadata';
@@ -79,7 +95,13 @@ const STORAGE_KEY_PREFIX = 'style-assistant/sync-metadata';
 // treated as absent rather than guessed at — see readShape below. This is
 // deliberately the simplest thing that provides that guarantee, not a
 // migration framework.
-const SCHEMA_VERSION = 1;
+//
+// Bumped to 2 for the Phase 2B1 isDirty addition — exercising the
+// evolution strategy this comment describes for the first time. Since
+// nothing built on this module has ever shipped/pushed, there is no real
+// persisted schemaVersion:1 data anywhere to migrate; old-shaped data is
+// simply treated as absent, same as any other unrecognized shape.
+const SCHEMA_VERSION = 2;
 
 type DomainMetadataMap = Record<string, RecordSyncMetadata>;
 
@@ -96,7 +118,7 @@ function isRecordSyncMetadata(value: unknown): value is RecordSyncMetadata {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Record<string, unknown>;
   const versionOk = candidate.lastSeenVersion === null || typeof candidate.lastSeenVersion === 'number';
-  return versionOk && typeof candidate.isDeleted === 'boolean';
+  return versionOk && typeof candidate.isDeleted === 'boolean' && typeof candidate.isDirty === 'boolean';
 }
 
 function buildStorageKey(userId: string): string {
@@ -184,16 +206,28 @@ export async function getDomainMetadata(domain: SyncDomain): Promise<DomainMetad
  * was actually written to local storage, or a write whose response was
  * actually applied) — never just because some API response happened to
  * carry a version number that was then discarded or rejected.
+ *
+ * Also clears `isDirty` to `false`: incorporating an authoritative version
+ * is exactly the event that means "no longer dirty" — whether this call
+ * represents a successful push of a local change (the server now agrees
+ * with what we sent) or a pull that adopted the server's content outright
+ * (local no longer differs from what's now stored). Still has zero
+ * production call sites as of Phase 2B1 — the reconciliation engine that
+ * will call this is designed (docs/sync-phase2a-reconciliation-spec.md)
+ * but not yet implemented.
  */
 export async function setLastSeenVersion(domain: SyncDomain, id: string, version: number): Promise<void> {
   const userId = await requireCurrentUserId();
   const current = await readRecord(userId, domain, id);
-  await updateRecord(userId, domain, id, { lastSeenVersion: version, isDeleted: current?.isDeleted ?? false });
+  await updateRecord(userId, domain, id, { lastSeenVersion: version, isDeleted: current?.isDeleted ?? false, isDirty: false });
 }
 
 /**
  * Records an intentional local deletion (a tombstone). Preserves whatever
  * lastSeenVersion was already known — never invents one, never clears one.
+ * Sets isDirty=true: a pending deletion is itself an unsynced local write,
+ * exactly like a create/reassign, until a reconciliation engine actually
+ * pushes it and calls setLastSeenVersion with the server's response.
  * This entry is NOT removed when the domain object itself is deleted; it
  * must remain queryable afterward (see removeMetadata for the distinct,
  * administrative-only operation that actually erases an entry).
@@ -206,7 +240,7 @@ export async function setLastSeenVersion(domain: SyncDomain, id: string, version
 export async function markDeleted(domain: SyncDomain, id: string): Promise<void> {
   const userId = await requireCurrentUserId();
   const current = await readRecord(userId, domain, id);
-  await updateRecord(userId, domain, id, { lastSeenVersion: current?.lastSeenVersion ?? null, isDeleted: true });
+  await updateRecord(userId, domain, id, { lastSeenVersion: current?.lastSeenVersion ?? null, isDeleted: true, isDirty: true });
 }
 
 /**
@@ -227,11 +261,21 @@ export async function markDeleted(domain: SyncDomain, id: string): Promise<void>
  * erasing it here would destroy information Phase 2/3 actually needs.
  * If nothing was ever observed (lastSeenVersion already null), there is
  * nothing to preserve and null remains the honest value.
+ *
+ * Sets isDirty=true unconditionally: this call always represents a local
+ * write (a create or a reassignment) that has not yet been acknowledged by
+ * the server, regardless of whether lastSeenVersion happens to be null or
+ * a preserved prior value. This is also the exact signal that distinguishes
+ * "a legacy record with genuinely unknown ancestry" from "a record this
+ * device knows it just created" (see docs/sync-phase2a-reconciliation-spec.md
+ * §C Case K1 vs. K2): a metadata entry only ever exists because this
+ * function or markDeleted stamped one, so its mere presence already proves
+ * this device's own involvement.
  */
 export async function markActive(domain: SyncDomain, id: string): Promise<void> {
   const userId = await requireCurrentUserId();
   const current = await readRecord(userId, domain, id);
-  await updateRecord(userId, domain, id, { lastSeenVersion: current?.lastSeenVersion ?? null, isDeleted: false });
+  await updateRecord(userId, domain, id, { lastSeenVersion: current?.lastSeenVersion ?? null, isDeleted: false, isDirty: true });
 }
 
 /**

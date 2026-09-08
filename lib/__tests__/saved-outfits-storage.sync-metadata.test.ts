@@ -63,7 +63,7 @@ describe('saved-outfits-storage — Phase 1B sync-metadata hooks (happy path)', 
     const id = buildSavedOutfitId('req-1', 'business', 0);
 
     expect(saved.id).toBe(id);
-    expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: null, isDeleted: false });
+    expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: null, isDeleted: false, isDirty: true });
   });
 
   it('deleteSavedOutfit records a tombstone that survives after the domain object is gone', async () => {
@@ -76,7 +76,7 @@ describe('saved-outfits-storage — Phase 1B sync-metadata hooks (happy path)', 
     const remaining = await deleteSavedOutfit(id);
 
     expect(remaining.find((item) => item.id === id)).toBeUndefined();
-    expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: null, isDeleted: true });
+    expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: null, isDeleted: true, isDirty: true });
   });
 
   it('re-saving the same requestId+tier after deletion reactivates the tombstone (markActive), preserving semantics tested in sync-metadata-storage.test.ts', async () => {
@@ -90,7 +90,7 @@ describe('saved-outfits-storage — Phase 1B sync-metadata hooks (happy path)', 
 
     await saveSavedOutfit(INPUT, RECOMMENDATION, 'req-3', 0);
 
-    expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: 5, isDeleted: false });
+    expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: 5, isDeleted: false, isDirty: true });
   });
 });
 
@@ -122,7 +122,7 @@ describe('saved-outfits-storage — Phase 1B.1 failure modes: delete', () => {
     // The state is honestly recoverable, not silently ambiguous: the
     // tombstone is already durable even though the visible list wasn't
     // updated yet.
-    expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: null, isDeleted: true });
+    expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: null, isDeleted: true, isDirty: true });
 
     failingKeys.delete(DOMAIN_KEY);
     const remaining = await loadSavedOutfits();
@@ -166,6 +166,6 @@ describe('saved-outfits-storage — Phase 1B.1 failure modes: re-create / save',
     // Retrying (with metadata storage working again) cleanly resolves it.
     const retried = await saveSavedOutfit(INPUT, RECOMMENDATION, 'req-fail-4', 0);
     expect(retried.id).toBe(id);
-    expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: null, isDeleted: false });
+    expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: null, isDeleted: false, isDirty: true });
   });
 });

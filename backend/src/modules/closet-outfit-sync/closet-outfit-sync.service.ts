@@ -41,6 +41,24 @@ export const closetOutfitSyncService = {
     }));
   },
 
+  /**
+   * Reconciliation-only: includes tombstoned rows and syncVersion/deletedAt.
+   * See docs/sync-phase2a-reconciliation-spec.md §F — never use this for an
+   * ordinary UI list (getFavourites above already filters deletedAt). No
+   * current call site.
+   */
+  async getFavouritesForReconciliation(supabaseUserId: string) {
+    const rows = await closetOutfitSyncRepository.findAllFavouritesIncludingDeleted(supabaseUserId);
+    return rows.map((row) => ({
+      id: row.id,
+      formality: row.formality,
+      outfit: row.outfit,
+      savedAt: row.savedAt.toISOString(),
+      syncVersion: row.syncVersion,
+      deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+    }));
+  },
+
   async upsertFavourite(
     supabaseUserId: string,
     payload: { id: string; formality: string; outfit: unknown; savedAt: string },
@@ -60,6 +78,25 @@ export const closetOutfitSyncService = {
       formality: row.formality,
       outfit: row.outfit,
       assignedAt: row.assignedAt.toISOString(),
+    }));
+  },
+
+  /**
+   * Reconciliation-only: includes tombstoned rows and syncVersion/deletedAt.
+   * See docs/sync-phase2a-reconciliation-spec.md §F — never use this for an
+   * ordinary UI list (getWeekPlan above already filters deletedAt). No
+   * current call site.
+   */
+  async getWeekPlanForReconciliation(supabaseUserId: string) {
+    const rows = await closetOutfitSyncRepository.findAllWeekPlanItemsIncludingDeleted(supabaseUserId);
+    return rows.map((row) => ({
+      dayKey: row.dayKey,
+      dayLabel: row.dayLabel,
+      formality: row.formality,
+      outfit: row.outfit,
+      assignedAt: row.assignedAt.toISOString(),
+      syncVersion: row.syncVersion,
+      deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
     }));
   },
 

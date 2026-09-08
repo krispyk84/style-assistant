@@ -49,7 +49,7 @@ describe('sync-metadata-storage — persistence', () => {
     const second = await freshModule();
     const metadata = await second.getMetadata('saved-outfits', 'req-1:business');
 
-    expect(metadata).toEqual({ lastSeenVersion: 3, isDeleted: false });
+    expect(metadata).toEqual({ lastSeenVersion: 3, isDeleted: false, isDirty: false });
   });
 });
 
@@ -59,8 +59,8 @@ describe('sync-metadata-storage — domain isolation', () => {
     await mod.setLastSeenVersion('saved-outfits', 'shared-id', 5);
     await mod.markDeleted('week-plan', 'shared-id');
 
-    expect(await mod.getMetadata('saved-outfits', 'shared-id')).toEqual({ lastSeenVersion: 5, isDeleted: false });
-    expect(await mod.getMetadata('week-plan', 'shared-id')).toEqual({ lastSeenVersion: null, isDeleted: true });
+    expect(await mod.getMetadata('saved-outfits', 'shared-id')).toEqual({ lastSeenVersion: 5, isDeleted: false, isDirty: false });
+    expect(await mod.getMetadata('week-plan', 'shared-id')).toEqual({ lastSeenVersion: null, isDeleted: true, isDirty: true });
   });
 });
 
@@ -73,14 +73,14 @@ describe('sync-metadata-storage — version semantics', () => {
   it('storing version N returns N', async () => {
     const mod = await freshModule();
     await mod.setLastSeenVersion('week-plan', 'mon', 7);
-    expect(await mod.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: 7, isDeleted: false });
+    expect(await mod.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: 7, isDeleted: false, isDirty: false });
   });
 
   it('updating from N to N+1 behaves correctly', async () => {
     const mod = await freshModule();
     await mod.setLastSeenVersion('week-plan', 'mon', 7);
     await mod.setLastSeenVersion('week-plan', 'mon', 8);
-    expect(await mod.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: 8, isDeleted: false });
+    expect(await mod.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: 8, isDeleted: false, isDirty: false });
   });
 
   it('setLastSeenVersion never invents isDeleted: true — a version update alone does not create a tombstone', async () => {
@@ -90,25 +90,58 @@ describe('sync-metadata-storage — version semantics', () => {
   });
 });
 
+describe('sync-metadata-storage — isDirty semantics (Phase 2B1)', () => {
+  it('markActive always sets isDirty: true — a local write is always unsynced until acknowledged', async () => {
+    const mod = await freshModule();
+    await mod.markActive('saved-outfits', 'x');
+    expect((await mod.getMetadata('saved-outfits', 'x'))?.isDirty).toBe(true);
+  });
+
+  it('markDeleted always sets isDirty: true — a pending deletion is itself an unsynced write', async () => {
+    const mod = await freshModule();
+    await mod.markDeleted('saved-outfits', 'x');
+    expect((await mod.getMetadata('saved-outfits', 'x'))?.isDirty).toBe(true);
+  });
+
+  it('setLastSeenVersion always clears isDirty: false — incorporating an authoritative version means no longer dirty', async () => {
+    const mod = await freshModule();
+    await mod.markActive('saved-outfits', 'x');
+    expect((await mod.getMetadata('saved-outfits', 'x'))?.isDirty).toBe(true);
+
+    await mod.setLastSeenVersion('saved-outfits', 'x', 1);
+    expect((await mod.getMetadata('saved-outfits', 'x'))?.isDirty).toBe(false);
+  });
+
+  it('a fresh markActive after an acknowledged sync re-dirties the record', async () => {
+    const mod = await freshModule();
+    await mod.markActive('week-plan', 'mon');
+    await mod.setLastSeenVersion('week-plan', 'mon', 1);
+    expect((await mod.getMetadata('week-plan', 'mon'))?.isDirty).toBe(false);
+
+    await mod.markActive('week-plan', 'mon'); // user reassigned the day again
+    expect(await mod.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: 1, isDeleted: false, isDirty: true });
+  });
+});
+
 describe('sync-metadata-storage — tombstones', () => {
   it('marking a record deleted preserves its already-known lastSeenVersion', async () => {
     const mod = await freshModule();
     await mod.setLastSeenVersion('saved-outfits', 'req-1:business', 4);
     await mod.markDeleted('saved-outfits', 'req-1:business');
-    expect(await mod.getMetadata('saved-outfits', 'req-1:business')).toEqual({ lastSeenVersion: 4, isDeleted: true });
+    expect(await mod.getMetadata('saved-outfits', 'req-1:business')).toEqual({ lastSeenVersion: 4, isDeleted: true, isDirty: true });
   });
 
   it('a record with no prior metadata can still be marked deleted (lastSeenVersion stays null, not invented)', async () => {
     const mod = await freshModule();
     await mod.markDeleted('saved-outfits', 'req-2:casual');
-    expect(await mod.getMetadata('saved-outfits', 'req-2:casual')).toEqual({ lastSeenVersion: null, isDeleted: true });
+    expect(await mod.getMetadata('saved-outfits', 'req-2:casual')).toEqual({ lastSeenVersion: null, isDeleted: true, isDirty: true });
   });
 
   it('deletion metadata survives independently of the domain object — this module has no notion of the domain object at all, proving the tombstone cannot be tied to it', async () => {
     const mod = await freshModule();
     await mod.markDeleted('week-plan', 'mon');
     // No domain-object storage was ever touched here; the tombstone exists purely in this module.
-    expect(await mod.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: null, isDeleted: true });
+    expect(await mod.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: null, isDeleted: true, isDirty: true });
   });
 
   it('a tombstone survives a fresh import of the module (storage reload)', async () => {
@@ -117,7 +150,7 @@ describe('sync-metadata-storage — tombstones', () => {
 
     vi.resetModules();
     const second = await freshModule();
-    expect(await second.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: null, isDeleted: true });
+    expect(await second.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: null, isDeleted: true, isDirty: true });
   });
 });
 
@@ -135,20 +168,20 @@ describe('sync-metadata-storage — re-creation (tombstone reuse)', () => {
     await mod.markDeleted('week-plan', 'mon'); // still 2, now tombstoned
     await mod.markActive('week-plan', 'mon'); // reassigned by the user
 
-    expect(await mod.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: 2, isDeleted: false });
+    expect(await mod.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: 2, isDeleted: false, isDirty: true });
   });
 
   it('re-creating an id that was never previously observed from the server leaves lastSeenVersion null (nothing to preserve, nothing invented)', async () => {
     const mod = await freshModule();
     await mod.markDeleted('week-plan', 'tue'); // local-only delete, never synced, lastSeenVersion stays null
     await mod.markActive('week-plan', 'tue');
-    expect(await mod.getMetadata('week-plan', 'tue')).toEqual({ lastSeenVersion: null, isDeleted: false });
+    expect(await mod.getMetadata('week-plan', 'tue')).toEqual({ lastSeenVersion: null, isDeleted: false, isDirty: true });
   });
 
   it('markActive on a brand-new id (never deleted, never seen) does not fabricate a version', async () => {
     const mod = await freshModule();
     await mod.markActive('saved-outfits', 'brand-new');
-    expect(await mod.getMetadata('saved-outfits', 'brand-new')).toEqual({ lastSeenVersion: null, isDeleted: false });
+    expect(await mod.getMetadata('saved-outfits', 'brand-new')).toEqual({ lastSeenVersion: null, isDeleted: false, isDirty: true });
   });
 });
 
@@ -157,22 +190,28 @@ describe('sync-metadata-storage — legacy state (no fabricated history)', () =>
     const mod = await freshModule();
     const metadata = await mod.getMetadata('saved-outfits', 'pre-existing-record');
     expect(metadata).toBeNull();
-    expect(metadata).not.toEqual({ lastSeenVersion: 0, isDeleted: false });
+    expect(metadata).not.toEqual({ lastSeenVersion: 0, isDeleted: false, isDirty: false });
   });
 
   it('a malformed/unrecognized persisted shape (e.g. wrong schemaVersion) is treated as absent, not crashed on or guessed at', async () => {
-    storageMock.set('style-assistant/sync-metadata', JSON.stringify({ schemaVersion: 999, domains: { 'saved-outfits': { x: { lastSeenVersion: 1, isDeleted: false } } } }));
+    storageMock.set('style-assistant/sync-metadata/user-1', JSON.stringify({ schemaVersion: 999, domains: { 'saved-outfits': { x: { lastSeenVersion: 1, isDeleted: false, isDirty: false } } } }));
+    const mod = await freshModule();
+    expect(await mod.getMetadata('saved-outfits', 'x')).toBeNull();
+  });
+
+  it('a persisted schemaVersion:1 shape (predates the Phase 2B1 isDirty field) is treated as absent, not guessed at — nothing has ever shipped with that shape, so this is purely a defensive proof of the evolution strategy', async () => {
+    storageMock.set('style-assistant/sync-metadata/user-1', JSON.stringify({ schemaVersion: 1, domains: { 'saved-outfits': { x: { lastSeenVersion: 1, isDeleted: false } } } }));
     const mod = await freshModule();
     expect(await mod.getMetadata('saved-outfits', 'x')).toBeNull();
   });
 
   it('corrupted JSON is treated as absent rather than throwing', async () => {
-    storageMock.set('style-assistant/sync-metadata', '{not valid json');
+    storageMock.set('style-assistant/sync-metadata/user-1', '{not valid json');
     const mod = await freshModule();
     expect(await mod.getMetadata('saved-outfits', 'x')).toBeNull();
     // and it doesn't blow up on a subsequent write either
     await mod.setLastSeenVersion('saved-outfits', 'x', 1);
-    expect(await mod.getMetadata('saved-outfits', 'x')).toEqual({ lastSeenVersion: 1, isDeleted: false });
+    expect(await mod.getMetadata('saved-outfits', 'x')).toEqual({ lastSeenVersion: 1, isDeleted: false, isDirty: false });
   });
 });
 
@@ -185,8 +224,8 @@ describe('sync-metadata-storage — getDomainMetadata / removeMetadata', () => {
 
     const weekPlanMetadata = await mod.getDomainMetadata('week-plan');
     expect(weekPlanMetadata).toEqual({
-      mon: { lastSeenVersion: 1, isDeleted: false },
-      tue: { lastSeenVersion: null, isDeleted: true },
+      mon: { lastSeenVersion: 1, isDeleted: false, isDirty: false },
+      tue: { lastSeenVersion: null, isDeleted: true, isDirty: true },
     });
   });
 
@@ -221,7 +260,7 @@ describe('sync-metadata-storage — clearAllSyncMetadata', () => {
     await mod.clearAllSyncMetadata(); // clears user-2's metadata only
 
     getCurrentUserIdMock.mockResolvedValue('user-1');
-    expect(await mod.getMetadata('saved-outfits', 'a')).toEqual({ lastSeenVersion: 1, isDeleted: false });
+    expect(await mod.getMetadata('saved-outfits', 'a')).toEqual({ lastSeenVersion: 1, isDeleted: false, isDirty: false });
   });
 });
 
@@ -236,10 +275,10 @@ describe('sync-metadata-storage — Phase 1B.1: user-scoped storage', () => {
     await mod.markDeleted('saved-outfits', 'shared-id');
 
     getCurrentUserIdMock.mockResolvedValue('user-1');
-    expect(await mod.getMetadata('saved-outfits', 'shared-id')).toEqual({ lastSeenVersion: 5, isDeleted: false });
+    expect(await mod.getMetadata('saved-outfits', 'shared-id')).toEqual({ lastSeenVersion: 5, isDeleted: false, isDirty: false });
 
     getCurrentUserIdMock.mockResolvedValue('user-2');
-    expect(await mod.getMetadata('saved-outfits', 'shared-id')).toEqual({ lastSeenVersion: null, isDeleted: true });
+    expect(await mod.getMetadata('saved-outfits', 'shared-id')).toEqual({ lastSeenVersion: null, isDeleted: true, isDirty: true });
   });
 
   it('every mutating and read function throws when there is no resolvable current user, rather than silently defaulting to a shared/anonymous key', async () => {
@@ -272,7 +311,7 @@ describe('sync-metadata-storage — Phase 1B.1: user-scoped storage', () => {
     await inFlightWrite;
 
     getCurrentUserIdMock.mockResolvedValueOnce('user-1');
-    expect(await mod.getMetadata('saved-outfits', 'shared-id')).toEqual({ lastSeenVersion: null, isDeleted: false });
+    expect(await mod.getMetadata('saved-outfits', 'shared-id')).toEqual({ lastSeenVersion: null, isDeleted: false, isDirty: true });
 
     getCurrentUserIdMock.mockResolvedValueOnce('user-2');
     expect(await mod.getMetadata('saved-outfits', 'shared-id')).toBeNull();
