@@ -153,3 +153,47 @@ export async function replaceWeekPlan(items: WeekPlannedOutfit[]) {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedItems));
   return normalizedItems;
 }
+
+// ── Phase 2B2 reconciliation-only single-record helpers ────────────────
+// See saved-outfits-storage.ts's equivalent block for the rationale: pure
+// local read-modify-write only, no legacy cloud write, no metadata touch.
+// Deliberately skips isFutureWeekDay filtering — reconciliation must be
+// able to read/write/remove any dayKey the server knows about, not just
+// ones inside the display window (that filtering is a UI-list concern
+// specific to loadWeekPlan). No current caller.
+
+export async function readOneWeekPlanItemLocal(dayKey: string): Promise<WeekPlannedOutfit | null> {
+  const rawValue = await AsyncStorage.getItem(STORAGE_KEY);
+  if (!rawValue) return null;
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) return null;
+    const match = parsed.find((item) => item && typeof item === 'object' && item.dayKey === dayKey);
+    return match ? normalizeWeekPlannedOutfit(match as WeekPlannedOutfit) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readAllWeekPlanItemsRaw(): Promise<WeekPlannedOutfit[]> {
+  const rawValue = await AsyncStorage.getItem(STORAGE_KEY);
+  if (!rawValue) return [];
+  try {
+    const parsed = JSON.parse(rawValue);
+    return Array.isArray(parsed) ? (parsed as WeekPlannedOutfit[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function writeOneWeekPlanItemLocal(content: WeekPlannedOutfit): Promise<void> {
+  const all = await readAllWeekPlanItemsRaw();
+  const next = [content, ...all.filter((item) => item.dayKey !== content.dayKey)];
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+}
+
+export async function removeOneWeekPlanItemLocal(dayKey: string): Promise<void> {
+  const all = await readAllWeekPlanItemsRaw();
+  const next = all.filter((item) => item.dayKey !== dayKey);
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+}

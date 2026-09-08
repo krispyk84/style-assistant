@@ -279,6 +279,31 @@ export async function markActive(domain: SyncDomain, id: string): Promise<void> 
 }
 
 /**
+ * Phase 2B2 (reconciliation execution): merges an arbitrary partial patch
+ * onto whatever metadata currently exists (absent fields fall back to the
+ * current value, or the honest defaults for a never-seen record). This is
+ * what lets the execution layer apply the exact `metadataPatch` a
+ * reconciliation decision computed (docs/sync-phase2a-reconciliation-spec.md
+ * §C's "Metadata result" column) without the executor needing to guess
+ * which named function (markActive/markDeleted/setLastSeenVersion) happens
+ * to produce that particular combination — some decision outcomes (e.g.
+ * Case J's "NO_OP but refresh lastSeenVersion to M, keep isDeleted true"
+ * or the tombstone-goal-achieved cases that only clear isDirty) don't map
+ * onto any single existing named transition.
+ */
+export async function applyMetadataPatch(domain: SyncDomain, id: string, patch: Partial<RecordSyncMetadata>): Promise<void> {
+  const userId = await requireCurrentUserId();
+  const current = await readRecord(userId, domain, id);
+  const next: RecordSyncMetadata = {
+    lastSeenVersion: current?.lastSeenVersion ?? null,
+    isDeleted: current?.isDeleted ?? false,
+    isDirty: current?.isDirty ?? false,
+    ...patch,
+  };
+  await updateRecord(userId, domain, id, next);
+}
+
+/**
  * Administrative/reset use only — actually erases a metadata entry. NOT
  * part of normal record deletion (that's markDeleted, which preserves the
  * entry as a tombstone). There is no current call site for this; it exists

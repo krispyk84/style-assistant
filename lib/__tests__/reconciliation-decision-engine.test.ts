@@ -109,6 +109,23 @@ describe('Case K1 vs Case K2 — the core "cannot resurrect a legacy hard delete
   });
 });
 
+describe('Case K2 redecide-after-create_conflict (Phase 2B2 correction — prevents an infinite redecide loop)', () => {
+  it('a fresh server read showing active content that MATCHES local -> recognizes this device\'s own earlier create as already-succeeded, adopts, does not retry CREATE_SERVER', () => {
+    const result = decideReconciliation({ localPresent: true, metadata: meta({ isDirty: true }), server: { kind: 'active', version: 1 }, contentEquals: true });
+    expect(result).toEqual({ action: 'ADOPT_SERVER', metadataPatch: { lastSeenVersion: 1, isDeleted: false, isDirty: false }, reason: 'K2-recognized-own-prior-create-success' });
+  });
+
+  it('a fresh server read showing active content that DIFFERS from local -> CONFLICT, a genuine cross-origin collision under the same id, never overwritten', () => {
+    const result = decideReconciliation({ localPresent: true, metadata: meta({ isDirty: true }), server: { kind: 'active', version: 1 }, contentEquals: false });
+    expect(result).toEqual({ action: 'CONFLICT', metadataPatch: null, reason: 'K2-collision-with-existing-active-content' });
+  });
+
+  it('a fresh server read showing a tombstone under this never-synced id -> CONFLICT, no automatic reactivation attempt', () => {
+    const result = decideReconciliation({ localPresent: true, metadata: meta({ isDirty: true }), server: { kind: 'tombstone', version: 1 } });
+    expect(result).toEqual({ action: 'CONFLICT', metadataPatch: null, reason: 'K2-collision-with-existing-tombstone' });
+  });
+});
+
 describe('Case Q vs Case K1 — positive tombstone evidence changes the answer (explicitly required regression test)', () => {
   it('Q: legacy record (no metadata), server has a REAL tombstone -> DELETE_LOCAL is safe (positive proof, not mere absence)', () => {
     const result = decideReconciliation({ localPresent: true, metadata: null, server: { kind: 'tombstone', version: 3 } });

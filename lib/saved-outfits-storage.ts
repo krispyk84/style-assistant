@@ -158,3 +158,27 @@ export async function replaceSavedOutfits(savedOutfits: SavedOutfit[]) {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedSavedOutfits));
   return normalizedSavedOutfits;
 }
+
+// ── Phase 2B2 reconciliation-only single-record helpers ────────────────
+// Deliberately separate from saveSavedOutfit/deleteSavedOutfit above: those
+// also fire the legacy cloud write and touch sync metadata, which the
+// reconciliation executor must never do (it owns both of those itself, via
+// the domain adapter's other functions). These do ONLY the local
+// AsyncStorage read-modify-write, nothing else. No current caller.
+
+export async function readOneSavedOutfitLocal(id: string): Promise<SavedOutfit | null> {
+  const all = await loadSavedOutfits();
+  return all.find((item) => item.id === id) ?? null;
+}
+
+export async function writeOneSavedOutfitLocal(content: SavedOutfit): Promise<void> {
+  const all = await loadSavedOutfits();
+  const next = [content, ...all.filter((item) => item.id !== content.id)];
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+}
+
+export async function removeOneSavedOutfitLocal(id: string): Promise<void> {
+  const all = await loadSavedOutfits();
+  const next = all.filter((item) => item.id !== id);
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+}

@@ -123,6 +123,33 @@ describe('sync-metadata-storage — isDirty semantics (Phase 2B1)', () => {
   });
 });
 
+describe('sync-metadata-storage — applyMetadataPatch (Phase 2B2)', () => {
+  it('merges a partial patch onto existing metadata, preserving unspecified fields', async () => {
+    const mod = await freshModule();
+    await mod.setLastSeenVersion('week-plan', 'mon', 5);
+    await mod.markDeleted('week-plan', 'mon'); // {5, true, true}
+
+    await mod.applyMetadataPatch('week-plan', 'mon', { isDirty: false });
+
+    expect(await mod.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: 5, isDeleted: true, isDirty: false });
+  });
+
+  it('can fully replace every field in one call', async () => {
+    const mod = await freshModule();
+    await mod.markActive('week-plan', 'mon');
+
+    await mod.applyMetadataPatch('week-plan', 'mon', { lastSeenVersion: 9, isDeleted: false, isDirty: false });
+
+    expect(await mod.getMetadata('week-plan', 'mon')).toEqual({ lastSeenVersion: 9, isDeleted: false, isDirty: false });
+  });
+
+  it('applies cleanly to a record with no prior metadata, falling back to honest defaults for unspecified fields', async () => {
+    const mod = await freshModule();
+    await mod.applyMetadataPatch('week-plan', 'tue', { lastSeenVersion: 3 });
+    expect(await mod.getMetadata('week-plan', 'tue')).toEqual({ lastSeenVersion: 3, isDeleted: false, isDirty: false });
+  });
+});
+
 describe('sync-metadata-storage — tombstones', () => {
   it('marking a record deleted preserves its already-known lastSeenVersion', async () => {
     const mod = await freshModule();

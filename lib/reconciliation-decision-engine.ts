@@ -167,13 +167,37 @@ export function decideReconciliation(input: ReconciliationInput): Reconciliation
   if (lastSeenVersion === null) {
     if (!isDeleted) {
       // Case K2: this device knows it created this record itself and has
-      // never synced it. CREATE_SERVER is safe regardless of what the
-      // server read shows — the create RPC is self-defending (§C Case K's
-      // own reasoning): a coincidental id collision (live or tombstoned)
-      // surfaces as 'create_conflict', which the execution layer re-routes
-      // rather than silently treating as success. The engine does not
-      // need to duplicate that check here.
-      return { action: 'CREATE_SERVER', metadataPatch: null, reason: 'K2-known-local-creation' };
+      // never synced it.
+      //
+      // Phase 2B2 correction: the original Phase 2B1 comment here reasoned
+      // that CREATE_SERVER is "safe regardless of what the server read
+      // shows" because the create RPC's own create_conflict handling is
+      // the safety net. That is true for a ONE-SHOT call, but process-death
+      // testing during Phase 2B2 (§16: "server create succeeds, ack lost,
+      // retry") proved it insufficient for the ORCHESTRATION LOOP: after a
+      // create_conflict, the executor re-fetches server state and asks this
+      // engine to re-decide — and since this branch previously ignored
+      // server state entirely, it would emit CREATE_SERVER again against
+      // the exact same now-existing row, forever (an infinite redecide
+      // loop, never converging). Fixed by actually consulting the fresh
+      // server read here, the same way Case L/lost-ack recovery already
+      // does: if the server unexpectedly already has content, recognize a
+      // content match as this device's own earlier create having already
+      // succeeded (adopt, clear dirty) rather than retrying blindly; a
+      // content mismatch is a genuine cross-origin collision under this
+      // exact id, which cannot be resolved automatically.
+      if (server.kind === 'absent') {
+        return { action: 'CREATE_SERVER', metadataPatch: null, reason: 'K2-known-local-creation' };
+      }
+      if (server.kind === 'active') {
+        return contentEquals
+          ? adopt(server.version, false, 'K2-recognized-own-prior-create-success')
+          : conflict('K2-collision-with-existing-active-content');
+      }
+      // server.kind === 'tombstone' — this exact id is already claimed and
+      // deleted under a lineage this device has zero prior relationship to
+      // (lastSeenVersion was null); no safe automatic action.
+      return conflict('K2-collision-with-existing-tombstone');
     }
     // isDeleted && lastSeenVersion === null: created and deleted locally
     // without ever syncing (Case N, generalized — the spec's own notation

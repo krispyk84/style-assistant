@@ -270,3 +270,134 @@ export async function deleteWeekPlanItemFromSupabase(dayKey: string): Promise<vo
   const { error } = await supabase.from('week_plan').delete().eq('day_key', dayKey).eq('user_id', userId);
   if (error) throw error;
 }
+
+// ── Phase 1A RPC wrappers (Phase 2B2 reconciliation execution) ─────────
+// Thin, purely mechanical wrappers around the Phase 1A create/update/
+// delete RPCs (supabase/migrations/20260907010000_phase1a_version_aware_rpcs.sql)
+// — map JS params to the RPC's p_* arguments, map its out_* row back to a
+// small structural result shape lib/reconciliation-executor.ts's
+// DomainAdapter interface expects (status/version/deletedAt/content). No
+// current caller — exists so the saved-outfits/week-plan reconciliation
+// adapters have something real to call. The underlying RPCs themselves
+// were already exhaustively verified against a disposable Postgres
+// instance in Phase 1A/1B.1 (create/conflict/update/CAS/delete/
+// reactivation/concurrent race) — this wrapper is unit-tested against
+// response fixtures matching that already-proven shape, not re-verified
+// against a live database by this file's own tests.
+
+export type SavedOutfitRpcResult = {
+  status: 'created' | 'create_conflict' | 'applied' | 'conflict' | 'not_found';
+  version: number | null;
+  deletedAt: string | null;
+  content: SavedOutfit | null;
+};
+
+function normalizeSavedOutfitRpcRow(row: Record<string, unknown> | null): SavedOutfitRpcResult {
+  const status = row?.out_status as SavedOutfitRpcResult['status'];
+  if (!row || row.out_id === null || row.out_id === undefined) {
+    return { status, version: null, deletedAt: null, content: null };
+  }
+  return {
+    status,
+    version: row.out_sync_version as number,
+    deletedAt: (row.out_deleted_at as string | null) ?? null,
+    content: {
+      id: row.out_id as string,
+      requestId: row.out_request_id as string,
+      savedAt: row.out_saved_at as string,
+      input: row.out_input as SavedOutfit['input'],
+      recommendation: row.out_recommendation as SavedOutfit['recommendation'],
+    },
+  };
+}
+
+export async function createSavedOutfitViaRpc(outfit: SavedOutfit): Promise<SavedOutfitRpcResult> {
+  const { data, error } = await supabase.rpc('create_saved_outfit', {
+    p_id: outfit.id,
+    p_request_id: outfit.requestId,
+    p_saved_at: outfit.savedAt,
+    p_input: outfit.input,
+    p_recommendation: outfit.recommendation,
+  });
+  if (error) throw error;
+  return normalizeSavedOutfitRpcRow(data?.[0] ?? null);
+}
+
+export async function updateSavedOutfitViaRpc(outfit: SavedOutfit, baseVersion: number): Promise<SavedOutfitRpcResult> {
+  const { data, error } = await supabase.rpc('update_saved_outfit', {
+    p_id: outfit.id,
+    p_base_version: baseVersion,
+    p_request_id: outfit.requestId,
+    p_saved_at: outfit.savedAt,
+    p_input: outfit.input,
+    p_recommendation: outfit.recommendation,
+  });
+  if (error) throw error;
+  return normalizeSavedOutfitRpcRow(data?.[0] ?? null);
+}
+
+export async function deleteSavedOutfitViaRpc(id: string, baseVersion: number): Promise<SavedOutfitRpcResult> {
+  const { data, error } = await supabase.rpc('delete_saved_outfit', { p_id: id, p_base_version: baseVersion });
+  if (error) throw error;
+  return normalizeSavedOutfitRpcRow(data?.[0] ?? null);
+}
+
+export type WeekPlanItemRpcResult = {
+  status: 'created' | 'create_conflict' | 'applied' | 'conflict' | 'not_found';
+  version: number | null;
+  deletedAt: string | null;
+  content: WeekPlannedOutfit | null;
+};
+
+function normalizeWeekPlanItemRpcRow(row: Record<string, unknown> | null): WeekPlanItemRpcResult {
+  const status = row?.out_status as WeekPlanItemRpcResult['status'];
+  if (!row || row.out_day_key === null || row.out_day_key === undefined) {
+    return { status, version: null, deletedAt: null, content: null };
+  }
+  return {
+    status,
+    version: row.out_sync_version as number,
+    deletedAt: (row.out_deleted_at as string | null) ?? null,
+    content: {
+      dayKey: row.out_day_key as string,
+      dayLabel: row.out_day_label as string,
+      requestId: row.out_request_id as string,
+      assignedAt: row.out_assigned_at as string,
+      input: row.out_input as WeekPlannedOutfit['input'],
+      recommendation: row.out_recommendation as WeekPlannedOutfit['recommendation'],
+    },
+  };
+}
+
+export async function createWeekPlanItemViaRpc(item: WeekPlannedOutfit): Promise<WeekPlanItemRpcResult> {
+  const { data, error } = await supabase.rpc('create_week_plan_item', {
+    p_day_key: item.dayKey,
+    p_day_label: item.dayLabel,
+    p_request_id: item.requestId,
+    p_assigned_at: item.assignedAt,
+    p_input: item.input,
+    p_recommendation: item.recommendation,
+  });
+  if (error) throw error;
+  return normalizeWeekPlanItemRpcRow(data?.[0] ?? null);
+}
+
+export async function updateWeekPlanItemViaRpc(item: WeekPlannedOutfit, baseVersion: number): Promise<WeekPlanItemRpcResult> {
+  const { data, error } = await supabase.rpc('update_week_plan_item', {
+    p_day_key: item.dayKey,
+    p_base_version: baseVersion,
+    p_day_label: item.dayLabel,
+    p_request_id: item.requestId,
+    p_assigned_at: item.assignedAt,
+    p_input: item.input,
+    p_recommendation: item.recommendation,
+  });
+  if (error) throw error;
+  return normalizeWeekPlanItemRpcRow(data?.[0] ?? null);
+}
+
+export async function deleteWeekPlanItemViaRpc(dayKey: string, baseVersion: number): Promise<WeekPlanItemRpcResult> {
+  const { data, error } = await supabase.rpc('delete_week_plan_item', { p_day_key: dayKey, p_base_version: baseVersion });
+  if (error) throw error;
+  return normalizeWeekPlanItemRpcRow(data?.[0] ?? null);
+}

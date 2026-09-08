@@ -155,3 +155,54 @@ export async function removeClosetWeekPlanDay(dayKey: string) {
   void deleteClosetOutfitWeekPlanItemFromBackend(dayKey).catch((error) => recordError(error, 'closet_outfit_week_plan_remove'));
   return nextItems;
 }
+
+// ── Phase 2B2 reconciliation-only single-record helpers ────────────────
+// See saved-outfits-storage.ts's equivalent block for the rationale: pure
+// local read-modify-write only, no legacy cloud write, no metadata touch,
+// no isFutureWeekDay filtering for the week-plan sub-domain. No current
+// caller.
+
+export async function readOneSavedClosetOutfitLocal(id: string): Promise<SavedClosetOutfit | null> {
+  const all = await loadSavedClosetOutfits();
+  return all.find((item) => item.id === id) ?? null;
+}
+
+export async function writeOneSavedClosetOutfitLocal(content: SavedClosetOutfit): Promise<void> {
+  const all = await loadSavedClosetOutfits();
+  const next = [content, ...all.filter((item) => item.id !== content.id)];
+  await AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(next));
+}
+
+export async function removeOneSavedClosetOutfitLocal(id: string): Promise<void> {
+  const all = await loadSavedClosetOutfits();
+  const next = all.filter((item) => item.id !== id);
+  await AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(next));
+}
+
+async function readAllClosetWeekPlanItemsRaw(): Promise<ClosetWeekPlanItem[]> {
+  const rawValue = await AsyncStorage.getItem(WEEK_PLAN_KEY);
+  if (!rawValue) return [];
+  try {
+    const parsed = JSON.parse(rawValue);
+    return Array.isArray(parsed) ? (parsed as ClosetWeekPlanItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function readOneClosetWeekPlanItemLocal(dayKey: string): Promise<ClosetWeekPlanItem | null> {
+  const all = await readAllClosetWeekPlanItemsRaw();
+  return all.find((item) => item.dayKey === dayKey) ?? null;
+}
+
+export async function writeOneClosetWeekPlanItemLocal(content: ClosetWeekPlanItem): Promise<void> {
+  const all = await readAllClosetWeekPlanItemsRaw();
+  const next = [content, ...all.filter((item) => item.dayKey !== content.dayKey)];
+  await AsyncStorage.setItem(WEEK_PLAN_KEY, JSON.stringify(next));
+}
+
+export async function removeOneClosetWeekPlanItemLocal(dayKey: string): Promise<void> {
+  const all = await readAllClosetWeekPlanItemsRaw();
+  const next = all.filter((item) => item.dayKey !== dayKey);
+  await AsyncStorage.setItem(WEEK_PLAN_KEY, JSON.stringify(next));
+}

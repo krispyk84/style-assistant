@@ -48,3 +48,112 @@ export async function deleteClosetOutfitWeekPlanItemFromBackend(dayKey: string):
   const response = await createApiClient().request(`/closet-outfit-sync/week-plan/${dayKey}`, { method: 'DELETE' });
   if (!response.success) throw new Error(response.error?.message ?? 'Failed to delete closet outfit week-plan item.');
 }
+
+// ── Phase 1A /version-aware endpoint wrappers (Phase 2B2 reconciliation
+// execution) ─────────────────────────────────────────────────────────────
+// Thin, purely mechanical wrappers around the version-aware routes added
+// in Phase 1A (backend/src/modules/closet-outfit-sync/closet-outfit-sync.routes.ts)
+// — map to {status, item} response bodies into the small structural result
+// shape lib/reconciliation-executor.ts's DomainAdapter expects. No current
+// caller. The underlying CAS logic (atomic Prisma updateMany) was already
+// tested in Phase 1A's own repository/service test suites; these wrappers
+// are unit-tested against response fixtures matching that shape, not
+// re-verified against a live database here.
+
+type ClosetOutfitMutationStatus = 'created' | 'create_conflict' | 'applied' | 'conflict' | 'not_found';
+
+export type ClosetOutfitFavouriteMutationResult = {
+  status: ClosetOutfitMutationStatus;
+  version: number | null;
+  deletedAt: string | null;
+  content: SavedClosetOutfit | null;
+};
+
+type FavouriteItemBody = { id: string; formality: string; outfit: unknown; savedAt: string; syncVersion: number; deletedAt: string | null };
+
+function normalizeFavouriteMutationBody(body: { status: ClosetOutfitMutationStatus; item: FavouriteItemBody | null } | null | undefined): ClosetOutfitFavouriteMutationResult {
+  const status = body?.status ?? 'not_found';
+  const item = body?.item;
+  if (!item) return { status, version: null, deletedAt: null, content: null };
+  return {
+    status,
+    version: item.syncVersion,
+    deletedAt: item.deletedAt,
+    content: { id: item.id, formality: item.formality as SavedClosetOutfit['formality'], outfit: item.outfit as SavedClosetOutfit['outfit'], savedAt: item.savedAt },
+  };
+}
+
+export async function createClosetOutfitFavouriteViaRpc(favourite: SavedClosetOutfit): Promise<ClosetOutfitFavouriteMutationResult> {
+  const response = await createApiClient().request<{ status: ClosetOutfitMutationStatus; item: FavouriteItemBody | null }>(
+    '/closet-outfit-sync/favourites/version-aware',
+    { method: 'POST', body: favourite },
+  );
+  if (!response.success) throw new Error(response.error?.message ?? 'Failed to create closet outfit favourite (version-aware).');
+  return normalizeFavouriteMutationBody(response.data);
+}
+
+export async function updateClosetOutfitFavouriteViaRpc(favourite: SavedClosetOutfit, baseVersion: number): Promise<ClosetOutfitFavouriteMutationResult> {
+  const response = await createApiClient().request<{ status: ClosetOutfitMutationStatus; item: FavouriteItemBody | null }>(
+    `/closet-outfit-sync/favourites/${favourite.id}/version-aware`,
+    { method: 'PATCH', body: { baseVersion, formality: favourite.formality, outfit: favourite.outfit, savedAt: favourite.savedAt } },
+  );
+  if (!response.success) throw new Error(response.error?.message ?? 'Failed to update closet outfit favourite (version-aware).');
+  return normalizeFavouriteMutationBody(response.data);
+}
+
+export async function deleteClosetOutfitFavouriteViaRpc(id: string, baseVersion: number): Promise<ClosetOutfitFavouriteMutationResult> {
+  const response = await createApiClient().request<{ status: ClosetOutfitMutationStatus; item: FavouriteItemBody | null }>(
+    `/closet-outfit-sync/favourites/${id}/version-aware?baseVersion=${baseVersion}`,
+    { method: 'DELETE' },
+  );
+  if (!response.success) throw new Error(response.error?.message ?? 'Failed to delete closet outfit favourite (version-aware).');
+  return normalizeFavouriteMutationBody(response.data);
+}
+
+export type ClosetOutfitWeekPlanItemMutationResult = {
+  status: ClosetOutfitMutationStatus;
+  version: number | null;
+  deletedAt: string | null;
+  content: ClosetWeekPlanItem | null;
+};
+
+type WeekPlanItemBody = { dayKey: string; dayLabel: string; formality: string; outfit: unknown; assignedAt: string; syncVersion: number; deletedAt: string | null };
+
+function normalizeWeekPlanItemMutationBody(body: { status: ClosetOutfitMutationStatus; item: WeekPlanItemBody | null } | null | undefined): ClosetOutfitWeekPlanItemMutationResult {
+  const status = body?.status ?? 'not_found';
+  const item = body?.item;
+  if (!item) return { status, version: null, deletedAt: null, content: null };
+  return {
+    status,
+    version: item.syncVersion,
+    deletedAt: item.deletedAt,
+    content: { dayKey: item.dayKey, dayLabel: item.dayLabel, formality: item.formality as ClosetWeekPlanItem['formality'], outfit: item.outfit as ClosetWeekPlanItem['outfit'], assignedAt: item.assignedAt },
+  };
+}
+
+export async function createClosetOutfitWeekPlanItemViaRpc(item: ClosetWeekPlanItem): Promise<ClosetOutfitWeekPlanItemMutationResult> {
+  const response = await createApiClient().request<{ status: ClosetOutfitMutationStatus; item: WeekPlanItemBody | null }>(
+    '/closet-outfit-sync/week-plan/version-aware',
+    { method: 'POST', body: item },
+  );
+  if (!response.success) throw new Error(response.error?.message ?? 'Failed to create closet outfit week-plan item (version-aware).');
+  return normalizeWeekPlanItemMutationBody(response.data);
+}
+
+export async function updateClosetOutfitWeekPlanItemViaRpc(item: ClosetWeekPlanItem, baseVersion: number): Promise<ClosetOutfitWeekPlanItemMutationResult> {
+  const response = await createApiClient().request<{ status: ClosetOutfitMutationStatus; item: WeekPlanItemBody | null }>(
+    `/closet-outfit-sync/week-plan/${item.dayKey}/version-aware`,
+    { method: 'PATCH', body: { baseVersion, dayLabel: item.dayLabel, formality: item.formality, outfit: item.outfit, assignedAt: item.assignedAt } },
+  );
+  if (!response.success) throw new Error(response.error?.message ?? 'Failed to update closet outfit week-plan item (version-aware).');
+  return normalizeWeekPlanItemMutationBody(response.data);
+}
+
+export async function deleteClosetOutfitWeekPlanItemViaRpc(dayKey: string, baseVersion: number): Promise<ClosetOutfitWeekPlanItemMutationResult> {
+  const response = await createApiClient().request<{ status: ClosetOutfitMutationStatus; item: WeekPlanItemBody | null }>(
+    `/closet-outfit-sync/week-plan/${dayKey}/version-aware?baseVersion=${baseVersion}`,
+    { method: 'DELETE' },
+  );
+  if (!response.success) throw new Error(response.error?.message ?? 'Failed to delete closet outfit week-plan item (version-aware).');
+  return normalizeWeekPlanItemMutationBody(response.data);
+}

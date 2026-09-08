@@ -795,3 +795,102 @@ project's practice of keeping the spec and the implementation honest with each o
 All four are covered by dedicated tests in `lib/__tests__/reconciliation-decision-engine.test.ts`.
 None required a new named action in §D — each resolves to an action already in the finite
 set, just via a code path the original table's case list didn't name individually.
+
+---
+
+## M. Phase 2B2 addendum — the dual-write hazard and the Phase 3 cutover
+
+Phase 2B2 built and exhaustively tested a reconciliation **execution** layer
+(`lib/reconciliation-executor.ts`, `lib/reconciliation-adapters.ts`) that can safely carry
+out any decision this spec's engine produces. It is **not** wired into the app. This
+section documents exactly why activating it today would be unsafe, and exactly what Phase
+3 must change first.
+
+### M.1 The dual-write hazard, confirmed
+
+Every legacy mutation path for all four domains still performs a **fire-and-forget direct
+cloud write**, unconditionally, with no CAS check at all:
+
+| Domain | Local write | Metadata | Legacy cloud write | Fire-and-forget? | Physically deletes? | Touches `sync_version`? | Can race a reconciliation RPC? |
+|---|---|---|---|---|---|---|---|
+| saved-outfits | `AsyncStorage.setItem` | `markActive`/`markDeleted` (Phase 1B.1 ordering) | `upsertSavedOutfitToSupabase` / `deleteSavedOutfitFromSupabase` | Yes | Yes (delete) | **No** — the upsert payload never includes `sync_version`/`deleted_at`, so a Supabase upsert's `ON CONFLICT DO UPDATE SET` leaves both columns completely untouched | Yes |
+| week-plan | same shape | same | `upsertWeekPlanItemToSupabase` / `deleteWeekPlanItemFromSupabase` | Yes | Yes | No, same reason | Yes |
+| closet-outfit-favourites | same shape | same | `upsertClosetOutfitFavouriteToBackend` / `deleteClosetOutfitFavouriteFromBackend` (→ backend's legacy repository `upsertFavourite`/`deleteFavourite`) | Yes | Yes (Prisma `deleteMany`) | No — the legacy Prisma `upsert`'s `update` clause never sets `syncVersion`/`deletedAt` either | Yes |
+| closet-outfit-week-plan | same shape | same | `upsertClosetOutfitWeekPlanItemToBackend` / `deleteClosetOutfitWeekPlanItemFromBackend` | Yes | Yes | No, same reason | Yes |
+
+**This confirms, not merely assumes, the hazard the Phase 2B2 brief anticipated.** A legacy
+write silently changing content without bumping `sync_version` breaks the one invariant
+the entire CAS protocol depends on: *"version N always describes this exact content."* If
+the executor were active at the same time as these legacy paths, a legacy write could
+change a record's real content while its `sync_version` stayed frozen at whatever it was —
+meaning a client that last saw version N would treat that stale version as still
+describing the (now different) current content, and a subsequent reconciliation pass could
+adopt or CAS against data it has no idea has already changed. **Phase 2B2 must not be wired
+into production mutation flows while these legacy writes remain active** — confirmed, not
+disproven, by this audit.
+
+There is a secondary hazard beyond per-record races: `lib/user-data-sync.ts`'s
+`syncUserDataOnSignIn` also performs bulk legacy `upsertMany*` calls (the existing crude
+"push local to cloud if cloud is empty" fallback) — same unconditional-upsert,
+no-CAS shape, at a coarser grain.
+
+### M.2 Exact legacy call sites Phase 3 must migrate
+
+This is the Phase 3 migration checklist — every one of these must be replaced with a call
+into the reconciliation executor (or retired) before the executor can safely run
+alongside, or in place of, ordinary user mutations:
+
+1. `lib/saved-outfits-storage.ts` → `saveSavedOutfit` calls `upsertSavedOutfitToSupabase`
+2. `lib/saved-outfits-storage.ts` → `deleteSavedOutfit` calls `deleteSavedOutfitFromSupabase`
+   (physical delete)
+3. `lib/week-plan-storage.ts` → `assignOutfitToWeekDay` calls `upsertWeekPlanItemToSupabase`
+4. `lib/week-plan-storage.ts` → `removeWeekPlan` calls `deleteWeekPlanItemFromSupabase`
+   (physical delete)
+5. `lib/closet-outfit-storage.ts` → `saveClosetOutfitToFavourites` calls
+   `upsertClosetOutfitFavouriteToBackend`
+6. `lib/closet-outfit-storage.ts` → `deleteSavedClosetOutfit` calls
+   `deleteClosetOutfitFavouriteFromBackend` (→ backend Prisma `deleteMany`)
+7. `lib/closet-outfit-storage.ts` → `assignClosetOutfitToWeekDay` calls
+   `upsertClosetOutfitWeekPlanItemToBackend`
+8. `lib/closet-outfit-storage.ts` → `removeClosetWeekPlanDay` calls
+   `deleteClosetOutfitWeekPlanItemFromBackend` (→ backend Prisma `deleteMany`)
+9. `lib/user-data-sync.ts` → `syncEntity`'s bulk fallback calls
+   `upsertManySavedOutfitsToSupabase` / `upsertManyWeekPlanItemsToSupabase` /
+   `upsertManyClosetOutfitFavouritesToBackend` / `upsertManyClosetOutfitWeekPlanItemsToBackend`
+10. Backend-side counterparts that stay reachable as long as 5–8 route through them:
+    `backend/.../closet-outfit-sync.repository.ts`'s legacy `upsertFavourite`, `deleteFavourite`,
+    `upsertWeekPlanItem`, `deleteWeekPlanItem`
+
+### M.3 Desired eventual architecture (Phase 3, not built yet)
+
+```text
+Today (unsafe to combine):
+
+  user local mutation
+    ├─→ legacy direct cloud write (no CAS, silently stale sync_version)
+    └─→ (if the executor were wired in) reconciliation CAS write
+        ── both racing, no coordination ──
+
+Target (Phase 3):
+
+  user local mutation
+    → durable dirty metadata (already exists: markActive/markDeleted, Phase 1B/1B.1)
+    → [outbox intent — not built yet]
+    → version-aware CAS mutation (executor + adapters — built in Phase 2B2, not activated)
+    → authoritative acknowledgement (applyMetadataPatch — built in Phase 2B2)
+    → clear dirty
+```
+
+Phase 3's job is to migrate *ownership* of each call site in §M.2 from the legacy path to
+this target shape — deliberately, one domain at a time, never running both paths for the
+same record concurrently. This is a cutover, not an addition: every item in §M.2 is
+removed or redirected, not supplemented.
+
+### M.4 What Phase 2B2 explicitly did NOT do
+
+Per its own scope boundary: no call site above was touched; the executor and adapters were
+built and tested in complete isolation from every production mutation flow; no reconciliation
+trigger exists anywhere in the app lifecycle (`SIGNED_IN`/`SIGNED_OUT`/hydration/foreground/
+background/timers/navigation); no outbox; no retries; no Phase 3C privilege revocation; the
+Phase 1A Supabase migration remains unapplied to production. The executor exists as tested,
+callable capability only.
