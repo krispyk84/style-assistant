@@ -63,6 +63,56 @@ user action) — Phase 1B's metadata is **not sufficient** to implement correct
 reconciliation for `week-plan` / `closet-outfit-week-plan` without an additional signal.
 See §E for the specific gap and recommendation.
 
+### A.3 Migration-era mode: compatibility era vs. fully version-aware era
+
+**This subsection corrects a real error in the first draft of this spec** (its original
+Case K assumed server absence could only mean "genuinely never existed," which is only
+true once every write path is guaranteed to soft-delete). Every case in §C is now written
+against the era actually in effect today.
+
+**Compatibility era (today, and for the foreseeable future until Phase 3C ships):**
+
+- The legacy direct-write paths (`deleteSavedOutfitFromSupabase`, `deleteWeekPlanItemFromSupabase`,
+  the backend `deleteFavourite`/`deleteWeekPlanItem` repository methods) are still live and
+  still physically `DELETE` rows (§A.1). **The currently-installed app itself is a legacy
+  client under this definition** — nothing has cut over to the Phase 1A RPCs yet.
+- Consequently, **`server absent` never proves `record never existed`.** It may mean:
+  genuinely never existed; a legacy client physically deleted it; a legacy client deleted
+  it after this device last observed a version; the identity was hard-deleted and then
+  recreated (fresh row, fresh version — see below); or some other migration-era state this
+  spec has not anticipated.
+- Consequently, **`sync_version` is monotonically increasing only within one surviving
+  row's lifecycle, not across a hard-delete/recreate cycle.** A sequence like
+  `active@N → legacy physical DELETE → same logical identity created again → new row at
+  its own initial version` means the *new* row's version has no ordering relationship to
+  `N` — it can be, and typically will be, **lower** than a `lastSeenVersion` this device
+  recorded against the old, now-destroyed row. Observing `serverVersion < lastSeenVersion`
+  during this era is a **distinct signal** ("this identity's lineage was reset"), never
+  automatically "stale data" or "corruption" — see Case V.
+- Every rule in this era defaults to the **conservative** branch whenever ancestry cannot
+  be proven (invariant B.11): `DEFER_UNKNOWN_LEGACY_STATE` or `CONFLICT`, never an
+  automatic `CREATE_SERVER`/`DELETE_LOCAL` from absence alone.
+
+**Fully version-aware era (only after Phase 3C revokes direct INSERT/UPDATE/DELETE on the
+protected tables, forcing every mutation through the CAS RPCs):**
+
+- Once direct physical deletes are impossible, every deletion is a soft tombstone by
+  construction — `server absent` really does mean "genuinely never existed," because there
+  is no remaining code path that can make a row vanish without leaving one.
+- `sync_version` becomes monotonic for the full lifetime of a logical identity, including
+  across delete/reactivate cycles (Phase 1A's soft-delete-and-reactivate protocol already
+  guarantees this) — the lineage-reset case (Case V) becomes unreachable and can be
+  removed.
+- At that point, Case K collapses back to a single `CREATE_SERVER` rule (this spec's
+  original, since-corrected assumption becomes valid), and Case Q/R/T's extra conservatism
+  becomes unnecessary complexity that a later phase should explicitly simplify away —
+  **do not perform that simplification now**; it is only safe after Phase 3C has actually
+  shipped and been verified, not merely planned.
+
+Every case in §C below is written for the **compatibility era**, since that is the era
+this app is actually in. Each case that would simplify in the fully version-aware era says
+so explicitly.
+
 ---
 
 ## B. Reconciliation invariants
@@ -109,6 +159,19 @@ value), the invariant still holds but its consequence is stated per-domain in §
 11. **Conservative legacy default.** When ancestry cannot be established (no metadata,
     unclear which side is authoritative), the chosen action must be the one whose
     worst-case outcome is *cheapest to undo* — see §H.
+12. **Server absence is not proof of non-existence during the compatibility era (§A.3).**
+    A read that returns no row for an identity must never, by itself, justify an
+    unconditional `CREATE_SERVER` when local metadata is absent (true unknown ancestry) —
+    a legacy client may have physically deleted that identity with no trace. Absence only
+    licenses a safe action when combined with either (a) proof this device itself just
+    created the record (known local creation, §C Case K2), or (b) a positively-observed
+    tombstone (not mere absence) elsewhere in the identity's history.
+13. **A lower server version is a distinct signal, not corruption.** While legacy hard
+    delete/recreate remains possible (§A.3), observing `serverVersion < lastSeenVersion`
+    for an identity must never be treated as stale data to discard or as evidence of a
+    bug — it specifically means the identity's server-side lineage was destroyed and
+    recreated since this device last observed it, and must be routed through Case V, not
+    through the ordinary stale/current version comparison used elsewhere in §C.
 
 ### B.1 Why timestamps are not a conflict-resolution mechanism
 
@@ -150,11 +213,21 @@ Notation used throughout:
 - **Meta** — local sync metadata: `absent` (never seen by Phase 1B) or
   `{lastSeenVersion: N|null, isDeleted}`.
 - **S** — server state, from a read that **includes tombstones** (§F): `absent` (no row
-  at all), `active@V`, or `tombstone@V`.
+  at all), `active@V`, or `tombstone@V`. Per §A.3, `V` is only meaningfully ordered
+  against `lastSeenVersion` **within the same row lineage** — see Case V for what happens
+  when it isn't.
 - **Dirty** — whether the local record has changed since `lastSeenVersion` was recorded.
   Marked **`UNKNOWN`** where Phase 1B cannot currently answer this (§A.2) — those rows are
   exactly the ones §E's proposed `isDirty` field would resolve.
 - **Action** — one of the finite actions defined in §D.
+- Case letters **S** and **U** are intentionally unused below — `S` collides with the
+  server-state notation used throughout this table, and `U` is left as a gap rather than
+  forcing a renumber if a future revision needs to insert a case between T and V.
+- **Engine evaluation order**: before any of Cases A–V below are consulted, the engine
+  must first check for a lineage reset (`S` exists with a version and `lastSeenVersion`
+  is not null and `serverVersion < lastSeenVersion`) and route to Case V instead. Every
+  other case below implicitly assumes `serverVersion >= lastSeenVersion` (or
+  `lastSeenVersion = null`) — this is only true because Case V is checked first.
 
 ### Case A — First observation
 
@@ -229,13 +302,21 @@ the metadata gap called out in §A.2/§E, not a hypothetical.
 
 `L=absent, Meta={N,true}, S=active@N+1`
 
-| Domain | Policy | Action |
-|---|---|---|
-| `saved-outfits`, `closet-outfit-favourites` | **deletion wins** — an explicit local delete is a strong, deliberate signal; a lagging edit under the same id is either self-inflicted (see §A.1: not reachable today) or an edge case whose safest resolution is to honor the delete. | `DELETE_SERVER` (baseVersion=N+1, i.e. re-attempt the delete against the now-current version) |
-| `week-plan`, `closet-outfit-week-plan` | **conflict, not auto-resolved** — another device may have legitimately reassigned the day after this device cleared it; silently deleting would destroy that device's real work, silently keeping the delete would destroy it just as one-sidedly the other way. | `CONFLICT` |
+| Domain | Action |
+|---|---|
+| all | `CONFLICT` |
 
-This is a genuine policy call, not a derived fact — stated explicitly per §8's
-requirement, not guessed uniformly.
+**Corrected from this spec's first draft**, which let a stale local deletion automatically
+issue `DELETE_SERVER` against the newer version for the document domains ("deletion wins")
+on the reasoning that a delete is a strong, deliberate signal. That reasoning does not
+license the engine to discard the newer server mutation unilaterally: **the server's
+version N+1 also represents someone's user intent**, and silently converting an
+observed-newer version into a fresh delete `baseVersion` risks destroying that intent
+exactly as one-sidedly as silently keeping the delete would destroy the deletion's intent.
+The reconciliation engine's decision is uniformly `CONFLICT` for every domain; a
+domain-specific policy layered on top (see "Domain-specific conflict policies" below) may
+later choose "deletion wins," "duplicate-as-copy," or explicit user choice — but that
+choice is not made here, and is not automatic.
 
 ### Case H — Server deleted, local unchanged
 
@@ -269,18 +350,51 @@ No user-visible action; metadata is kept current so a *later* observation of `M+
 (someone reactivated it elsewhere) is correctly seen as "server advanced" against an
 accurate baseline rather than a stale one.
 
-### Case K — Legacy local record, server truly absent
+### Case K — Local record with server truly absent — split by ancestry
 
-`L=present, Meta=absent, S=absent` (confirmed absent, not merely unfetched — see §F: the
-read must include tombstones, so "absent" here really means no row at all, live or dead)
+**Corrected from this spec's first draft**, which routed both sub-cases below to a single
+`CREATE_SERVER`, reasoning that the create RPC's `ON CONFLICT DO NOTHING` safety net
+protects against silent resurrection. That reasoning only holds when the *only* possible
+prior deletion mechanism is a soft tombstone. During the compatibility era (§A.3), a
+legacy client can physically `DELETE` a row, leaving **no trace whatsoever** — no
+tombstone for the create RPC to collide with, no evidence for reconciliation to detect.
+`ON CONFLICT DO NOTHING` cannot protect against a row that no longer exists in any form.
+So "confirmed absent" during this era genuinely cannot distinguish "never existed" from
+"a legacy client deleted this and left nothing behind" — the two sub-cases below must be
+told apart by **ancestry**, not by the read result, which is identical for both.
+
+#### Case K1 — Legacy record, unknown ancestry
+
+`L=present, Meta=absent, S=absent`
+
+The domain object exists locally, but Phase 1B/2B metadata for it is **completely
+absent** — meaning this record predates any Phase-1B-or-later-aware write to this exact
+identity on this device (every write since Phase 1B has stamped metadata via `markActive`/
+`markDeleted`, so a genuinely metadata-free record can only be one that arrived before that
+code ever ran here — e.g. from local storage that predates this app version, or from the
+crude bulk `replaceSavedOutfits`/`replaceWeekPlan` cloud-fallback path, §Case M).
 
 | Domain | Action | Reasoning |
 |---|---|---|
-| all | `CREATE_SERVER` | Phase 1A's create RPC is safe-by-construction: it only succeeds if truly absent (`ON CONFLICT DO NOTHING` / Prisma unique-violation-caught). If the record actually *was* deleted on another device, the server row would be a **tombstone**, not absent — meaning this case's precondition (confirmed absent) would not hold, and the record would instead be routed to Case L or a not-yet-listed "legacy vs. tombstone" variant of it, never silently resurrected by this action. The RPC contract itself is the safety net, not an assumption. |
+| all | `DEFER_UNKNOWN_LEGACY_STATE` | Ancestry cannot be established: this could be a record that never left the device, or one a legacy client (possibly this very device, on an older build) already deleted server-side with no trace. Invariant B.11/B.12 requires the conservative branch — never an automatic `CREATE_SERVER` from absence alone when ancestry is unknown. `DEFER_UNKNOWN_LEGACY_STATE` (rather than `CONFLICT`) is the more precise name here since there usually isn't two competing pieces of *content* to reconcile between, only an unprovable historical question — Phase 2B's execution layer should log/surface this distinctly from a genuine content conflict, but must not silently resolve it either direction. |
 
-This directly resolves the "do not guess" requirement: `CREATE_SERVER` is provably safe
-here specifically because the read that produced `S=absent` already ruled out the
-dangerous alternative (a tombstone).
+#### Case K2 — Record this device knows it just created
+
+`L=present, Meta={lastSeenVersion: null, isDeleted: false, isDirty: true} (§E)`, `S=absent`
+
+This is the case this spec's first draft was actually trying to describe, correctly
+narrowed: the metadata entry **exists** (stamped by `markActive` at creation time, per
+Phase 1B's already-shipped behavior), `lastSeenVersion` is `null` (never synced), and
+`isDirty` is `true` (this device's own pending local write, not inherited from anywhere).
+
+| Domain | Action | Reasoning |
+|---|---|---|
+| all | `CREATE_SERVER` | This device has direct, positive knowledge that it created this record itself and has never pushed it — there is no ancestry question to beg. The create RPC's `ON CONFLICT DO NOTHING` remains a correctness backstop against a coincidental id collision (§A.1's saved-outfits global-id-space discussion), not the sole justification for safety, which now rests on provable local knowledge rather than mere absence. |
+
+**The distinguishing signal between K1 and K2 is metadata presence itself, not any new
+field beyond what §E already proposes**: once `isDirty` ships, every local write stamps
+metadata immediately, so "metadata completely absent" becomes a reliable proxy for "this
+record predates metadata-aware code," which is exactly the boundary that matters here.
 
 ### Case L — Legacy local record, server active, no metadata
 
@@ -343,6 +457,64 @@ underlying RPC call** (`update_*` doesn't care whether the row it's updating hap
 currently tombstoned) — kept as a distinct named action for observability/testability
 (§D), not because the protocol distinguishes them.
 
+### Case P — Never observed locally, server tombstoned
+
+`L=absent, Meta=absent, S=tombstone@V`
+
+| Domain | Action | Reasoning |
+|---|---|---|
+| all | `NO_OP` | Nothing local to protect and nothing to push — this device has no history with this identity at all. No metadata is created proactively; if this device later attempts to create the same identity, that attempt will itself see the tombstone (tombstone-inclusive read, §F) and correctly route to a fresh Case K2/O-style evaluation rather than blindly succeeding. |
+
+### Case Q — Legacy local record, server positively tombstoned
+
+`L=present, Meta=absent, S=tombstone@V`
+
+Distinguished from Case K1 by **positive evidence**: the server doesn't merely lack a row
+(ambiguous under §A.3), it has an actual tombstone — proof that *some* client, using the
+new soft-delete protocol, intentionally deleted this identity.
+
+| Domain | Action | Metadata result | Reasoning |
+|---|---|---|---|
+| all | `DELETE_LOCAL` | `lastSeenVersion=V, isDeleted=true` | Unlike Case K1, ancestry is not actually in question here — a real tombstone is unambiguous proof of intentional deletion, regardless of whether *this* device ever knew about the record's server history. Removing the stale local copy respects that proof; it does not resurrect anything, since there is nothing local being pushed, only a local artifact being reconciled to match a documented fact. |
+
+### Case R — Previously-synced record, server now absent (no local edit)
+
+`L=present, Meta={N,false}, S=absent`, Dirty=false
+
+| Domain | Action | Reasoning |
+|---|---|---|
+| all | `CONFLICT` (or `DEFER_UNKNOWN_LEGACY_STATE` if the execution layer wants to distinguish "no competing content" from a true content conflict — see Case K1's naming note) | This device previously synced this record at version N; it has since vanished with **no trace** (no tombstone). Per §A.3 this can only happen via a legacy hard delete. Two invariants pull in opposite directions here and neither may be resolved silently: automatically removing the local copy (`DELETE_LOCAL`) risks discarding content the user still wants if the disappearance was actually a transient/erroneous read rather than a genuine legacy delete (no such distinction is provable from a single read); automatically re-pushing or leaving it untouched for an outbox to push later risks resurrecting a legitimate legacy deletion. Neither silent branch is defensible — flagged for explicit resolution. |
+
+### Case T — Previously-synced record, server now absent, local has a pending edit
+
+`L=present with edits after N, Meta={N,false}, S=absent`, Dirty=true
+
+| Domain | Action | Reasoning |
+|---|---|---|
+| all | `CONFLICT` | Compounds Case R with a genuine pending local change: "no silent data loss" (protect the edit) and "no resurrection of intentional deletion" (don't push if a legacy client legitimately deleted this) are both in play and point opposite directions. No automatic action is defensible. |
+
+### Case V — Version lineage reset (hard-delete/recreate detected)
+
+`lastSeenVersion = N (not null)`, and the current server read returns a version `M < N`
+for the same identity (`S=active@M` or `S=tombstone@M`) — checked **before** every other
+case per §C's evaluation-order note, since it invalidates the ordinary
+stale-vs-current comparison every other case assumes.
+
+This proves (§A.3) the identity was destroyed and recreated by *some* client since this
+device last observed it — the row at version M has no causal relationship to whatever
+this device remembers from version N. Sub-cases by local state:
+
+| Local state | Action | Reasoning |
+|---|---|---|
+| Not dirty, not tombstoned (content unchanged since N) | Treat as a fresh first observation of a new incarnation — content-equality check against the new server content (mirrors Case L): equal → `ADOPT_SERVER`; differs → `CONFLICT`. | The local content's claim to authority was tied to the now-destroyed lineage; it has no special standing against the new incarnation beyond the same equality-based fairness Case L already gives every legacy record. |
+| Dirty (local edit/reassignment pending since N) | `CONFLICT` | The pending edit's assumed baseline (version N) no longer exists in any meaningful sense — applying it against the new incarnation via CAS would be operating on a false premise, and discarding it silently would lose real user intent. Requires explicit resolution, never an automatic pick. |
+| Tombstoned (`isDeleted: true` locally) | `CONFLICT` | This device's deletion intent targeted the *old*, now-gone lineage. The new incarnation is a different thing that happens to share an identity by reuse/coincidence, and automatically deciding whether the old delete "still applies" to it is exactly the kind of silent, unprovable call this spec's invariants forbid — surfaced explicitly rather than resolved either direction. |
+
+Metadata is **not** updated to `lastSeenVersion=M` automatically in any of the three rows
+above — advancing metadata for a lineage the engine hasn't actually reconciled yet would
+violate invariant B.5 (version truth only advances for an *incorporated* version). It only
+advances once the chosen resolution (adoption or conflict resolution) actually completes.
+
 ---
 
 ## D. Finite action model
@@ -374,12 +546,18 @@ CONFLICT                 — no local or server mutation; hand off to the domain
 REPAIR_METADATA          — re-derive local metadata from a fresh authoritative server
                             read when local state is internally inconsistent (Case M);
                             never a normal per-cycle outcome.
-DEFER_UNKNOWN_LEGACY_STATE — reserved for a state this spec could not resolve safely;
-                            not actually needed by any case in §C (every legacy case
-                            resolved to a concrete action) — kept in the enum as an
-                            explicit escape hatch Phase 2B must raise/log loudly rather
-                            than silently falling through if a future case doesn't
-                            match anything in §C.
+DEFER_UNKNOWN_LEGACY_STATE — used specifically when ancestry cannot be established at all
+                            during the compatibility era (Case K1: a legacy record with no
+                            metadata and no server row, where "never existed" and "a
+                            legacy client deleted it" are indistinguishable from the read
+                            alone). No mutation, local or remote. Distinct from CONFLICT:
+                            CONFLICT means "two things exist and disagree, a human/policy
+                            must pick"; DEFER_UNKNOWN_LEGACY_STATE means "there may not be
+                            a second thing at all, and inventing one (by pushing) or
+                            discarding the local copy would both be guesses." Also the
+                            catch-all escape hatch Phase 2B must raise/log loudly if a
+                            future combination doesn't match anything in §C, rather than
+                            silently falling through.
 ```
 
 Phase 2B's engine should be a pure function
@@ -454,20 +632,33 @@ required here — only exposing what's already safely queryable.
 
 Existing installs will have local objects, cloud objects, and (for everyone, since Phase
 1B ships after all of them) **no sync metadata for any pre-existing record** — every
-record starts in Case K or Case L on the very first reconciliation run.
+record starts in Case K1, Case L, Case P, or Case Q on the very first reconciliation run
+(never Case K2, which requires metadata that by definition doesn't exist yet for a
+pre-existing record).
 
-- **Case K** (server truly absent): `CREATE_SERVER`. Safe because the create RPC itself
-  cannot silently clobber a tombstone (§C, Case K) — the worst case is a redundant push of
-  a record that already exists elsewhere as a tombstone, which surfaces as
-  `create_conflict` and re-routes rather than corrupting anything.
+- **Case K1** (server truly absent, no metadata): **corrected from this spec's first
+  draft** — `DEFER_UNKNOWN_LEGACY_STATE`, not `CREATE_SERVER`. During the compatibility
+  era, a legacy client may have physically deleted this exact record with no trace at
+  all; absence alone cannot license pushing it back into existence. This is the single
+  most important legacy-upgrade correction in this revision.
+- **Case Q** (server positively tombstoned, no metadata): `DELETE_LOCAL` — a real
+  tombstone is unambiguous proof of intentional deletion regardless of this device's own
+  history with the record.
 - **Case L** (server active): content-equality check first. Equal → silently adopt
   (`ADOPT_SERVER`, no user-visible event). Different → `CONFLICT`, never a guessed
   winner — this is the direct application of "avoid unnecessary conflicts where equality
   gives proof, but don't invent proof where none exists."
+- **Case P** (never observed, server tombstoned): `NO_OP` — nothing to reconcile.
 
 No blanket "local wins" or "server wins" rule is applied at the legacy-upgrade boundary;
 every record is routed through the same per-record decision table as steady-state
-reconciliation, just starting from `Meta=absent` instead of a populated entry.
+reconciliation, just starting from `Meta=absent` instead of a populated entry. Notably,
+**this means a real, historically-common upgrade case — a genuinely-orphaned local
+record whose server counterpart a legacy client deleted — now correctly does nothing
+rather than silently resurrecting it**, at the cost of that record sitting in
+`DEFER_UNKNOWN_LEGACY_STATE` until a human-facing surface (Phase 2B+ scope, not this spec)
+gives the user a way to explicitly decide "keep this locally-only" vs. "actually delete
+it now that I can see the ambiguity."
 
 ---
 
@@ -480,6 +671,7 @@ reconciliation, just starting from `Meta=absent` instead of a populated entry.
 | `DELETE_SERVER` | Same shape as update: retried delete with a stale `baseVersion` gets `conflict`; if the returned row is already tombstoned at a version this device doesn't recognize as foreign, adopt it as its own earlier success. | Yes, same mechanism as above. |
 | `ADOPT_SERVER` / `DELETE_LOCAL` | Process dies between the domain-storage write and the metadata write | Yes | Purely local; a retried reconciliation pass re-derives the identical action from the identical inputs and re-applies it — idempotent by construction (no network round trip involved). |
 | `CONFLICT` | N/A — no mutation occurs until resolved | Yes | Re-detecting is a no-op; nothing to lose. |
+| `DEFER_UNKNOWN_LEGACY_STATE` | N/A — no mutation occurs until a human decides | Yes | Same shape as `CONFLICT`: re-detecting the same unresolved ancestry question on a later run costs nothing and resolves nothing until deliberately handled. |
 | `REPAIR_METADATA` | N/A — re-derives from a fresh read each time | Yes | Deterministic given the same server state. |
 
 **Process termination mid-batch:** invariant B.10 (per-record independence) means a batch
@@ -526,8 +718,10 @@ Building on the smallest-safe-increment pattern this whole project has followed:
 1. **`isDirty` metadata field** (§E) — add to `RecordSyncMetadata`, wire into the same
    `markActive`/create/reassign call points already touched in Phase 1B/1B.1, with the
    same failure-mode test rigor (dirty must never be silently lost or silently cleared
-   without an actual acknowledged sync). No reconciliation logic yet — this is purely the
-   metadata-layer prerequisite §E identified.
+   without an actual acknowledged sync). This also implements the Case K1/K2 distinction
+   (§C, Case K) for free: metadata presence itself becomes the signal separating a
+   genuinely-unknown legacy record from one this device knows it just created. No
+   reconciliation logic yet — this is purely the metadata-layer prerequisite §E identified.
 2. **Server-read contract fixes** (§F) — split each domain's fetch into an ordinary
    (tombstone-filtered) function and a reconciliation-only (tombstone-inclusive,
    version-carrying) function; fix the currently-latent missing `deleted_at` filter on the
@@ -536,8 +730,17 @@ Building on the smallest-safe-increment pattern this whole project has followed:
    deployable before any reconciliation logic exists.
 3. **Pure decision-table engine** — implement §C/§D as a pure function per domain
    (`(local, metadata, server) -> {action, metadataPatch}`), unit-tested exhaustively
-   against every case in §C plus the idempotence scenarios in §I, with **no** side effects
-   (no AsyncStorage, no network) — a decision function you can property-test.
+   against every case in §C (now including K1/K2/P/Q/R/T/V) plus the idempotence scenarios
+   in §I, with **no** side effects (no AsyncStorage, no network) — a decision function you
+   can property-test. **Required regression tests, specifically**: a legacy-record-with-
+   no-metadata-and-no-server-row must resolve to `DEFER_UNKNOWN_LEGACY_STATE`, never
+   `CREATE_SERVER` (Case K1); a version lower than `lastSeenVersion` must never be treated
+   as stale/discarded (Case V, all three sub-rows); a positively-tombstoned server record
+   must always win over an ancestry-unknown local copy (Case Q) while an ancestry-unknown
+   local copy with merely-absent server state must never be resolved either direction
+   (Case K1 vs. Case Q side-by-side, same local state, different server evidence,
+   different action — this pair is the core proof that the engine cannot resurrect a
+   record a legacy client may have physically deleted).
 4. **Domain-specific conflict policy layer** (§H) — a small per-domain strategy object
    consumed by the engine's `CONFLICT` output; document-domain "duplicate-as-copy" and
    slot-domain "explicit user choice" implemented and tested independently of the engine
