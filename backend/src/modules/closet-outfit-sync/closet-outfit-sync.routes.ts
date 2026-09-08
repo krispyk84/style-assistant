@@ -6,7 +6,21 @@ import { HttpError } from '../../lib/http-error.js';
 import { parseWithSchema } from '../../lib/validation.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { closetOutfitSyncService } from './closet-outfit-sync.service.js';
-import { upsertClosetOutfitFavouriteSchema, upsertClosetOutfitWeekPlanItemSchema } from './closet-outfit-sync.validation.js';
+import {
+  createClosetOutfitFavouriteSchema,
+  createClosetOutfitWeekPlanItemSchema,
+  deleteVersionedQuerySchema,
+  updateClosetOutfitFavouriteVersionedSchema,
+  updateClosetOutfitWeekPlanItemVersionedSchema,
+  upsertClosetOutfitFavouriteSchema,
+  upsertClosetOutfitWeekPlanItemSchema,
+} from './closet-outfit-sync.validation.js';
+
+function requireParam(value: string | string[] | undefined, message: string): string {
+  const resolved = Array.isArray(value) ? value[0] : value;
+  if (!resolved) throw new HttpError(400, 'INVALID_REQUEST', message);
+  return resolved;
+}
 
 export const closetOutfitSyncRouter = Router();
 
@@ -67,5 +81,75 @@ closetOutfitSyncRouter.delete(
     if (!dayKey) throw new HttpError(400, 'INVALID_REQUEST', 'Day key is required.');
     await closetOutfitSyncService.deleteWeekPlanItem(request.userId!, dayKey);
     return sendSuccess(response, { acknowledged: true });
+  })
+);
+
+// Sync redesign, Phase 1A: version-aware endpoints below, additive
+// alongside the legacy endpoints above (which stay exactly as they are —
+// the currently-installed frontend never calls these new routes). See
+// closet-outfit-sync.repository.ts's top-of-file comment for the shared
+// status-enum semantics returned in every response body below.
+
+closetOutfitSyncRouter.post(
+  '/closet-outfit-sync/favourites/version-aware',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(createClosetOutfitFavouriteSchema, request.body);
+    const result = await closetOutfitSyncService.createFavouriteVersioned(request.userId!, payload);
+    return sendSuccess(response, result);
+  })
+);
+
+closetOutfitSyncRouter.patch(
+  '/closet-outfit-sync/favourites/:id/version-aware',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const id = requireParam(request.params.id, 'Favourite ID is required.');
+    const payload = parseWithSchema(updateClosetOutfitFavouriteVersionedSchema, request.body);
+    const result = await closetOutfitSyncService.updateFavouriteVersioned(request.userId!, { id, ...payload });
+    return sendSuccess(response, result);
+  })
+);
+
+closetOutfitSyncRouter.delete(
+  '/closet-outfit-sync/favourites/:id/version-aware',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const id = requireParam(request.params.id, 'Favourite ID is required.');
+    const { baseVersion } = parseWithSchema(deleteVersionedQuerySchema, request.query);
+    const result = await closetOutfitSyncService.deleteFavouriteVersioned(request.userId!, id, baseVersion);
+    return sendSuccess(response, result);
+  })
+);
+
+closetOutfitSyncRouter.post(
+  '/closet-outfit-sync/week-plan/version-aware',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(createClosetOutfitWeekPlanItemSchema, request.body);
+    const result = await closetOutfitSyncService.createWeekPlanItemVersioned(request.userId!, payload);
+    return sendSuccess(response, result);
+  })
+);
+
+closetOutfitSyncRouter.patch(
+  '/closet-outfit-sync/week-plan/:dayKey/version-aware',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const dayKey = requireParam(request.params.dayKey, 'Day key is required.');
+    const payload = parseWithSchema(updateClosetOutfitWeekPlanItemVersionedSchema, request.body);
+    const result = await closetOutfitSyncService.updateWeekPlanItemVersioned(request.userId!, { dayKey, ...payload });
+    return sendSuccess(response, result);
+  })
+);
+
+closetOutfitSyncRouter.delete(
+  '/closet-outfit-sync/week-plan/:dayKey/version-aware',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const dayKey = requireParam(request.params.dayKey, 'Day key is required.');
+    const { baseVersion } = parseWithSchema(deleteVersionedQuerySchema, request.query);
+    const result = await closetOutfitSyncService.deleteWeekPlanItemVersioned(request.userId!, dayKey, baseVersion);
+    return sendSuccess(response, result);
   })
 );
