@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { getCurrentUserId } from '@/lib/supabase-data';
+
 // Phase 1B of the local<->cloud sync redesign: persistent local BOOKKEEPING
 // only — not reconciliation, not an outbox, not a merge algorithm. This
 // module lets a later phase answer "have I seen this record from the
@@ -9,13 +11,33 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // saved-outfits-storage.ts, week-plan-storage.ts, closet-outfit-storage.ts)
 // so sync bookkeeping never leaks into user-facing domain objects or UI.
 //
-// Storage key is a single global constant, NOT namespaced by user id —
-// this matches every other per-user local cache in this app (see
-// lib/user-data-sync.ts's OTHER_PER_USER_KEYS comment). User isolation is
-// achieved the same way every other domain achieves it here: an explicit
-// wipe on SIGNED_OUT (clearAllSyncMetadata, wired into
-// clearAllLocalUserData), not a per-user key or a user id embedded in the
-// metadata itself.
+// Phase 1B.1 REVISION — storage key is now PER-USER
+// (`style-assistant/sync-metadata/<userId>`), not the single global
+// constant Phase 1B originally used. That was a deliberate divergence from
+// this app's usual "single global key + wipe on SIGNED_OUT" convention
+// (see lib/user-data-sync.ts): Phase 1B's report identified a real,
+// reachable race — a metadata write from User A's save/delete can still be
+// in flight (this module's own functions are async, multi-await
+// read-modify-write cycles) when SIGNED_OUT fires; if that write resolves
+// AFTER clearAllLocalUserData's wipe but BEFORE User B signs in and reads,
+// User B would read User A's leftover synchronization state. A single
+// global key cannot be made safe against this by reordering alone, because
+// the race is about a WRITE outliving the wipe, not about this module's own
+// internal ordering.
+//
+// Per-user keys eliminate the race structurally rather than trying to
+// detect/cancel it: every read/write resolves the CURRENT session's user id
+// ONCE, at the very start of the call (before any AsyncStorage await), and
+// uses that id for the entire operation. A write that was already in
+// flight for User A always targets User A's own key, no matter what happens
+// to the session afterward — it can never land under User B's key, because
+// that key is a different string entirely. This also means sync metadata
+// no longer needs (or gets) wiped on sign-out: unlike every other per-user
+// UI cache in this app, this bookkeeping is SUPPOSED to survive a user
+// signing out and back in on the same device — that is the entire point of
+// "acknowledged server version" — so no longer clearing it on sign-out is
+// a correctness improvement, not a gap. See lib/user-data-sync.ts's comment
+// on why this key is intentionally absent from its wipe list.
 
 export type SyncDomain =
   | 'saved-outfits'
@@ -46,7 +68,7 @@ export type RecordSyncMetadata = {
   isDeleted: boolean;
 };
 
-const STORAGE_KEY = 'style-assistant/sync-metadata';
+const STORAGE_KEY_PREFIX = 'style-assistant/sync-metadata';
 
 // No existing storage-versioning convention exists elsewhere in this repo
 // (every other lib/*-storage.ts file just defensively re-validates loosely-
@@ -77,8 +99,32 @@ function isRecordSyncMetadata(value: unknown): value is RecordSyncMetadata {
   return versionOk && typeof candidate.isDeleted === 'boolean';
 }
 
-async function readShape(): Promise<PersistedShape> {
-  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+function buildStorageKey(userId: string): string {
+  return `${STORAGE_KEY_PREFIX}/${userId}`;
+}
+
+/**
+ * Resolves the CURRENT session's user id, once, and throws if there isn't
+ * one. Every exported function below calls this FIRST, before any
+ * AsyncStorage access — capturing the id this early (rather than, say,
+ * re-checking it partway through a read-modify-write cycle) is what makes
+ * a delayed/in-flight write immune to a subsequent sign-out/sign-in: the
+ * key this call resolves to is fixed for the lifetime of the operation.
+ * Throwing on no session (rather than silently no-op'ing, or falling back
+ * to some shared/anonymous key) is deliberate: synchronization bookkeeping
+ * has no safe default owner, and Part 2 of this session's hardening pass
+ * requires metadata failures to be visible, not silent.
+ */
+async function requireCurrentUserId(): Promise<string> {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    throw new Error('sync-metadata-storage: no signed-in user — refusing to read or write synchronization bookkeeping without a resolvable owner.');
+  }
+  return userId;
+}
+
+async function readShape(userId: string): Promise<PersistedShape> {
+  const raw = await AsyncStorage.getItem(buildStorageKey(userId));
   if (!raw) return emptyShape();
 
   try {
@@ -100,28 +146,34 @@ async function readShape(): Promise<PersistedShape> {
   }
 }
 
-async function writeShape(shape: PersistedShape): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(shape));
+async function writeShape(userId: string, shape: PersistedShape): Promise<void> {
+  await AsyncStorage.setItem(buildStorageKey(userId), JSON.stringify(shape));
 }
 
-async function updateRecord(domain: SyncDomain, id: string, next: RecordSyncMetadata): Promise<void> {
-  const shape = await readShape();
-  const domainMap: DomainMetadataMap = { ...shape.domains[domain] };
-  domainMap[id] = next;
-  shape.domains[domain] = domainMap;
-  await writeShape(shape);
-}
-
-/** Returns this record's metadata, or `null` if this client has no metadata for it at all (never seen it, or it predates this phase). */
-export async function getMetadata(domain: SyncDomain, id: string): Promise<RecordSyncMetadata | null> {
-  const shape = await readShape();
+async function readRecord(userId: string, domain: SyncDomain, id: string): Promise<RecordSyncMetadata | null> {
+  const shape = await readShape(userId);
   const candidate = shape.domains[domain]?.[id];
   return candidate && isRecordSyncMetadata(candidate) ? candidate : null;
 }
 
-/** Every record this client has metadata for in one domain — for a later reconciliation pass, not for normal UI reads. */
+async function updateRecord(userId: string, domain: SyncDomain, id: string, next: RecordSyncMetadata): Promise<void> {
+  const shape = await readShape(userId);
+  const domainMap: DomainMetadataMap = { ...shape.domains[domain] };
+  domainMap[id] = next;
+  shape.domains[domain] = domainMap;
+  await writeShape(userId, shape);
+}
+
+/** Returns this record's metadata, or `null` if this client has no metadata for it at all (never seen it, or it predates this phase). Scoped to the current signed-in user. */
+export async function getMetadata(domain: SyncDomain, id: string): Promise<RecordSyncMetadata | null> {
+  const userId = await requireCurrentUserId();
+  return readRecord(userId, domain, id);
+}
+
+/** Every record this client has metadata for in one domain, for the current signed-in user — for a later reconciliation pass, not for normal UI reads. */
 export async function getDomainMetadata(domain: SyncDomain): Promise<DomainMetadataMap> {
-  const shape = await readShape();
+  const userId = await requireCurrentUserId();
+  const shape = await readShape(userId);
   return { ...shape.domains[domain] };
 }
 
@@ -134,8 +186,9 @@ export async function getDomainMetadata(domain: SyncDomain): Promise<DomainMetad
  * carry a version number that was then discarded or rejected.
  */
 export async function setLastSeenVersion(domain: SyncDomain, id: string, version: number): Promise<void> {
-  const current = await getMetadata(domain, id);
-  await updateRecord(domain, id, { lastSeenVersion: version, isDeleted: current?.isDeleted ?? false });
+  const userId = await requireCurrentUserId();
+  const current = await readRecord(userId, domain, id);
+  await updateRecord(userId, domain, id, { lastSeenVersion: version, isDeleted: current?.isDeleted ?? false });
 }
 
 /**
@@ -144,10 +197,16 @@ export async function setLastSeenVersion(domain: SyncDomain, id: string, version
  * This entry is NOT removed when the domain object itself is deleted; it
  * must remain queryable afterward (see removeMetadata for the distinct,
  * administrative-only operation that actually erases an entry).
+ *
+ * Callers (the domain *-storage.ts files) call and AWAIT this BEFORE
+ * removing the domain object, and do not catch its rejection — see each
+ * call site's comment for why that ordering is what makes deletion intent
+ * durable under interruption.
  */
 export async function markDeleted(domain: SyncDomain, id: string): Promise<void> {
-  const current = await getMetadata(domain, id);
-  await updateRecord(domain, id, { lastSeenVersion: current?.lastSeenVersion ?? null, isDeleted: true });
+  const userId = await requireCurrentUserId();
+  const current = await readRecord(userId, domain, id);
+  await updateRecord(userId, domain, id, { lastSeenVersion: current?.lastSeenVersion ?? null, isDeleted: true });
 }
 
 /**
@@ -170,8 +229,9 @@ export async function markDeleted(domain: SyncDomain, id: string): Promise<void>
  * nothing to preserve and null remains the honest value.
  */
 export async function markActive(domain: SyncDomain, id: string): Promise<void> {
-  const current = await getMetadata(domain, id);
-  await updateRecord(domain, id, { lastSeenVersion: current?.lastSeenVersion ?? null, isDeleted: false });
+  const userId = await requireCurrentUserId();
+  const current = await readRecord(userId, domain, id);
+  await updateRecord(userId, domain, id, { lastSeenVersion: current?.lastSeenVersion ?? null, isDeleted: false });
 }
 
 /**
@@ -182,14 +242,23 @@ export async function markActive(domain: SyncDomain, id: string): Promise<void> 
  * a domain-level delete.
  */
 export async function removeMetadata(domain: SyncDomain, id: string): Promise<void> {
-  const shape = await readShape();
+  const userId = await requireCurrentUserId();
+  const shape = await readShape(userId);
   const domainMap: DomainMetadataMap = { ...shape.domains[domain] };
   delete domainMap[id];
   shape.domains[domain] = domainMap;
-  await writeShape(shape);
+  await writeShape(userId, shape);
 }
 
-/** Wipes all sync metadata for every domain and every user. Called on sign-out (see lib/user-data-sync.ts) — never call this from a normal record-level flow. */
+/**
+ * Wipes all sync metadata for the CURRENT signed-in user only. NOT called
+ * on sign-out (unlike Phase 1B's original design) — see this file's
+ * top-of-file note on why sync metadata is supposed to survive a user
+ * signing out and back in. Kept as an explicit, deliberate administrative
+ * primitive (e.g. a future "reset my sync state" action), not wired to any
+ * current flow.
+ */
 export async function clearAllSyncMetadata(): Promise<void> {
-  await AsyncStorage.removeItem(STORAGE_KEY);
+  const userId = await requireCurrentUserId();
+  await AsyncStorage.removeItem(buildStorageKey(userId));
 }

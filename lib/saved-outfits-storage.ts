@@ -114,23 +114,42 @@ export async function saveSavedOutfit(input: CreateLookInput, recommendation: Lo
   const nextSavedOutfits = [nextSavedOutfit, ...savedOutfits.filter((item) => item.id !== id)];
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
   void upsertSavedOutfitToSupabase(nextSavedOutfit).catch((error) => recordError(error, 'saved_outfit_save_upsert'));
-  // Phase 1B bookkeeping only — covers both a brand-new id and an
-  // intentional re-save of a previously-deleted id (this same id is
-  // reachable again if the same requestId+tier is saved after having been
-  // deleted). Never blocks/slows the actual save.
-  void markActive('saved-outfits', id).catch((error) => recordError(error, 'sync_metadata_mark_active'));
+  // Phase 1B.1: awaited, not fire-and-forget, and not caught here — covers
+  // both a brand-new id and an intentional re-save of a previously-deleted
+  // id (reachable again if the same requestId+tier is saved after having
+  // been deleted). Awaiting (rather than firing-and-forgetting) makes the
+  // metadata state deterministically consistent with this save by the time
+  // the caller sees it succeed — in particular, so a stale tombstone from
+  // an earlier deletion of this same id is reliably cleared rather than
+  // possibly surviving a process kill mid-write, which would otherwise
+  // leave "domain object active" contradicting "metadata says deleted."
+  // Left uncaught so a genuine failure here surfaces to the caller instead
+  // of silently diverging from the domain object, which was already
+  // written above.
+  await markActive('saved-outfits', id);
   return normalizeSavedOutfit(nextSavedOutfit);
 }
 
 export async function deleteSavedOutfit(savedOutfitId: string) {
+  // Phase 1B.1: tombstone persisted FIRST, awaited, and uncaught. If we
+  // cannot durably record deletion intent, the deletion must not proceed —
+  // the domain object below is never touched, and this function's promise
+  // rejects so the caller never observes a successful deletion whose
+  // tombstone didn't actually persist. This is the fix for the gap
+  // identified in Phase 1B's report: the previous fire-and-forget ordering
+  // let the domain object be removed and the caller see success before the
+  // tombstone write had necessarily completed, so an app kill in that
+  // window could lose deletion intent entirely and irrecoverably. Tombstone-
+  // first instead means the only reachable partial-failure state is
+  // "tombstone recorded, domain object still present" — safely recoverable
+  // (a retry is idempotent; the record simply looks not-yet-deleted, never
+  // silently un-deleted).
+  await markDeleted('saved-outfits', savedOutfitId);
+
   const savedOutfits = await loadSavedOutfits();
   const nextSavedOutfits = savedOutfits.filter((item) => item.id !== savedOutfitId);
-
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
   void deleteSavedOutfitFromSupabase(savedOutfitId).catch((error) => recordError(error, 'saved_outfit_delete'));
-  // Phase 1B bookkeeping only — this tombstone must survive even though
-  // the domain object above is now gone from nextSavedOutfits.
-  void markDeleted('saved-outfits', savedOutfitId).catch((error) => recordError(error, 'sync_metadata_mark_deleted'));
   return nextSavedOutfits;
 }
 

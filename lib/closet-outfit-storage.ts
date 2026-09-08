@@ -73,19 +73,21 @@ export async function saveClosetOutfitToFavourites(formality: LookTierSlug, outf
   const nextList = [next, ...current.filter((item) => item.id !== id)];
   await AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(nextList));
   void upsertClosetOutfitFavouriteToBackend(next).catch((error) => recordError(error, 'closet_outfit_favourite_save_upsert'));
-  // Phase 1B bookkeeping only — see saved-outfits-storage.ts's equivalent
-  // hook for why markActive (not a plain "create") is correct here too.
-  void markActive('closet-outfit-favourites', id).catch((error) => recordError(error, 'sync_metadata_mark_active'));
+  // Phase 1B.1: awaited, not fire-and-forget, and not caught here — see
+  // saved-outfits-storage.ts's saveSavedOutfit for the full rationale.
+  await markActive('closet-outfit-favourites', id);
   return next;
 }
 
 export async function deleteSavedClosetOutfit(id: string) {
+  // Phase 1B.1: tombstone persisted FIRST, awaited, uncaught — see
+  // saved-outfits-storage.ts's deleteSavedOutfit for the full rationale.
+  await markDeleted('closet-outfit-favourites', id);
+
   const current = await loadSavedClosetOutfits();
   const nextList = current.filter((item) => item.id !== id);
   await AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(nextList));
   void deleteClosetOutfitFavouriteFromBackend(id).catch((error) => recordError(error, 'closet_outfit_favourite_delete'));
-  // Phase 1B bookkeeping only — tombstone survives past this domain object's removal.
-  void markDeleted('closet-outfit-favourites', id).catch((error) => recordError(error, 'sync_metadata_mark_deleted'));
   return nextList;
 }
 
@@ -134,19 +136,22 @@ export async function assignClosetOutfitToWeekDay(
   const nextItems = [next, ...current.filter((item) => item.dayKey !== dayKey)];
   await AsyncStorage.setItem(WEEK_PLAN_KEY, JSON.stringify(nextItems));
   void upsertClosetOutfitWeekPlanItemToBackend(next).catch((error) => recordError(error, 'closet_outfit_week_plan_assign_upsert'));
-  // Phase 1B bookkeeping only — not touched by loadClosetWeekPlan's
-  // automatic day-rollover pruning above (see week-plan-storage.ts's
-  // equivalent note: staleness, not an intentional deletion).
-  void markActive('closet-outfit-week-plan', dayKey).catch((error) => recordError(error, 'sync_metadata_mark_active'));
+  // Phase 1B.1: awaited, not fire-and-forget, and not caught here — see
+  // saved-outfits-storage.ts's saveSavedOutfit for the full rationale. Not
+  // touched by loadClosetWeekPlan's automatic day-rollover pruning above
+  // (staleness, not an intentional deletion).
+  await markActive('closet-outfit-week-plan', dayKey);
   return next;
 }
 
 export async function removeClosetWeekPlanDay(dayKey: string) {
+  // Phase 1B.1: tombstone persisted FIRST, awaited, uncaught — see
+  // saved-outfits-storage.ts's deleteSavedOutfit for the full rationale.
+  await markDeleted('closet-outfit-week-plan', dayKey);
+
   const current = await loadClosetWeekPlan();
   const nextItems = current.filter((item) => item.dayKey !== dayKey);
   await AsyncStorage.setItem(WEEK_PLAN_KEY, JSON.stringify(nextItems));
   void deleteClosetOutfitWeekPlanItemFromBackend(dayKey).catch((error) => recordError(error, 'closet_outfit_week_plan_remove'));
-  // Phase 1B bookkeeping only — tombstone survives past this domain object's removal.
-  void markDeleted('closet-outfit-week-plan', dayKey).catch((error) => recordError(error, 'sync_metadata_mark_deleted'));
   return nextItems;
 }

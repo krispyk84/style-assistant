@@ -38,9 +38,11 @@ vi.mock('@/lib/closet-outfit-sync', () => ({
 // lib/supabase-data.ts, which constructs a real Supabase client at import
 // time — mock it away the same way, even though this file's own tests
 // never call these functions directly.
+const getCurrentUserId = vi.fn().mockResolvedValue('user-1');
 vi.mock('@/lib/supabase-data', () => ({
   upsertWeekPlanItemToSupabase: vi.fn().mockResolvedValue(undefined),
   deleteWeekPlanItemFromSupabase: vi.fn().mockResolvedValue(undefined),
+  getCurrentUserId: () => getCurrentUserId(),
 }));
 
 beforeEach(() => {
@@ -50,8 +52,13 @@ beforeEach(() => {
   deleteClosetOutfitFavouriteFromBackend.mockClear();
   upsertClosetOutfitWeekPlanItemToBackend.mockClear();
   deleteClosetOutfitWeekPlanItemFromBackend.mockClear();
+  getCurrentUserId.mockClear();
+  getCurrentUserId.mockResolvedValue('user-1');
 });
 
+// No longer strictly necessary now that markActive/markDeleted are awaited
+// (Phase 1B.1) rather than fire-and-forget, but harmless to keep — some
+// call sites below still use it.
 async function flushMicrotasks() {
   await new Promise((resolve) => setImmediate(resolve));
   await new Promise((resolve) => setImmediate(resolve));

@@ -125,23 +125,26 @@ export async function assignOutfitToWeekDay(
   const nextItems = [nextItem, ...currentItems.filter((item) => item.dayKey !== dayKey)];
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
   void upsertWeekPlanItemToSupabase(nextItem).catch((error) => recordError(error, 'week_plan_assign_upsert'));
-  // Phase 1B bookkeeping only — covers both a fresh day assignment and the
-  // deliberate tombstone-reuse case (reassigning a day that was previously
-  // removed via removeWeekPlan below). Not touched by loadWeekPlan's
-  // automatic day-rollover pruning above — that's staleness, not an
-  // intentional deletion, and must never create a tombstone.
-  void markActive('week-plan', dayKey).catch((error) => recordError(error, 'sync_metadata_mark_active'));
+  // Phase 1B.1: awaited, not fire-and-forget, and not caught here — see
+  // saved-outfits-storage.ts's saveSavedOutfit for why (reliably clears a
+  // stale tombstone on the deliberate reassign-after-removeWeekPlan case;
+  // surfaces a genuine failure instead of silently diverging). Not touched
+  // by loadWeekPlan's automatic day-rollover pruning above — that's
+  // staleness, not an intentional deletion, and must never create a
+  // tombstone.
+  await markActive('week-plan', dayKey);
   return nextItem;
 }
 
 export async function removeWeekPlan(dayKey: string) {
+  // Phase 1B.1: tombstone persisted FIRST, awaited, uncaught — see
+  // saved-outfits-storage.ts's deleteSavedOutfit for the full rationale.
+  await markDeleted('week-plan', dayKey);
+
   const currentItems = await loadWeekPlan();
   const nextItems = currentItems.filter((item) => item.dayKey !== dayKey);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
   void deleteWeekPlanItemFromSupabase(dayKey).catch((error) => recordError(error, 'week_plan_remove'));
-  // Phase 1B bookkeeping only — this tombstone must survive even after the
-  // day rolls out of the 7-day window and disappears from nextItems.
-  void markDeleted('week-plan', dayKey).catch((error) => recordError(error, 'sync_metadata_mark_deleted'));
   return nextItems;
 }
 

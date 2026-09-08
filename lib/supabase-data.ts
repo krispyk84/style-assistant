@@ -4,7 +4,10 @@ import type { SavedOutfit, WeekPlannedOutfit } from '@/types/style';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-async function getCurrentUserId(): Promise<string | null> {
+// Exported for lib/sync-metadata-storage.ts (Phase 1B.1) — that module
+// needs the current session's user id to scope its storage key per-user,
+// the same way every write in this file already scopes rows per-user.
+export async function getCurrentUserId(): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession();
   return session?.user?.id ?? null;
 }

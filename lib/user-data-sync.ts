@@ -38,10 +38,19 @@ const OTHER_PER_USER_KEYS = [
   'style-assistant/trip-outfits',             // trip-outfits-storage.ts
   'style-assistant/app-settings',             // app-settings-storage.ts
   'style-assistant/weather-context',          // weather-storage.ts — not identity-bound, but harmless to clear (just refetches)
-  'style-assistant/sync-metadata',            // sync-metadata-storage.ts — Phase 1B. Critical to clear: this carries
-                                               // acknowledged server versions and tombstones, which Phase 2+ will trust
-                                               // as synchronization state, not just UI cache — leaking it across users
-                                               // would be a data-integrity bug, not merely a display glitch.
+  // sync-metadata-storage.ts's keys (style-assistant/sync-metadata/<userId>)
+  // are DELIBERATELY NOT listed here (Phase 1B.1). Phase 1B originally used
+  // one global key and wiped it here like everything else above, but that
+  // created a real race: a metadata write from the outgoing user can still
+  // be in flight when this wipe runs, and if it resolves after the wipe but
+  // before the next user reads, that next user would see the previous
+  // user's synchronization state. Fixed by scoping the storage key itself
+  // by user id instead — every read/write resolves its own owner up front,
+  // so no in-flight write can ever land under a different user's key
+  // regardless of timing, and nothing here needs to race against it. This
+  // also means sync metadata correctly SURVIVES a sign-out/sign-in cycle
+  // for the SAME user, which is the intended behavior (acknowledged server
+  // versions shouldn't be forgotten just because someone signed out).
 ];
 
 /** Wipes all per-user local data. Call on sign-out so the next user starts clean. */

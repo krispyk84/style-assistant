@@ -1,5 +1,43 @@
 -- Phase 1A of the local<->cloud synchronization redesign.
 --
+-- Phase 1B.1 CORRECTION (this session): create_saved_outfit/
+-- update_saved_outfit/delete_saved_outfit originally declared their id
+-- parameter/return column as `uuid`. That was wrong — traced end-to-end
+-- this session: the frontend generates requestId as `request-<timestamp>`
+-- (lib/look-mock-data.ts's createMockRequestId, used unconditionally, not
+-- just in mock mode — see components/forms/createLookRequest-mappers.ts),
+-- optionally suffixed `-v2`/`-v3` for same-tier multi-look variants, and
+-- lib/saved-outfits-storage.ts's buildSavedOutfitId composes the actual
+-- row id as `${requestId}:${tier}` (optionally `:g${generation}`) — e.g.
+-- `request-1788829952675:business`. None of that is valid UUID syntax, and
+-- this table demonstrably accepts these ids in production today (saved
+-- outfits is a long-working, exercised feature) — a `uuid`-typed column
+-- would reject every single one of these inserts, so the column can only
+-- be `text`. Corrected below (`p_id text`, `out_id text`, and the six
+-- ALTER/REVOKE/GRANT signatures that reference them) to match. This is a
+-- parameter/return-type fix only — no ALTER TABLE is needed, since this
+-- file never created saved_outfits' columns in the first place (that
+-- table predates this project); it only fixes these functions to match
+-- the column type saved_outfits.id already actually has.
+--
+-- This migration has never been applied anywhere outside this session's
+-- own disposable/throwaway local Postgres test instances (each torn down
+-- immediately after verification) — never against the real Supabase
+-- project. So this is a correction in place, not a rewrite of deployed
+-- history; there is nothing "deployed" yet for this file. Re-verified
+-- end-to-end against a fresh disposable Postgres instance with a real
+-- representative id (`request-1788829952675:business`) after this fix —
+-- see this session's Phase 1B.1 report.
+--
+-- Before applying this file for the first time, confirm the actual column
+-- type directly rather than trusting this comment alone:
+--   SELECT column_name, data_type FROM information_schema.columns
+--   WHERE table_name = 'saved_outfits' AND column_name = 'id';
+-- Expect data_type = 'text' (or 'character varying'). If it is genuinely
+-- 'uuid', STOP — that would mean every saved-outfit id in production is
+-- already a valid UUID and this whole correction's premise is wrong;
+-- re-derive from that finding rather than applying this file as-is.
+--
 -- Adds NEW version-aware mutation capability for saved_outfits/week_plan.
 -- Deliberately additive: the existing direct-table upsert/delete path in
 -- lib/supabase-data.ts is untouched and keeps working exactly as today.
@@ -79,9 +117,9 @@
 --   5. Rollback recipe (additive/idempotent — nothing here mutates or
 --      deletes existing data, so "rollback" only means removing the new
 --      capability, not undoing any write):
---        DROP FUNCTION IF EXISTS public.create_saved_outfit(uuid, text, timestamptz, jsonb, jsonb);
---        DROP FUNCTION IF EXISTS public.update_saved_outfit(uuid, integer, text, timestamptz, jsonb, jsonb);
---        DROP FUNCTION IF EXISTS public.delete_saved_outfit(uuid, integer);
+--        DROP FUNCTION IF EXISTS public.create_saved_outfit(text, text, timestamptz, jsonb, jsonb);
+--        DROP FUNCTION IF EXISTS public.update_saved_outfit(text, integer, text, timestamptz, jsonb, jsonb);
+--        DROP FUNCTION IF EXISTS public.delete_saved_outfit(text, integer);
 --        DROP FUNCTION IF EXISTS public.create_week_plan_item(text, text, text, timestamptz, jsonb, jsonb);
 --        DROP FUNCTION IF EXISTS public.update_week_plan_item(text, integer, text, text, timestamptz, jsonb, jsonb);
 --        DROP FUNCTION IF EXISTS public.delete_week_plan_item(text, integer);
@@ -234,7 +272,7 @@
 -- ── saved_outfits ──────────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.create_saved_outfit(
-  p_id uuid,
+  p_id text,
   p_request_id text,
   p_saved_at timestamptz,
   p_input jsonb,
@@ -242,7 +280,7 @@ CREATE OR REPLACE FUNCTION public.create_saved_outfit(
 )
 RETURNS TABLE (
   out_status text,
-  out_id uuid,
+  out_id text,
   out_user_id uuid,
   out_request_id text,
   out_saved_at timestamptz,
@@ -278,13 +316,13 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.create_saved_outfit(uuid, text, timestamptz, jsonb, jsonb) OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.create_saved_outfit(uuid, text, timestamptz, jsonb, jsonb) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.create_saved_outfit(uuid, text, timestamptz, jsonb, jsonb) FROM anon;
-GRANT EXECUTE ON FUNCTION public.create_saved_outfit(uuid, text, timestamptz, jsonb, jsonb) TO authenticated;
+ALTER FUNCTION public.create_saved_outfit(text, text, timestamptz, jsonb, jsonb) OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.create_saved_outfit(text, text, timestamptz, jsonb, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.create_saved_outfit(text, text, timestamptz, jsonb, jsonb) FROM anon;
+GRANT EXECUTE ON FUNCTION public.create_saved_outfit(text, text, timestamptz, jsonb, jsonb) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.update_saved_outfit(
-  p_id uuid,
+  p_id text,
   p_base_version integer,
   p_request_id text,
   p_saved_at timestamptz,
@@ -293,7 +331,7 @@ CREATE OR REPLACE FUNCTION public.update_saved_outfit(
 )
 RETURNS TABLE (
   out_status text,
-  out_id uuid,
+  out_id text,
   out_user_id uuid,
   out_request_id text,
   out_saved_at timestamptz,
@@ -342,18 +380,18 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.update_saved_outfit(uuid, integer, text, timestamptz, jsonb, jsonb) OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.update_saved_outfit(uuid, integer, text, timestamptz, jsonb, jsonb) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.update_saved_outfit(uuid, integer, text, timestamptz, jsonb, jsonb) FROM anon;
-GRANT EXECUTE ON FUNCTION public.update_saved_outfit(uuid, integer, text, timestamptz, jsonb, jsonb) TO authenticated;
+ALTER FUNCTION public.update_saved_outfit(text, integer, text, timestamptz, jsonb, jsonb) OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.update_saved_outfit(text, integer, text, timestamptz, jsonb, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.update_saved_outfit(text, integer, text, timestamptz, jsonb, jsonb) FROM anon;
+GRANT EXECUTE ON FUNCTION public.update_saved_outfit(text, integer, text, timestamptz, jsonb, jsonb) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.delete_saved_outfit(
-  p_id uuid,
+  p_id text,
   p_base_version integer
 )
 RETURNS TABLE (
   out_status text,
-  out_id uuid,
+  out_id text,
   out_user_id uuid,
   out_request_id text,
   out_saved_at timestamptz,
@@ -398,10 +436,10 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.delete_saved_outfit(uuid, integer) OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.delete_saved_outfit(uuid, integer) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.delete_saved_outfit(uuid, integer) FROM anon;
-GRANT EXECUTE ON FUNCTION public.delete_saved_outfit(uuid, integer) TO authenticated;
+ALTER FUNCTION public.delete_saved_outfit(text, integer) OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.delete_saved_outfit(text, integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.delete_saved_outfit(text, integer) FROM anon;
+GRANT EXECUTE ON FUNCTION public.delete_saved_outfit(text, integer) TO authenticated;
 
 -- ── week_plan ───────────────────────────────────────────────────────────
 

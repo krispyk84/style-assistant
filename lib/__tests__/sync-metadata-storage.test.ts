@@ -20,9 +20,20 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
+// Phase 1B.1: the module under test now resolves the current session's user
+// id (via lib/supabase-data.ts's getCurrentUserId) to scope its storage key
+// per-user. Controllable per-test so tests can exercise different/changing
+// "current user" values without any real Supabase client or real timing.
+const getCurrentUserIdMock = vi.fn<() => Promise<string | null>>();
+vi.mock('@/lib/supabase-data', () => ({
+  getCurrentUserId: () => getCurrentUserIdMock(),
+}));
+
 beforeEach(() => {
   storageMock.clear();
   vi.resetModules();
+  getCurrentUserIdMock.mockReset();
+  getCurrentUserIdMock.mockResolvedValue('user-1');
 });
 
 async function freshModule() {
@@ -190,7 +201,7 @@ describe('sync-metadata-storage — getDomainMetadata / removeMetadata', () => {
 });
 
 describe('sync-metadata-storage — clearAllSyncMetadata', () => {
-  it('wipes every domain, used by the sign-out teardown path', async () => {
+  it('wipes every domain for the CURRENT user only — Phase 1B.1: no longer wired to sign-out (see user-data-sync.ts); an explicit administrative primitive only', async () => {
     const mod = await freshModule();
     await mod.setLastSeenVersion('saved-outfits', 'a', 1);
     await mod.markDeleted('week-plan', 'b');
@@ -199,5 +210,71 @@ describe('sync-metadata-storage — clearAllSyncMetadata', () => {
 
     expect(await mod.getMetadata('saved-outfits', 'a')).toBeNull();
     expect(await mod.getMetadata('week-plan', 'b')).toBeNull();
+  });
+
+  it('does not affect a different user\'s metadata', async () => {
+    const mod = await freshModule();
+    await mod.setLastSeenVersion('saved-outfits', 'a', 1);
+
+    getCurrentUserIdMock.mockResolvedValue('user-2');
+    await mod.setLastSeenVersion('saved-outfits', 'b', 2);
+    await mod.clearAllSyncMetadata(); // clears user-2's metadata only
+
+    getCurrentUserIdMock.mockResolvedValue('user-1');
+    expect(await mod.getMetadata('saved-outfits', 'a')).toEqual({ lastSeenVersion: 1, isDeleted: false });
+  });
+});
+
+describe('sync-metadata-storage — Phase 1B.1: user-scoped storage', () => {
+  it('the same domain+id for two different users does not collide', async () => {
+    const mod = await freshModule();
+
+    getCurrentUserIdMock.mockResolvedValue('user-1');
+    await mod.setLastSeenVersion('saved-outfits', 'shared-id', 5);
+
+    getCurrentUserIdMock.mockResolvedValue('user-2');
+    await mod.markDeleted('saved-outfits', 'shared-id');
+
+    getCurrentUserIdMock.mockResolvedValue('user-1');
+    expect(await mod.getMetadata('saved-outfits', 'shared-id')).toEqual({ lastSeenVersion: 5, isDeleted: false });
+
+    getCurrentUserIdMock.mockResolvedValue('user-2');
+    expect(await mod.getMetadata('saved-outfits', 'shared-id')).toEqual({ lastSeenVersion: null, isDeleted: true });
+  });
+
+  it('every mutating and read function throws when there is no resolvable current user, rather than silently defaulting to a shared/anonymous key', async () => {
+    const mod = await freshModule();
+    getCurrentUserIdMock.mockResolvedValue(null);
+
+    await expect(mod.getMetadata('saved-outfits', 'x')).rejects.toThrow(/no signed-in user/i);
+    await expect(mod.setLastSeenVersion('saved-outfits', 'x', 1)).rejects.toThrow(/no signed-in user/i);
+    await expect(mod.markDeleted('saved-outfits', 'x')).rejects.toThrow(/no signed-in user/i);
+    await expect(mod.markActive('saved-outfits', 'x')).rejects.toThrow(/no signed-in user/i);
+    await expect(mod.removeMetadata('saved-outfits', 'x')).rejects.toThrow(/no signed-in user/i);
+    await expect(mod.clearAllSyncMetadata()).rejects.toThrow(/no signed-in user/i);
+  });
+
+  it('DETERMINISTIC reproduction of the sign-out/user-switch race Phase 1B.1 fixes: a write that resolved its owner BEFORE a user switch must land under the ORIGINAL owner\'s key, never the new user\'s — even though the underlying AsyncStorage calls for that write only complete afterward', async () => {
+    const mod = await freshModule();
+
+    // This operation resolves its owner (user-1) on this specific call...
+    getCurrentUserIdMock.mockResolvedValueOnce('user-1');
+    const inFlightWrite = mod.markActive('saved-outfits', 'shared-id');
+
+    // ...and only AFTER that resolution has already happened (mockResolvedValueOnce
+    // is consumed synchronously by requireCurrentUserId's first await), the
+    // "current user" changes — modeling a sign-out + a different user signing
+    // in while the write above is still completing its own AsyncStorage
+    // read-modify-write cycle. No real timers/sleeps needed: the mock's
+    // queued one-shot value already proves the write captured its owner
+    // before this line ever runs.
+    getCurrentUserIdMock.mockResolvedValue('user-2');
+    await inFlightWrite;
+
+    getCurrentUserIdMock.mockResolvedValueOnce('user-1');
+    expect(await mod.getMetadata('saved-outfits', 'shared-id')).toEqual({ lastSeenVersion: null, isDeleted: false });
+
+    getCurrentUserIdMock.mockResolvedValueOnce('user-2');
+    expect(await mod.getMetadata('saved-outfits', 'shared-id')).toBeNull();
   });
 });
