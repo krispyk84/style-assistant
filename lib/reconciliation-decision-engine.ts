@@ -13,6 +13,20 @@ import type { RecordSyncMetadata } from '@/lib/sync-metadata-storage';
 // execution layer that actually calls the Phase 1A RPCs and applies
 // metadataPatch is explicitly NOT built in this phase (see the spec's §K
 // implementation sequence, step 5).
+//
+// PROTOCOL INVARIANT (Phase 3B): version equality is necessary but not
+// sufficient to prove state equality during the legacy compatibility era.
+// `server.version === metadata.lastSeenVersion` must NOT be read as "local's
+// acknowledged state still equals the server's current state" — every
+// legacy mutation path across all four domains writes content without ever
+// touching sync_version (confirmed by inspecting each legacy upsert's
+// payload), so a legacy write can silently change content while this
+// number stays frozen. Case B and Case D consult `contentEquals` for
+// exactly this reason before trusting `cmp === 'same'`. Once Phase 3C fully
+// revokes legacy mutation paths, this rule becomes vacuously true (nothing
+// can change content without incrementing the version anymore) but is not
+// optimized away now — see docs/sync-phase2a-reconciliation-spec.md's
+// Phase 3B section for the full audit.
 
 export type ReconciliationAction =
   | 'NO_OP'
@@ -218,9 +232,32 @@ export function decideReconciliation(input: ReconciliationInput): Reconciliation
     if (isDirty) {
       if (server.kind === 'absent') return conflict('T-pending-edit-server-vanished');
       if (server.kind === 'active') {
-        return cmp === 'same'
-          ? { action: 'UPDATE_SERVER', metadataPatch: null, reason: 'D-local-changed-server-unchanged' }
-          : conflict('E-both-changed');
+        if (cmp === 'same') {
+          // Phase 3B §1: same-version-drift protection, dirty-local half.
+          // Unlike Case B above, this side is NOT fully closable by
+          // content comparison alone: `contentEquals` here compares the
+          // local device's NEW pending edit against whatever the server
+          // currently shows — and in the ORDINARY, safe, extremely common
+          // case (no drift at all: I edited, nobody else touched it), the
+          // new edit ALSO differs from the server's unchanged prior
+          // content. A content mismatch therefore cannot distinguish
+          // "normal unsynced edit" from "a legacy write silently changed
+          // content at the same version" without a stored pre-edit
+          // baseline this metadata does not keep — see
+          // docs/sync-phase2a-reconciliation-spec.md's Phase 3B section
+          // for the full analysis and why the definitive fix is a
+          // server-side compatibility bridge, not more client logic.
+          // What IS always safe to special-case: if the server's content
+          // already exactly matches this device's intended edit, nothing
+          // needs pushing — recognized here instead of only after a
+          // wasted RPC round trip (the executor's existing lost-ack path
+          // only ever sees this via a 'conflict' RPC response, which a
+          // frozen-version legacy write would never trigger).
+          return contentEquals
+            ? { action: 'NO_OP', metadataPatch: { lastSeenVersion: server.version, isDeleted: false, isDirty: false }, reason: 'D-same-version-already-matches-adopt' }
+            : { action: 'UPDATE_SERVER', metadataPatch: null, reason: 'D-local-changed-server-unchanged' };
+        }
+        return conflict('E-both-changed');
       }
       // server.kind === 'tombstone'
       return cmp === 'same'
@@ -230,9 +267,23 @@ export function decideReconciliation(input: ReconciliationInput): Reconciliation
     // not dirty
     if (server.kind === 'absent') return conflict('R-unchanged-server-vanished');
     if (server.kind === 'active') {
-      return cmp === 'same'
-        ? { action: 'NO_OP', metadataPatch: null, reason: 'B-agrees' }
-        : adopt(server.version, false, 'C-server-advanced');
+      if (cmp === 'same') {
+        // Phase 3B §1-3: version equality is necessary but not sufficient
+        // proof of state equality during the legacy compatibility era — a
+        // legacy write can change content without incrementing
+        // sync_version (confirmed: every legacy upsert path across all
+        // four domains omits sync_version/deleted_at from its payload
+        // entirely). Since local is clean here (no unacknowledged local
+        // intent to protect), a content mismatch at the "same" version is
+        // safe to resolve by adopting the server's current truth — there
+        // is nothing local to lose. `contentEquals` falsy (false or
+        // undefined/unknown) is treated the same as Case V's identical
+        // convention: never assumed equal without positive proof.
+        return contentEquals
+          ? { action: 'NO_OP', metadataPatch: null, reason: 'B-agrees' }
+          : adopt(server.version, false, 'B-same-version-content-drift-adopt');
+      }
+      return adopt(server.version, false, 'C-server-advanced');
     }
     // server.kind === 'tombstone', not dirty, isDeleted false: cmp==='same'
     // here would mean a delete happened without incrementing the version,

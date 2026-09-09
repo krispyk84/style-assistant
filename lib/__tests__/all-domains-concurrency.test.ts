@@ -71,7 +71,7 @@ beforeEach(() => {
   createClosetOutfitWeekPlanItemViaRpc.mockReset();
 });
 
-const INPUT = { anchorItemDescription: 'test', anchorItems: [] } as unknown as import('@/types/look-request').CreateLookInput;
+const INPUT = { anchorItemDescription: 'test', anchorItems: [{ id: 'anchor-primary', description: 'test', image: null, uploadedImage: null }] } as unknown as import('@/types/look-request').CreateLookInput;
 const RECOMMENDATION = { tier: 'business', sketchImageUrl: null } as unknown as import('@/types/look-request').LookRecommendation;
 const CLOSET_OUTFIT = { id: 'closet-outfit-1' } as unknown as import('@/types/api').ClosetGeneratedOutfit;
 

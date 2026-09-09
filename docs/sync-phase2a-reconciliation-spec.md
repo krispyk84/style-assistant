@@ -1278,3 +1278,592 @@ Neither direct-table Supabase privileges nor backend legacy routes/methods are r
 phase (Phase 3C, not started). All four domains' legacy helper functions remain intact and
 callable — a rollback of this client build (or an older installed client still running) would
 continue to work unmodified against the legacy paths.
+
+## R. Phase 3B — legacy coexistence safety audit and rollout design
+
+Phase 3A1–3A4 built and migrated all four domains onto the version-aware reconciliation
+architecture. This phase asks the question those four phases assumed the answer to: **can a
+new version-aware client safely coexist with an older installed client that still uses legacy
+mutation paths?** The answer, established below, is **yes — with conditions**, and this
+section documents exactly what those conditions are.
+
+### R.1 Same-version content drift — a real correctness hole, found and fixed
+
+The audit's central scenario: a new client acknowledges version N with content A; an old
+(legacy) client changes the server row's content to B via its unversioned upsert path
+(confirmed, all four domains: every legacy upsert payload omits `sync_version`/`syncVersion`
+and `deleted_at`/`deletedAt` entirely, so neither column is touched); the new client's next
+reconciliation read sees `server.version === N` (unchanged) but `content === B` (changed).
+
+Re-reading `lib/reconciliation-decision-engine.ts`'s Case B and Case D exactly as they stood
+before this phase:
+
+```text
+Case B (clean local, server active, cmp==='same'):
+  return { action: 'NO_OP', ... }                          // contentEquals never consulted
+
+Case D (dirty local, server active, cmp==='same'):
+  return { action: 'UPDATE_SERVER', ... }                   // contentEquals never consulted
+```
+
+**Both branches decided purely from `server.version === metadata.lastSeenVersion`, never from
+content.** This confirmed both of the audit's hypothesized failures:
+
+- **Case B (clean local):** the engine returned `NO_OP`, meaning the new client would never
+  discover B exists — a silent, permanent staleness (not data loss, but the new client's local
+  cache and the server disagree forever, invisibly).
+- **Case D (dirty local) — the worse case:** the engine returned `UPDATE_SERVER(baseVersion=N)`
+  unconditionally. Since the legacy write never advanced `sync_version`, the row's real,
+  current version is *still* N — the CAS `WHERE sync_version = N` matches, the update
+  **succeeds**, and B is silently overwritten by the new client's edit with no conflict ever
+  surfaced. This is a genuine violation of the no-silent-data-loss invariant and would have
+  been a release blocker had it shipped unfixed.
+
+**Fix applied** (both cases, in `lib/reconciliation-decision-engine.ts`):
+
+```text
+Case B: cmp==='same' -> contentEquals ? NO_OP('B-agrees')
+                                       : ADOPT_SERVER('B-same-version-content-drift-adopt')
+Case D: cmp==='same' -> contentEquals ? NO_OP-with-ack('D-same-version-already-matches-adopt')
+                                       : UPDATE_SERVER('D-local-changed-server-unchanged')  [unchanged]
+```
+
+Case B is now **fully closed**: local is clean (no unacknowledged intent to protect), so a
+content mismatch at an unchanged version is safely resolved by adopting the server's current
+truth while preserving the same version number (§2's "APPLY_SERVER while preserving N" —
+proven correct generically, since the pure engine is domain-agnostic; verified per-domain via
+`saved-outfits-reconciliation.test.ts`'s dedicated Phase 3B describe block, in addition to the
+engine-level table).
+
+Case D is **only partially closable client-side, and this is stated plainly rather than
+hidden**: `contentEquals` here compares the local device's *new pending edit* against
+whatever the server currently shows. In the ordinary, safe, extremely common case (no drift at
+all — I edited, nobody else touched it), the new edit *also* differs from the server's
+unchanged prior content. Content mismatch alone cannot distinguish "normal unsynced edit" from
+"a legacy write silently changed content at the same version," because this metadata does not
+keep a pre-edit content baseline to compare the server's current state against. What the fix
+*does* close: if the server's content already exactly matches the local device's intended
+edit (a coincidental match, or the executor's own lost-ack scenario reached one step earlier),
+nothing is pushed — no wasted RPC round trip, no risk either way. The **irreducible half** of
+Case D is documented in §R.10 below, not swept under a false "fully fixed" claim.
+
+### R.2/R.3 Extended compatibility-era state model and protocol invariant
+
+Added directly to `lib/reconciliation-decision-engine.ts`'s top-of-file comment:
+
+> **PROTOCOL INVARIANT (Phase 3B):** version equality is necessary but not sufficient to prove
+> state equality during the legacy compatibility era. `server.version === metadata.lastSeenVersion`
+> must NOT be read as "local's acknowledged state still equals the server's current state" — a
+> legacy write can silently change content while this number stays frozen. Case B and Case D
+> consult `contentEquals` for exactly this reason before trusting `cmp === 'same'`. Once
+> Phase 3C fully revokes legacy mutation paths, this rule becomes vacuously true (nothing can
+> change content without incrementing the version anymore) but is not optimized away now.
+
+Same-numeric-version-but-deletion-state-differs was audited as its own row, not left as
+fall-through:
+
+- **Local acknowledged active@N, server tombstone@N:** already explicitly handled by the
+  existing Case H (`H-server-deleted-local-unchanged`), whose own comment already anticipated
+  this exact anomaly ("a delete happened without incrementing the version... defensively
+  treated the same as 'ahead' rather than assumed impossible"). No change needed — confirmed
+  correct by a new explicit test, not just inference from the comment.
+- **Local acknowledged tombstone@N, server active@N:** falls to the existing
+  `settled-tombstone-reactivated-elsewhere` path (`ADOPT_SERVER`). Local has no dirty claim of
+  its own to protect (not dirty by definition of "acknowledged, settled"), so adopting is safe
+  regardless of *why* the server shows active — whether a genuine version-aware reactivation
+  by another device, or a version-lineage reset (§R.4) landing at the same version number by
+  coincidence. No data is overwritten by this path (it's a pure local-cache adopt, never a CAS
+  write), so the philosophical imprecision ("we don't actually know this is the same
+  lineage") carries no destructive consequence. Confirmed correct by a new explicit test.
+
+### R.4 Version-lineage reset re-audited
+
+Case V's existing guard (`server.version < metadata.lastSeenVersion`) does **not** catch a
+hard-delete/recreate cycle that happens to land at or above the old `lastSeenVersion` (e.g., a
+row deleted at version 7 and recreated fresh — the recreate RPCs always start at version 1,
+but repeated recreate cycles, or a low original `lastSeenVersion`, could coincidentally
+produce `server.version >= lastSeenVersion` for an entirely different lineage). Traced where
+this actually falls through: a clean-local recreation-at-same-version lands in Case B (now
+content-checked, §R.1 — safe, since adopting is harmless with no local intent to protect); a
+dirty-local recreation-at-same-version lands in Case D (the same irreducible half discussed in
+§R.1/§R.10 — client-side detection cannot fully distinguish this from an ordinary edit either,
+same underlying limitation, same mitigation path). No new lineage-reset case was added because
+the *existing* Cases B/D, once content-aware, already absorb this scenario identically to
+ordinary same-version drift — a separate "Case V2" would duplicate logic without adding
+protection the fix doesn't already provide.
+
+### R.5 Content-equality strength, reconfirmed
+
+Re-verified each domain's `compareContent` (in `lib/reconciliation-adapters.ts`) excludes only
+the domain's own business/display timestamp (`savedAt`/`assignedAt`) — every other field,
+including nested `input`/`recommendation`/`outfit`/`formality` objects, participates in
+`canonicalDeepEqual`. This was already the deliberate Phase 2B2 choice (proven via
+`reconciliation-adapters.test.ts`'s existing "differing recommendation/outfit/formality is NOT
+equal" cases) and remains correct for same-version-drift detection specifically: a legacy
+write changing *any* meaningful field is exactly the kind of change `contentEquals` must
+catch, and it does — no field a legacy write could plausibly touch is excluded from the
+comparison. No change was needed here.
+
+### R.6 Decision-engine changes and tests added
+
+Changed: `lib/reconciliation-decision-engine.ts` (Case B, Case D, top-of-file invariant
+comment). Tests added: a new "Phase 3B — same-version legacy compatibility drift" describe
+block in `lib/__tests__/reconciliation-decision-engine.test.ts` (clean/equal, clean/differ,
+clean/unknown, dirty/equal, dirty/differ, dirty/unknown, plus the two deletion-state-anomaly
+cases — 8 new table-driven cases, domain-agnostic since the engine is); one new mandatory
+regression test in `lib/__tests__/reconciliation-executor.test.ts` proving the `DELETE_SERVER`
+path never treats an active, content-identical `conflict` response as an achieved deletion
+(§R.9 below — audited, confirmed already correct, test added to keep the invariant airtight);
+one new end-to-end orchestration test in `lib/__tests__/saved-outfits-reconciliation.test.ts`
+proving the new `sameVersionDrift` observability counter (§R.13) increments correctly through
+the real wiring, not just the pure engine. Every prior domain's full test suite (saved-outfits,
+week-plan, closet-outfit-favourites, closet-outfit-week-plan, shared runner, all-domains
+concurrency) was re-run after these changes — all 272 frontend tests pass.
+
+### R.7 Direct-Supabase server-side compatibility bridge (evaluated, not implemented)
+
+**Option A — version-advance trigger.** A `BEFORE UPDATE` trigger on `saved_outfits`/`week_plan`:
+
+```sql
+-- ILLUSTRATIVE ONLY — not applied, no migration file created this phase.
+CREATE OR REPLACE FUNCTION enforce_sync_version_advance() RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.sync_version IS NOT DISTINCT FROM OLD.sync_version THEN
+    NEW.sync_version := OLD.sync_version + 1;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+This is sound because of how Supabase's `.upsert()` compiles: a legacy payload that never
+mentions `sync_version` produces an `UPDATE` whose `SET` clause never touches that column, so
+`NEW.sync_version = OLD.sync_version` unconditionally for a legacy write — a reliable, simple
+detection signal. The Phase 1A RPCs, by contrast, always set `sync_version = sync_version + 1`
+*themselves*, so `NEW.sync_version` already differs from `OLD.sync_version` by the time this
+trigger fires, and it correctly skips (no double-increment). A legacy no-op resave (identical
+content) would still consume a version number — harmless, just a wasted but correct
+`ADOPT_SERVER` cycle on the next reconciliation pass.
+
+**Option B — physical-DELETE-to-tombstone trigger.** A `BEFORE DELETE` trigger that performs
+its own soft-delete `UPDATE` and returns `NULL` to cancel the physical delete:
+
+```sql
+-- ILLUSTRATIVE ONLY — not applied.
+CREATE OR REPLACE FUNCTION redirect_legacy_delete_to_tombstone() RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE saved_outfits SET deleted_at = now(), sync_version = sync_version + 1 WHERE id = OLD.id;
+  RETURN NULL; -- cancels the physical DELETE for this row
+END;
+$$ LANGUAGE plpgsql;
+```
+
+This is a well-established Postgres pattern (a `BEFORE DELETE` trigger returning `NULL`
+suppresses the delete for that row) and verified sound on the specific points that matter
+here: the row is already lock-held by the in-progress `DELETE`, so the trigger's own `UPDATE`
+on the same row is safe (same transaction, no self-deadlock); RLS applies normally to the
+trigger's `UPDATE` since it runs in the same session as the original statement (no
+`SECURITY DEFINER` needed to bypass anything); and the legacy client's own
+`deleteSavedOutfitFromSupabase` only checks `{ error }` — since the trigger causes no error,
+the old client perceives an ordinary successful delete, matching what it already believes
+happened locally. The version-aware RPCs never issue a raw SQL `DELETE` at all (their own
+delete is already an `UPDATE`), so this trigger can only ever fire for genuine legacy deletes
+— no interaction risk with the new path.
+
+Both are template-only in this phase; nothing was applied to any migration file or database.
+
+### R.8 Backend-mediated compatibility hardening (evaluated, not implemented)
+
+For `closet-outfit-favourites`/`closet-outfit-week-plan`, the equivalent hardening is *simpler*
+than a database trigger because we own the repository code directly:
+
+- `upsertFavourite`/`upsertWeekPlanItem`: add `syncVersion: { increment: 1 }, deletedAt: null`
+  to the existing ownership-scoped `updateMany`'s `data` object. Preserves the exact
+  request/response shape the legacy route already returns (callers never see a version
+  number); only the *database effect* changes. Also means a legacy upsert targeting a
+  tombstoned id would now correctly reactivate it *and* advance the version — which the
+  already-fixed Case C/Case M paths handle correctly on the new client's next reconciliation
+  pass (no new client-side work required).
+- `deleteFavourite`/`deleteWeekPlanItem`: change the physical `deleteMany` to an
+  ownership-scoped `updateMany` setting `deletedAt: new Date(), syncVersion: { increment: 1 }`.
+  Same signature, soft effect.
+
+Risk assessment: low. No RLS/SECURITY DEFINER concerns (already-owned application code, not a
+new database object); the only behavioral risk is that these two methods' *own* existing unit
+tests (`closet-outfit-sync.repository.legacy-ownership.test.ts`) assert the *current*
+physical-delete/no-version-touch behavior and would need updating alongside the change — not
+done this phase, per the "do not implement" instruction.
+
+### R.9 Lost-acknowledgement DELETE semantics — re-audited, no bug found
+
+Explicitly re-verified (§R.6 lists the test added): `reconciliation-executor.ts`'s
+`DELETE_SERVER` conflict branch checks `result.deletedAt !== null` — a real, authoritative
+tombstone — before recognizing a delete as already achieved. It **never** consults
+`compareContent` on this branch, unlike `UPDATE_SERVER`/`REACTIVATE_SERVER`'s lost-ack
+recovery, which explicitly does. An active row with content identical to what was being
+deleted is therefore always `CONFLICT`, never treated as a successful deletion — confirmed by
+a new mandatory regression test, not merely re-reading the code. **This bug did not exist**;
+the executor was correct from Phase 2B2. The gap was in test coverage (no test exercised the
+"still-active, content-identical" sub-case specifically), now closed.
+
+### R.10 `assignedAt`/business-timestamp equality, reconfirmed for closet-outfit-week-plan
+
+Re-verified against the actual model rather than assumed from ordinary week-plan's precedent:
+`closetOutfitWeekPlanAdapter.compareContent` excludes only `assignedAt`, matching ordinary
+week-plan's own adapter. The same reasoning applies identically — `assignedAt` is display
+metadata recording *when* an assignment happened, not part of a day's synchronization identity,
+and this is exactly what makes lost-acknowledgement recovery work (a genuine retry
+reconstructs the same content with a fresh timestamp). No change made; confirmed, not assumed,
+via the same paired lost-ack/genuine-conflict test pattern already proven for ordinary
+week-plan, now also exercised for closet-outfit-week-plan.
+
+### R.11 Three rollout strategies, compared
+
+**Strategy A — immediate Phase 3C cutoff.** Deploy the new client, then quickly revoke legacy
+mutation paths. Rejected as a starting strategy: any still-installed old client (which cannot
+be force-upgraded — app-store rollout takes days, and users can defer updates for weeks) would
+have its writes rejected outright the moment enforcement lands, with zero visibility into how
+many users that affects (§R.16's finding: no client-version telemetry exists today). This
+trades a *known, bounded* coexistence risk (§R.1, now closed for the clean case and mitigated
+for the dirty case) for an *unknown, unbounded* breakage risk. Not acceptable as the opening
+move.
+
+**Strategy B — compatibility bridge first.** Implement §R.7/§R.8's bridges so legacy writes
+themselves become protocol-compliant (version always advances, deletes always soft), deploy
+the new client, allow an observed coexistence window, then Phase-3C-disable legacy surfaces
+once confidence is established. Most upfront work, but it fixes the *root cause* (unversioned
+legacy writes) rather than only detecting its symptoms — old clients keep working completely
+unchanged from their own perspective, and new clients get the CAS guarantee back in full,
+including Case D's currently-irreducible half.
+
+**Strategy C — client-side detection only, no bridge.** Rely entirely on §R.1's engine fix.
+Assessed directly: sufficient for the clean-local half (Case B, now fully closed) but **not**
+sufficient for the dirty-local half (Case D's ordinary-edit-vs-drift ambiguity, §R.1) — a real,
+if narrower than before, silent-overwrite risk remains under this strategy alone.
+
+**Recommendation: Strategy B, with Strategy C's fix running permanently underneath it as
+defense-in-depth — not two competing strategies, one architecture with two complementary
+layers.** The bridge fixes server-side version integrity at the root (closing Case D's gap
+completely, since a bridge-compliant legacy write can no longer leave `cmp==='same'` while
+content differs — the entire scenario Case D can't fully resolve stops occurring). The
+client-side check (already shipped this phase) stays active regardless, as a safety net for
+anything the bridge doesn't cover (a race between trigger and RPC, an unanticipated code path,
+a future legacy surface nobody remembered to bridge). This directly answers §R.12: client-side
+detection alone is a **necessary temporary defense**, not a **sufficient architecture** — full
+safety requires the server-side bridge.
+
+### R.12 Old-client tombstone-read compatibility — a real, lower-severity gap
+
+Traced what an old, currently-installed client's own read query actually does: before this
+session's Phase 2B1 fix, `fetchSavedOutfitsFromSupabase`/`fetchWeekPlanFromSupabase`
+equivalents had **no** `deleted_at` filter at all. The currently-shipped app binary is exactly
+that pre-fix code — its query returns every row regardless of `deleted_at`, meaning **a row a
+new client tombstones would still appear active in an old client's UI** until that device
+updates. The same is true for the backend-mediated domains (an old client's `GET
+/closet-outfit-sync/favourites` route, unless *also* bridged, has no `deletedAt` filter of its
+own either — though this route lives in code we control, so it's actually already correct
+today: `closetOutfitSyncService.getFavourites`/`getWeekPlan` already filter
+`deletedAt: null`, confirmed by reading the service). So this gap is **direct-Supabase-only** —
+the backend-mediated domains' legacy reads are already tombstone-safe because that server code
+is ours and was fixed alongside the rest.
+
+For direct Supabase: RLS cannot selectively hide rows based on client *version* (RLS policies
+key off the authenticated user, not which binary is asking — both old and new clients
+authenticate identically). A Postgres view or table-rename redirect could theoretically hide
+`deleted_at` rows from everyone uniformly, but an old client's hardcoded table name can't be
+redirected without shipping it new code — the same chicken-and-egg problem the underlying
+migration has. Severity assessment: this is a **display-layer inconsistency, not a data-loss
+or CAS-integrity risk** — the tombstone itself is recorded correctly and the new client's own
+reads/reconciliation are unaffected; the only exposure is a single physical user running an
+old client on one device and a new client on another, where a soft-deleted item could
+reappear in the old device's list until it updates. Documented as an accepted, temporary,
+self-resolving-on-update limitation — not a release blocker, but real and worth stating
+plainly rather than assuming the read-side fix from earlier phases covers every surface.
+
+### R.13 Old-client write-to-tombstone behavior
+
+Traced for all four domains: a legacy upsert targeting an id the new protocol has already
+tombstoned does **not** reactivate it (`deleted_at`/`deletedAt` is never in the legacy
+payload, so it stays set) but **does** silently mutate the tombstoned row's hidden content
+fields. This is invisible to the new client's ordinary reads (correctly filtered) and, by
+design, to Case J's settled-tombstone-agreement path too (it only compares version/deletion
+state, never content — a tombstone's content has no user-facing meaning to any client, old or
+new, so this was never a gap worth closing symmetrically with Cases B/D). A legacy *physical
+delete* targeting an already-tombstoned row does what a physical delete always does — removes
+it outright, exactly the hard-delete/recreate scenario Case V already exists to handle safely.
+Closing the "silent content mutation under a tombstone" gap is a natural side effect of §R.7/
+§R.8's bridge (version would advance, surfacing via the already-correct Case C/M paths) —
+not a reason to build anything new in this phase.
+
+### R.14 Production deployment order (nothing deployed)
+
+**Direct-Supabase prerequisites, in order:**
+1. Apply the already-written, already-reviewed Phase 1A migration
+   (`supabase/migrations/20260907010000_phase1a_version_aware_rpcs.sql`) via the Supabase SQL
+   Editor (still the only path to this database — confirmed no automated pipeline exists,
+   Phase 0's finding).
+2. Run §R.15's verification script — confirms all 6 RPCs exist with correct signatures/return
+   shape/owner/`prosecdef`/grants.
+3. Confirm direct legacy DML (`INSERT`/`UPDATE`/`DELETE` on the base tables) remains available
+   to `authenticated` — nothing here revokes it; this is a compatibility-era prerequisite, not
+   an oversight.
+4. Confirm reconciliation-tombstone reads work under RLS (an owner can see their own
+   tombstoned rows via the plain table, since `fetchXForReconciliation` does a bare
+   `SELECT *` with no view/policy indirection).
+5. Re-verify against a disposable local Postgres instance **only if** migration SQL changed
+   since the last such verification (it hasn't, this phase) — otherwise the existing Phase 1A/
+   1B.1 verification stands.
+
+**Backend prerequisites, in order:**
+1. Confirm the actually-deployed backend (Render, `style-assistant-api`) contains this
+   session's code — **it currently does not**: every phase from Phase 0 through this one is a
+   local-only commit on `main`, never pushed, so production today predates all of it.
+   Deploying requires pushing to `main` (or `dev` first), which this phase explicitly does not
+   do.
+2. `backend/scripts/smoke-build.mjs` green against the real compiled app (already re-confirmed
+   this phase — no backend code changed, so no new risk introduced, but re-run again
+   immediately after the eventual real deploy, not just locally).
+3. Authenticated route probes against the deployed instance for
+   `/closet-outfit-sync/favourites/version-aware*` and `/week-plan/version-aware*` (a simple
+   create/delete round trip with a disposable test id, verified then cleaned up) — confirms
+   the routes are actually reachable in the deployed environment, not just present in the
+   source tree.
+4. Verify ordinary-vs-reconciliation reads against the deployed instance (create → soft-delete
+   → confirm absent from the ordinary list, present in `/for-reconciliation`).
+5. Verify legacy routes still respond normally (no regression from whatever this deploy
+   contains) — since Phase 3A3/3A4 never modified legacy backend code, this should be a
+   no-op confirmation, not a real risk.
+
+**Client:** only released once every item above is green. The client release must never be
+the first test of server readiness — this ordering is deliberate, not incidental.
+
+### R.15 Production verification checklist (read-only SQL script design)
+
+A single, repeatable, read-only SQL script — queries `pg_proc`/`information_schema`/`pg_class`
+only, mutates nothing, safe to run against production at any time:
+
+```sql
+-- Phase 3B production verification script (READ-ONLY — proposal only, not run).
+-- Run in the Supabase SQL Editor after applying the Phase 1A migration.
+
+-- 1. All 6 RPCs exist, with the exact expected argument list.
+SELECT p.proname, pg_get_function_arguments(p.oid) AS args, pg_get_function_result(p.oid) AS returns
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND p.proname IN ('create_saved_outfit', 'update_saved_outfit', 'delete_saved_outfit',
+                     'create_week_plan_item', 'update_week_plan_item', 'delete_week_plan_item')
+ORDER BY p.proname;
+-- Expect: 6 rows. Compare args/returns manually against lib/supabase-data.ts's RPC wrappers.
+
+-- 2. SECURITY DEFINER + owner + pinned search_path, all 6.
+SELECT p.proname, p.prosecdef, r.rolname AS owner, p.proconfig
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+JOIN pg_roles r ON r.oid = p.proowner
+WHERE n.nspname = 'public' AND p.proname LIKE '%saved_outfit%' OR p.proname LIKE '%week_plan_item%';
+-- Expect: prosecdef = true, owner = the intended service owner (e.g. postgres),
+-- proconfig containing 'search_path=' (pinned, never the caller's default).
+
+-- 3. EXECUTE grants: authenticated has it, anon/PUBLIC do not.
+SELECT routine_name, grantee, privilege_type
+FROM information_schema.role_routine_grants
+WHERE routine_schema = 'public'
+  AND routine_name IN ('create_saved_outfit','update_saved_outfit','delete_saved_outfit',
+                        'create_week_plan_item','update_week_plan_item','delete_week_plan_item')
+ORDER BY routine_name, grantee;
+-- Expect: only 'authenticated' listed per routine, never 'anon' or 'PUBLIC'.
+
+-- 4. sync_version / deleted_at columns exist with correct defaults.
+SELECT table_name, column_name, data_type, column_default
+FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name IN ('saved_outfits','week_plan')
+  AND column_name IN ('sync_version','deleted_at')
+ORDER BY table_name, column_name;
+
+-- 5. RLS still enabled on both base tables (never disabled by mistake).
+SELECT relname, relrowsecurity FROM pg_class
+WHERE relname IN ('saved_outfits','week_plan');
+-- Expect: relrowsecurity = true for both.
+
+-- 6. Direct legacy DML still available to authenticated (compatibility-era requirement —
+--    confirms nothing has been prematurely revoked).
+SELECT table_name, privilege_type FROM information_schema.role_table_grants
+WHERE table_schema = 'public' AND table_name IN ('saved_outfits','week_plan')
+  AND grantee = 'authenticated'
+ORDER BY table_name, privilege_type;
+-- Expect: SELECT, INSERT, UPDATE, DELETE all present today (Phase 3C, not this phase, is
+-- what will eventually narrow this).
+```
+
+Cross-user leak behavior (RPC returning `not_found` rather than another user's row/state for a
+guessed id) is **not** re-verified by this read-only script — it requires actually invoking
+the RPCs as two different authenticated test users, which is exactly what Phase 1A's own
+disposable-Postgres test suite already did exhaustively; re-running that suite (not a
+production probe) is the right verification method for that specific property, and it already
+passes.
+
+### R.16 Rollout telemetry
+
+Reused, not rebuilt: every domain's `{domain}-reconcile: started`/`completed ...` log lines
+(via `lib/auth-event-log.ts`, already non-content, non-token, already distinguishable per
+domain) are the existing signal surface. This phase adds two new counters to
+`ReconciliationRunSummary` (`lib/domain-reconciliation-runner.ts`), now included in that same
+completion log line:
+
+- **`sameVersionDrift`** — count of records where `cmp==='same'` but content genuinely
+  differed (Case B/D's new branches firing). This is the single most direct measurement of
+  *how much active legacy-client mutation is still happening in the wild* — a live, per-run
+  signal of real-world coexistence pressure, not a guess.
+- **`versionLineageReset`** — count of records hitting Case V (hard-delete/recreate lineage
+  anomalies).
+
+Alongside the already-existing `considered`/`success`/`noOp`/`dirtyRemaining`/`conflicts`/
+`deferred`/`operationalFailures`. No payload, recommendation text, closet content, or
+unnecessary user identifiers are logged (unchanged from Phase 3A1's original design) — no
+dashboard or analytics platform integration is built in this phase, per instructions; these
+remain structured log lines for a human (or a future pipeline) to read.
+
+**Healthy rollout:** `operationalFailures` rate low and flat; `conflicts` present but
+attributable to genuine multi-device use, not spiking; `dirtyRemaining` trending toward zero
+within a session or two; `sameVersionDrift` present (expected, proves the client-side defense
+is doing its job) but not the dominant outcome type.
+
+**Stop-rollout signal:** a sustained spike in `operationalFailures` (infrastructure/protocol
+failure — e.g., RPC signature mismatch, auth failures, migration not actually applied) —
+distinct from `conflicts`, which are expected, user-level, and not an application failure. A
+single concurrent week-plan reassignment conflict is normal product behavior, not a bug.
+
+**Rollback signal:** `operationalFailures` at or near 100% for a domain (e.g., every RPC call
+failing) — almost always means the migration/deploy prerequisite in §R.14 was missed for that
+domain specifically; the fix is completing that prerequisite, not necessarily rolling back the
+client (rollback is reserved for a case where a hidden client-side crash/dataloss appears, not
+for "RPC unreachable," which self-resolves once the actual prerequisite lands).
+
+### R.17 Recommended concrete thresholds
+
+Initial, revisable numbers (not "when error rates are low"):
+
+| Signal | Healthy | Investigate | Stop rollout |
+|---|---|---|---|
+| `operationalFailures` / `considered` (per domain, per day) | < 2% | 2–10% | > 10% sustained over 1 hour |
+| `sameVersionDrift` / `considered` | any value, informational | — | — (never a stop signal by itself; see §R.11's Strategy B) |
+| `conflicts` / `considered` | < 5% (expected, user-level) | — | — (never a stop signal; a spike here means users are multi-device, not that the protocol is broken) |
+| `dirtyRemaining` at end of a lifecycle reconciliation run | < 1% of considered | 1–5%, same domain, repeated sessions | > 5% sustained across sessions for the same domain |
+| Runtime smoke (`smoke-build.mjs`) | green | — | any red (immediate stop, this is infra, not user behavior) |
+| Auth failures attributable to sync routes specifically (distinct from ordinary 401s) | 0 above background rate | any sustained increase | — |
+
+`conflicts` and `sameVersionDrift` are deliberately never stop-rollout signals on their own —
+they represent expected protocol behavior (real competing edits, real legacy-client activity),
+not failures of the new architecture.
+
+### R.18 Observation window
+
+No app-store adoption or client-version telemetry currently exists (§R.19's finding) — the
+window recommendation below is therefore a conservative time-based estimate, not a
+measurement, and this is stated explicitly rather than presented as more precise than it is.
+Recommend **at minimum 4–6 weeks** after the new client reaches 100% of the App Store rollout
+before considering Phase 3C: mobile app adoption curves typically see 80–90% of *active* users
+update within 2–4 weeks of a release reaching 100%, with a long tail of stragglers (inactive
+devices, auto-update disabled, offline devices) extending well beyond that. This app has no
+forced-minimum-version enforcement today (confirmed: no version check anywhere in
+`backend/src/middleware`), so an old client, once installed, keeps working indefinitely until
+its user manually or automatically updates. §R.19 identifies closing this measurement gap as
+an actual prerequisite for turning "4–6 weeks, a guess" into a data-driven decision.
+
+### R.19 How we'll know old clients are (mostly) gone
+
+Audited what currently exists: **nothing**. `lib/api/api-client.ts` sends no app-version
+header; no backend middleware logs or tracks one; `app.config.ts` has a `version` field
+(`0.0.6`) but it is never transmitted. This is a genuine, confirmed gap, not invented — and
+the recommendation is correspondingly minimal, not an elaborate analytics system: add a single
+`X-App-Version` request header (from `expo-constants`/`app.config.ts`'s existing version
+field) in `api-client.ts`, and have the backend's already-existing request-logger middleware
+include it in its structured log line. This alone would let version distribution of *incoming
+traffic* be observed over time without any new infrastructure, app-store analytics
+integration, or dashboard. Not implemented this phase (out of this phase's allowed scope,
+§23) — recommended as a concrete, small prerequisite for a data-driven Phase 3C decision
+rather than a time-based guess alone.
+
+### R.20 Phase 3C planning — direct Supabase (planning only, nothing executed)
+
+For `saved_outfits`/`week_plan`, the eventual enforcement:
+
+```sql
+-- PLANNING ONLY — not executed, no migration file created or modified this phase.
+REVOKE INSERT, UPDATE, DELETE ON public.saved_outfits FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.week_plan FROM authenticated;
+-- SELECT is preserved (both ordinary reads and reconciliation reads still need it).
+-- authenticated's EXECUTE on all 6 Phase 1A RPCs is untouched — they run SECURITY DEFINER
+-- as their own owner regardless of the caller's direct-table grants, so revoking direct DML
+-- does not affect the RPCs' own ability to mutate the tables.
+
+-- Rollback:
+GRANT INSERT, UPDATE, DELETE ON public.saved_outfits TO authenticated;
+GRANT INSERT, UPDATE, DELETE ON public.week_plan TO authenticated;
+```
+
+Old-client effect: any remaining old client's direct upsert/delete would start failing with a
+permissions error at the database level (RLS/grant denial) — this is *the point* of Phase 3C,
+and is exactly why §R.18's observation window must have elapsed first. Verification
+statements: §R.15's script, items 3 and 6, re-run post-revocation — item 6 should now show
+only `SELECT` for `authenticated`.
+
+### R.21 Phase 3C planning — backend-mediated domains (planning only)
+
+For `closet-outfit-favourites`/`closet-outfit-week-plan`, recommend the **simplest,
+operationally reversible** method: a single boolean config flag
+(e.g. `LEGACY_CLOSET_SYNC_ENABLED`, read once at process start from an environment variable,
+matching this backend's existing `config/env.ts` pattern) that the four legacy route handlers
+check before executing — returning a clear `426 Upgrade Required`-style structured error
+(reusing `sendError`) instead of performing the legacy mutation when disabled. This is
+preferred over deleting the routes/handlers outright (not reversible without a redeploy) or a
+minimum-client-version check (requires the version telemetry from §R.19 to exist first, and is
+a heavier mechanism than this decision currently needs). Toggling the env var and restarting
+the service is a same-day, fully reversible action — no code deploy required to flip it back.
+
+### R.22 Phase 3C rollback
+
+Direct Supabase: the `GRANT` statements in §R.20 are the exact, tested reverse of the
+`REVOKE` — both are simple, idempotent, single-statement operations with no data-shape
+concerns (rollback never touches rows, only permissions).
+
+Backend: flipping `LEGACY_CLOSET_SYNC_ENABLED` back to true and restarting is the exact
+reverse of §R.21 — no code change, no redeploy.
+
+**Data-compatibility concern after a rollback:** by the time any rollback would happen, rows
+may already contain tombstones, higher sync versions, or reactivated states the *legacy* code
+was never designed to understand. Rolling back the *permission enforcement* does not roll back
+*those rows* — an old client regaining direct DML access would interact with them exactly as
+§R.12/§R.13 already describe (tombstones invisible to it, its own writes not respecting them).
+This is the same coexistence profile the system already ran under during the original
+compatibility window, not a new risk introduced by rollback specifically — the rollback
+restores the *pre-Phase-3C* state precisely, which was already analyzed and found acceptable
+(with conditions) throughout this section.
+
+### R.23 Recommended final rollout architecture
+
+1. **Can we safely ship the new client while old clients exist? Yes, with conditions.** The
+   conditions: (a) the same-version clean-local hole is closed (done, this phase); (b) the
+   same-version dirty-local hole is a known, narrow, documented residual risk, mitigated but
+   not eliminated by client-side logic alone; (c) the server-side compatibility bridge (§R.7/
+   §R.8) should be built and deployed **before or alongside** the new client to close that
+   residual risk completely, not left as a someday follow-up.
+2. **Is client-side same-version drift detection required? Yes — necessary, and already
+   shipped.** It is the safety net regardless of whether the bridge exists, and fully
+   sufficient on its own for the clean-local half.
+3. **Is server-side legacy compatibility hardening required? Yes, for full closure of the
+   dirty-local half.** Not required to ship the new client at all (client-side detection makes
+   coexistence *reasonably* safe even without it), but required to consider the architecture
+   *complete* rather than *reasonably mitigated*.
+4. **Should Phase 3C happen immediately or after a compatibility window? After a window.**
+   Recommend: ship the server-side bridge (§R.7/§R.8) → ship the new client → observe for the
+   window in §R.18 (ideally shortened by adding §R.19's minimal version telemetry) → only then
+   plan Phase 3C's actual execution using §R.20–§R.22.
+5. **Exact sequence that minimizes risk:** (a) implement and test the server-side bridges
+   (§R.7/§R.8) against disposable Postgres + existing backend test conventions; (b) apply the
+   Phase 1A migration to production per §R.14/§R.15; (c) deploy the bridged backend to
+   production; (d) release the new client; (e) observe per §R.16/§R.17 for §R.18's window,
+   adding §R.19's version header in the meantime; (f) plan and execute Phase 3C per §R.20–§R.22
+   once observation is satisfactory.
+
+This is one recommendation, not a hedge between alternatives — Strategy B (§R.11), executed in
+this order, with Strategy C's client-side fix already in place underneath it throughout.

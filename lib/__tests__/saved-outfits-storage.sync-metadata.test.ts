@@ -51,7 +51,7 @@ beforeEach(() => {
   getCurrentUserId.mockResolvedValue('user-1');
 });
 
-const INPUT = { anchorItemDescription: 'test', anchorItems: [] } as unknown as import('@/types/look-request').CreateLookInput;
+const INPUT = { anchorItemDescription: 'test', anchorItems: [{ id: 'anchor-primary', description: 'test', image: null, uploadedImage: null }] } as unknown as import('@/types/look-request').CreateLookInput;
 const RECOMMENDATION = { tier: 'business', sketchImageUrl: null } as unknown as import('@/types/look-request').LookRecommendation;
 
 describe('saved-outfits-storage — Phase 1B sync-metadata hooks (happy path)', () => {

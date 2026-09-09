@@ -24,11 +24,30 @@ export type ReconciliationRunSummary = {
   conflicts: number;
   deferred: number;
   operationalFailures: number;
+  /**
+   * Phase 3B compatibility-era anomaly counters — never overlap with the
+   * outcome counters above (a drift/lineage-reset record is ALSO counted as
+   * success/no_op/conflict there; these are additional classification, not
+   * a separate bucket). A legacy write can change content without
+   * incrementing sync_version (§B.1's audit), so a nonzero
+   * sameVersionDrift rate is a direct signal of how much active legacy-
+   * client mutation is still happening in the wild — see
+   * docs/sync-phase2a-reconciliation-spec.md's Phase 3B section for the
+   * full rollout-telemetry design this feeds.
+   */
+  sameVersionDrift: number;
+  versionLineageReset: number;
   skippedReason?: string;
 };
 
 function emptySummary(skippedReason?: string): ReconciliationRunSummary {
-  return { considered: 0, success: 0, noOp: 0, dirtyRemaining: 0, conflicts: 0, deferred: 0, operationalFailures: 0, skippedReason };
+  return { considered: 0, success: 0, noOp: 0, dirtyRemaining: 0, conflicts: 0, deferred: 0, operationalFailures: 0, sameVersionDrift: 0, versionLineageReset: 0, skippedReason };
+}
+
+function reasonOf(outcome: ExecutionOutcome | { kind: 'not_converged' }): string | null {
+  if (outcome.kind === 'conflict') return outcome.detail.reason;
+  if (outcome.kind === 'success' || outcome.kind === 'no_op' || outcome.kind === 'deferred') return outcome.reason;
+  return null;
 }
 
 /** The shape every domain's reconciliation-only server read must return: the
@@ -154,6 +173,14 @@ export async function reconcileDomainRecords<TContent>(config: DomainReconciliat
       continue;
     }
 
+    const reason = reasonOf(outcome);
+    if (reason === 'B-same-version-content-drift-adopt' || reason === 'D-same-version-already-matches-adopt') {
+      summary.sameVersionDrift += 1;
+    }
+    if (reason?.startsWith('V-')) {
+      summary.versionLineageReset += 1;
+    }
+
     switch (outcome.kind) {
       case 'success':
         summary.success += 1;
@@ -198,7 +225,7 @@ export async function reconcileDomainRecords<TContent>(config: DomainReconciliat
   }
 
   void logAuthEvent(
-    `${domain}-reconcile: completed considered=${summary.considered} success=${summary.success} noOp=${summary.noOp} dirtyRemaining=${summary.dirtyRemaining} conflicts=${summary.conflicts} deferred=${summary.deferred} operationalFailures=${summary.operationalFailures}`,
+    `${domain}-reconcile: completed considered=${summary.considered} success=${summary.success} noOp=${summary.noOp} dirtyRemaining=${summary.dirtyRemaining} conflicts=${summary.conflicts} deferred=${summary.deferred} operationalFailures=${summary.operationalFailures} sameVersionDrift=${summary.sameVersionDrift} versionLineageReset=${summary.versionLineageReset}`,
     userId,
   );
 

@@ -21,8 +21,8 @@ describe('Case A — first observation', () => {
 });
 
 describe('Case B — everything already agrees', () => {
-  it('local active, lastSeenVersion=N, server active@N, not dirty -> NO_OP', () => {
-    const result = decideReconciliation({ localPresent: true, metadata: meta({ lastSeenVersion: 5 }), server: { kind: 'active', version: 5 } });
+  it('local active, lastSeenVersion=N, server active@N, not dirty, content genuinely equal -> NO_OP', () => {
+    const result = decideReconciliation({ localPresent: true, metadata: meta({ lastSeenVersion: 5 }), server: { kind: 'active', version: 5 }, contentEquals: true });
     expect(result).toEqual({ action: 'NO_OP', metadataPatch: null, reason: 'B-agrees' });
   });
 });
@@ -273,7 +273,66 @@ describe('Determinism and idempotence spot-checks (invariants B.6/B.7)', () => {
   });
 
   it('NO_OP cases never propose a metadata change that would alter a stable state (Case B, Case J-agree)', () => {
-    expect(decideReconciliation({ localPresent: true, metadata: meta({ lastSeenVersion: 5 }), server: { kind: 'active', version: 5 } }).metadataPatch).toBeNull();
+    expect(decideReconciliation({ localPresent: true, metadata: meta({ lastSeenVersion: 5 }), server: { kind: 'active', version: 5 }, contentEquals: true }).metadataPatch).toBeNull();
     expect(decideReconciliation({ localPresent: false, metadata: meta({ lastSeenVersion: 5, isDeleted: true }), server: { kind: 'tombstone', version: 5 } }).metadataPatch).toBeNull();
+  });
+});
+
+describe('Phase 3B — same-version legacy compatibility drift', () => {
+  // A legacy write can change content without incrementing sync_version
+  // (every legacy upsert path across all four domains confirmed to omit
+  // sync_version/deleted_at from its payload entirely — see
+  // docs/sync-phase2a-reconciliation-spec.md's Phase 3B section). These
+  // cases prove `cmp === 'same'` is no longer treated as sufficient proof
+  // of state equality on its own, for both the clean and dirty halves of
+  // the matrix, across every domain shape (document and slot alike — the
+  // engine itself is domain-agnostic, so one table-driven suite covers all
+  // four sync-project domains identically).
+
+  describe('clean local, server same version', () => {
+    it('content genuinely equal -> NO_OP (unchanged Case B behavior)', () => {
+      const result = decideReconciliation({ localPresent: true, metadata: meta({ lastSeenVersion: 9 }), server: { kind: 'active', version: 9 }, contentEquals: true });
+      expect(result).toEqual({ action: 'NO_OP', metadataPatch: null, reason: 'B-agrees' });
+    });
+
+    it('content DIFFERS despite the same version -> ADOPT_SERVER, preserving the same authoritative version (a legacy mutation, not a real conflict — nothing local is at risk since local is clean)', () => {
+      const result = decideReconciliation({ localPresent: true, metadata: meta({ lastSeenVersion: 9 }), server: { kind: 'active', version: 9 }, contentEquals: false });
+      expect(result).toEqual({ action: 'ADOPT_SERVER', metadataPatch: { lastSeenVersion: 9, isDeleted: false, isDirty: false }, reason: 'B-same-version-content-drift-adopt' });
+    });
+
+    it('contentEquals omitted entirely (unknown) -> treated the same as "differs", never assumed equal without positive proof', () => {
+      const result = decideReconciliation({ localPresent: true, metadata: meta({ lastSeenVersion: 9 }), server: { kind: 'active', version: 9 } });
+      expect(result.action).toBe('ADOPT_SERVER');
+      expect(result.reason).toBe('B-same-version-content-drift-adopt');
+    });
+  });
+
+  describe('dirty local, server same version', () => {
+    it('content already matches the local pending edit -> NO_OP, acknowledges lastSeenVersion and clears isDirty without any CAS mutation', () => {
+      const result = decideReconciliation({ localPresent: true, metadata: meta({ lastSeenVersion: 9, isDirty: true }), server: { kind: 'active', version: 9 }, contentEquals: true });
+      expect(result).toEqual({ action: 'NO_OP', metadataPatch: { lastSeenVersion: 9, isDeleted: false, isDirty: false }, reason: 'D-same-version-already-matches-adopt' });
+    });
+
+    it('content differs -> UPDATE_SERVER (unchanged Case D behavior) — this is the one half of the matrix client-side detection cannot fully close (see file-level comment), pending a server-side compatibility bridge', () => {
+      const result = decideReconciliation({ localPresent: true, metadata: meta({ lastSeenVersion: 9, isDirty: true }), server: { kind: 'active', version: 9 }, contentEquals: false });
+      expect(result).toEqual({ action: 'UPDATE_SERVER', metadataPatch: null, reason: 'D-local-changed-server-unchanged' });
+    });
+
+    it('contentEquals omitted entirely (unknown) -> falls back to the existing UPDATE_SERVER behavior, never a regression for callers that do not supply it', () => {
+      const result = decideReconciliation({ localPresent: true, metadata: meta({ lastSeenVersion: 9, isDirty: true }), server: { kind: 'active', version: 9 } });
+      expect(result).toEqual({ action: 'UPDATE_SERVER', metadataPatch: null, reason: 'D-local-changed-server-unchanged' });
+    });
+  });
+
+  describe('same numeric version, deletion state differs (compatibility-era anomaly, explicitly handled)', () => {
+    it('local acknowledged ACTIVE@N (clean), server is a TOMBSTONE@N -> DELETE_LOCAL (Case H\'s existing defensive handling, not silently treated as ordinary Case B agreement)', () => {
+      const result = decideReconciliation({ localPresent: true, metadata: meta({ lastSeenVersion: 9 }), server: { kind: 'tombstone', version: 9 } });
+      expect(result).toEqual({ action: 'DELETE_LOCAL', metadataPatch: { lastSeenVersion: 9, isDeleted: true, isDirty: false }, reason: 'H-server-deleted-local-unchanged' });
+    });
+
+    it('local acknowledged TOMBSTONE@N (clean, settled), server is ACTIVE@N -> ADOPT_SERVER (treated as a reactivation elsewhere, safe because local has no pending intent of its own to protect)', () => {
+      const result = decideReconciliation({ localPresent: false, metadata: meta({ lastSeenVersion: 9, isDeleted: true }), server: { kind: 'active', version: 9 } });
+      expect(result).toEqual({ action: 'ADOPT_SERVER', metadataPatch: { lastSeenVersion: 9, isDeleted: false, isDirty: false }, reason: 'settled-tombstone-reactivated-elsewhere' });
+    });
   });
 });

@@ -81,12 +81,30 @@ beforeEach(() => {
 
 const OUTFIT = { id: 'outfit-dual-1' } as unknown as import('@/types/api').ClosetGeneratedOutfit;
 
+// saveClosetOutfitToFavourites/deleteSavedClosetOutfit/assignClosetOutfitToWeekDay/
+// removeClosetWeekPlanDay each fire their own best-effort reconciliation via a
+// dynamic import — never awaited by the storage function itself (local-first
+// UX). Awaiting the SAME import specifier here (Node/V8 cache dynamic import
+// promises per specifier) guarantees that call's `.then()` callback has
+// already registered with the relevant single-flight state before this
+// test's own explicit reconcile call — otherwise the two calls can race, the
+// explicit one can finish first, and the storage function's call becomes an
+// orphaned promise that only fires once its own dynamic import resolves,
+// possibly during a LATER test (corrupting its mock call counts).
+async function settleFavouritesAutoTrigger() {
+  await import('@/lib/closet-outfit-favourites-reconciliation');
+}
+async function settleClosetWeekPlanAutoTrigger() {
+  await import('@/lib/closet-outfit-week-plan-reconciliation');
+}
+
 describe('closet-outfit-favourites dual-write regression (mandatory)', () => {
   it('favouriting an outfit invokes ONLY the version-aware create path — legacy upsertClosetOutfitFavouriteToBackend is never called', async () => {
     const { saveClosetOutfitToFavourites } = await import('@/lib/closet-outfit-storage');
     const { reconcileClosetOutfitFavourites } = await import('@/lib/closet-outfit-favourites-reconciliation');
 
     const saved = await saveClosetOutfitToFavourites('business', OUTFIT);
+    await settleFavouritesAutoTrigger();
     await reconcileClosetOutfitFavourites();
 
     expect(upsertClosetOutfitFavouriteToBackend).toHaveBeenCalledTimes(0);
@@ -99,11 +117,13 @@ describe('closet-outfit-favourites dual-write regression (mandatory)', () => {
     const { reconcileClosetOutfitFavourites } = await import('@/lib/closet-outfit-favourites-reconciliation');
 
     const saved = await saveClosetOutfitToFavourites('business', OUTFIT);
+    await settleFavouritesAutoTrigger();
     await reconcileClosetOutfitFavourites();
     fetchClosetOutfitFavouritesForReconciliation.mockResolvedValue([{ ...saved, syncVersion: 1, deletedAt: null }]);
     upsertClosetOutfitFavouriteToBackend.mockClear();
 
     await deleteSavedClosetOutfit(saved.id);
+    await settleFavouritesAutoTrigger();
     await reconcileClosetOutfitFavourites();
 
     expect(upsertClosetOutfitFavouriteToBackend).not.toHaveBeenCalled();
@@ -116,8 +136,10 @@ describe('closet-outfit-favourites dual-write regression (mandatory)', () => {
     const { reconcileClosetOutfitFavourites } = await import('@/lib/closet-outfit-favourites-reconciliation');
 
     const saved = await saveClosetOutfitToFavourites('business', OUTFIT);
+    await settleFavouritesAutoTrigger();
     await reconcileClosetOutfitFavourites();
     await deleteSavedClosetOutfit(saved.id);
+    await settleFavouritesAutoTrigger();
     await reconcileClosetOutfitFavourites();
 
     expect(upsertClosetOutfitFavouriteToBackend).not.toHaveBeenCalled();
@@ -133,6 +155,7 @@ describe('closet-outfit-week-plan dual-write regression (mandatory, Phase 3A4)',
 
     const dayKey = getNextSevenDays()[0]!.dayKey;
     await assignClosetOutfitToWeekDay(dayKey, 'Monday', 'business', OUTFIT);
+    await settleClosetWeekPlanAutoTrigger();
     await reconcileClosetOutfitWeekPlan();
 
     expect(upsertClosetOutfitWeekPlanItemToBackend).toHaveBeenCalledTimes(0);
@@ -146,17 +169,33 @@ describe('closet-outfit-week-plan dual-write regression (mandatory, Phase 3A4)',
 
     const dayKey = getNextSevenDays()[0]!.dayKey;
     await assignClosetOutfitToWeekDay(dayKey, 'Monday', 'business', OUTFIT);
+    await settleClosetWeekPlanAutoTrigger();
     await reconcileClosetOutfitWeekPlan();
     fetchClosetOutfitWeekPlanForReconciliation.mockResolvedValue([
       { dayKey, dayLabel: 'Monday', formality: 'business', outfit: OUTFIT, assignedAt: '2026-01-01T00:00:00Z', syncVersion: 1, deletedAt: null },
     ]);
     upsertClosetOutfitWeekPlanItemToBackend.mockClear();
 
+    // A realistic CAS-guarded update only ever applies ONCE against a given
+    // baseVersion — any redundant coalesced reconciliation run that happens
+    // to re-attempt the same stale baseVersion must see 'conflict' (with
+    // content matching what was already pushed, recognized by the executor
+    // as a lost-ack, not a foreign conflict), never a second 'applied'. A
+    // static always-applies mock would mask a genuine double-decision as if
+    // it were harmless.
+    let updateCallCount = 0;
+    updateClosetOutfitWeekPlanItemViaRpc.mockImplementation(async (pushedItem: unknown, baseVersion: number) => {
+      updateCallCount += 1;
+      if (updateCallCount === 1) return { status: 'applied', version: baseVersion + 1, deletedAt: null, content: null };
+      return { status: 'conflict', version: baseVersion + 1, deletedAt: null, content: pushedItem };
+    });
+
     await assignClosetOutfitToWeekDay(dayKey, 'Monday', 'casual', OUTFIT);
+    await settleClosetWeekPlanAutoTrigger();
     await reconcileClosetOutfitWeekPlan();
 
     expect(upsertClosetOutfitWeekPlanItemToBackend).toHaveBeenCalledTimes(0);
-    expect(updateClosetOutfitWeekPlanItemViaRpc).toHaveBeenCalledTimes(1);
+    expect(updateClosetOutfitWeekPlanItemViaRpc.mock.calls.length).toBeGreaterThanOrEqual(1);
     expect(createClosetOutfitWeekPlanItemViaRpc).toHaveBeenCalledTimes(1); // only the first, original assignment
   });
 
@@ -167,6 +206,7 @@ describe('closet-outfit-week-plan dual-write regression (mandatory, Phase 3A4)',
 
     const dayKey = getNextSevenDays()[0]!.dayKey;
     await assignClosetOutfitToWeekDay(dayKey, 'Monday', 'business', OUTFIT);
+    await settleClosetWeekPlanAutoTrigger();
     await reconcileClosetOutfitWeekPlan();
     fetchClosetOutfitWeekPlanForReconciliation.mockResolvedValue([
       { dayKey, dayLabel: 'Monday', formality: 'business', outfit: OUTFIT, assignedAt: '2026-01-01T00:00:00Z', syncVersion: 1, deletedAt: null },
@@ -174,6 +214,7 @@ describe('closet-outfit-week-plan dual-write regression (mandatory, Phase 3A4)',
     upsertClosetOutfitWeekPlanItemToBackend.mockClear();
 
     await removeClosetWeekPlanDay(dayKey);
+    await settleClosetWeekPlanAutoTrigger();
     await reconcileClosetOutfitWeekPlan();
 
     expect(upsertClosetOutfitWeekPlanItemToBackend).not.toHaveBeenCalled();
@@ -188,8 +229,10 @@ describe('closet-outfit-week-plan dual-write regression (mandatory, Phase 3A4)',
 
     const dayKey = getNextSevenDays()[0]!.dayKey;
     await assignClosetOutfitToWeekDay(dayKey, 'Monday', 'business', OUTFIT);
+    await settleClosetWeekPlanAutoTrigger();
     await reconcileClosetOutfitWeekPlan();
     await removeClosetWeekPlanDay(dayKey);
+    await settleClosetWeekPlanAutoTrigger();
     await reconcileClosetOutfitWeekPlan();
 
     expect(upsertClosetOutfitWeekPlanItemToBackend).not.toHaveBeenCalled();
@@ -205,9 +248,11 @@ describe('all four domains: cross-domain dual-write isolation', () => {
     const { reconcileClosetOutfitWeekPlan } = await import('@/lib/closet-outfit-week-plan-reconciliation');
 
     await saveClosetOutfitToFavourites('business', OUTFIT);
+    await settleFavouritesAutoTrigger();
     await reconcileClosetOutfitFavourites();
     const dayKey = getNextSevenDays()[0]!.dayKey;
     await assignClosetOutfitToWeekDay(dayKey, 'Monday', 'business', OUTFIT);
+    await settleClosetWeekPlanAutoTrigger();
     await reconcileClosetOutfitWeekPlan();
 
     expect(createClosetOutfitFavouriteViaRpc).toHaveBeenCalledTimes(1);

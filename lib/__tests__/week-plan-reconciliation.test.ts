@@ -63,7 +63,7 @@ beforeEach(() => {
   deleteWeekPlanItemViaRpc.mockReset();
 });
 
-const INPUT = { anchorItemDescription: 'test', anchorItems: [] } as unknown as import('@/types/look-request').CreateLookInput;
+const INPUT = { anchorItemDescription: 'test', anchorItems: [{ id: 'anchor-primary', description: 'test', image: null, uploadedImage: null }] } as unknown as import('@/types/look-request').CreateLookInput;
 const RECOMMENDATION = { tier: 'business', sketchImageUrl: null } as unknown as import('@/types/look-request').LookRecommendation;
 
 async function firstValidDayKey() {
@@ -320,18 +320,20 @@ describe('reconcileWeekPlan — 9/10. lost-acknowledgement recovery vs. genuine 
 
     const dayKey = await firstValidDayKey();
     await applyMetadataPatch('week-plan', dayKey, { lastSeenVersion: 4, isDeleted: false, isDirty: false });
-    const local = { ...item(dayKey), assignedAt: '2026-08-01T00:00:00Z' };
+    // The reconciliation READ shows the ORIGINAL, pre-edit assignment
+    // (still @4) — this is what makes the decision engine treat this as an
+    // ORDINARY Case D update attempt (content genuinely differs from the
+    // new local edit, so it proceeds to attempt the RPC, rather than
+    // short-circuiting via the same-version-content-drift shortcut).
+    fetchWeekPlanForReconciliation.mockResolvedValue([{ ...item(dayKey), syncVersion: 4, deletedAt: null }]);
+    const local = { ...item(dayKey), requestId: 'req-mine', assignedAt: '2026-08-01T00:00:00Z' };
     await writeOneWeekPlanItemLocal(local);
     await markActive('week-plan', dayKey); // local dirty from version-4 baseline
 
     // The CAS reassignment actually succeeded server-side (now @5) with the
     // same semantic assignment but a different assignedAt (the server
     // recorded its own write time) — the ack was lost before metadata
-    // updated. updateWeekPlanItemViaRpc's own response reports this.
-    // The reconciliation READ itself still shows the stale version 4 (this
-    // device's last acknowledged state) — the staleness is only discovered
-    // when the CAS RPC actually runs and reports the row already moved.
-    fetchWeekPlanForReconciliation.mockResolvedValue([{ ...local, syncVersion: 4, deletedAt: null }]);
+    // updated. This is only discovered once the RPC itself reports it.
     updateWeekPlanItemViaRpc.mockResolvedValue({
       status: 'conflict',
       version: 5,
@@ -354,11 +356,11 @@ describe('reconcileWeekPlan — 9/10. lost-acknowledgement recovery vs. genuine 
 
     const dayKey = await firstValidDayKey();
     await applyMetadataPatch('week-plan', dayKey, { lastSeenVersion: 4, isDeleted: false, isDirty: false });
+    fetchWeekPlanForReconciliation.mockResolvedValue([{ ...item(dayKey), syncVersion: 4, deletedAt: null }]);
     const local = { ...item(dayKey), requestId: 'req-mine' };
     await writeOneWeekPlanItemLocal(local);
     await markActive('week-plan', dayKey);
 
-    fetchWeekPlanForReconciliation.mockResolvedValue([{ ...local, syncVersion: 4, deletedAt: null }]);
     updateWeekPlanItemViaRpc.mockResolvedValue({
       status: 'conflict',
       version: 5,

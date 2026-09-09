@@ -51,8 +51,23 @@ beforeEach(() => {
   deleteWeekPlanItemViaRpc.mockReset().mockResolvedValue({ status: 'applied', version: 3, deletedAt: '2026-01-01T00:00:00Z', content: null });
 });
 
-const INPUT = { anchorItemDescription: 'test', anchorItems: [] } as unknown as import('@/types/look-request').CreateLookInput;
+const INPUT = { anchorItemDescription: 'test', anchorItems: [{ id: 'anchor-primary', description: 'test', image: null, uploadedImage: null }] } as unknown as import('@/types/look-request').CreateLookInput;
 const RECOMMENDATION = { tier: 'business', sketchImageUrl: null } as unknown as import('@/types/look-request').LookRecommendation;
+
+// assignOutfitToWeekDay/removeWeekPlan fire their own best-effort
+// reconciliation via a dynamic `import('@/lib/week-plan-reconciliation')` —
+// never awaited by the storage function itself (local-first UX). Awaiting
+// that SAME import specifier here (Node/V8 cache dynamic import promises
+// per specifier, so this resolves once the storage function's own pending
+// import settles too) guarantees its `.then()` callback has already
+// registered with reconcileWeekPlan's single-flight state before this
+// test's own explicit call — otherwise the two calls can race, the
+// explicit one can finish first, and the storage function's call becomes
+// an orphaned promise that only fires once its dynamic import finally
+// resolves, possibly during a LATER test (corrupting its mock call counts).
+async function settleAutoTriggeredReconciliation() {
+  await import('@/lib/week-plan-reconciliation');
+}
 
 describe('week-plan dual-write regression (mandatory)', () => {
   it('assigning an empty day invokes ONLY the version-aware create path — legacy upsertWeekPlanItemToSupabase is never called', async () => {
@@ -61,6 +76,7 @@ describe('week-plan dual-write regression (mandatory)', () => {
 
     const dayKey = getNextSevenDays()[0]!.dayKey;
     await assignOutfitToWeekDay(dayKey, 'Monday', INPUT, RECOMMENDATION, 'req-1');
+    await settleAutoTriggeredReconciliation();
     await reconcileWeekPlan();
 
     expect(upsertWeekPlanItemToSupabase).toHaveBeenCalledTimes(0);
@@ -73,6 +89,7 @@ describe('week-plan dual-write regression (mandatory)', () => {
 
     const dayKey = getNextSevenDays()[0]!.dayKey;
     await assignOutfitToWeekDay(dayKey, 'Monday', INPUT, RECOMMENDATION, 'req-1');
+    await settleAutoTriggeredReconciliation();
     await reconcileWeekPlan();
     fetchWeekPlanForReconciliation.mockResolvedValue([
       { dayKey, dayLabel: 'Monday', requestId: 'req-1', assignedAt: '2026-01-01T00:00:00Z', input: INPUT, recommendation: RECOMMENDATION, syncVersion: 1, deletedAt: null },
@@ -80,6 +97,7 @@ describe('week-plan dual-write regression (mandatory)', () => {
     upsertWeekPlanItemToSupabase.mockClear();
 
     await assignOutfitToWeekDay(dayKey, 'Monday', INPUT, RECOMMENDATION, 'req-2');
+    await settleAutoTriggeredReconciliation();
     await reconcileWeekPlan();
 
     expect(upsertWeekPlanItemToSupabase).toHaveBeenCalledTimes(0);
@@ -93,6 +111,7 @@ describe('week-plan dual-write regression (mandatory)', () => {
 
     const dayKey = getNextSevenDays()[0]!.dayKey;
     await assignOutfitToWeekDay(dayKey, 'Monday', INPUT, RECOMMENDATION, 'req-1');
+    await settleAutoTriggeredReconciliation();
     await reconcileWeekPlan();
     fetchWeekPlanForReconciliation.mockResolvedValue([
       { dayKey, dayLabel: 'Monday', requestId: 'req-1', assignedAt: '2026-01-01T00:00:00Z', input: INPUT, recommendation: RECOMMENDATION, syncVersion: 1, deletedAt: null },
@@ -100,6 +119,7 @@ describe('week-plan dual-write regression (mandatory)', () => {
     upsertWeekPlanItemToSupabase.mockClear();
 
     await removeWeekPlan(dayKey);
+    await settleAutoTriggeredReconciliation();
     await reconcileWeekPlan();
 
     expect(upsertWeekPlanItemToSupabase).not.toHaveBeenCalled();

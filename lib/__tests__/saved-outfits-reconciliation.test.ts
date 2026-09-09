@@ -68,7 +68,7 @@ beforeEach(() => {
   deleteSavedOutfitViaRpc.mockReset();
 });
 
-const INPUT = { anchorItemDescription: 'test', anchorItems: [] } as unknown as import('@/types/look-request').CreateLookInput;
+const INPUT = { anchorItemDescription: 'test', anchorItems: [{ id: 'anchor-primary', description: 'test', image: null, uploadedImage: null }] } as unknown as import('@/types/look-request').CreateLookInput;
 const RECOMMENDATION = { tier: 'business', sketchImageUrl: null } as unknown as import('@/types/look-request').LookRecommendation;
 
 describe('reconcileSavedOutfits — K2 (known local creation)', () => {
@@ -167,6 +167,31 @@ describe('reconcileSavedOutfits — K1 (unknown-ancestry legacy state)', () => {
     expect(summary.deferred).toBe(1);
     expect(summary.dirtyRemaining).toBe(0); // no metadata existed, so nothing was "dirty" to begin with
     expect(await getMetadata('saved-outfits', 'legacy-1:business')).toBeNull();
+  });
+});
+
+describe('reconcileSavedOutfits — Phase 3B same-version legacy compatibility drift', () => {
+  it('clean local, server shows the SAME acknowledged version but DIFFERENT content (a legacy write that never bumped sync_version) -> adopts the server truth, counted as sameVersionDrift, never silently missed', async () => {
+    const { writeOneSavedOutfitLocal, buildSavedOutfitId } = await import('@/lib/saved-outfits-storage');
+    const { setLastSeenVersion, getMetadata } = await import('@/lib/sync-metadata-storage');
+    const { reconcileSavedOutfits } = await import('@/lib/saved-outfits-reconciliation');
+
+    const id = buildSavedOutfitId('req-drift', 'business', 0);
+    await writeOneSavedOutfitLocal({ id, requestId: 'req-drift', savedAt: '2026-01-01T00:00:00Z', input: INPUT, recommendation: RECOMMENDATION });
+    await setLastSeenVersion('saved-outfits', id, 3); // acknowledged, clean (not dirty)
+
+    // A legacy upsert changed the recommendation content but never touched
+    // sync_version — server still reports version 3, content differs.
+    fetchSavedOutfitsForReconciliation.mockResolvedValue([
+      { id, requestId: 'req-drift', savedAt: '2026-01-01T00:00:00Z', input: INPUT, recommendation: { ...RECOMMENDATION, tier: 'casual' }, syncVersion: 3, deletedAt: null },
+    ]);
+
+    const summary = await reconcileSavedOutfits();
+
+    expect(createSavedOutfitViaRpc).not.toHaveBeenCalled();
+    expect(summary.success).toBe(1);
+    expect(summary.sameVersionDrift).toBe(1);
+    expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: 3, isDeleted: false, isDirty: false });
   });
 });
 

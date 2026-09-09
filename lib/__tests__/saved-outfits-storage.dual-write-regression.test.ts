@@ -54,8 +54,22 @@ beforeEach(() => {
   deleteSavedOutfitViaRpc.mockReset().mockResolvedValue({ status: 'applied', version: 2, deletedAt: '2026-01-01T00:00:00Z', content: null });
 });
 
-const INPUT = { anchorItemDescription: 'test', anchorItems: [] } as unknown as import('@/types/look-request').CreateLookInput;
+const INPUT = { anchorItemDescription: 'test', anchorItems: [{ id: 'anchor-primary', description: 'test', image: null, uploadedImage: null }] } as unknown as import('@/types/look-request').CreateLookInput;
 const RECOMMENDATION = { tier: 'business', sketchImageUrl: null } as unknown as import('@/types/look-request').LookRecommendation;
+
+// saveSavedOutfit/deleteSavedOutfit each fire their own best-effort
+// reconciliation via a dynamic import — never awaited by the storage
+// function itself (local-first UX). Awaiting the SAME import specifier
+// here (Node/V8 cache dynamic import promises per specifier) guarantees
+// that call's `.then()` callback has already registered with
+// reconcileSavedOutfits' single-flight state before this test's own
+// explicit call — otherwise the two calls can race, the explicit one can
+// finish first, and the storage function's call becomes an orphaned
+// promise that only fires once its own dynamic import resolves, possibly
+// during a LATER test (corrupting its mock call counts).
+async function settleAutoTriggeredReconciliation() {
+  await import('@/lib/saved-outfits-reconciliation');
+}
 
 describe('saved-outfits dual-write regression (mandatory)', () => {
   it('a new save invokes ONLY the version-aware create path — legacy upsertSavedOutfitToSupabase is never called', async () => {
@@ -64,6 +78,7 @@ describe('saved-outfits dual-write regression (mandatory)', () => {
 
     await saveSavedOutfit(INPUT, RECOMMENDATION, 'req-dual-1', 0);
     const id = buildSavedOutfitId('req-dual-1', 'business', 0);
+    await settleAutoTriggeredReconciliation();
     await reconcileSavedOutfits();
 
     expect(upsertSavedOutfitToSupabase).toHaveBeenCalledTimes(0);
@@ -77,6 +92,7 @@ describe('saved-outfits dual-write regression (mandatory)', () => {
 
     await saveSavedOutfit(INPUT, RECOMMENDATION, 'req-dual-2', 0);
     const id = buildSavedOutfitId('req-dual-2', 'business', 0);
+    await settleAutoTriggeredReconciliation();
     await reconcileSavedOutfits();
     upsertSavedOutfitToSupabase.mockClear();
     // Reflect the just-created row server-side so the delete below is
@@ -88,6 +104,7 @@ describe('saved-outfits dual-write regression (mandatory)', () => {
     ]);
 
     await deleteSavedOutfit(id);
+    await settleAutoTriggeredReconciliation();
     await reconcileSavedOutfits();
 
     expect(upsertSavedOutfitToSupabase).toHaveBeenCalledTimes(0);
@@ -102,8 +119,10 @@ describe('saved-outfits dual-write regression (mandatory)', () => {
 
     await saveSavedOutfit(INPUT, RECOMMENDATION, 'req-dual-3', 0);
     const id = buildSavedOutfitId('req-dual-3', 'business', 0);
+    await settleAutoTriggeredReconciliation();
     await reconcileSavedOutfits();
     await deleteSavedOutfit(id);
+    await settleAutoTriggeredReconciliation();
     await reconcileSavedOutfits();
 
     expect(upsertSavedOutfitToSupabase).not.toHaveBeenCalled();

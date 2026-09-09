@@ -290,14 +290,20 @@ describe('reconcileClosetOutfitWeekPlan — 12/13. lost-ack recovery: update AND
 
     const dayKey = await firstValidDayKey();
     await applyMetadataPatch('closet-outfit-week-plan', dayKey, { lastSeenVersion: 8, isDeleted: false, isDirty: false });
-    const local = { ...item(dayKey), assignedAt: '2026-06-01T00:00:00Z' };
+    // The reconciliation READ shows the ORIGINAL, pre-edit assignment
+    // (still @8, formality 'business') — this makes the decision engine
+    // treat this as an ORDINARY Case D update attempt (content genuinely
+    // differs from the new local edit), proceeding to attempt the RPC
+    // rather than short-circuiting via the same-version-content-drift
+    // shortcut.
+    fetchClosetOutfitWeekPlanForReconciliation.mockResolvedValue([{ ...item(dayKey), syncVersion: 8, deletedAt: null }]);
+    const local = { ...item(dayKey), formality: 'casual' as const, assignedAt: '2026-06-01T00:00:00Z' };
     await writeOneClosetWeekPlanItemLocal(local);
     await markActive('closet-outfit-week-plan', dayKey);
 
-    // Server read still shows the stale version 8 — the CAS RPC itself
-    // discovers, via its own response, that this device's earlier write
-    // already succeeded (now @9) but the ack was lost.
-    fetchClosetOutfitWeekPlanForReconciliation.mockResolvedValue([{ ...local, syncVersion: 8, deletedAt: null }]);
+    // The CAS reassignment actually succeeded server-side (now @9) with the
+    // same semantic assignment but a different assignedAt — only
+    // discovered once the RPC itself reports it.
     updateClosetOutfitWeekPlanItemViaRpc.mockResolvedValue({
       status: 'conflict', version: 9, deletedAt: null, content: { ...local, assignedAt: '2026-06-01T00:05:00Z' },
     });
@@ -317,11 +323,11 @@ describe('reconcileClosetOutfitWeekPlan — 12/13. lost-ack recovery: update AND
 
     const dayKey = await firstValidDayKey();
     await applyMetadataPatch('closet-outfit-week-plan', dayKey, { lastSeenVersion: 8, isDeleted: false, isDirty: false });
-    const local = { ...item(dayKey), formality: 'business' as const };
+    fetchClosetOutfitWeekPlanForReconciliation.mockResolvedValue([{ ...item(dayKey), syncVersion: 8, deletedAt: null }]);
+    const local = { ...item(dayKey), formality: 'smart-casual' as const };
     await writeOneClosetWeekPlanItemLocal(local);
     await markActive('closet-outfit-week-plan', dayKey);
 
-    fetchClosetOutfitWeekPlanForReconciliation.mockResolvedValue([{ ...local, syncVersion: 8, deletedAt: null }]);
     updateClosetOutfitWeekPlanItemViaRpc.mockResolvedValue({
       status: 'conflict', version: 9, deletedAt: null, content: { ...local, formality: 'casual' },
     });
