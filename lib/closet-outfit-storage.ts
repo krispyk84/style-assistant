@@ -1,9 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import {
-  deleteClosetOutfitWeekPlanItemFromBackend,
-  upsertClosetOutfitWeekPlanItemToBackend,
-} from '@/lib/closet-outfit-sync';
 import { recordError } from '@/lib/crashlytics';
 import { markActive, markDeleted } from '@/lib/sync-metadata-storage';
 import { getNextSevenDays } from '@/lib/week-plan-storage';
@@ -112,7 +108,16 @@ export async function deleteSavedClosetOutfit(id: string) {
 
 // ── Week plan ────────────────────────────────────────────────────────────────
 
-function isFutureWeekDay(dayKey: string) {
+/**
+ * Exported for lib/closet-outfit-week-plan-reconciliation.ts (Phase 3A4):
+ * the same retention-window `includeId` filter lib/week-plan-storage.ts's
+ * own `isFutureWeekDay` provides for ordinary week-plan (Phase 3A2 §O.2) —
+ * without it, a day that rolled out of the window as pure local housekeeping
+ * (never a tombstone, never markDeleted) but that the server or a leftover
+ * metadata entry still remembers would look like ordinary internal drift to
+ * the decision engine and get silently re-downloaded forever.
+ */
+export function isFutureWeekDay(dayKey: string) {
   const validDayKeys = new Set(getNextSevenDays().map((day) => day.dayKey));
   return validDayKeys.has(dayKey);
 }
@@ -154,12 +159,25 @@ export async function assignClosetOutfitToWeekDay(
   const next: ClosetWeekPlanItem = { dayKey, dayLabel, formality, outfit, assignedAt: new Date().toISOString() };
   const nextItems = [next, ...current.filter((item) => item.dayKey !== dayKey)];
   await AsyncStorage.setItem(WEEK_PLAN_KEY, JSON.stringify(nextItems));
-  void upsertClosetOutfitWeekPlanItemToBackend(next).catch((error) => recordError(error, 'closet_outfit_week_plan_assign_upsert'));
   // Phase 1B.1: awaited, not fire-and-forget, and not caught here — see
   // saved-outfits-storage.ts's saveSavedOutfit for the full rationale. Not
   // touched by loadClosetWeekPlan's automatic day-rollover pruning above
   // (staleness, not an intentional deletion).
   await markActive('closet-outfit-week-plan', dayKey);
+  // Phase 3A4: closet-outfit-week-plan's ONLY server mutation architecture
+  // is now the version-aware reconciliation engine/executor, mediated
+  // through our own backend — the legacy unconditional
+  // upsertClosetOutfitWeekPlanItemToBackend call that used to run here is
+  // gone (running both would be the uncoordinated dual write §M.1 forbids).
+  // Local persist above already completed the user-visible assignment; this
+  // is a best-effort trailing sync — failure leaves isDirty=true (already
+  // durable from markActive above) for the next reconciliation pass to
+  // retry. Dynamic import avoids a real module cycle:
+  // closet-outfit-week-plan-reconciliation -> reconciliation-adapters ->
+  // this file.
+  void import('@/lib/closet-outfit-week-plan-reconciliation')
+    .then(({ reconcileClosetOutfitWeekPlan }) => reconcileClosetOutfitWeekPlan())
+    .catch((error) => recordError(error, 'closet_outfit_week_plan_reconcile_after_assign'));
   return next;
 }
 
@@ -171,7 +189,15 @@ export async function removeClosetWeekPlanDay(dayKey: string) {
   const current = await loadClosetWeekPlan();
   const nextItems = current.filter((item) => item.dayKey !== dayKey);
   await AsyncStorage.setItem(WEEK_PLAN_KEY, JSON.stringify(nextItems));
-  void deleteClosetOutfitWeekPlanItemFromBackend(dayKey).catch((error) => recordError(error, 'closet_outfit_week_plan_remove'));
+  // Phase 3A4: same replacement as assignClosetOutfitToWeekDay above — the
+  // legacy unconditional physical deleteClosetOutfitWeekPlanItemFromBackend
+  // call is gone; the version-aware reconciliation engine/executor now owns
+  // server-side deletion. This is a genuine, deliberate user clear —
+  // distinct from loadClosetWeekPlan's automatic day-rollover pruning
+  // above, which never calls markDeleted and must never reach this function.
+  void import('@/lib/closet-outfit-week-plan-reconciliation')
+    .then(({ reconcileClosetOutfitWeekPlan }) => reconcileClosetOutfitWeekPlan())
+    .catch((error) => recordError(error, 'closet_outfit_week_plan_reconcile_after_remove'));
   return nextItems;
 }
 

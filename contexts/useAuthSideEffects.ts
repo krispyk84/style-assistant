@@ -7,6 +7,7 @@ import { clearAllLocalUserData, syncUserDataOnSignIn } from '@/lib/user-data-syn
 import { reconcileSavedOutfits } from '@/lib/saved-outfits-reconciliation';
 import { reconcileWeekPlan } from '@/lib/week-plan-reconciliation';
 import { reconcileClosetOutfitFavourites } from '@/lib/closet-outfit-favourites-reconciliation';
+import { reconcileClosetOutfitWeekPlan } from '@/lib/closet-outfit-week-plan-reconciliation';
 import { setAnalyticsUserId } from '@/lib/analytics';
 import { recordError, setCrashlyticsUserId } from '@/lib/crashlytics';
 
@@ -36,6 +37,9 @@ export type AuthEventCallback = (event: string, session: Session | null) => void
  *   reconcileClosetOutfitFavourites — HYDRATED and SIGNED_IN (Phase 3A3,
  *                            same checkpoint, independent run — see
  *                            closet-outfit-favourites note)
+ *   reconcileClosetOutfitWeekPlan — HYDRATED and SIGNED_IN (Phase 3A4, same
+ *                            checkpoint, independent run — the fourth and
+ *                            final migrated domain)
  *   clearAllLocalUserData  — SIGNED_OUT only
  *
  * Phase 3A1 (sync redesign): saved-outfits is the first domain pulled off
@@ -64,9 +68,14 @@ export type AuthEventCallback = (event: string, session: Session | null) => void
  * backend-mediated (authenticated HTTP -> service -> Prisma) domain to go
  * through this path rather than direct Supabase. Same independent-call
  * pattern, same single-flight instance
- * (lib/closet-outfit-favourites-reconciliation.ts). closet-outfit-week-plan
- * remains untouched and keeps running through syncUserDataOnSignIn exactly
- * as before — it is the one domain this phase deliberately does not migrate.
+ * (lib/closet-outfit-favourites-reconciliation.ts).
+ *
+ * Phase 3A4: closet-outfit-week-plan is migrated the same way — the fourth
+ * and final approved sync domain, completing the migration. Same
+ * independent-call pattern, same single-flight instance
+ * (lib/closet-outfit-week-plan-reconciliation.ts). All four domains'
+ * reconciliation calls here are independent of one another: a hang or
+ * failure in any one of them can never delay or block the others.
  */
 export function useAuthSideEffects(): AuthEventCallback {
   return useCallback((event: string, session: Session | null) => {
@@ -88,6 +97,9 @@ export function useAuthSideEffects(): AuthEventCallback {
         );
         void reconcileClosetOutfitFavourites().catch((error) =>
           logAuthEvent(`closet-outfit-favourites-reconcile: unexpected top-level error — ${error instanceof Error ? error.message : String(error)}`, session.user.id),
+        );
+        void reconcileClosetOutfitWeekPlan().catch((error) =>
+          logAuthEvent(`closet-outfit-week-plan-reconcile: unexpected top-level error — ${error instanceof Error ? error.message : String(error)}`, session.user.id),
         );
       }
       if (event === 'SIGNED_IN') {

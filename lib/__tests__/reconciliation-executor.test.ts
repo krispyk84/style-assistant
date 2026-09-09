@@ -477,6 +477,26 @@ describe('executeReconciliation — DELETE_SERVER', () => {
     expect(outcome.kind).toBe('conflict');
     expect(adapter.deleteServer).toHaveBeenCalledTimes(1); // exactly one attempt — no automatic re-issue at the new version
   });
+
+  it('MANDATORY REGRESSION (Phase 3A4 §13): a stale-conflict response that is still ACTIVE (deletedAt: null) is NEVER treated as an achieved deletion, even when its content is IDENTICAL to what this device was deleting — only deletedAt !== null (a real tombstone) may recognize a lost-ack delete as achieved. compareContent is never consulted at all on this branch, unlike UPDATE_SERVER/REACTIVATE_SERVER\'s lost-ack recovery.', async () => {
+    const { executeReconciliation } = await freshExecutor();
+    // Identical content to what was being deleted (contentA), but the row
+    // is still ACTIVE — e.g. someone reactivated it, or the delete never
+    // actually applied server-side despite a matching snapshot read.
+    const adapter = makeAdapter({ deleteServer: vi.fn().mockResolvedValue({ status: 'conflict', version: 6, deletedAt: null, content: contentA }) });
+
+    const outcome = await executeReconciliation({ domain: DOMAIN, id: 'mon', input: deleteInput, localContent: null, serverContent: contentA, adapter });
+
+    expect(outcome.kind).toBe('conflict');
+    if (outcome.kind !== 'conflict') throw new Error('unreachable');
+    // Structured conflict detail reflects the fresh, still-active state —
+    // never silently marked as an acknowledged delete despite the content match.
+    expect(outcome.detail).toEqual({
+      domain: DOMAIN, id: 'mon', action: 'DELETE_SERVER', reason: 'F-local-delete-server-unchanged',
+      acknowledgedBaseVersion: 5, currentServerVersion: 6, currentServerDeleted: false,
+    });
+    expect(adapter.deleteServer).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('executeReconciliation — CONFLICT (from the engine directly, e.g. Case E)', () => {

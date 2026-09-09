@@ -173,3 +173,18 @@ export async function deleteClosetOutfitWeekPlanItemViaRpc(dayKey: string, baseV
   if (!response.success) throw new Error(response.error?.message ?? 'Failed to delete closet outfit week-plan item (version-aware).');
   return normalizeWeekPlanItemMutationBody(response.data);
 }
+
+// Phase 3A4 (sync redesign) — reconciliation-only server read: includes
+// tombstoned rows and syncVersion/deletedAt (backend/.../closet-outfit-sync
+// .service.ts's getWeekPlanForReconciliation, already built in Phase 2B1,
+// had no frontend caller until now). Never use for an ordinary UI list —
+// fetchClosetOutfitWeekPlanFromBackend above already filters deletedAt for
+// that. Matches lib/domain-reconciliation-runner.ts's DomainSnapshot<TContent>
+// shape exactly (ClosetWeekPlanItem & {syncVersion, deletedAt}).
+export type ClosetOutfitWeekPlanItemServerSnapshot = ClosetWeekPlanItem & { syncVersion: number; deletedAt: string | null };
+
+export async function fetchClosetOutfitWeekPlanForReconciliation(): Promise<ClosetOutfitWeekPlanItemServerSnapshot[]> {
+  const response = await createApiClient().request<{ items: ClosetOutfitWeekPlanItemServerSnapshot[] }>('/closet-outfit-sync/week-plan/for-reconciliation');
+  if (!response.success || !response.data) return [];
+  return response.data.items;
+}

@@ -3,10 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logAuthEvent } from '@/lib/auth-event-log';
 import { withTimeout } from '@/lib/with-timeout';
 import {
-  fetchClosetOutfitWeekPlanFromBackend,
-  upsertManyClosetOutfitWeekPlanItemsToBackend,
-} from '@/lib/closet-outfit-sync';
-import {
   fetchClosetItemsFromSupabase,
   upsertManyClosetItemsToSupabase,
 } from '@/lib/supabase-data';
@@ -75,25 +71,26 @@ const ENTITY_TIMEOUT_MS = 10000;
  * lib/auth-event-log.ts, rather than waiting for every entity to finish —
  * that way a single slow/hung entity doesn't hide the others' outcomes.
  *
- * Phase 3A1/3A2/3A3 (sync redesign): 'saved-outfits', 'week-plan', and
- * 'closet-outfit-favourites' are deliberately NOT in this list anymore.
- * This bulk pull-or-push has no CAS/version awareness at all (a bare
- * upsert/overwrite), and all three domains now have their own version-aware
- * reconciliation trigger (lib/saved-outfits-reconciliation.ts's
- * reconcileSavedOutfits, lib/week-plan-reconciliation.ts's reconcileWeekPlan,
+ * Phase 3A1/3A2/3A3/3A4 (sync redesign): 'saved-outfits', 'week-plan',
+ * 'closet-outfit-favourites', and 'closet-outfit-week-plan' are all
+ * deliberately NOT in this list anymore — this was the last one to be
+ * migrated off it. This bulk pull-or-push has no CAS/version awareness at
+ * all (a bare upsert/overwrite), and all four approved sync domains now
+ * have their own version-aware reconciliation trigger
+ * (lib/saved-outfits-reconciliation.ts's reconcileSavedOutfits,
+ * lib/week-plan-reconciliation.ts's reconcileWeekPlan,
  * lib/closet-outfit-favourites-reconciliation.ts's
- * reconcileClosetOutfitFavourites — all fired from
+ * reconcileClosetOutfitFavourites, lib/closet-outfit-week-plan-reconciliation.ts's
+ * reconcileClosetOutfitWeekPlan — all fired from
  * contexts/useAuthSideEffects.ts on this exact same HYDRATED/SIGNED_IN
- * checkpoint) — running any of them alongside this bulk strategy would be an
- * uncoordinated dual write. closet-outfit-week-plan below is the one domain
- * this phase deliberately does not migrate, and still relies entirely on
- * this legacy strategy.
+ * checkpoint) — running any of them alongside this bulk strategy would be
+ * an uncoordinated dual write. `closet` (plain closet items — not a
+ * sync-project domain) remains on this legacy strategy; nothing else does.
  */
 export async function syncUserDataOnSignIn(userId: string): Promise<string[]> {
   void logAuthEvent('sync: started', userId);
   return Promise.all([
     syncEntity('closet', CLOSET_KEY, fetchClosetItemsFromSupabase, (items) => upsertManyClosetItemsToSupabase(items, userId), userId),
-    syncEntity('closet-outfit-week-plan', CLOSET_OUTFIT_WEEK_PLAN_KEY, fetchClosetOutfitWeekPlanFromBackend, upsertManyClosetOutfitWeekPlanItemsToBackend, userId),
   ]);
 }
 

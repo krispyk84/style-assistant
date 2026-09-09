@@ -1186,3 +1186,95 @@ production health check, not a code or migration change. Rollback: `upsertCloset
 / `deleteClosetOutfitFavouriteFromBackend` remain intact and unused, and the legacy backend
 routes/service/repository methods are untouched and still reachable — nothing here removes
 backward compatibility for an older installed client.
+
+## Q. Phase 3A4 — closet-outfit-week-plan cutover (final domain; all four migrated)
+
+Fourth and final domain. Combines the two load-bearing properties proven separately in §O
+(direct-Supabase, slot/keyed — real `UPDATE_SERVER`/`REACTIVATE_SERVER` concurrency) and §P
+(backend-mediated, document-like — HTTP transport contract): closet-outfit-week-plan is
+backend-mediated **and** slot/keyed, so this phase is the first to exercise real concurrent-
+slot conflicts through the authenticated-HTTP path rather than direct Supabase RPCs.
+
+### Q.1 The lost-ack DELETE audit (§13) — no bug found
+
+This phase's instructions asked for an explicit, skeptical re-check: does
+`lib/reconciliation-executor.ts`'s `DELETE_SERVER` conflict branch ever recognize an achieved
+deletion by comparing *content* rather than checking for a real tombstone? Re-reading the
+code line by line: it does not. The branch checks `result.deletedAt !== null` only — content
+(`compareContent`) is never consulted anywhere in the `DELETE_SERVER` case, unlike
+`UPDATE_SERVER`/`REACTIVATE_SERVER`'s lost-ack recovery, which explicitly does compare content.
+This asymmetry is intentional and correct: only a real server-side tombstone proves a delete
+was applied; an active row with matching content could mean someone reactivated it, or the
+delete simply never happened despite a coincidentally-matching snapshot read. **No bug existed**
+— this was correct from Phase 2B2. One explicit regression test was added to
+`reconciliation-executor.test.ts` (an active, content-identical `conflict` response must still
+resolve to `CONFLICT`, never `success`) to make this invariant airtight against a future
+refactor, since the prior test suite proved the *different-content* case but not the
+*identical-content-while-still-active* case specifically.
+
+### Q.2 Rollover expiry — same fix, explicitly re-audited for dirty state
+
+`loadClosetWeekPlan()` prunes locally-expired days exactly like `loadWeekPlan()` (§O.2) — same
+hazard, same fix: `includeId: isFutureWeekDay` (now exported from
+`lib/closet-outfit-storage.ts`) in the domain config, closing the same Case-M/Case-A
+resurrection risk.
+
+This phase explicitly re-examined whether `reconcileDomainRecords`' opportunistic metadata
+cleanup for excluded ids is safe when the metadata is still `isDirty: true` (an unresolved
+conflict, or a create/update that never got a chance to sync before the day rolled over).
+Conclusion: **safe, no change needed**, for two independent reasons. First, the local domain
+object is *already* gone by the time this matters — `loadClosetWeekPlan`/`loadWeekPlan` prune
+it as pure housekeeping regardless of metadata, so the pending intent has no observable
+effect on the device's own UI either way. Second, this app has no conflict-resolution UI at
+all (§K/§N.11's "expose a structured result for future resolution" was never built into a
+screen) — an unresolved conflict on an expired day was already permanently invisible to the
+user before it expired; discarding its metadata doesn't change what the user can see or do,
+it only stops a future reconciliation pass from perpetually re-deciding `CONFLICT` for a day
+nobody will ever act on again. This reasoning is domain-local (each device's retention window
+is its own clock's view, so no cross-device data loss is possible) and was verified directly
+with a dedicated test asserting a *dirty* expired id is excluded, uncounted, never mutated,
+and has its metadata cleaned up exactly like a clean expired id.
+
+### Q.3 Cutover state after Phase 3A4 — all four domains migrated
+
+```text
+saved-outfits             → NEW (direct Supabase, document-like)
+week-plan                 → NEW (direct Supabase, slot/keyed)
+closet-outfit-favourites  → NEW (backend-mediated, document-like)
+closet-outfit-week-plan   → NEW (backend-mediated, slot/keyed)
+```
+
+`syncUserDataOnSignIn` (`lib/user-data-sync.ts`) now only bulk-syncs `closet` (plain closet
+items — never a sync-project domain). `lib/domain-reconciliation-runner.ts` required no
+changes for this fourth domain either — `includeId` (built for week-plan in §O) and the
+backend-mediated adapter shape (built for favourites in §P) both already existed and compose
+without modification.
+
+### Q.4 Outbox — final decision across all four domains
+
+Re-evaluated globally, not just per-domain: for every one of the four domains, pending intent
+after process death is fully reconstructible from (a) the local domain object or its absence,
+(b) durable sync metadata (`lastSeenVersion`/`isDeleted`/`isDirty`), and (c) the next lifecycle
+or user-action reconciliation pass re-reading both against a fresh server snapshot. No domain
+was found where this triple is insufficient — every failure-injection test across all four
+domains (create/update/delete network failures, lost acknowledgements, conflicts) converges on
+retry without needing a persisted intent queue beyond what sync-metadata-storage.ts already
+provides. **A generalized outbox is not currently justified** for any of the four domains.
+
+### Q.5 Deployment prerequisites (nothing deployed)
+
+Direct-Supabase domains: the Phase 1A `saved_outfits`/`week_plan` RPC migration
+(`supabase/migrations/20260907010000_phase1a_version_aware_rpcs.sql`) must be live in
+production before this client ships (§N.6/§O.5) — re-verified consistent, unchanged.
+
+Backend-mediated domains: the version-aware favourite and closet-week-plan-item routes,
+services, and repository methods have been live in production since Phase 1A shipped
+additively, with zero client caller until §P/§Q wired them up — the only prerequisite is a
+production health check of `/closet-outfit-sync/favourites/version-aware*`,
+`/closet-outfit-sync/week-plan/version-aware*`, and both domains' `/for-reconciliation` routes
+before this client build ships, not a new deploy or migration.
+
+Neither direct-table Supabase privileges nor backend legacy routes/methods are revoked in this
+phase (Phase 3C, not started). All four domains' legacy helper functions remain intact and
+callable — a rollback of this client build (or an older installed client still running) would
+continue to work unmodified against the legacy paths.
