@@ -1031,3 +1031,83 @@ generation suffix and never mutates or removes the previous generation's saved c
 legacy `upsertSavedOutfitToSupabase` never touched `sync_version`/`deleted_at` (confirmed by
 reading its actual upsert payload); the legacy `deleteSavedOutfitFromSupabase` was a physical
 `DELETE`. No discrepancy from Phase 2's findings was found.
+
+## O. Phase 3A2 — week-plan cutover
+
+Second pilot domain, migrated the same way as §N's saved-outfits — but week-plan is
+**slot/keyed state**, not document-like: reassigning an already-synced day (`dayKey`) is a
+normal, reachable action, so this phase is the first to exercise `UPDATE_SERVER` and
+`REACTIVATE_SERVER` against real concurrent-edit scenarios, not just `CREATE_SERVER`/
+`DELETE_SERVER`.
+
+### O.1 Shared orchestration extracted
+
+Once a second domain needed the identical batch-decide-execute loop and single-flight
+coalescing §N.4 built for saved-outfits, that shape was extracted into
+`lib/domain-reconciliation-runner.ts` (`reconcileDomainRecords` + `createSingleFlightRunner`).
+`lib/saved-outfits-reconciliation.ts` and the new `lib/week-plan-reconciliation.ts` are now
+both thin per-domain configs (adapter, id extractor, server/local reads, and — week-plan only
+— a retention-window `includeId` filter) calling into that shared module. Not a generic
+synchronization framework: no registration, no protocol negotiation, no domain discovery —
+just the two genuinely domain-agnostic pieces, extracted once real duplication existed, not
+speculatively. Each domain still gets its own independent single-flight instance; a stuck or
+failing week-plan run never blocks or is blocked by saved-outfits'.
+
+### O.2 The day-rollover pruning hazard, and its fix
+
+`loadWeekPlan()` already silently prunes any day whose `dayKey` has rolled outside the current
+7-day retention window (`isFutureWeekDay`), as pure housekeeping — never a tombstone, never
+`markDeleted`. Once week-plan gained sync metadata, this created a real, previously-latent
+hazard: an expired day the server or a leftover metadata entry still remembered would look
+like ordinary internal drift to the decision engine (Case M's "metadata active, object
+absent" repair path) and get silently re-downloaded via `ADOPT_SERVER` — right back into local
+storage, where the very next `loadWeekPlan()` call would prune it again, forever. Fixed by
+giving `reconcileDomainRecords` an `includeId` filter (week-plan supplies
+`isFutureWeekDay`, now exported from `lib/week-plan-storage.ts`): an id it rejects is skipped
+entirely — never decided, never counted, never mutated — and any leftover metadata entry for
+it is opportunistically removed, since the window only ever moves forward and an excluded id
+can never become relevant again. Proven with a dedicated test simulating the exact drift state
+(active metadata + active server row for an expired day) and confirming zero RPC calls, zero
+re-materialization, and metadata cleanup.
+
+### O.3 Bulk `replaceWeekPlan` no longer bypasses reconciliation
+
+`useWeekPlan.ts`'s "local empty → fetch cloud → blindly replace local" fallback (bypassing the
+decision engine and sync metadata entirely, per §M's Phase 2A finding) now calls
+`reconcileWeekPlan()` and re-reads `loadWeekPlan()` instead of calling
+`fetchWeekPlanFromSupabase`/`replaceWeekPlan` directly. `lib/user-data-sync.ts`'s
+`syncUserDataOnSignIn` also no longer includes `'week-plan'` in its bulk pull-or-push list, for
+the same reason §N.2 removed `'saved-outfits'`. The *other* `replaceWeekPlan` call in that same
+hook (persisting each day's refreshed sketch/recommendation content after a per-item network
+refresh) is unrelated — a local content refresh, not a cloud-fallback pull — and is
+deliberately left untouched, mirroring how Phase 3A1 also left `useFavouritesData.ts`'s
+equivalent post-hydration `replaceSavedOutfits` call alone.
+
+### O.4 `assignedAt` semantic-equality: reconfirmed, unchanged
+
+`weekPlanAdapter.compareContent` already excluded `assignedAt` from equality (Phase 2B2).
+Reconfirmed deliberately for week-plan now that it's production-relevant: `assignedAt` is
+display/business metadata (when the user made this assignment), not part of a day's
+synchronization identity — the same outfit assigned to the same day is the same intended
+assignment regardless of the exact timestamp recorded, and this is exactly what makes lost-
+acknowledgement recovery work after a retry (a genuine retry reconstructs the same content
+with a fresh timestamp). Confirmed correct via dedicated tests: a differing-`assignedAt`-only
+server response is adopted as this device's own earlier success, while a differing-content
+response under the same stale baseVersion remains a genuine conflict.
+
+### O.5 Cutover state after Phase 3A2
+
+```text
+saved-outfits             → NEW (version-aware CAS + reconciliation) only
+week-plan                 → NEW (version-aware CAS + reconciliation) only
+closet-outfit-favourites  → legacy only, untouched
+closet-outfit-week-plan   → legacy only, untouched
+```
+
+Deployment prerequisite is the same shape as §N.6: the Phase 1A week-plan RPCs
+(`create_week_plan_item` / `update_week_plan_item` / `delete_week_plan_item`, same migration
+file as saved-outfits') must be live in production before this client code ships. Re-verified
+against the current client wrappers line-by-line (arg names/order, composite `(user_id,
+day_key)` conflict target, return shape, `SECURITY DEFINER` hardening, grants) — exact match,
+no migration changes made. Rollback is the same escape hatch as §N.6: `upsertWeekPlanItemToSupabase`
+/ `deleteWeekPlanItemFromSupabase` remain intact and unused in `lib/supabase-data.ts`.

@@ -5,6 +5,7 @@ import { setApiAuthToken } from '@/lib/api/api-client';
 import { logAuthEvent } from '@/lib/auth-event-log';
 import { clearAllLocalUserData, syncUserDataOnSignIn } from '@/lib/user-data-sync';
 import { reconcileSavedOutfits } from '@/lib/saved-outfits-reconciliation';
+import { reconcileWeekPlan } from '@/lib/week-plan-reconciliation';
 import { setAnalyticsUserId } from '@/lib/analytics';
 import { recordError, setCrashlyticsUserId } from '@/lib/crashlytics';
 
@@ -29,6 +30,8 @@ export type AuthEventCallback = (event: string, session: Session | null) => void
  *                            covers saved-outfits (see below)
  *   reconcileSavedOutfits  — HYDRATED and SIGNED_IN (Phase 3A1's one chosen
  *                            lifecycle trigger — see saved-outfits note)
+ *   reconcileWeekPlan      — HYDRATED and SIGNED_IN (Phase 3A2, same
+ *                            checkpoint, independent run — see week-plan note)
  *   clearAllLocalUserData  — SIGNED_OUT only
  *
  * Phase 3A1 (sync redesign): saved-outfits is the first domain pulled off
@@ -43,10 +46,17 @@ export type AuthEventCallback = (event: string, session: Session | null) => void
  * since that checkpoint is this codebase's existing definition of "an
  * authenticated session just became available" — covering both a fresh
  * sign-in and an already-authenticated cold launch, which previously had no
- * saved-outfits sync of any kind (a real, previously-flagged gap). The other
- * three sync-project domains (week-plan, closet-outfit-favourites, closet-
- * outfit-week-plan) are untouched and keep running through
- * syncUserDataOnSignIn exactly as before.
+ * saved-outfits sync of any kind (a real, previously-flagged gap).
+ *
+ * Phase 3A2: week-plan is migrated the same way, for the same reason —
+ * lib/user-data-sync.ts also no longer bulk pull-or-pushes week-plan.
+ * reconcileWeekPlan is fired as an entirely independent call (its own
+ * try/catch, its own single-flight instance in
+ * lib/week-plan-reconciliation.ts) — deliberately NOT awaited in sequence
+ * after reconcileSavedOutfits, so a hang or failure in one domain's
+ * reconciliation can never delay or block the other's. closet-outfit-
+ * favourites and closet-outfit-week-plan remain untouched and keep running
+ * through syncUserDataOnSignIn exactly as before.
  */
 export function useAuthSideEffects(): AuthEventCallback {
   return useCallback((event: string, session: Session | null) => {
@@ -62,6 +72,9 @@ export function useAuthSideEffects(): AuthEventCallback {
         setCrashlyticsUserId(session.user.id);
         void reconcileSavedOutfits().catch((error) =>
           logAuthEvent(`saved-outfits-reconcile: unexpected top-level error — ${error instanceof Error ? error.message : String(error)}`, session.user.id),
+        );
+        void reconcileWeekPlan().catch((error) =>
+          logAuthEvent(`week-plan-reconcile: unexpected top-level error — ${error instanceof Error ? error.message : String(error)}`, session.user.id),
         );
       }
       if (event === 'SIGNED_IN') {

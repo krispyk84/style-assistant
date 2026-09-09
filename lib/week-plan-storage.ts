@@ -3,10 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { appConfig } from '@/constants/config';
 import { recordError } from '@/lib/crashlytics';
 import { stripLegacySketchImageData } from '@/lib/outfit-utils';
-import {
-  deleteWeekPlanItemFromSupabase,
-  upsertWeekPlanItemToSupabase,
-} from '@/lib/supabase-data';
 import { markActive, markDeleted } from '@/lib/sync-metadata-storage';
 import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
 import type { WeekPlannedOutfit } from '@/types/style';
@@ -20,7 +16,18 @@ function getLocalDayKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function isFutureWeekDay(dayKey: string) {
+/**
+ * Exported for lib/week-plan-reconciliation.ts (Phase 3A2): the retention-
+ * window filter every reconciliation identity must pass through, not just
+ * loadWeekPlan's own local list. Without this, a day that has rolled out of
+ * the window (removed from local storage below purely as housekeeping, see
+ * loadWeekPlan's own comment) but that the server or a leftover metadata
+ * entry still remembers would look like plain internal drift to the
+ * decision engine's Case M/Case A — and get silently re-downloaded forever,
+ * even though nothing will ever display it again. The window only ever
+ * moves forward, so an id this rejects can never become relevant again.
+ */
+export function isFutureWeekDay(dayKey: string) {
   const validDayKeys = new Set(getNextSevenDays().map((day) => day.dayKey));
   return validDayKeys.has(dayKey);
 }
@@ -124,7 +131,6 @@ export async function assignOutfitToWeekDay(
   });
   const nextItems = [nextItem, ...currentItems.filter((item) => item.dayKey !== dayKey)];
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
-  void upsertWeekPlanItemToSupabase(nextItem).catch((error) => recordError(error, 'week_plan_assign_upsert'));
   // Phase 1B.1: awaited, not fire-and-forget, and not caught here — see
   // saved-outfits-storage.ts's saveSavedOutfit for why (reliably clears a
   // stale tombstone on the deliberate reassign-after-removeWeekPlan case;
@@ -133,6 +139,20 @@ export async function assignOutfitToWeekDay(
   // staleness, not an intentional deletion, and must never create a
   // tombstone.
   await markActive('week-plan', dayKey);
+  // Phase 3A2: week-plan's ONLY server mutation architecture is now the
+  // version-aware reconciliation engine/executor (this is the load-bearing
+  // UPDATE_SERVER/REACTIVATE_SERVER case Phase 3A1's document-like
+  // saved-outfits pilot never exercised — reassigning an already-synced day
+  // is a normal, reachable action here). The legacy unconditional
+  // upsertWeekPlanItemToSupabase call that used to run here is gone — running
+  // both would be the uncoordinated dual write §M.1 forbids. Best-effort,
+  // never awaited, never blocks the assignment; failure leaves isDirty=true
+  // (already durable from markActive above) for the next reconciliation pass.
+  // Dynamic import avoids a real module cycle: week-plan-reconciliation ->
+  // reconciliation-adapters -> this file.
+  void import('@/lib/week-plan-reconciliation')
+    .then(({ reconcileWeekPlan }) => reconcileWeekPlan())
+    .catch((error) => recordError(error, 'week_plan_reconcile_after_assign'));
   return nextItem;
 }
 
@@ -144,7 +164,16 @@ export async function removeWeekPlan(dayKey: string) {
   const currentItems = await loadWeekPlan();
   const nextItems = currentItems.filter((item) => item.dayKey !== dayKey);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
-  void deleteWeekPlanItemFromSupabase(dayKey).catch((error) => recordError(error, 'week_plan_remove'));
+  // Phase 3A2: same replacement as assignOutfitToWeekDay above — the legacy
+  // unconditional physical deleteWeekPlanItemFromSupabase call is gone; the
+  // version-aware reconciliation engine/executor now owns server-side
+  // deletion (CAS soft delete for acknowledged days, compatibility-era
+  // deferral for unknown-ancestry legacy ones). This is a genuine, deliberate
+  // user clear — distinct from loadWeekPlan's automatic day-rollover pruning
+  // above, which never calls markDeleted and must never reach this function.
+  void import('@/lib/week-plan-reconciliation')
+    .then(({ reconcileWeekPlan }) => reconcileWeekPlan())
+    .catch((error) => recordError(error, 'week_plan_reconcile_after_remove'));
   return nextItems;
 }
 

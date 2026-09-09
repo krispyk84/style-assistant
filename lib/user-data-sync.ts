@@ -11,8 +11,6 @@ import {
 import {
   fetchClosetItemsFromSupabase,
   upsertManyClosetItemsToSupabase,
-  fetchWeekPlanFromSupabase,
-  upsertManyWeekPlanItemsToSupabase,
 } from '@/lib/supabase-data';
 
 const CLOSET_KEY = 'style-assistant/closet-items';
@@ -79,20 +77,21 @@ const ENTITY_TIMEOUT_MS = 10000;
  * lib/auth-event-log.ts, rather than waiting for every entity to finish —
  * that way a single slow/hung entity doesn't hide the others' outcomes.
  *
- * Phase 3A1 (sync redesign): 'saved-outfits' is deliberately NOT in this
- * list anymore. This bulk pull-or-push has no CAS/version awareness at all
- * (a bare upsert/overwrite), and saved-outfits now has its own version-aware
- * reconciliation trigger (lib/saved-outfits-reconciliation.ts's
- * reconcileSavedOutfits, fired from contexts/useAuthSideEffects.ts on this
- * exact same HYDRATED/SIGNED_IN checkpoint) — running both against the same
- * rows would be an uncoordinated dual write. The other three domains below
- * are untouched and still rely entirely on this legacy strategy.
+ * Phase 3A1/3A2 (sync redesign): 'saved-outfits' and 'week-plan' are
+ * deliberately NOT in this list anymore. This bulk pull-or-push has no
+ * CAS/version awareness at all (a bare upsert/overwrite), and both domains
+ * now have their own version-aware reconciliation trigger
+ * (lib/saved-outfits-reconciliation.ts's reconcileSavedOutfits,
+ * lib/week-plan-reconciliation.ts's reconcileWeekPlan — both fired from
+ * contexts/useAuthSideEffects.ts on this exact same HYDRATED/SIGNED_IN
+ * checkpoint) — running either alongside this bulk strategy would be an
+ * uncoordinated dual write. The remaining two domains below are untouched
+ * and still rely entirely on this legacy strategy.
  */
 export async function syncUserDataOnSignIn(userId: string): Promise<string[]> {
   void logAuthEvent('sync: started', userId);
   return Promise.all([
     syncEntity('closet', CLOSET_KEY, fetchClosetItemsFromSupabase, (items) => upsertManyClosetItemsToSupabase(items, userId), userId),
-    syncEntity('week-plan', WEEK_KEY, fetchWeekPlanFromSupabase, (items) => upsertManyWeekPlanItemsToSupabase(items, userId), userId),
     syncEntity('closet-outfit-favourites', CLOSET_OUTFIT_FAVOURITES_KEY, fetchClosetOutfitFavouritesFromBackend, upsertManyClosetOutfitFavouritesToBackend, userId),
     syncEntity('closet-outfit-week-plan', CLOSET_OUTFIT_WEEK_PLAN_KEY, fetchClosetOutfitWeekPlanFromBackend, upsertManyClosetOutfitWeekPlanItemsToBackend, userId),
   ]);

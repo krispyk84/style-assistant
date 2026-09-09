@@ -4,8 +4,8 @@ import { useFocusEffect } from 'expo-router';
 import { logAuthEvent } from '@/lib/auth-event-log';
 import { loadClosetWeekPlan, loadSavedClosetOutfits, type ClosetWeekPlanItem } from '@/lib/closet-outfit-storage';
 import { loadWeekPlan, replaceWeekPlan } from '@/lib/week-plan-storage';
+import { reconcileWeekPlan } from '@/lib/week-plan-reconciliation';
 import { loadSavedOutfits } from '@/lib/saved-outfits-storage';
-import { fetchWeekPlanFromSupabase } from '@/lib/supabase-data';
 import { withTimeout } from '@/lib/with-timeout';
 import { outfitsService } from '@/services/outfits';
 import { loadNextSevenDayForecast, type WeekForecastDay } from '@/services/weather/current-weather-service';
@@ -46,22 +46,25 @@ export function useWeekPlan() {
           loadSavedClosetOutfits(),
         ]);
 
-        // Local storage is only ever populated by the one-shot sync that
-        // runs on SIGNED_IN (lib/user-data-sync.ts) — if that attempt hit a
-        // transient network hiccup, local storage stays empty for the rest
-        // of the session with no other retry. Treat an empty local result
-        // as possibly stale rather than authoritative: fall back to asking
-        // the cloud directly, and self-heal local storage if it has data.
+        // Local storage is only ever populated by the HYDRATED/SIGNED_IN
+        // lifecycle reconciliation trigger (contexts/useAuthSideEffects.ts) —
+        // if that hit a transient network hiccup, local storage stays empty
+        // for the rest of the session with no other retry. Treat an empty
+        // local result as possibly stale rather than authoritative and
+        // self-heal — but, since Phase 3A2, through reconcileWeekPlan()
+        // itself rather than a blind fetchWeekPlanFromSupabase +
+        // replaceWeekPlan pull. That old fallback bypassed the decision
+        // engine and sync metadata entirely (Phase 2A's identified source of
+        // metadata/domain drift) — reconcileWeekPlan reads real server state
+        // per day and adopts it through the same Case A/L path every other
+        // trigger uses, so an adopted day gets correct lastSeenVersion
+        // bookkeeping instead of silently-absent metadata.
         if (nextItems.length === 0) {
           void logAuthEvent('week-load: local empty, trying cloud fallback', null);
           try {
-            const cloudItems = await withTimeout(fetchWeekPlanFromSupabase(), CLOUD_FALLBACK_TIMEOUT_MS, 'week-plan cloud fallback');
-            if (cloudItems.length > 0) {
-              nextItems = await replaceWeekPlan(cloudItems);
-              void logAuthEvent(`week-load: cloud fallback pulled ${cloudItems.length}`, null);
-            } else {
-              void logAuthEvent('week-load: cloud fallback returned 0', null);
-            }
+            await withTimeout(reconcileWeekPlan(), CLOUD_FALLBACK_TIMEOUT_MS, 'week-plan cloud fallback');
+            nextItems = await loadWeekPlan();
+            void logAuthEvent(`week-load: cloud fallback reconciled, ${nextItems.length} local afterward`, null);
           } catch (error) {
             void logAuthEvent(`week-load: cloud fallback ERROR — ${error instanceof Error ? error.message : String(error)}`, null);
           }
