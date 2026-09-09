@@ -110,6 +110,22 @@ export async function deleteClosetOutfitFavouriteViaRpc(id: string, baseVersion:
   return normalizeFavouriteMutationBody(response.data);
 }
 
+// Phase 3A3 (sync redesign) — reconciliation-only server read: includes
+// tombstoned rows and syncVersion/deletedAt (backend/.../closet-outfit-sync
+// .service.ts's getFavouritesForReconciliation, already built in Phase 2B1,
+// had no frontend caller until now). Never use for an ordinary UI list —
+// fetchClosetOutfitFavouritesFromBackend above already filters deletedAt for
+// that. Matches lib/supabase-data.ts's SavedOutfitServerSnapshot /
+// WeekPlanItemServerSnapshot shape exactly, which is what
+// lib/domain-reconciliation-runner.ts's DomainSnapshot<TContent> expects.
+export type ClosetOutfitFavouriteServerSnapshot = SavedClosetOutfit & { syncVersion: number; deletedAt: string | null };
+
+export async function fetchClosetOutfitFavouritesForReconciliation(): Promise<ClosetOutfitFavouriteServerSnapshot[]> {
+  const response = await createApiClient().request<{ items: ClosetOutfitFavouriteServerSnapshot[] }>('/closet-outfit-sync/favourites/for-reconciliation');
+  if (!response.success || !response.data) return [];
+  return response.data.items;
+}
+
 export type ClosetOutfitWeekPlanItemMutationResult = {
   status: ClosetOutfitMutationStatus;
   version: number | null;

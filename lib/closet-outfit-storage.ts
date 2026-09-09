@@ -1,9 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
-  deleteClosetOutfitFavouriteFromBackend,
   deleteClosetOutfitWeekPlanItemFromBackend,
-  upsertClosetOutfitFavouriteToBackend,
   upsertClosetOutfitWeekPlanItemToBackend,
 } from '@/lib/closet-outfit-sync';
 import { recordError } from '@/lib/crashlytics';
@@ -72,10 +70,24 @@ export async function saveClosetOutfitToFavourites(formality: LookTierSlug, outf
   const next: SavedClosetOutfit = { id, formality, outfit, savedAt: new Date().toISOString() };
   const nextList = [next, ...current.filter((item) => item.id !== id)];
   await AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(nextList));
-  void upsertClosetOutfitFavouriteToBackend(next).catch((error) => recordError(error, 'closet_outfit_favourite_save_upsert'));
   // Phase 1B.1: awaited, not fire-and-forget, and not caught here — see
   // saved-outfits-storage.ts's saveSavedOutfit for the full rationale.
   await markActive('closet-outfit-favourites', id);
+  // Phase 3A3: closet-outfit-favourites' ONLY server mutation architecture
+  // is now the version-aware reconciliation engine/executor, mediated
+  // through our own backend rather than direct Supabase — the legacy
+  // unconditional upsertClosetOutfitFavouriteToBackend call that used to run
+  // here is gone (running both would be the uncoordinated dual write §M.1
+  // forbids). Local persist above already completed the user-visible
+  // favourite; this is a best-effort trailing sync — failure leaves
+  // isDirty=true (already durable from markActive above) for the next
+  // reconciliation pass to retry. Dynamic import avoids a real module cycle:
+  // closet-outfit-favourites-reconciliation -> reconciliation-adapters ->
+  // this file. closet-outfit-WEEK-PLAN below is untouched and remains
+  // entirely legacy.
+  void import('@/lib/closet-outfit-favourites-reconciliation')
+    .then(({ reconcileClosetOutfitFavourites }) => reconcileClosetOutfitFavourites())
+    .catch((error) => recordError(error, 'closet_outfit_favourite_reconcile_after_save'));
   return next;
 }
 
@@ -87,7 +99,14 @@ export async function deleteSavedClosetOutfit(id: string) {
   const current = await loadSavedClosetOutfits();
   const nextList = current.filter((item) => item.id !== id);
   await AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(nextList));
-  void deleteClosetOutfitFavouriteFromBackend(id).catch((error) => recordError(error, 'closet_outfit_favourite_delete'));
+  // Phase 3A3: same replacement as saveClosetOutfitToFavourites above — the
+  // legacy unconditional physical deleteClosetOutfitFavouriteFromBackend
+  // call is gone; the version-aware reconciliation engine/executor now owns
+  // server-side deletion (CAS soft delete for acknowledged favourites,
+  // compatibility-era deferral for unknown-ancestry legacy ones).
+  void import('@/lib/closet-outfit-favourites-reconciliation')
+    .then(({ reconcileClosetOutfitFavourites }) => reconcileClosetOutfitFavourites())
+    .catch((error) => recordError(error, 'closet_outfit_favourite_reconcile_after_delete'));
   return nextList;
 }
 

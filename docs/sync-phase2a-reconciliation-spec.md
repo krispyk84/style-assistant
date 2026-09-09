@@ -1111,3 +1111,78 @@ against the current client wrappers line-by-line (arg names/order, composite `(u
 day_key)` conflict target, return shape, `SECURITY DEFINER` hardening, grants) — exact match,
 no migration changes made. Rollback is the same escape hatch as §N.6: `upsertWeekPlanItemToSupabase`
 / `deleteWeekPlanItemFromSupabase` remain intact and unused in `lib/supabase-data.ts`.
+
+## P. Phase 3A3 — closet-outfit-favourites cutover (first backend-mediated domain)
+
+Third pilot domain. Unlike §N/§O (direct Supabase RPCs), closet-outfit-favourites is
+**backend-mediated**: frontend → authenticated HTTP → `closetOutfitSyncService` →
+`closetOutfitSyncRepository` → Prisma. All of the version-aware capability (routes, service
+methods, repository methods, tombstone-inclusive reconciliation read) already existed from
+Phase 1A/2B1/2B2 with zero frontend caller — this phase's job was proving the HTTP-mediated
+adapter maps onto the identical executor semantics already proven for direct Supabase, and
+wiring the one missing piece: a frontend reconciliation-read wrapper
+(`fetchClosetOutfitFavouritesForReconciliation` in `lib/closet-outfit-sync.ts`) — the backend
+route (`GET /closet-outfit-sync/favourites/for-reconciliation`) existed but had no frontend
+caller until now.
+
+### P.1 Transport contract, confirmed safe
+
+`lib/api/api-client.ts`'s `request()` never throws — it resolves to `{success, data, error}`
+always, converting network failures to `success: false`. Critically, every CAS protocol
+outcome (`created`, `create_conflict`, `applied`, `conflict`, `not_found`) is returned via
+`sendSuccess` (HTTP 200) regardless of which status it is — only a genuine failure
+(`requireAuth` rejecting, schema validation, an unexpected exception) produces a non-2xx
+response. This means the existing frontend RPC wrappers' `if (!response.success) throw` only
+fires on genuine failures, never on a normal protocol outcome — the executor's `try/catch` →
+`operational_failure` path and its `status`-based branching never collide. No wrapper code
+needed to change to make this safe; it already was.
+
+### P.2 Ownership scoping — the legacy bug stays dead
+
+The legacy `upsertFavourite`'s ownership fix (`where: {id, supabaseUserId}` before falling
+through to create) predates this phase and remains untouched. More importantly, every
+version-aware repository method (`createFavourite`, `updateFavouriteVersioned`,
+`deleteFavouriteVersioned`) was built ownership-scoped from Phase 1A itself — `request.userId`
+is server-derived from a signature-verified JWT (`middleware/auth.ts`), never client-supplied,
+and every WHERE clause includes it alongside `id`. This is already covered by existing tests
+(`closet-outfit-sync.repository.phase1a.test.ts`'s "scopes the WHERE clause by the caller's own
+supabaseUserId" cases, `closet-outfit-sync.repository.legacy-ownership.test.ts`) — no new
+backend security tests were added; the existing coverage already proves cross-user access
+returns `not_found` (never leaking another user's row state) and never mutates another user's
+row.
+
+### P.3 Reactivation is real but uncommon
+
+Closet-generated outfit ids are a deterministic function of the exact combination of closet
+item ids composing them (`closet-outfits.service.ts`), not a fresh random/timestamp id per
+generation. A user who unfavourites an outfit and later regenerates the exact same item
+combination reuses the same id — a genuine (if not-guaranteed, since generation is
+weighted-random for variety) reactivation path. Tested directly at the reconciliation level
+(same `REACTIVATE_SERVER` mechanics already proven for week-plan in §O), independent of
+whether the UI's random selection actually reproduces it in practice.
+
+### P.4 Cutover state after Phase 3A3
+
+```text
+saved-outfits             → NEW (version-aware CAS + reconciliation) only
+week-plan                 → NEW (version-aware CAS + reconciliation) only
+closet-outfit-favourites  → NEW (version-aware CAS + reconciliation, backend-mediated) only
+closet-outfit-week-plan   → legacy only, untouched
+```
+
+`lib/domain-reconciliation-runner.ts` required no changes — the backend-mediated adapter
+satisfies the exact same `DomainAdapter<TContent>` interface as the direct-Supabase ones, and
+`reconcileDomainRecords`/`createSingleFlightRunner` are already fully generic. No `includeId`
+filter: favourites have no retention/archive window (unlike week-plan's rolling 7-day
+window) — every favourite identity stays eligible for reconciliation regardless of age.
+
+Deployment order (nothing deployed in this phase): the version-aware favourite backend
+capability is **already live in production today** (Phase 1A shipped it additively months
+before any client called it) — unlike saved-outfits/week-plan, there is no "deploy the backend
+first" step remaining for this domain specifically. The only remaining prerequisite is
+verifying the deployed backend's `/closet-outfit-sync/favourites/version-aware*` and
+`/for-reconciliation` routes respond as expected before this client build ships — a
+production health check, not a code or migration change. Rollback: `upsertClosetOutfitFavouriteToBackend`
+/ `deleteClosetOutfitFavouriteFromBackend` remain intact and unused, and the legacy backend
+routes/service/repository methods are untouched and still reachable — nothing here removes
+backward compatibility for an older installed client.
