@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { setApiAuthToken } from '@/lib/api/api-client';
 import { logAuthEvent } from '@/lib/auth-event-log';
 import { clearAllLocalUserData, syncUserDataOnSignIn } from '@/lib/user-data-sync';
+import { reconcileSavedOutfits } from '@/lib/saved-outfits-reconciliation';
 import { setAnalyticsUserId } from '@/lib/analytics';
 import { recordError, setCrashlyticsUserId } from '@/lib/crashlytics';
 
@@ -24,8 +25,28 @@ export type AuthEventCallback = (event: string, session: Session | null) => void
  *   setApiAuthToken        — every event (token sync + sign-out clear)
  *   setAnalyticsUserId     — HYDRATED and SIGNED_IN only
  *   setCrashlyticsUserId   — HYDRATED and SIGNED_IN only
- *   syncUserDataOnSignIn   — SIGNED_IN only (not on hydration)
+ *   syncUserDataOnSignIn   — SIGNED_IN only (not on hydration); no longer
+ *                            covers saved-outfits (see below)
+ *   reconcileSavedOutfits  — HYDRATED and SIGNED_IN (Phase 3A1's one chosen
+ *                            lifecycle trigger — see saved-outfits note)
  *   clearAllLocalUserData  — SIGNED_OUT only
+ *
+ * Phase 3A1 (sync redesign): saved-outfits is the first domain pulled off
+ * this legacy sync entirely. syncUserDataOnSignIn's saved-outfits branch
+ * used to run a bulk pull-or-push against the direct-Supabase table with no
+ * CAS at all — leaving it running here alongside the new version-aware
+ * reconciliation path would be exactly the uncoordinated dual write Phase
+ * 3A1's cutover invariant forbids (see lib/user-data-sync.ts, which now
+ * omits 'saved-outfits' from its own domain list). reconcileSavedOutfits is
+ * fired on the SAME checkpoint already used for setAnalyticsUserId/
+ * setCrashlyticsUserId (HYDRATED + SIGNED_IN) rather than only SIGNED_IN,
+ * since that checkpoint is this codebase's existing definition of "an
+ * authenticated session just became available" — covering both a fresh
+ * sign-in and an already-authenticated cold launch, which previously had no
+ * saved-outfits sync of any kind (a real, previously-flagged gap). The other
+ * three sync-project domains (week-plan, closet-outfit-favourites, closet-
+ * outfit-week-plan) are untouched and keep running through
+ * syncUserDataOnSignIn exactly as before.
  */
 export function useAuthSideEffects(): AuthEventCallback {
   return useCallback((event: string, session: Session | null) => {
@@ -39,6 +60,9 @@ export function useAuthSideEffects(): AuthEventCallback {
       if (event === AUTH_EVENT_HYDRATED || event === 'SIGNED_IN') {
         setAnalyticsUserId(session.user.id);
         setCrashlyticsUserId(session.user.id);
+        void reconcileSavedOutfits().catch((error) =>
+          logAuthEvent(`saved-outfits-reconcile: unexpected top-level error — ${error instanceof Error ? error.message : String(error)}`, session.user.id),
+        );
       }
       if (event === 'SIGNED_IN') {
         // syncUserDataOnSignIn logs each entity's own result as it settles

@@ -894,3 +894,140 @@ trigger exists anywhere in the app lifecycle (`SIGNED_IN`/`SIGNED_OUT`/hydration
 background/timers/navigation); no outbox; no retries; no Phase 3C privilege revocation; the
 Phase 1A Supabase migration remains unapplied to production. The executor exists as tested,
 callable capability only.
+
+## N. Phase 3A1 — saved-outfits pilot cutover
+
+Phase 3A1 is the first phase to actually wire the reconciliation engine/executor into a real
+mutation flow. Scope is deliberately narrow: **saved-outfits only** — items 1–2 of §M.2's
+checklist. Items 3–10 (week-plan, closet-outfit-favourites, closet-outfit-week-plan, and the
+bulk `syncEntity` fallback for those three) are untouched and remain on the legacy
+fire-and-forget architecture exactly as §M.1 describes. Running one domain on the new
+architecture and three on the old one simultaneously is intentional, not a compromise: it
+proves the new architecture against real usage while keeping the blast radius of any
+Phase 3A1 mistake confined to a single domain, and the three untouched domains have zero code
+changes to review or trust in this phase.
+
+### N.1 Pilot architecture
+
+```text
+saveSavedOutfit / deleteSavedOutfit (lib/saved-outfits-storage.ts)
+  → local AsyncStorage write (unchanged — still what makes the save/delete feel instant)
+  → markActive / markDeleted (unchanged Phase 1B.1 durable-dirty-metadata ordering)
+  → best-effort: dynamic import of lib/saved-outfits-reconciliation.ts,
+    then reconcileSavedOutfits() — never awaited, never blocks the caller,
+    failure is recordError'd (visible) rather than silently swallowed
+
+reconcileSavedOutfits() (lib/saved-outfits-reconciliation.ts) — the ONE orchestration
+entry point, also fired from contexts/useAuthSideEffects.ts on HYDRATED/SIGNED_IN:
+  → fetchSavedOutfitsForReconciliation() (tombstone-inclusive server read, Phase 2B1)
+  → loadSavedOutfits() + getDomainMetadata('saved-outfits') (local read, Phase 1B/2B1)
+  → union of every id seen locally, server-side, or in metadata
+  → per id, independently: decideReconciliation (pure engine, Phase 2B1)
+                            → executeReconciliation (executor + savedOutfitAdapter, Phase 2B2)
+  → one bounded redecide retry on 'redecide_required' (reuses the RPC's own fresher
+    response, never a second network read, never more than once — §16/M.1's "never
+    substitute a fresher version to force a mutation through" still holds)
+  → per-id try/catch — one record's unexpected throw becomes an operational_failure
+    for that id only, every other id in the batch still gets decided (§13)
+```
+
+The legacy `upsertSavedOutfitToSupabase` / `deleteSavedOutfitFromSupabase` calls that used to
+run inside `saveSavedOutfit`/`deleteSavedOutfit` are **gone from this path** — not
+feature-flagged off, actually removed from the call sites. The functions themselves still
+exist in `lib/supabase-data.ts` (untouched, unused) purely as a rollback escape hatch (§N.6).
+
+### N.2 The one lifecycle trigger chosen, and why
+
+`contexts/useAuthSideEffects.ts` already had exactly one checkpoint meaning "an authenticated
+session is now available" — the `event === AUTH_EVENT_HYDRATED || event === 'SIGNED_IN'`
+branch that sets the analytics/crashlytics user id. `reconcileSavedOutfits()` is fired from
+that same branch, not a new standalone one. This deliberately covers HYDRATED (an
+already-authenticated cold launch) as well as SIGNED_IN — HYDRATED previously triggered *no*
+sync of any kind for saved-outfits (a real, previously-flagged gap; `syncUserDataOnSignIn`
+only ever ran on `SIGNED_IN`). Foreground-return was considered and rejected for this phase:
+it would be a second, independent trigger with its own timing, adding a second concurrency
+surface to reason about for no correctness gain the single-flight design (§N.4) doesn't
+already provide via the best-effort post-action call.
+
+`syncUserDataOnSignIn` (`lib/user-data-sync.ts`) no longer includes `'saved-outfits'` in its
+domain list — that bulk pull-or-push has no CAS/version awareness at all (§M.1's table), so
+leaving it running alongside the new trigger on the exact same checkpoint would be the
+uncoordinated dual write this phase's invariant forbids. The other three domains' entries in
+that list are untouched.
+
+### N.3 Immediate user-action sync
+
+`saveSavedOutfit`/`deleteSavedOutfit` fire the exact same `reconcileSavedOutfits()` function
+as the lifecycle trigger — not a parallel/duplicated decision path (§9). It runs the **full**
+saved-outfits batch, not a single-record-scoped variant: the local saved-outfits list is small
+enough per user that batch cost is negligible, and reusing one function for both triggers is
+simpler and more clearly correct than maintaining two. The call happens via a dynamic
+`import('@/lib/saved-outfits-reconciliation')` rather than a static top-of-file import — this
+breaks a real module cycle (`saved-outfits-reconciliation.ts` → `reconciliation-adapters.ts`
+→ `saved-outfits-storage.ts`), not a style choice.
+
+### N.4 Single-flight / coalescing design
+
+A module-level `activeRun` / `queuedRun` pair in `lib/saved-outfits-reconciliation.ts`
+guarantees: (a) at most one batch runs at a time; (b) a caller arriving while a run is already
+in flight is never simply joined to that run (its own local write may postdate the snapshot
+that in-flight run already took) — instead it is coalesced into exactly one queued follow-up
+run guaranteed to start only after the current one finishes, so its fresh snapshot read is
+guaranteed to observe every write that happened-before the call; (c) every other caller
+arriving during the same active run shares that one queued follow-up rather than each queuing
+their own. This means the lifecycle trigger, a user's save, and a concurrent user's delete can
+all fire within the same tick and converge onto at most two real batch executions (the one
+already running, plus one coalesced follow-up), never three, never a missed write, and never
+two batches concurrently mutating the same record. Proven with a deterministic
+gate-and-release test (`saved-outfits-reconciliation.test.ts`'s single-flight coalescing
+describe block) — no timing-based sleeps.
+
+### N.5 Failure / retry model — no outbox needed (§10)
+
+Every local write is durably marked dirty (`markActive`/`markDeleted`, awaited, uncaught —
+Phase 1B.1) *before* `saveSavedOutfit`/`deleteSavedOutfit` even attempt the best-effort sync.
+If that attempt fails for any reason (offline, RPC error, an unrelated record's failure),
+`isDirty` stays `true` and the record is durably rediscoverable: the very next
+`reconcileSavedOutfits()` call — whichever trigger fires it first, lifecycle or another user
+action — re-reads the same durable local state and metadata and retries the exact same
+decision. This was verified directly, not assumed: `saved-outfits-reconciliation.test.ts`'s
+process-death/network-failure tests kill the RPC mid-attempt (create and delete), restart it,
+and confirm convergence on the next pass, with a sibling K1-deferred legacy record proven
+untouched throughout (never a destructive write, never resolved by looping). No concrete
+state was found that survives a process death un-recoverable by this mechanism — a full
+outbox (an explicit persisted queue, ordering guarantees, backoff scheduling) would add
+complexity without closing any actual gap for this single, low-volume domain, so §10's answer
+is: **not built, and not currently needed.** This can be revisited if a later domain's shape
+(e.g. one where operation *ordering* matters, unlike saved-outfits' create/delete-only shape)
+proves it necessary.
+
+### N.6 Deployment prerequisite and rollback
+
+No feature-flag mechanism was invented. `constants/config.ts` has no existing
+runtime-remote-flag convention to reuse (`appConfig.useMockServices` is a build-time env var,
+not a runtime toggle), and building one for a single-phase pilot would be exactly the
+over-engineering §18 warns against. Instead, this is a **hard deployment prerequisite,
+documented here**: the saved-outfits v2 client path (this phase's commit) must not reach
+production users before the Phase 1A Supabase migration
+(`supabase/migrations/20260907010000_phase1a_version_aware_rpcs.sql`) is applied and verified
+against the production Supabase project — without it, `create_saved_outfit` /
+`update_saved_outfit` / `delete_saved_outfit` simply don't exist server-side and every
+reconciliation attempt for saved-outfits would fail as an operational_failure (harmlessly —
+dirty stays true, nothing corrupts — but sync would never actually complete).
+
+Rollback does **not** require reverting this commit's exact code: `upsertSavedOutfitToSupabase`
+/ `deleteSavedOutfitFromSupabase` still exist in `lib/supabase-data.ts`, untouched and fully
+functional — a future build could re-wire `saveSavedOutfit`/`deleteSavedOutfit` back onto them
+in minutes if the new path ever needed to be pulled. This is deliberate: Phase 3C's eventual
+revocation of direct-table DML privileges is what will finally retire that escape hatch, and
+this phase does not bring that revocation any closer.
+
+### N.7 Phase 2 findings re-confirmed (§Part 1 of Phase 3A1's instructions)
+
+Re-traced against the current repository state before any change in this phase: saved-outfits
+remains document-like (create/delete only, no in-place edit in the UI); regeneration
+(`useResultsActions.ts`'s `handleRegenerate`) always produces a new id via `buildSavedOutfitId`'s
+generation suffix and never mutates or removes the previous generation's saved copy; the
+legacy `upsertSavedOutfitToSupabase` never touched `sync_version`/`deleted_at` (confirmed by
+reading its actual upsert payload); the legacy `deleteSavedOutfitFromSupabase` was a physical
+`DELETE`. No discrepancy from Phase 2's findings was found.

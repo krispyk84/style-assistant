@@ -3,10 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { appConfig } from '@/constants/config';
 import { recordError } from '@/lib/crashlytics';
 import { stripLegacySketchImageData } from '@/lib/outfit-utils';
-import {
-  deleteSavedOutfitFromSupabase,
-  upsertSavedOutfitToSupabase,
-} from '@/lib/supabase-data';
 import { markActive, markDeleted } from '@/lib/sync-metadata-storage';
 import type { CreateLookInput, LookAnchorItem, LookRecommendation } from '@/types/look-request';
 import type { SavedOutfit } from '@/types/style';
@@ -113,7 +109,6 @@ export async function saveSavedOutfit(input: CreateLookInput, recommendation: Lo
 
   const nextSavedOutfits = [nextSavedOutfit, ...savedOutfits.filter((item) => item.id !== id)];
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
-  void upsertSavedOutfitToSupabase(nextSavedOutfit).catch((error) => recordError(error, 'saved_outfit_save_upsert'));
   // Phase 1B.1: awaited, not fire-and-forget, and not caught here — covers
   // both a brand-new id and an intentional re-save of a previously-deleted
   // id (reachable again if the same requestId+tier is saved after having
@@ -127,6 +122,20 @@ export async function saveSavedOutfit(input: CreateLookInput, recommendation: Lo
   // of silently diverging from the domain object, which was already
   // written above.
   await markActive('saved-outfits', id);
+  // Phase 3A1: saved-outfits' ONLY server mutation architecture is now the
+  // version-aware reconciliation engine/executor — the legacy unconditional
+  // upsertSavedOutfitToSupabase call that used to run here is gone (running
+  // both would be an uncoordinated dual write; see
+  // docs/sync-phase2a-reconciliation-spec.md's Phase 3 section). Local
+  // persist above already completed the user-visible save; this is a
+  // best-effort trailing sync — failure leaves isDirty=true (already
+  // durable from markActive above) for the next lifecycle reconciliation
+  // pass to retry, so it is never awaited and never blocks the save.
+  // Dynamic import avoids a real module cycle: saved-outfits-reconciliation
+  // -> reconciliation-adapters -> this file.
+  void import('@/lib/saved-outfits-reconciliation')
+    .then(({ reconcileSavedOutfits }) => reconcileSavedOutfits())
+    .catch((error) => recordError(error, 'saved_outfits_reconcile_after_save'));
   return normalizeSavedOutfit(nextSavedOutfit);
 }
 
@@ -149,7 +158,16 @@ export async function deleteSavedOutfit(savedOutfitId: string) {
   const savedOutfits = await loadSavedOutfits();
   const nextSavedOutfits = savedOutfits.filter((item) => item.id !== savedOutfitId);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextSavedOutfits));
-  void deleteSavedOutfitFromSupabase(savedOutfitId).catch((error) => recordError(error, 'saved_outfit_delete'));
+  // Phase 3A1: same replacement as saveSavedOutfit above — the legacy
+  // unconditional physical deleteSavedOutfitFromSupabase call is gone from
+  // this path; the version-aware reconciliation engine/executor now owns
+  // the server-side deletion (CAS soft delete for acknowledged outfits,
+  // compatibility-era deferral for unknown-ancestry legacy ones). Best-
+  // effort, never awaited, never blocks — the tombstone above is already
+  // durable.
+  void import('@/lib/saved-outfits-reconciliation')
+    .then(({ reconcileSavedOutfits }) => reconcileSavedOutfits())
+    .catch((error) => recordError(error, 'saved_outfits_reconcile_after_delete'));
   return nextSavedOutfits;
 }
 
