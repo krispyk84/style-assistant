@@ -11,11 +11,10 @@ import { Prisma } from '@prisma/client';
 
 const create = vi.fn();
 const updateMany = vi.fn();
-const deleteMany = vi.fn();
 
 vi.mock('../../../db/prisma.js', () => ({
   prisma: {
-    closetOutfitFavourite: { create, updateMany, deleteMany },
+    closetOutfitFavourite: { create, updateMany },
   },
 }));
 
@@ -28,7 +27,6 @@ function p2002() {
 beforeEach(() => {
   create.mockReset();
   updateMany.mockReset();
-  deleteMany.mockReset();
 });
 
 describe('closetOutfitSyncRepository.upsertFavourite — ownership fix', () => {
@@ -39,7 +37,7 @@ describe('closetOutfitSyncRepository.upsertFavourite — ownership fix', () => {
 
     expect(updateMany).toHaveBeenCalledWith({
       where: { id: 'f1', supabaseUserId: 'userA' },
-      data: { formality: 'Business', outfit: { a: 1 }, savedAt: '2026-01-02' },
+      data: { formality: 'Business', outfit: { a: 1 }, savedAt: '2026-01-02', syncVersion: { increment: 1 }, deletedAt: null },
     });
     expect(create).not.toHaveBeenCalled();
   });
@@ -68,7 +66,7 @@ describe('closetOutfitSyncRepository.upsertFavourite — ownership fix', () => {
     // row was scoped to an id+owner pair that doesn't exist for A.
     expect(updateMany).toHaveBeenCalledWith({
       where: { id: 'f1', supabaseUserId: 'userA' },
-      data: { formality: 'Business', outfit: { attacker: true }, savedAt: '2026-01-02' },
+      data: { formality: 'Business', outfit: { attacker: true }, savedAt: '2026-01-02', syncVersion: { increment: 1 }, deletedAt: null },
     });
   });
 
@@ -82,12 +80,26 @@ describe('closetOutfitSyncRepository.upsertFavourite — ownership fix', () => {
   });
 });
 
-describe('closetOutfitSyncRepository.deleteFavourite — was already ownership-scoped, confirmed unchanged', () => {
-  it('scopes the delete by both id and supabaseUserId, so User A cannot delete User B\'s favourite by knowing its id', async () => {
-    deleteMany.mockResolvedValue({ count: 0 });
+describe('closetOutfitSyncRepository.deleteFavourite — ownership-scoped soft delete (Phase 3B1 bridge)', () => {
+  it('scopes the delete by id, supabaseUserId, and deletedAt:null, and soft-deletes rather than removing the row', async () => {
+    updateMany.mockResolvedValue({ count: 1 });
 
     await closetOutfitSyncRepository.deleteFavourite('f1', 'userA');
 
-    expect(deleteMany).toHaveBeenCalledWith({ where: { id: 'f1', supabaseUserId: 'userA' } });
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'f1', supabaseUserId: 'userA', deletedAt: null },
+      data: { deletedAt: expect.any(Date), syncVersion: { increment: 1 } },
+    });
+  });
+
+  it('a repeated delete against an already-tombstoned favourite matches zero rows (idempotent, no version churn)', async () => {
+    updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(closetOutfitSyncRepository.deleteFavourite('f1', 'userA')).resolves.toBeUndefined();
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'f1', supabaseUserId: 'userA', deletedAt: null },
+      data: { deletedAt: expect.any(Date), syncVersion: { increment: 1 } },
+    });
   });
 });

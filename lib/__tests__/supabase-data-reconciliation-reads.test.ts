@@ -9,15 +9,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // supabase client constructs a RealtimeClient at import time that throws
 // under plain Node.
 
-const { getSessionMock, fromMock } = vi.hoisted(() => ({
+const { getSessionMock, fromMock, rpcMock } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   fromMock: vi.fn(),
+  rpcMock: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: { getSession: getSessionMock },
     from: fromMock,
+    rpc: rpcMock,
   },
 }));
 
@@ -56,13 +58,6 @@ const LIVE_ROW = {
   deleted_at: null,
 };
 
-const TOMBSTONE_ROW = {
-  ...LIVE_ROW,
-  id: 'req-2:business',
-  sync_version: 5,
-  deleted_at: '2026-02-01T00:00:00.000Z',
-};
-
 describe('fetchSavedOutfitsFromSupabase — ordinary read (Phase 2B1 filter fix)', () => {
   it('filters deleted_at IS NULL — the fix for a previously-latent gap where no filter existed at all', async () => {
     const chain = makeChain({ data: [LIVE_ROW], error: null });
@@ -79,15 +74,32 @@ describe('fetchSavedOutfitsFromSupabase — ordinary read (Phase 2B1 filter fix)
   });
 });
 
-describe('fetchSavedOutfitsForReconciliation — tombstone-inclusive, version-carrying read', () => {
-  it('does NOT filter deleted_at — a tombstoned row is returned, not hidden', async () => {
-    const chain = makeChain({ data: [LIVE_ROW, TOMBSTONE_ROW], error: null });
-    fromMock.mockReturnValue({ select: vi.fn(() => chain) });
+const LIVE_RPC_ROW = {
+  out_id: 'req-1:business',
+  out_request_id: 'req-1',
+  out_saved_at: LIVE_ROW.saved_at,
+  out_input: { a: 1 },
+  out_recommendation: { b: 1 },
+  out_sync_version: 3,
+  out_deleted_at: null,
+};
+
+const TOMBSTONE_RPC_ROW = {
+  ...LIVE_RPC_ROW,
+  out_id: 'req-2:business',
+  out_sync_version: 5,
+  out_deleted_at: '2026-02-01T00:00:00.000Z',
+};
+
+describe('fetchSavedOutfitsForReconciliation — tombstone-inclusive, version-carrying read (Phase 3B1: via RPC)', () => {
+  it('calls get_saved_outfits_reconciliation_state and maps its out_* rows, including tombstones', async () => {
+    rpcMock.mockResolvedValue({ data: [LIVE_RPC_ROW, TOMBSTONE_RPC_ROW], error: null });
 
     const { fetchSavedOutfitsForReconciliation } = await import('@/lib/supabase-data');
     const result = await fetchSavedOutfitsForReconciliation();
 
-    expect(chain.is).not.toHaveBeenCalled();
+    expect(rpcMock).toHaveBeenCalledWith('get_saved_outfits_reconciliation_state');
+    expect(fromMock).not.toHaveBeenCalled();
     expect(result).toEqual([
       { id: 'req-1:business', requestId: 'req-1', savedAt: LIVE_ROW.saved_at, input: { a: 1 }, recommendation: { b: 1 }, syncVersion: 3, deletedAt: null },
       { id: 'req-2:business', requestId: 'req-1', savedAt: LIVE_ROW.saved_at, input: { a: 1 }, recommendation: { b: 1 }, syncVersion: 5, deletedAt: '2026-02-01T00:00:00.000Z' },
@@ -95,8 +107,7 @@ describe('fetchSavedOutfitsForReconciliation — tombstone-inclusive, version-ca
   });
 
   it('returns an empty array on error rather than throwing (matches every other fetch* function\'s existing contract)', async () => {
-    const chain = makeChain({ data: null, error: { message: 'boom' } });
-    fromMock.mockReturnValue({ select: vi.fn(() => chain) });
+    rpcMock.mockResolvedValue({ data: null, error: { message: 'boom' } });
 
     const { fetchSavedOutfitsForReconciliation } = await import('@/lib/supabase-data');
     await expect(fetchSavedOutfitsForReconciliation()).resolves.toEqual([]);
@@ -115,13 +126,6 @@ const WEEK_LIVE_ROW = {
   deleted_at: null,
 };
 
-const WEEK_TOMBSTONE_ROW = {
-  ...WEEK_LIVE_ROW,
-  day_key: 'tue',
-  sync_version: 4,
-  deleted_at: '2026-02-02T00:00:00.000Z',
-};
-
 describe('fetchWeekPlanFromSupabase — ordinary read (Phase 2B1 filter fix)', () => {
   it('filters deleted_at IS NULL', async () => {
     const chain = makeChain({ data: [WEEK_LIVE_ROW], error: null });
@@ -135,15 +139,33 @@ describe('fetchWeekPlanFromSupabase — ordinary read (Phase 2B1 filter fix)', (
   });
 });
 
-describe('fetchWeekPlanForReconciliation — tombstone-inclusive, version-carrying read', () => {
-  it('does NOT filter deleted_at and maps syncVersion/deletedAt', async () => {
-    const chain = makeChain({ data: [WEEK_LIVE_ROW, WEEK_TOMBSTONE_ROW], error: null });
-    fromMock.mockReturnValue({ select: vi.fn(() => chain) });
+const WEEK_LIVE_RPC_ROW = {
+  out_day_key: 'mon',
+  out_day_label: 'Monday',
+  out_request_id: 'req-mon',
+  out_assigned_at: WEEK_LIVE_ROW.assigned_at,
+  out_input: { a: 1 },
+  out_recommendation: { b: 1 },
+  out_sync_version: 2,
+  out_deleted_at: null,
+};
+
+const WEEK_TOMBSTONE_RPC_ROW = {
+  ...WEEK_LIVE_RPC_ROW,
+  out_day_key: 'tue',
+  out_sync_version: 4,
+  out_deleted_at: '2026-02-02T00:00:00.000Z',
+};
+
+describe('fetchWeekPlanForReconciliation — tombstone-inclusive, version-carrying read (Phase 3B1: via RPC)', () => {
+  it('calls get_week_plan_reconciliation_state and maps its out_* rows, including tombstones', async () => {
+    rpcMock.mockResolvedValue({ data: [WEEK_LIVE_RPC_ROW, WEEK_TOMBSTONE_RPC_ROW], error: null });
 
     const { fetchWeekPlanForReconciliation } = await import('@/lib/supabase-data');
     const result = await fetchWeekPlanForReconciliation();
 
-    expect(chain.is).not.toHaveBeenCalled();
+    expect(rpcMock).toHaveBeenCalledWith('get_week_plan_reconciliation_state');
+    expect(fromMock).not.toHaveBeenCalled();
     expect(result).toEqual([
       { dayKey: 'mon', dayLabel: 'Monday', requestId: 'req-mon', assignedAt: WEEK_LIVE_ROW.assigned_at, input: { a: 1 }, recommendation: { b: 1 }, syncVersion: 2, deletedAt: null },
       { dayKey: 'tue', dayLabel: 'Monday', requestId: 'req-mon', assignedAt: WEEK_LIVE_ROW.assigned_at, input: { a: 1 }, recommendation: { b: 1 }, syncVersion: 4, deletedAt: '2026-02-02T00:00:00.000Z' },

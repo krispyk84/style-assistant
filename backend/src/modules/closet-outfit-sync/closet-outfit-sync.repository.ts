@@ -52,7 +52,7 @@ export const closetOutfitSyncRepository = {
     });
   },
 
-  // Ownership fix (this session): `id` alone is ClosetOutfitFavourite's
+  // Ownership fix (earlier session): `id` alone is ClosetOutfitFavourite's
   // only unique constraint (see schema.prisma — no compound key with
   // supabaseUserId), and this id is fully client-supplied, just like
   // saved_outfits'. A plain `prisma.upsert({where:{id}})` decides
@@ -68,10 +68,28 @@ export const closetOutfitSyncRepository = {
   // (its route never reads a return value) and the only way this branch
   // is reached is a cross-user id collision, never a legitimate client
   // action.
+  //
+  // Phase 3B1 legacy compatibility bridge: the update arm now also advances
+  // syncVersion by exactly one and clears deletedAt unconditionally — same
+  // "legacy write == this record is active with this content" reactivation
+  // semantics chosen for the direct-Supabase domains (a legacy resave
+  // against a tombstoned favourite un-deletes it). Unlike the Supabase
+  // bridge, there is no ambient DB trigger here to avoid double-incrementing
+  // against: this repository method is the only code path that runs this
+  // exact query, so the increment is written directly into its own `data`
+  // and can never collide with updateFavouriteVersioned's independent CAS
+  // increment (a different method, a different WHERE, never both invoked
+  // for the same call).
   async upsertFavourite(params: { id: string; supabaseUserId: string; formality: string; outfit: unknown; savedAt: string }) {
     const updated = await prisma.closetOutfitFavourite.updateMany({
       where: { id: params.id, supabaseUserId: params.supabaseUserId },
-      data: { formality: params.formality, outfit: params.outfit as never, savedAt: params.savedAt },
+      data: {
+        formality: params.formality,
+        outfit: params.outfit as never,
+        savedAt: params.savedAt,
+        syncVersion: { increment: 1 },
+        deletedAt: null,
+      },
     });
     if (updated.count > 0) return;
 
@@ -90,8 +108,17 @@ export const closetOutfitSyncRepository = {
     }
   },
 
+  // Phase 3B1: soft-delete instead of a physical row removal, ownership-
+  // scoped exactly as before. The `deletedAt: null` guard in the WHERE
+  // clause is what makes a repeated legacy delete idempotent — a second
+  // call against an already-tombstoned row matches zero rows, so
+  // syncVersion is left untouched (no version churn for a no-op repeat),
+  // matching the direct-Supabase bridge's chosen repeated-delete semantics.
   async deleteFavourite(id: string, supabaseUserId: string) {
-    await prisma.closetOutfitFavourite.deleteMany({ where: { id, supabaseUserId } });
+    await prisma.closetOutfitFavourite.updateMany({
+      where: { id, supabaseUserId, deletedAt: null },
+      data: { deletedAt: new Date(), syncVersion: { increment: 1 } },
+    });
   },
 
   async findAllWeekPlanItems(supabaseUserId: string) {
@@ -110,7 +137,7 @@ export const closetOutfitSyncRepository = {
     });
   },
 
-  // Checked for the same ownership mistake as upsertFavourite (this
+  // Checked for the same ownership mistake as upsertFavourite (earlier
   // session): already safe, left unchanged. ClosetOutfitWeekPlanItem's
   // unique constraint is the COMPOUND key (supabaseUserId, dayKey) (see
   // schema.prisma's @@unique([supabaseUserId, dayKey])), and Prisma's
@@ -120,6 +147,17 @@ export const closetOutfitSyncRepository = {
   // supplied). There is no id-alone lookup path here for a client to
   // collide against, so a cross-user overwrite is not possible through
   // this method.
+  //
+  // Phase 3B1: the `update` branch now also advances syncVersion by exactly
+  // one and clears deletedAt unconditionally, reactivating a tombstoned
+  // day exactly like a fresh assignment would — this is the mutable-slot
+  // case Part 8 asked to reason through explicitly: a week-plan day is a
+  // single mutable slot, so "assign an outfit to Monday" legitimately means
+  // "Monday's slot is now this, regardless of what it was before," same as
+  // the direct-Supabase week_plan bridge's chosen semantics. Prisma's own
+  // upsert already does the create-or-update dispatch in one round trip;
+  // no ambient trigger exists here to double-increment against (same
+  // reasoning as upsertFavourite above).
   async upsertWeekPlanItem(params: {
     supabaseUserId: string;
     dayKey: string;
@@ -131,12 +169,28 @@ export const closetOutfitSyncRepository = {
     return prisma.closetOutfitWeekPlanItem.upsert({
       where: { supabaseUserId_dayKey: { supabaseUserId: params.supabaseUserId, dayKey: params.dayKey } },
       create: { ...params, outfit: params.outfit as never },
-      update: { dayLabel: params.dayLabel, formality: params.formality, outfit: params.outfit as never, assignedAt: params.assignedAt },
+      update: {
+        dayLabel: params.dayLabel,
+        formality: params.formality,
+        outfit: params.outfit as never,
+        assignedAt: params.assignedAt,
+        syncVersion: { increment: 1 },
+        deletedAt: null,
+      },
     });
   },
 
+  // Phase 3B1: soft-delete instead of physical row removal, preserving the
+  // compound (supabaseUserId, dayKey) identity exactly as Part 16 requires
+  // — the row keeps existing (as a tombstone) rather than freeing the
+  // dayKey for an unrelated future row to reuse its identity. The
+  // `deletedAt: null` WHERE guard makes a repeated legacy clear/delete
+  // idempotent, same pattern and same rationale as deleteFavourite above.
   async deleteWeekPlanItem(dayKey: string, supabaseUserId: string) {
-    await prisma.closetOutfitWeekPlanItem.deleteMany({ where: { dayKey, supabaseUserId } });
+    await prisma.closetOutfitWeekPlanItem.updateMany({
+      where: { dayKey, supabaseUserId, deletedAt: null },
+      data: { deletedAt: new Date(), syncVersion: { increment: 1 } },
+    });
   },
 
   async createFavourite(params: { id: string; supabaseUserId: string; formality: string; outfit: unknown; savedAt: string }) {

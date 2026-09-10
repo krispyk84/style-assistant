@@ -135,22 +135,41 @@ export async function fetchSavedOutfitsFromSupabase(): Promise<SavedOutfit[]> {
  * Reconciliation-only: includes tombstoned rows and sync_version/deleted_at.
  * Never use this for an ordinary UI list — see fetchSavedOutfitsFromSupabase
  * above, which filters deleted_at specifically so tombstones never leak into
- * a normal read. No current call site; exists for the (not yet implemented)
- * reconciliation engine's server-state input.
+ * a normal read.
+ *
+ * Phase 3B1: routed through the dedicated get_saved_outfits_reconciliation_state
+ * RPC (supabase/migrations/20260908000000_phase3b1_legacy_compatibility_bridge.sql)
+ * instead of a direct `.from('saved_outfits').select('*')`. This is a
+ * transport change only — the RPC derives the caller from auth.uid() itself
+ * and returns the exact same active+tombstoned row set a direct select
+ * already could (ordinary-read RLS on this table stays ownership-only, not
+ * deleted_at-restricted — see that migration's Part 3 comment for why a
+ * restrictive policy there would have broken legacy tombstone reactivation).
+ * Kept as a dedicated RPC anyway for a schema-locked output contract and to
+ * decouple this read from whatever the ordinary SELECT policy becomes in a
+ * future phase.
  */
+type SavedOutfitReconciliationRpcRow = {
+  out_id: string;
+  out_request_id: string;
+  out_saved_at: string;
+  out_input: SavedOutfit['input'];
+  out_recommendation: SavedOutfit['recommendation'];
+  out_sync_version: number;
+  out_deleted_at: string | null;
+};
+
 export async function fetchSavedOutfitsForReconciliation(): Promise<SavedOutfitServerSnapshot[]> {
-  const { data, error } = await supabase
-    .from('saved_outfits')
-    .select('*');
+  const { data, error } = await supabase.rpc('get_saved_outfits_reconciliation_state');
   if (error || !data) return [];
-  return data.map((row) => ({
-    id: row.id,
-    requestId: row.request_id,
-    savedAt: row.saved_at,
-    input: row.input,
-    recommendation: row.recommendation,
-    syncVersion: row.sync_version,
-    deletedAt: row.deleted_at,
+  return (data as SavedOutfitReconciliationRpcRow[]).map((row) => ({
+    id: row.out_id,
+    requestId: row.out_request_id,
+    savedAt: row.out_saved_at,
+    input: row.out_input,
+    recommendation: row.out_recommendation,
+    syncVersion: row.out_sync_version,
+    deletedAt: row.out_deleted_at,
   }));
 }
 
@@ -212,23 +231,32 @@ export async function fetchWeekPlanFromSupabase(): Promise<WeekPlannedOutfit[]> 
 
 /**
  * Reconciliation-only: includes tombstoned rows and sync_version/deleted_at.
- * See fetchSavedOutfitsForReconciliation's doc comment — same rationale, no
- * current call site.
+ * See fetchSavedOutfitsForReconciliation's doc comment — same rationale,
+ * routed through get_week_plan_reconciliation_state (Phase 3B1).
  */
+type WeekPlanItemReconciliationRpcRow = {
+  out_day_key: string;
+  out_day_label: string;
+  out_request_id: string;
+  out_assigned_at: string;
+  out_input: WeekPlannedOutfit['input'];
+  out_recommendation: WeekPlannedOutfit['recommendation'];
+  out_sync_version: number;
+  out_deleted_at: string | null;
+};
+
 export async function fetchWeekPlanForReconciliation(): Promise<WeekPlanItemServerSnapshot[]> {
-  const { data, error } = await supabase
-    .from('week_plan')
-    .select('*');
+  const { data, error } = await supabase.rpc('get_week_plan_reconciliation_state');
   if (error || !data) return [];
-  return data.map((row) => ({
-    dayKey: row.day_key,
-    dayLabel: row.day_label,
-    requestId: row.request_id,
-    assignedAt: row.assigned_at,
-    input: row.input,
-    recommendation: row.recommendation,
-    syncVersion: row.sync_version,
-    deletedAt: row.deleted_at,
+  return (data as WeekPlanItemReconciliationRpcRow[]).map((row) => ({
+    dayKey: row.out_day_key,
+    dayLabel: row.out_day_label,
+    requestId: row.out_request_id,
+    assignedAt: row.out_assigned_at,
+    input: row.out_input,
+    recommendation: row.out_recommendation,
+    syncVersion: row.out_sync_version,
+    deletedAt: row.out_deleted_at,
   }));
 }
 

@@ -1867,3 +1867,408 @@ restores the *pre-Phase-3C* state precisely, which was already analyzed and foun
 
 This is one recommendation, not a hedge between alternatives — Strategy B (§R.11), executed in
 this order, with Strategy C's client-side fix already in place underneath it throughout.
+
+## S. Phase 3B1 — server-side legacy compatibility bridge (implemented)
+
+Phase 3B (§R.7/§R.8) evaluated the server-side bridge design but did not build it. This phase
+implements it: `supabase/migrations/20260908000000_phase3b1_legacy_compatibility_bridge.sql`
+(direct-Supabase, additive after Phase 1A, left untouched) and a matching change to
+`backend/src/modules/closet-outfit-sync/closet-outfit-sync.repository.ts`'s four legacy methods
+(backend-mediated). Nothing pushed, deployed, or revoked — same convention as every prior phase.
+
+### S.1 Legacy contract reconstruction (Part 1)
+
+Direct-Supabase (`saved_outfits`/`week_plan`): confirmed by reading `lib/supabase-data.ts`'s
+legacy functions (`upsertSavedOutfitToSupabase`, `upsertManySavedOutfitsToSupabase`,
+`deleteSavedOutfitFromSupabase`, and week-plan's equivalents) — every legacy write is a plain
+`.upsert()` (content columns only, `sync_version`/`deleted_at` never mentioned) or a bare
+`.delete()` (physical row removal). The two tables' original RLS predates this project entirely
+(no migration file defines it) — Phase 1A's own migration comment records only that a policy
+shaped `auth.uid() = user_id` was confirmed present via `pg_policies` at the time, not its exact
+name or whether it was a single `FOR ALL` policy or already split; this phase treats that as the
+starting shape to reconstruct from (§S.7).
+
+Backend-mediated (`closet_outfit_favourites`/`closet_outfit_week_plan_items`): confirmed by
+reading `closet-outfit-sync.repository.ts`'s four legacy methods (pre-existing this session,
+described in the file's own header comments) — `upsertFavourite` does an ownership-scoped
+`updateMany` (content only) falling through to `create`; `deleteFavourite` was a physical
+`deleteMany`; `upsertWeekPlanItem` uses Prisma's built-in `upsert` against the compound
+`(supabaseUserId, dayKey)` key; `deleteWeekPlanItem` was a physical `deleteMany`. Ordinary reads
+(`findAllFavourites`/`findAllWeekPlanItems`) already filter `deletedAt: null` — this domain never
+had the direct-Supabase read-compatibility problem at all, since the backend fully controls its
+own query predicates (no RLS layer to interact with).
+
+### S.2 A major finding: a `deleted_at`-restricted ordinary-read RLS policy breaks legacy reactivation
+
+This phase's original design (matching Phase 3B's §R.7 sketch and this checkpoint's own initial
+instructions) was to restrict `saved_outfits`/`week_plan`'s ordinary SELECT policy to
+`auth.uid() = user_id AND deleted_at IS NULL`, moving the new client's reconciliation reads
+behind dedicated RPCs. Verified against a real disposable Postgres instance (`initdb`/`pg_ctl` at
+`/tmp/pgtest-3b1`, torn down after) simulating the confirmed pre-existing single-broad-policy
+starting shape (§S.1) — this design **breaks legacy tombstone reactivation**, and does so in two
+independent, both-confirmed ways:
+
+1. A plain `UPDATE ... SET deleted_at = now(), sync_version = sync_version + 1` (what a
+   version-advance/delete-redirect trigger would need to run) against an RLS-restricted table
+   fails with `ERROR: new row violates row-level security policy` even though neither the
+   UPDATE-specific policy's `USING` nor its `WITH CHECK` references `deleted_at` at all.
+   Isolated down to: PostgreSQL applies the table's SELECT policy against the row an UPDATE
+   targets/produces, in addition to the UPDATE-specific policy — proven by removing the
+   `deleted_at IS NULL` predicate from the SELECT policy alone (nothing else changed) and
+   watching the identical statement succeed.
+2. More severe: the legacy client's actual call shape is `.upsert()`
+   (`INSERT ... ON CONFLICT (id) DO UPDATE`), not a plain `UPDATE`. Against a tombstoned row
+   hidden by a `deleted_at IS NULL` SELECT policy, this raises
+   `ERROR: new row violates row-level security policy (USING expression)` outright — Postgres
+   can find the conflicting id via the unique index (not RLS-gated) but then cannot satisfy RLS
+   to apply the UPDATE arm to it. This is not a corner case: it is *exactly* what happens every
+   time a real user re-saves a previously-deleted-then-recreated outfit id, which is precisely
+   the case Part 8 of this phase's own instructions required to work.
+
+Both failures reproduce with the restrictive predicate in place and disappear with it removed,
+confirmed twice independently (a plain UPDATE and an `ON CONFLICT DO UPDATE`, each tested both
+ways). This is a structural property of PostgreSQL row security — no combination of split,
+command-scoped policies decouples "visible for an ordinary read" from "visible for a mutation's
+row-targeting" on the same table for the same role — not a bug in this migration's trigger logic,
+and not something SECURITY DEFINER on the trigger functions can work around either (SECURITY
+DEFINER only changes the privileges under which a *nested query the function itself issues* runs;
+it does nothing for the *outer* caller-issued statement's own RLS evaluation, which is where the
+`ON CONFLICT DO UPDATE` failure occurs).
+
+**Resolution:** `saved_outfits`/`week_plan`'s ordinary SELECT policy is `auth.uid() = user_id`
+(ownership-only, matching the ORIGINAL pre-migration shape exactly — not narrowed). Legacy
+mutation compatibility (Part 2's invariant) is treated as higher-severity than RLS-level
+ordinary-read tombstone-hiding, since a broken reactivation is data-loss-shaped (a legacy user's
+save silently or loudly fails) while a stale tombstone reappearing in a bare legacy read is
+cosmetic and self-correcting. See §S.3 for how ordinary-read hiding is achieved instead, and
+§S.4/§S.11 for the residual gap this leaves and why it's accepted.
+
+This finding also meant the two trigger functions (`enforce_legacy_write_protocol`,
+`redirect_legacy_delete_*`) do **not** need `SECURITY DEFINER` after all — their internal writes
+are ordinary RLS-compliant statements once the SELECT policy is ownership-only, so they run as
+plain `SECURITY INVOKER` (the default), avoiding unnecessary privilege elevation.
+
+### S.3 Final architecture, direct-Supabase
+
+- **Ordinary SELECT** (`{table}_select_own`): `auth.uid() = user_id`. Unchanged in shape from the
+  reconstructed original (§S.1) — this migration does not narrow it. Tombstone-hiding for
+  *ordinary UI reads* is enforced one layer up, in application code: `lib/supabase-data.ts`'s
+  `fetchSavedOutfitsFromSupabase`/`fetchWeekPlanFromSupabase` both already add
+  `.is('deleted_at', null)` (Phase 2B1), true for every build of this app from Phase 2B1 onward,
+  independent of any RLS predicate.
+- **INSERT/UPDATE/DELETE** (`{table}_{insert,update,delete}_own`): ownership-only, unchanged in
+  shape and behavior from before this migration.
+- **`enforce_legacy_write_protocol()`** (`BEFORE UPDATE`, both tables): if the UPDATE statement
+  did not itself explicitly advance `sync_version` (the only way this happens via SQL is a
+  legacy upsert's conflict-update arm, which lists only content columns — every one of Phase 1A's
+  six RPCs always explicitly sets `sync_version = old + 1`, so they never trigger this branch),
+  bump it by one and clear `deleted_at` (a legacy write's whole purpose is "this record is active
+  with this content" — reactivation, matching Phase 1A's own update RPCs' existing "a
+  version-matched update against a tombstone unconditionally clears `deleted_at`" behavior).
+- **`redirect_legacy_delete_saved_outfits()` / `redirect_legacy_delete_week_plan()`**
+  (`BEFORE DELETE`, one per table for the differing WHERE shape): if the target row is not
+  already tombstoned, run an internal `UPDATE ... SET deleted_at = now(), sync_version += 1`,
+  then `RETURN NULL` to cancel the physical delete. Idempotent by construction — if
+  `OLD.deleted_at` is already set, no UPDATE runs at all (no version churn), and the physical
+  delete is still cancelled.
+- **`get_saved_outfits_reconciliation_state()` / `get_week_plan_reconciliation_state()`**: new
+  `SECURITY DEFINER` RPCs, ownership derived from `auth.uid()` (never a client-supplied id),
+  `SET search_path = ''`, owned by `postgres`, least-privilege `EXECUTE` grants (`authenticated`
+  only, explicit `REVOKE` from `PUBLIC`/`anon`). Given §S.2's finding, a plain
+  `.from(table).select('*')` would *already* return the caller's own tombstoned rows too — these
+  RPCs are not the only path that can see a tombstone the way originally assumed. Kept anyway for
+  three independent reasons: an explicit schema-locked output contract; decoupling the new
+  client's reconciliation path from whatever the ordinary SELECT policy becomes in a future phase
+  (so a later, narrower Phase 3C policy change doesn't also have to remember this read path); and
+  consistency with Phase 1A's six CAS RPCs, which already use this exact shape.
+
+### S.4 Old-client ordinary-read compatibility, all four domains (Part 3, revised conclusion)
+
+- **saved_outfits / week_plan**: closed for every client build from Phase 2B1 onward (query-level
+  `.is('deleted_at', null)` filter, unconditional). Not closed at the RLS layer, and — per §S.2 —
+  cannot be, without breaking legacy reactivation. The residual population is a build that
+  predates Phase 2B1's filter entirely: since none of this sync work (Phase 0 through this
+  checkpoint) has ever shipped, that population is the *currently live production app itself*.
+  This is the same gap Phase 3B's own review already found and deferred (§R.12); this checkpoint
+  adds the proof that closing it at the RLS layer is actively incompatible with legacy mutation
+  compatibility, not merely unattempted. The correct closure is a **deployment-order guarantee**
+  (§S.9), not a database predicate: ship this same release — the release that first makes any
+  tombstone possible at all — to every installed client before any tombstone can be created, and
+  the population that could ever observe the gap is empty by construction.
+- **closet-outfit-favourites / closet-outfit-week-plan**: already closed, no change needed —
+  `findAllFavourites`/`findAllWeekPlanItems` already filter `deletedAt: null` in the Prisma query
+  itself (confirmed unchanged, §S.1), and this domain has no RLS layer for a restrictive filter
+  to conflict with in the first place.
+
+### S.5 Backend-mediated bridge (Parts 14–17)
+
+`closetOutfitSyncRepository`'s four legacy methods, in
+`backend/src/modules/closet-outfit-sync/closet-outfit-sync.repository.ts`:
+
+- **`upsertFavourite`**: the ownership-scoped update arm's `data` now also includes
+  `syncVersion: { increment: 1 }, deletedAt: null` — reactivation on write, same semantic
+  decision as the direct-Supabase domains. No ambient DB trigger exists in this domain (Prisma/
+  Postgres via application code only, no RLS, no DB-level triggers) — the increment is written
+  directly into this method's own query, so there is no shared mechanism it could double-fire
+  through, and no interaction whatsoever with `updateFavouriteVersioned`'s independent CAS
+  increment (a different method, a different `WHERE`, never both invoked for the same call).
+- **`deleteFavourite`**: changed from `deleteMany` (physical) to `updateMany` (soft), scoped by
+  `{ id, supabaseUserId, deletedAt: null }` — the `deletedAt: null` guard is what makes a repeated
+  legacy delete idempotent (a second call matches zero rows, no version churn).
+- **`upsertWeekPlanItem`**: the `update` branch of Prisma's built-in `upsert` now also sets
+  `syncVersion: { increment: 1 }, deletedAt: null`. Week-plan is a mutable single slot per day
+  (Part 8's explicit reasoning point) — "assign an outfit to Monday" legitimately means "Monday's
+  slot is now this, regardless of what it was before," so reactivation-on-write is the correct
+  semantic here too, not merely a copy of the favourites decision.
+- **`deleteWeekPlanItem`**: changed from `deleteMany` to `updateMany`, scoped by
+  `{ dayKey, supabaseUserId, deletedAt: null }` — preserves the compound
+  `(supabaseUserId, dayKey)` identity (Part 16) rather than freeing the `dayKey` for reuse, and is
+  idempotent the same way as `deleteFavourite`.
+
+Verified: `closet-outfit-sync.repository.legacy-ownership.test.ts` updated for the new `data`/
+`where` shapes (ownership-scoping tests unaffected, since ownership scoping was already correct
+and untouched); new `closet-outfit-sync.repository.phase3b1-bridge.test.ts` covers the week-plan
+legacy methods' bridge behavior, reactivation, idempotent repeat-delete, and — the explicit
+Part 17 requirement — that `updateFavouriteVersioned` (a version-aware CAS method) still
+increments `syncVersion` by exactly one, unaffected by the legacy bridge change (there is nothing
+for it to be affected by, since the two code paths share no mechanism). Backend suite: 160 passed,
+1 pre-existing skip; backend typecheck and `scripts/smoke-build.mjs` runtime smoke both clean.
+
+### S.6 Client reconciliation-read transport change (Parts 4/20)
+
+`lib/supabase-data.ts`'s `fetchSavedOutfitsForReconciliation`/`fetchWeekPlanForReconciliation`
+now call `supabase.rpc('get_saved_outfits_reconciliation_state')`/
+`supabase.rpc('get_week_plan_reconciliation_state')` instead of a direct
+`.from(table).select('*')`, mapping the `out_*`-prefixed response columns into the exact same
+`SavedOutfitServerSnapshot`/`WeekPlanItemServerSnapshot` shape as before. This is a pure transport
+change — the decision engine, executor, and both domains' reconciliation adapters needed zero
+changes, confirmed by re-running all four domains' reconciliation suites plus the dual-write and
+concurrency suites unchanged (§S.8). `lib/__tests__/supabase-data-reconciliation-reads.test.ts`
+updated to mock `supabase.rpc` instead of `.from().select()` for these two functions specifically
+(the ordinary-read functions are untouched and still mock `.from()`).
+
+### S.7 Real-Postgres test results (Parts 12/13)
+
+Disposable Postgres (`initdb`/`pg_ctl`, Unix socket, torn down after), migrations applied in
+order: baseline-simulated-original-schema → Phase 0 → Phase 1A → this phase's migration, all
+clean. Full matrix, both tables:
+
+| # | Case | saved_outfits | week_plan |
+|---|---|---|---|
+| 1 | Legacy create starts at version 1 | PASS | PASS |
+| 2 | Legacy active read visible | PASS | PASS |
+| 2b | Ownership-only SELECT still returns own tombstone at the RLS layer (by design, §S.2/§S.3 — not an assertion of DB-level hiding) | PASS | n/a (same policy shape; not re-asserted) |
+| 3 | Reconciliation RPC sees the tombstone (with `deleted_at` set) | PASS | PASS |
+| 4/5 | Cross-user isolation, ordinary read + reconciliation RPC | PASS | PASS |
+| 7/7b | Legacy update: content changes, version advances exactly once, repeatable | PASS | PASS |
+| 8 | Legacy upsert reactivates a tombstone: version advances exactly once, `deleted_at` cleared | PASS | PASS |
+| 9 | Legacy delete → tombstone at the next version, physical row preserved | PASS | PASS |
+| 10 | Repeated legacy delete against an already-tombstoned row: idempotent, no version churn | PASS | PASS |
+
+Additional, mandatory tests (§S.7 continued):
+
+- **Concurrent old/new mutation** (mandatory, Part 12's last item): a legacy raw UPDATE (content
+  A→B, version 1→2 via the trigger) followed by a new-client CAS `update_saved_outfit` RPC call
+  using `base_version=1` (its stale belief) — the RPC correctly returns `out_status='conflict'`,
+  `sync_version` stays at 2, content stays B. No double-increment, no silent overwrite.
+- **Primary Phase 3B acceptance scenario** (Part 13, mandatory): new client acknowledges A at
+  version 4 (via three real CAS `update_saved_outfit` calls); a legacy raw UPDATE then changes
+  A→B, landing at version 5 (the bridge in action, confirmed); the new client's own CAS update
+  attempt at its stale `base_version=4` (carrying local edit C) is rejected —
+  `out_status='conflict'`, `out_sync_version=5`, content remains B. This is the exact failure
+  Phase 3B's audit identified as unclosable client-side alone (§R.1's Case D residual) — with the
+  bridge installed, the server-side half now guarantees the new client's decision engine receives
+  `serverVersion=5 ≠ lastSeenVersion=4`, so it correctly classifies CONFLICT rather than
+  UPDATE_SERVER. Client-side classification of that signal is already covered by the existing
+  decision-engine suite; this test proves the CAS RPC now gives it the correct signal to
+  classify from, closing the loop end-to-end.
+
+Backend-mediated domains do not need disposable-Postgres verification (no RLS layer, no DB
+triggers) — covered instead by the mocked-Prisma unit tests in §S.5, matching this repo's
+existing convention for that domain (Phase 1A/3A3/3A4 used the same approach).
+
+### S.8 Defense-in-depth retained (Part 21)
+
+Case B's content-aware adopt-on-drift and Case D's content-aware already-matches shortcut
+(§R.1), and the `sameVersionDrift`/`versionLineageReset` telemetry counters (§R.6), are
+unchanged by this phase. They remain load-bearing for: partial deployment (§S.9) where the
+server-side bridge for one or more domains isn't live yet; a future manual data edit or rollback
+anomaly bypassing the bridge; and as a second, independent layer catching anything the bridge
+itself might miss due to an unforeseen deployment or configuration error. The bridge and the
+client-side detection are deliberately overlapping safety nets, not a replacement of one by the
+other.
+
+### S.9 Partial-deployment analysis (Part 22)
+
+All four server-side compatibility paths (this phase's Supabase migration, applied; this phase's
+backend bridge, deployed) must be green **together** before the new client is released. Named
+permutations, all resulting in **must NOT release**:
+
+1. **Phase 1A applied, this phase's Supabase migration not applied**: direct-Supabase legacy
+   writes still silently drift unversioned (the original Phase 3B risk, unmitigated at the
+   server). New client must not release.
+2. **This phase's Supabase migration applied, backend bridge not deployed**: direct-Supabase
+   domains are safe; `closet_outfit_favourites`/`closet_outfit_week_plan_items` legacy writes
+   still silently drift and legacy deletes are still physical. New client must not release.
+3. **Backend bridge deployed, Supabase migration not applied**: backend-mediated domains are
+   safe; direct-Supabase domains are not. New client must not release.
+
+Production readiness rule: all four domains' server-side compatibility must be independently
+confirmed green (§S.10's verification script covers the two direct-Supabase domains; the backend
+bridge's own test suite, §S.5, covers the other two) before the new client ships.
+
+### S.10 Production deployment order and verification script (Parts 11/24)
+
+Deployment order (nothing executed — planning + tooling only, per this phase's own
+instructions): (1) apply this phase's Supabase migration via the SQL Editor (same manual
+mechanism as Phase 1A — still no automated pipeline reaches this database); (2) deploy the
+backend bridge (this is an ordinary code deploy through the existing `main`/`dev` → Render
+pipeline, gated by the existing typecheck-then-deploy-hook CI, same as any other backend change);
+(3) run the verification script below against production; (4) only then release the new client
+build.
+
+Read-only where possible (metadata checks), clearly separated from the two behavioral checks that
+need a throwaway test row (each self-cleans):
+
+```sql
+-- Phase 3B1 production verification script — extends §R.15's script with
+-- this phase's new objects. Run in the Supabase SQL Editor after applying
+-- 20260908000000_phase3b1_legacy_compatibility_bridge.sql.
+
+-- 1. Reconciliation RPCs exist, with the expected return shape.
+SELECT p.proname, pg_get_function_arguments(p.oid) AS args, pg_get_function_result(p.oid) AS returns
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND p.proname IN ('get_saved_outfits_reconciliation_state', 'get_week_plan_reconciliation_state')
+ORDER BY p.proname;
+-- Expect: 2 rows, TABLE(out_* ...) matching lib/supabase-data.ts's mapping.
+
+-- 2. Reconciliation RPCs: SECURITY DEFINER, owner, pinned search_path (same
+--    shape as Phase 1A's six RPCs, §R.15's check 2).
+SELECT p.proname, p.prosecdef, r.rolname AS owner, p.proconfig
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+JOIN pg_roles r ON r.oid = p.proowner
+WHERE n.nspname = 'public' AND p.proname LIKE 'get_%_reconciliation_state';
+-- Expect: prosecdef = true, owner = postgres, proconfig containing 'search_path=empty'.
+
+-- 3. Reconciliation RPCs: EXECUTE grants — authenticated only.
+SELECT routine_name, grantee, privilege_type
+FROM information_schema.role_routine_grants
+WHERE routine_schema = 'public'
+  AND routine_name IN ('get_saved_outfits_reconciliation_state', 'get_week_plan_reconciliation_state')
+ORDER BY routine_name, grantee;
+-- Expect: only 'authenticated', never 'anon' or 'PUBLIC'.
+
+-- 4. Compatibility triggers attached, enabled, and their functions are
+--    plain SECURITY INVOKER (not elevated — §S.2's finding means they
+--    don't need to be, and shouldn't be, once the SELECT policy is
+--    ownership-only per check 5 below).
+SELECT c.relname AS table_name, t.tgname, t.tgenabled, p.prosecdef
+FROM pg_trigger t
+JOIN pg_class c ON c.oid = t.tgrelid
+JOIN pg_proc p ON p.oid = t.tgfoid
+WHERE c.relname IN ('saved_outfits', 'week_plan') AND NOT t.tgisinternal
+ORDER BY c.relname, t.tgname;
+-- Expect: trg_enforce_version_advance (BEFORE UPDATE) and
+-- trg_redirect_legacy_delete (BEFORE DELETE) on both tables, tgenabled='O',
+-- prosecdef=false.
+
+-- 5. RLS policy set: exactly 4 per table, all ownership-only (no
+--    deleted_at predicate anywhere — §S.2/§S.3's resolution).
+SELECT tablename, policyname, cmd, qual, with_check FROM pg_policies
+WHERE tablename IN ('saved_outfits','week_plan') ORDER BY tablename, cmd;
+-- Expect: 8 rows total; qual/with_check each read exactly "(auth.uid() = user_id)",
+-- never referencing deleted_at.
+
+-- 6. RLS still enabled on both base tables.
+SELECT relname, relrowsecurity FROM pg_class WHERE relname IN ('saved_outfits','week_plan');
+-- Expect: true for both.
+
+-- 7. Direct legacy DML still available to authenticated (compatibility-era
+--    requirement, unchanged from §R.15's check 6).
+SELECT table_name, privilege_type FROM information_schema.role_table_grants
+WHERE table_schema = 'public' AND table_name IN ('saved_outfits','week_plan')
+  AND grantee = 'authenticated'
+ORDER BY table_name, privilege_type;
+-- Expect: SELECT, INSERT, UPDATE, DELETE all present.
+
+-- ── Behavioral checks (need a throwaway row; each cleans up after itself) ──
+
+-- 8. Ordinary SELECT still returns an owner's own tombstoned row (expected
+--    per §S.2/§S.3 — this is NOT a bug, it documents the accepted design).
+--    Run as an authenticated test user (not shown: requires a real JWT
+--    session, not the SQL Editor's superuser context) — included here for
+--    completeness of the checklist, not runnable verbatim in the Editor.
+
+-- 9. Reconciliation RPC sees the same tombstone, cross-user isolation holds.
+--    Same caveat as check 8 — requires a real authenticated session per
+--    test user; see this phase's disposable-Postgres suite (§S.7) for the
+--    already-executed equivalent, which is the actual verification method
+--    for this property (same approach §R.15 already established for
+--    cross-user leak behavior on Phase 1A's RPCs).
+```
+
+Checks 1–7 are pure metadata, safe to run anytime against production with no side effects. Checks
+8–9 need an authenticated session per test user (not the SQL Editor's superuser context) and are
+better exercised via the disposable-Postgres suite (§S.7, already run) than as a literal
+production probe — noted in the script rather than provided as runnable SQL, matching how §R.15
+already handled the equivalent cross-user check for Phase 1A's RPCs.
+
+### S.11 Rollback (Part 23)
+
+Documented in the migration file's own header comment (not executed): drop both triggers per
+table, drop the three trigger functions and the two reconciliation RPCs, drop all four policies
+per table and recreate a single broad `auth.uid() = user_id` `FOR ALL` policy per table to
+restore the pre-migration RLS shape exactly. As already true for every rollback in this project:
+rollback capability is not rollback risk-free — dropping these objects restores the OLD unsafe
+behavior (legacy writes silently drift again) but does **not** undo any tombstone/version state
+already produced while the bridge was live; only future writes are affected. Backend rollback is
+an ordinary code revert (git revert the repository change) — same caveat: rows already
+soft-deleted or version-advanced under the bridge stay that way after a revert; only the method
+bodies change.
+
+### S.12 Files changed
+
+- `supabase/migrations/20260908000000_phase3b1_legacy_compatibility_bridge.sql` (new)
+- `backend/src/modules/closet-outfit-sync/closet-outfit-sync.repository.ts` (legacy methods
+  bridged; version-aware methods untouched)
+- `backend/src/modules/closet-outfit-sync/__tests__/closet-outfit-sync.repository.legacy-ownership.test.ts`
+  (updated for new `data`/`where` shapes)
+- `backend/src/modules/closet-outfit-sync/__tests__/closet-outfit-sync.repository.phase3b1-bridge.test.ts`
+  (new)
+- `lib/supabase-data.ts` (`fetchSavedOutfitsForReconciliation`/`fetchWeekPlanForReconciliation`
+  now call the new RPCs; local `*ReconciliationRpcRow` types added for the `.rpc()` mapping)
+- `lib/__tests__/supabase-data-reconciliation-reads.test.ts` (updated for the RPC transport)
+- `docs/sync-phase2a-reconciliation-spec.md` (this section)
+
+### S.13 Validation summary
+
+- **Frontend**: `tsc --noEmit` clean; `eslint` clean (one pre-existing, unrelated warning on an
+  untouched line); full suite 272/272 passed (26 files), including all four domains'
+  reconciliation suites, both dual-write-regression suites, `all-domains-concurrency.test.ts`, and
+  the updated `supabase-data-reconciliation-reads.test.ts`.
+- **Backend**: `tsc --noEmit` clean; full suite 160 passed, 1 pre-existing skip (17 files),
+  including the updated legacy-ownership suite, the new bridge suite, and the untouched Phase 1A
+  CAS suites; `scripts/smoke-build.mjs` runtime smoke (Render's own build command, then boot +
+  clean SIGTERM shutdown) passed.
+- **Database**: disposable-Postgres compatibility migration applied cleanly on top of baseline +
+  Phase 0 + Phase 1A; full RLS/trigger/RPC test matrix (§S.7) passed for both direct-Supabase
+  domains, including the two mandatory tests (concurrent old/new mutation, primary Phase 3B
+  acceptance scenario); instance torn down after.
+
+### S.14 A newly discovered correctness issue, beyond the RLS finding
+
+None beyond §S.2 itself, which is the significant finding of this checkpoint — no additional
+correctness gap was found in the decision engine, executor, or the four reconciliation adapters
+during this phase's work; §S.6 confirmed the RPC transport change required zero changes to any of
+them.
+
+### S.15 Recommended next checkpoint
+
+Phase 3C (frontend/backend migration off the legacy mutation methods entirely, RLS/grant
+narrowing, retiring the compatibility triggers) remains explicitly NOT started, per this phase's
+own instructions — old clients continue to function, legacy mutation surfaces remain enabled,
+direct DML remains permitted. Recommend following §R.23's sequence: deploy this phase's bridge
+(Supabase migration + backend) → release the new client → observe per §R.16–§R.19 → only then
+plan and execute Phase 3C using §R.20–§R.22, now updated with the concrete bridge this checkpoint
+built rather than the sketch those sections evaluated.
