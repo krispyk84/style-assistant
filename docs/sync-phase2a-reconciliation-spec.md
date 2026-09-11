@@ -2272,3 +2272,577 @@ direct DML remains permitted. Recommend following §R.23's sequence: deploy this
 (Supabase migration + backend) → release the new client → observe per §R.16–§R.19 → only then
 plan and execute Phase 3C using §R.20–§R.22, now updated with the concrete bridge this checkpoint
 built rather than the sketch those sections evaluated.
+
+## T. Phase 3B2 — production rollout gate + deployment runbook
+
+Phase 3B1 built the server-side bridge. This phase asks a different question: is it actually
+safe to deploy it, and what exact procedure gets there. Nothing in this section is deployed,
+pushed, or revoked — this is the authoritative rollout runbook the eventual operator follows.
+
+### T.1 Installed legacy-client population — repository evidence
+
+Direct evidence found, not inferred:
+
+- **`eas.json` exists** with a `production` build profile (`autoIncrement: true`) and a
+  `submit.production` block — added in its own commit, `2db64608 Add EAS iOS build configuration`.
+- **Three explicit TestFlight-bump commits** in history: `888d1f24 Bump version for TestFlight
+  build`, `2285dbe1 Bump to v0.0.5 for TestFlight`, `684143fd Bump to v0.0.6 for TestFlight`
+  (2026-04-07). `scripts/bump-patch.js`'s own header comment confirms the intended mechanism:
+  "EAS autoIncrement (eas.json) handles the native build number separately."
+  These are **strong evidence a real TestFlight distribution occurred** — not proof of exactly
+  how many testers installed it, whether Apple accepted every submission, or who still has it
+  today.
+- **`app.config.ts`/`app.json` currently read `version: '0.0.6'`, `ios.buildNumber: '10'`** — no
+  version bump since that last TestFlight-labeled commit, ~5 months ago as of this checkpoint.
+- **No App Store Connect metadata, fastlane config, screenshots pipeline, or production-listing
+  evidence found anywhere in the repo** — nothing suggests a public App Store release ever
+  happened; TestFlight-only distribution is the best-supported reading of the evidence.
+- **`npm run deploy`** (the actively-documented day-to-day workflow, CLAUDE.md) installs directly
+  to one hardcoded device id via `xcrun devicectl device install app` — a separate, single-device
+  channel from EAS/TestFlight, not evidence of or against a wider population.
+- **No forced-update or minimum-version enforcement exists anywhere** — searched the full
+  `app/`, `lib/`, `contexts/`, `hooks/`, and `backend/src` trees for `minimumVersion`/`minVersion`/
+  `forceUpdate`/version-gating logic: none found. The only existing app-version usage before this
+  phase was a **display-only label** on the Settings screen.
+- **Firebase Analytics + Crashlytics are integrated** (`@react-native-firebase/analytics`,
+  `@react-native-firebase/crashlytics`, real packages, already wired in `lib/analytics.ts`/
+  `lib/crashlytics.ts`) and — per Firebase's own SDK behavior — automatically tag every event and
+  crash with the reporting app's version/build, for the **production** bundle id specifically
+  (CLAUDE.md documents that the **dev** variant's bundle id mismatch makes Firebase fail to
+  initialize there — an accepted soft failure isolated to the dev build, not production). This
+  means a real, already-existing external signal for version-adoption distribution likely exists
+  in the Firebase console today — but querying it requires operator access this session does not
+  have; it cannot be read from repository files.
+- **90-day TestFlight build expiration** is a fixed, well-known Apple platform behavior (not
+  project-specific, but directly relevant): if v0.0.6/build 10 was genuinely distributed via
+  TestFlight around 2026-04-07, that specific build would already be past its 90-day expiration
+  window as of this checkpoint (~5 months later) — testers who haven't since installed a newer
+  build could no longer be running it at all without the tester having taken some action (there
+  is no evidence of a newer TestFlight build ever being cut).
+
+**Verdict: `LEGACY INSTALL BASE UNKNOWN`.** Repository evidence proves a real TestFlight
+distribution channel was used historically and gives strong (not certain) reason to believe any
+resulting installs are now stale or expired — it does not prove zero installs exist, and this
+session cannot query Apple's or Firebase's actual tester/adoption data to close that gap. Per this
+phase's own instruction, guessing "no legacy clients exist" merely because the sync commits
+themselves were never pushed would conflate two different facts — the backend/database
+compatibility work being unshipped does **not** establish anything about which *mobile client
+binary* is or isn't installed on a real device right now.
+
+**What would close this gap** (external, cannot be produced from repository files — see §T.6):
+App Store Connect → TestFlight → build adoption / tester status; Firebase Analytics' app-version
+breakdown for the production bundle id; and, if ever set up, Play Store adoption data (this app is
+`ios`-only per `app.config.ts`'s `platforms: ['ios']`, so no Android population exists to check).
+
+### T.2 Path A vs Path B — which is safe today
+
+Per §T.1's verdict, **Path A cannot be selected** — it requires genuinely establishing that no
+real user has an older direct-Supabase binary installed, and the evidence available neither
+proves nor disproves that. **Path B applies**: legacy installed clients may exist, so the
+old-client-DELETE-reappears-as-live-via-a-legacy-SELECT scenario in this phase's own instructions
+must be treated as a real risk, not closed. This matches the instruction's own default: "if legacy
+clients may exist and there is no forced-update mechanism, treat this as the default safer
+approach" — confirmed, no forced-update mechanism exists (§T.1).
+
+### T.3 Is a transitional client release required? Yes.
+
+Given Path B, the two-stage rollout in this phase's own instructions is adopted as the plan,
+because the alternative — deploying the Phase 3B1 bridge directly against the current production
+Supabase project while an unknown population of pre-Phase-2B1 clients may still be running — has
+a concrete, avoidable failure mode: a legacy client soft-deletes something, the tombstone is
+correctly created, and that SAME (or another) legacy client's next bare `SELECT *` (no
+`deleted_at` filter, since it predates that filter) shows the "deleted" row again as if still
+live. This is not a client-side sync bug the reconciliation engine can fix — it is a direct
+consequence of an old binary's own query never asking for the filter, and no version of the
+Vesture backend/database can filter it away without breaking legacy reactivation (§T.4). The only
+mechanism that actually reduces the population capable of observing this is time + adoption of a
+build that filters `deleted_at` itself, **before** the bridge starts producing tombstones for
+legacy deletes to begin with. Concretely, staged as this phase's own instructions describe:
+
+1. **Stage 1 — compatibility-preparation client.** Ship a build containing only: the
+   `.is('deleted_at', null)` ordinary-read filter (`lib/supabase-data.ts`'s
+   `fetchSavedOutfitsFromSupabase`/`fetchWeekPlanFromSupabase` — already written, Phase 2B1,
+   currently sitting in this same unshipped branch) and the new client-version telemetry headers
+   (§T.7, this checkpoint). It must **not** depend on the Phase 3B1 triggers/RLS changes or the
+   reconciliation RPCs being live yet — those aren't deployed at this stage. This is achievable
+   because `fetchSavedOutfitsFromSupabase`/`fetchWeekPlanFromSupabase` work unchanged against the
+   *current* production schema (the `sync_version`/`deleted_at` columns already exist there from
+   Phase 0, which — per §T.1's git evidence — is in fact already on `origin/main`'s tip; the
+   columns exist, nothing currently sets them to a non-null tombstone, so the filter is a pure
+   no-op today and a real protection the moment it isn't).
+2. **Stage 2 — observe adoption** of Stage 1 against the criteria in §T.16 before proceeding.
+3. **Stage 3 — deploy the Phase 3B1 server bridge** (Supabase migration + backend, §T.8/§T.9) —
+   only once Stage 2's bar is met, legacy update/delete semantics start advancing
+   `sync_version`/creating tombstones for real.
+4. **Stage 4 — release the fully version-aware client** (all four reconciliation domains,
+   currently on this branch) once §T.10's server verification passes.
+
+This is the default per the instruction's own fallback rule (no forced-update mechanism, legacy
+population unproven-absent) — it is not recommended as a hedge but as the direct consequence of
+§T.2's Path B finding.
+
+### T.4 Why RLS still cannot close old-client reads (concise restatement)
+
+Already proven in Phase 3B1 (§S.2) against a real disposable Postgres instance; restated briefly
+here since this phase's rollout consequence depends on it. A SELECT policy of
+`auth.uid() = user_id AND deleted_at IS NULL` breaks legacy reactivation two independent ways: (1)
+PostgreSQL applies a table's SELECT policy against the *resulting* row of an UPDATE, in addition
+to the UPDATE-specific policy's own `USING`/`WITH CHECK` — an UPDATE that sets `deleted_at` to a
+non-null value fails RLS even though no UPDATE-policy clause references that column; (2) the
+legacy client's actual call is `.upsert()` (`INSERT ... ON CONFLICT DO UPDATE`), and against a row
+hidden by that restrictive SELECT policy, Postgres can find the id via the (RLS-blind) unique
+index but then cannot apply the UPDATE arm to it, raising an outright RLS error — exactly what
+happens the moment a real user re-saves a previously-deleted outfit id. Both failures were
+reproduced and the fix (an ownership-only SELECT policy, unchanged from the original pre-sync
+shape) confirmed to resolve both, on a real database, not merely reasoned about. No untested
+PostgreSQL configuration is known that satisfies both requirements simultaneously — this is not
+re-opened here per this phase's own explicit instruction not to churn on it further absent a new,
+concretely testable idea. The rollout consequence is §T.3.
+
+### T.5 App version / build source
+
+`app.json`'s `expo.version` is the existing canonical semantic-version source
+(`scripts/bump-patch.js`'s own comment: "app.json is the single source of truth for the semantic
+version"; `app.config.ts` mirrors it at `version: '0.0.6'`). `ios.buildNumber` (`'10'` today) is
+the native build identifier, bumped independently, per `eas.json`'s `autoIncrement: true` for real
+EAS builds. This phase adds one new module, `lib/app-version.ts`, reading both from
+`Constants.expoConfig` exactly once and exporting `APP_VERSION`/`APP_BUILD` plus
+`appVersionHeaders()` — the single place both values are computed, so nothing hardcodes a version
+string a second time. `app/(app)/useSettings.ts`'s pre-existing `appVersion` display constant now
+re-exports `APP_VERSION` from this module instead of independently reading `Constants.expoConfig`
+itself, so the Settings screen's visible version label and the HTTP headers are provably the same
+value. Dev builds: no special-casing needed — `Constants.expoConfig?.version`/`ios.buildNumber`
+resolve from whichever `app.config.ts` branch (`IS_DEV`) built the running binary, so a dev build
+naturally reports its own dev-variant version string; no git SHA is used as the version (per this
+phase's own instruction) and no existing convention logs one separately, so none was added.
+
+### T.6 Version telemetry implemented, and its hard limitation
+
+**Implemented** (frontend → backend only, narrowly scoped, this checkpoint):
+- `lib/app-version.ts` (new) — `APP_VERSION`, `APP_BUILD`, `appVersionHeaders()`.
+- `lib/api/api-client.ts` — `ApiClient.request` now attaches `X-App-Version`/`X-App-Build` to
+  every request alongside the existing `Content-Type`/`Authorization` headers.
+- `backend/src/middleware/request-logger.ts` — every request's existing structured log line
+  (`method`, `path`, `statusCode`, `durationMs`) now also carries sanitized `appVersion`/
+  `appBuild` fields, read from those two headers. Sanitization: length-capped at 32 chars,
+  pattern-restricted to `[A-Za-z0-9._-]+`, else logged as `'invalid'` rather than passed through —
+  this endpoint has no auth requirement to even reach the logger, so the header is fully
+  attacker-controlled input. Absent headers log `'unknown'`. No payload, token, closet, or outfit
+  content is touched — this is the same three existing fields' log line with two more primitive
+  string fields, not a new logging system.
+
+**Hard limitation, exactly as this phase's own instructions anticipated**: this only observes
+requests that reach the Vesture backend. The two direct-Supabase domains' legacy mutations
+(`saved_outfits`/`week_plan`) go straight from the app to Supabase's PostgREST endpoint — the
+Vesture backend never sees them, so backend request logs can prove things about
+`closet-outfit-favourites`/`closet-outfit-week-plan` client versions but **cannot** prove or
+disprove anything about the direct-Supabase legacy population the whole Path B decision (§T.2)
+turns on. Backend telemetry is real and useful (it's the correct signal for Stage 1/Stage 4
+adoption of the backend-mediated domains, §T.16), but it cannot substitute for the external checks
+in §T.1's "what would close this gap" list.
+
+### T.7 Server capability detection
+
+Added narrowly, not as service discovery: `backend/src/modules/health/health.routes.ts`'s
+`/health` response gains a static `syncCapabilities` object —
+`{ closetOutfitVersionedSync: true, closetOutfitLegacyCompatibilityBridge: true }` today,
+declaring what **this deployed build's code** includes (a static fact about the running binary,
+bumped by hand alongside each capability's own commit — not a live probe of Supabase/database
+state, which would be the service-discovery this phase's instructions explicitly ruled out). The
+currently-deployed production backend (as of `origin/main`'s tip, Phase 0 only) predates both
+fields entirely — a version-aware client checking for `syncCapabilities.closetOutfitVersionedSync`
+and finding the field simply absent gets exactly the right signal ("this server predates sync
+support"), without needing a dedicated version-comparison scheme.
+
+### T.8 Client failure behavior when server capability is missing (the actual safety mechanism)
+
+A **reactive** fix, not the `/health` preflight above — the preflight is available for an
+operator's own verification tooling (§T.10) but is deliberately **not** wired into the client's
+hot reconciliation path, because the reactive fix already fully satisfies the safety principle
+without adding a second network round-trip, a cache/TTL, or a new failure mode of its own.
+
+**The actual mechanism** (this checkpoint's real code change, not previously proven — confirmed by
+a new test, not merely asserted): all four domains' reconciliation-only server reads now **throw**
+on any failure (missing RPC, missing route, permission mismatch, network error) instead of
+silently resolving to `[]`. `lib/domain-reconciliation-runner.ts`'s `reconcileDomainRecords` wraps
+the fetch step in its own `try`/`catch`; a thrown error aborts the **entire run** before any local
+record is read, decided, or mutated, returning `{ ...emptySummary(), skippedReason:
+'server-fetch-failed' }` and recording the error via `recordError` for visibility. Concretely:
+
+- **Before this checkpoint**: a missing/failing server read silently looked identical to "this
+  user genuinely has zero server records" — the decision engine would proceed to decide every
+  local record against a false empty-server picture. This was a real, previously-unproven gap,
+  exactly the failure mode this phase's instructions asked to rule out.
+- **After**: local-first functionality is completely unaffected (nothing in the local read/write
+  path changed); dirty local state remains durable (the aborted run never reaches the metadata
+  writes that would have cleared it); the failure is recorded via the existing `recordError`
+  crashlytics path for visibility; and — critically — **no fallback to any legacy/unconditional
+  write path is attempted anywhere in this flow**, so this cannot recreate the dual-write/
+  same-version hole Phase 2B2/3A already removed.
+
+Changed: `lib/supabase-data.ts` (`fetchSavedOutfitsForReconciliation`/
+`fetchWeekPlanForReconciliation`), `lib/closet-outfit-sync.ts`
+(`fetchClosetOutfitFavouritesForReconciliation`/`fetchClosetOutfitWeekPlanForReconciliation`), and
+`lib/domain-reconciliation-runner.ts`. Each of these four fetch functions has exactly one caller
+(its own domain's reconciliation module) — confirmed before changing their contract from
+"resolves to `[]` on error" to "throws" — so this is not a breaking change for any other consumer.
+Proven by new tests: `lib/__tests__/supabase-data-reconciliation-reads.test.ts` and
+`lib/__tests__/closet-outfit-sync-reconciliation-reads.test.ts` (throw-on-failure for all four
+fetch functions) and a new describe block in `lib/__tests__/saved-outfits-reconciliation.test.ts`
+proving `reconcileSavedOutfits()` aborts cleanly end-to-end — dirty metadata untouched, zero RPC
+mutation calls attempted — when the fetch rejects.
+
+### T.9 Exact Supabase deployment order (not executed)
+
+By filename, in order, against the production Supabase project's SQL Editor (same manual
+mechanism as every prior phase — no automated pipeline reaches this database):
+
+1. `20260907000000_add_sync_version_deleted_at.sql` — additive columns
+   (`sync_version`/`deleted_at`) on `saved_outfits`/`week_plan`. **Already effectively a no-op to
+   re-verify, not re-apply**, if it was already run against production at some earlier point in
+   this project's history — the verification script (§T.10) checks column existence rather than
+   assuming; if genuinely not yet applied, this must run first as it's the schema prerequisite
+   every later migration and RPC depends on.
+2. `20260907010000_phase1a_version_aware_rpcs.sql` — the six CAS RPCs
+   (`create_saved_outfit`/`update_saved_outfit`/`delete_saved_outfit`/`create_week_plan_item`/
+   `update_week_plan_item`/`delete_week_plan_item`). Prerequisite for step 3 (its trigger/RPC
+   definitions assume these columns and this table shape exist).
+3. `20260908000000_phase3b1_legacy_compatibility_bridge.sql` — the version-advance trigger, the
+   delete-redirect triggers, the reconstructed ownership-only RLS policy set, and the two
+   reconciliation-read RPCs (`get_saved_outfits_reconciliation_state`/
+   `get_week_plan_reconciliation_state`). This is what actually starts legacy mutations
+   participating in the version/tombstone lineage — **do not apply before Stage 1 of §T.3 has met
+   its adoption bar**, since this is the step that starts producing real tombstones for legacy
+   deletes.
+
+No earlier additive schema migration precedes step 1 — confirmed by `ls supabase/migrations/`
+returning exactly these three files, in this filename order, with no gap.
+
+### T.10 Exact backend deployment order (not executed)
+
+The backend deploy is an ordinary code push through the existing pipeline (CLAUDE.md: `git push
+origin main` → GitHub Actions typecheck → on green, `RENDER_DEPLOY_HOOK_URL` fires → Render
+builds and deploys `style-assistant-api`; `dev` branch mirrors this against the dev Render service
+and dev Supabase project first). Recommend using the `dev` pipeline as the de facto first-stage
+canary for the backend itself, before promoting the same commit to `main`, since it already points
+at an entirely separate Supabase project. Concrete checklist for the commit that ships:
+
+1. **Confirm §T.9 step 3 (the Supabase migration) is applied to the target project first** —
+   the backend-mediated bridge (`closet-outfit-sync.repository.ts`'s four legacy methods) doesn't
+   depend on Supabase at all (Prisma/its own Postgres, `style_assistant_db`), so this ordering
+   constraint is specifically about the **direct-Supabase** domains' reconciliation reads, not a
+   real backend dependency — listed here for completeness of the full deployment sequence, not
+   because the backend code itself would fail without it.
+2. **Deploy this branch's backend changes**: the four bridged legacy repository methods
+   (`upsertFavourite`/`deleteFavourite`/`upsertWeekPlanItem`/`deleteWeekPlanItem`, Phase 3B1); the
+   already-existing version-aware endpoints (`POST /closet-outfit-sync/favourites/version-aware`,
+   `PATCH .../:id/version-aware`, `DELETE .../:id/version-aware`, and the week-plan equivalents,
+   Phase 1A); the reconciliation-read endpoints (`GET
+   /closet-outfit-sync/favourites/for-reconciliation`, `GET .../week-plan/for-reconciliation`,
+   Phase 2B1); `/health`'s new `syncCapabilities` field and `requestLogger`'s new version-telemetry
+   fields (this checkpoint). All of these routes already require `requireAuth` — no auth
+   middleware change is needed or was made.
+3. **No new environment variables required** — this phase introduced no new secrets, no new
+   config surface; the existing `DATABASE_URL`/Supabase/OpenAI env vars are unaffected.
+4. **Run `scripts/smoke-build.mjs`** (Render's own build command, then boot + clean SIGTERM) as
+   part of the deploy's own verification, exactly as it already does today — no change to this
+   step, confirmed still green with this phase's code (§T.13).
+5. Only after 1–4 are confirmed green: proceed to §T.3's Stage 3 (only if Stage 1/2's adoption bar
+   is already met) or Stage 4 (client release), whichever this deployment is actually for.
+
+### T.11 Production verification procedure (not run against production)
+
+**Supabase — metadata**: `docs/sync-phase2a-reconciliation-spec.md` §S.10's script (RPC existence/
+signature/security/grants, trigger attachment, policy shape, RLS enabled, direct DML still
+permitted) — unchanged by this phase, still the correct metadata checklist.
+
+**Supabase — behavioral** (needs a throwaway row + an authenticated test-user session, same
+caveat §S.10 already documented for checks 8/9): legacy create; legacy update advances version
+exactly once; legacy delete becomes a tombstone; repeated delete is idempotent; the new
+reconciliation RPC sees the tombstone; a new-client CAS update against a stale `base_version`
+(simulating "a legacy mutation happened after this client's last sync") correctly reports
+`conflict`. All of these were already executed once against a disposable Postgres instance in
+Phase 3B1 (§S.7) — re-running the identical matrix against the real production project (not a
+disposable stand-in) before Stage 3 is the actual verification step; the disposable-Postgres run
+proves the SQL is correct, not that production's actual current RLS/grant state matches what the
+migration assumes.
+
+**Backend**: `GET /health` (status 200, `syncCapabilities` both fields `true`); `node
+scripts/smoke-build.mjs` (already part of the deploy pipeline); an authenticated
+`POST /closet-outfit-sync/favourites/version-aware` round-trip against a real test user (proves
+the version-aware path end-to-end against the deployed environment, not just a local test double);
+same for `POST /closet-outfit-sync/week-plan/version-aware`; `GET
+/closet-outfit-sync/favourites/for-reconciliation` and the week-plan equivalent, confirming a
+tombstone created by the behavioral check above is visible through them.
+
+None of this is executed as part of this checkpoint — it is the exact procedure for whoever
+performs the eventual deployment.
+
+### T.12 Canary rollout sequence
+
+The distribution mechanism actually present in this repository is **EAS Build + TestFlight**
+(`eas.json`, §T.1) — no evidence of a percentage-based production rollout mechanism (that's an App
+Store Connect "phased release" feature, orthogonal to what's configured here, and not something
+to assume exists without evidence). Recommend staging strictly within what's actually
+discoverable:
+
+1. **Internal — the `npm run deploy` single-device channel and/or an EAS `internal` distribution
+   build** (`eas.json`'s `development`/`preview` profiles are both already `distribution:
+   "internal"`) — the developer's own device(s) only.
+   - *Go*: Stage 1 client (§T.3) builds, installs, and the Settings screen's version label and
+     the new `X-App-Version`/`X-App-Build` headers are visibly present in backend logs for real
+     requests from this device.
+   - *Hold*: any crash on launch, any regression in existing ordinary read/write flows.
+   - *Rollback*: don't distribute further; fix and rebuild.
+2. **TestFlight — internal testers** (the small, known group with direct access, an existing EAS/
+   TestFlight concept, not an invented one).
+   - *Go*: §T.16's Stage 1 adoption/health criteria trending correctly among this cohort.
+   - *Hold*: any protocol-shaped telemetry anomaly (§T.14) from this cohort.
+   - *Rollback*: expire the TestFlight build; investigate before the next build.
+3. **TestFlight — external testers** (a wider but still Apple-review-gated, opt-in group).
+   - *Go*: same criteria as stage 2, sustained over a longer window with a larger, less
+     controlled population.
+   - *Hold*: same.
+   - *Rollback*: same, plus consider whether the compatibility bridge itself (already deployed by
+     this stage) needs to stay in place regardless — it's the safety net for whatever population
+     hasn't updated yet.
+4. **Full TestFlight rollout / App Store submission**, if and when this project actually pursues a
+   public listing — not assumed here, since no repository evidence of a public App Store listing
+   exists (§T.1); this step is named for completeness of the sequence, not because it's confirmed
+   to be the project's actual next step.
+
+### T.13 Validation (code changed this phase)
+
+**Frontend**: `tsc --noEmit` clean; `eslint` clean (only pre-existing, unrelated warnings on
+untouched lines); full suite 281/281 passed (29 files) — includes the four domains' reconciliation
+suites, dual-write-regression suites, `all-domains-concurrency.test.ts`, the new
+`app-version.test.ts`, `api-client-version-headers.test.ts`,
+`closet-outfit-sync-reconciliation-reads.test.ts`, and the new abort-on-server-read-failure case
+in `saved-outfits-reconciliation.test.ts`.
+
+**Backend**: `tsc --noEmit` clean; full suite 164 passed, 1 pre-existing skip (18 files) —
+includes the new `request-logger.test.ts` and the extended `app.smoke.test.ts` assertion on
+`/health`'s `syncCapabilities`; `scripts/smoke-build.mjs` runtime smoke passed.
+
+No capability-missing-at-the-RPC-layer test was needed beyond what §T.8 already added — that IS
+the capability-missing test, exercised at the actual call site rather than via a separate
+simulated-missing-capability harness.
+
+### T.14 Telemetry thresholds, refined
+
+Distinguishing protocol/infrastructure failures from legitimate product conflicts, per this
+phase's own instruction not to mix them into one error rate:
+
+**Protocol/infrastructure (strict — any sustained nonzero rate post-bridge-deployment is a hold
+signal, §T.17)**:
+- `operationalFailures` from `reconcileDomainRecords` (RPC missing, network error, unexpected
+  shape) — now includes the new `skippedReason: 'server-fetch-failed'` runs as a first-class
+  category (§T.8).
+- `not_converged`/`redecide_required` reaching the runner's defensive branch (should never happen
+  per the executor's own bounded-retry design — any occurrence is a bug signal, not noise).
+- `inconsistent_state` outcomes.
+- Auth failures on the version-aware/reconciliation-read routes specifically (a 401/403 rate
+  distinguishable from ordinary unauthenticated traffic hitting `/closet/analyse`, which is
+  already expected per the existing smoke test).
+
+**Legitimate product conflicts (not rollout failures — track separately, expected to be nonzero
+under normal use)**:
+- `conflicts` from a genuine two-writer race (e.g. two devices reassigning the same week-plan day
+  around the same time) — this is the decision engine doing its job correctly, per §G/§R.1's own
+  framing (Case E/G/I are real conflicts, not bugs).
+- `deferred` outcomes from unknown-ancestry-defer (Case K1) — expected during the compatibility
+  era specifically because legacy writes exist with no metadata trail yet.
+
+### T.15 Same-version drift expectation after the bridge
+
+Before the Phase 3B1 bridge is deployed, `sameVersionDrift > 0` is *expected* whenever a legacy
+client is still active (that's exactly the drift the bridge exists to close, and Case B/D's
+content-aware detection, §R.1, is the safety net catching it in the meantime). **After** the
+bridge is deployed (§T.9 step 3 live), every legacy mutation should advance `sync_version` by
+construction — so a **sustained nonzero `sameVersionDrift` rate post-deployment is a strict,
+strong signal** of exactly the failure modes §R.1/§S.8 already named (a missed write path, an
+incompletely-applied migration, a direct/manual DB edit bypassing the trigger, a partial
+rollback) and should gate further rollout (§T.17) rather than be treated as ordinary background
+noise. Detection is not removed or weakened — §S.8 already confirmed this and it remains true
+here.
+
+### T.16 "Dirty remaining" — cause-distinguished, not a raw count
+
+A raw dirty-record count conflates causes with very different rollout implications. Recommend
+distinguishing using result categories `reconcileDomainRecords`'s `ReconciliationRunSummary`
+already exposes, rather than adding new state to track:
+
+- **`dirty_due_to_operational_failure`** — `dirtyRemaining` attributed to `operationalFailures`
+  outcomes (including the new `server-fetch-failed` abort case, §T.8) or a thrown exception inside
+  `reconcileOneRecord`. Rollout-health signal — should trend toward zero as server capability
+  stabilizes.
+- **`dirty_due_to_conflict`** — `dirtyRemaining` attributed to `conflict`/`deferred` outcomes.
+  Product-normal, not a rollout-health signal on its own — correlate with §T.14's conflict-vs-
+  infrastructure split before drawing any conclusion from it.
+- **`dirty_due_to_deferred_legacy`** — specifically Case K1 (unknown-ancestry-defer, §R.1)
+  outcomes — expected to shrink over the compatibility era as more records accumulate a version
+  history, and a useful secondary signal (alongside §T.1's external adoption data) for how much
+  truly-unmigrated legacy activity remains.
+
+All three are derivable from the existing `reasonOf()`/outcome-kind classification already
+computed inside `reconcileDomainRecords` (§ domain-reconciliation-runner.ts) — no new metadata
+field is needed on disk; this is a log-aggregation/dashboard concern for whoever operates the
+eventual telemetry pipeline, not a code change this checkpoint needed to make.
+
+### T.17 Production go/no-go gates
+
+| Gate | Criterion | Pass bar |
+|---|---|---|
+| Server capability | `/health`'s `syncCapabilities` reports both fields `true` on the target environment | PASS/FAIL, no partial credit |
+| Compatibility bridge | §T.11's full behavioral matrix passes against the real target Supabase project (not just disposable Postgres) | PASS/FAIL |
+| Runtime health | `scripts/smoke-build.mjs` and a live `/health` 200 against the deployed instance | PASS/FAIL |
+| Auth/security | `requireAuth`-protected routes still reject unauthenticated traffic (401); RLS still enabled on both direct-Supabase tables (§T.11's metadata script) | PASS/FAIL |
+| Client version/read compatibility | Stage 1 client (§T.3) confirmed adopted per §T.16's bar, *before* §T.9 step 3 is applied | PASS/FAIL |
+| Rollback readiness | §T.18's procedure documented and understood for the specific stage about to be deployed | PASS/FAIL |
+| Telemetry visibility | §T.14's protocol-failure and §T.16's dirty-cause categories are actually queryable in whatever log aggregation is in place | PASS/FAIL |
+
+Per this phase's own instruction: correctness/security gates do not accept "mostly green" —
+every row above is binary.
+
+### T.18 Rollback by deployment stage
+
+- **Supabase migration deployed, backend not yet deployed**: direct-Supabase domains are already
+  bridged (legacy writes advance version, legacy deletes tombstone); backend-mediated domains
+  still on old semantics. To roll back: run the migration file's own documented rollback SQL
+  (drop the two new triggers per table, the three trigger functions, the two reconciliation RPCs,
+  the four policies per table, recreate one broad `FOR ALL` policy per table). Rows already
+  soft-deleted or version-advanced while the bridge was live stay that way — this is a code/schema
+  rollback, not a data rollback.
+- **Supabase + backend deployed, client not released**: both server-side paths bridged, but no
+  client depends on them yet (the currently-installed population is still the pre-Phase-2B1
+  binary from §T.1). Rollback is the same Supabase SQL above plus an ordinary backend code
+  revert (git revert the repository change) — same caveat, rows already touched under the bridge
+  keep their new state.
+- **Canary client released**: stop distributing further immediately (halt at whatever TestFlight
+  stage §T.12 is at) rather than reaching for a database rollback first — per this phase's own
+  instruction, prefer stopping rollout over destructive schema rollback unless genuinely
+  necessary. Only fall back to the schema/backend rollback above if the canary cohort itself is
+  actively experiencing data loss or corruption, not merely an elevated (but non-destructive)
+  error rate.
+- **Partial percentage rollout**: same as canary — halt further distribution first; the bridge
+  stays live (it's strictly safer for whatever population is already on Stage 1+ than reverting
+  it would be, since reverting reopens the exact same-version-drift hole for anyone still on a
+  legacy binary).
+- **Full client rollout**: same principle — a schema/backend rollback at this stage actively
+  reintroduces the coexistence risk for the entire installed population, not just a canary
+  cohort; only do this if the alternative (leaving the bridge live) is demonstrably worse for a
+  specific, identified incident.
+
+### T.19 Safety changes that must survive any sync rollback
+
+Regardless of what happens to the sync rollout itself, these do not get bundled into a rollback
+and should remain permanently:
+
+- JWT verification (`requireAuth` middleware) — unrelated to sync, a baseline security control.
+- CORS hardening — same.
+- Existing error logging / Crashlytics wiring (`lib/crashlytics.ts`, backend's `logger`) —
+  observability infrastructure, not sync-specific.
+- Phase 3B's same-version drift protection (Case B/D content-awareness, §R.1) — this is client-
+  side defense-in-depth that remains correct and valuable **independent of** whether the
+  server-side bridge (Phase 3B1) is deployed or rolled back; removing it would reopen a real
+  correctness hole for no benefit.
+- Ordinary tombstone filtering (`fetchSavedOutfitsFromSupabase`/`fetchWeekPlanFromSupabase`'s
+  `.is('deleted_at', null)`, Phase 2B1) — correct and necessary regardless of bridge status.
+- The legacy-ownership fixes in `closet-outfit-sync.repository.ts` (`upsertFavourite`'s
+  ownership-scoped update-before-create, confirmed safe for `upsertWeekPlanItem` via its compound
+  key) — these close a real cross-user data-corruption bug, unrelated to the version/tombstone
+  bridge semantics layered on top of them in Phase 3B1.
+- This phase's own reactive fetch-failure safety net (§T.8) — independent of whether the bridge
+  itself is ever deployed, silently treating a failed read as "zero records" is wrong regardless.
+
+### T.20 Phase 3C entry criteria (revised)
+
+Building on §R.20–§R.22's planning (still planning-only, nothing executed) with this phase's
+concrete gates:
+
+- Server bridge (§T.9) deployed and stable — §T.17's gates green, sustained.
+- Fully version-aware client (Stage 4, §T.3) released and stable.
+- **Client adoption known** — not assumed: the external check in §T.1/§T.6 (App Store Connect/
+  TestFlight adoption, Firebase Analytics version breakdown) actually consulted and showing the
+  legacy (pre-Stage-1) population at or below whatever threshold is set operationally (§T.21 — no
+  fabricated number is supplied here).
+- Legacy backend route traffic (the plain, non-`version-aware` `closet-outfit-sync` endpoints,
+  §T.10) sufficiently low or zero, per the version telemetry this checkpoint added (§T.6) —
+  now actually measurable, where before this phase it was not.
+- Direct legacy client population sufficiently low/zero, per the external check above (backend
+  telemetry cannot measure this population directly, §T.6's limitation).
+- `sameVersionDrift` effectively zero, sustained, post-bridge (§T.15) — a nonzero rate at this
+  point is a reason to *delay* Phase 3C, not proceed.
+- No open protocol/infrastructure telemetry anomalies (§T.14).
+- Rollback tested and documented (§T.18) — done, this checkpoint.
+
+Per this phase's own instruction: do not schedule Phase 3C merely because a fixed number of weeks
+elapsed — time is supportive evidence for adoption trending in the right direction, not the gate
+itself.
+
+### T.21 Observation window and adoption criteria, revised
+
+Phase 3B proposed a flat 4–6 weeks and flagged the telemetry gap itself (§R.18/§R.19). Replacing
+the pure time-based figure with the structure this phase's instructions ask for:
+
+```
+minimum observation period + minimum adoption criteria + health criteria
+```
+
+- **Minimum observation period**: retain §R.18's 4–6 weeks as a *floor*, not a target — it is
+  still a reasonable minimum dwell time for a TestFlight cohort to actually exercise the app
+  across its real usage patterns (a save, a delete, a re-save of a deleted item), but per this
+  phase's instruction, it does not by itself satisfy the gate.
+- **Minimum adoption criteria**: **left as an operational value to obtain before enforcement** —
+  this session has no access to App Store Connect/Firebase Analytics' actual current adoption
+  numbers (§T.1/§T.6), and fabricating a specific percentage here would be exactly the "invented
+  data" this phase's instructions prohibit. Once that data is available, the natural criterion is
+  "≥ some agreed percentage of measured active sessions in the observation window report
+  `X-App-Version` ≥ the Stage-1 version" (directly measurable via §T.6's backend telemetry for the
+  backend-mediated domains, and via the external check for the direct-Supabase population).
+- **Health criteria**: §T.17's gates, sustained (not merely passing once) across the whole
+  observation period — a single green verification run is a deployment gate, not an adoption
+  gate.
+
+Only when all three hold together does §T.9 step 3 / §T.3's Stage 3 proceed.
+
+### T.22 Files changed (this phase)
+
+- `lib/app-version.ts` (new)
+- `lib/api/api-client.ts` (attaches `X-App-Version`/`X-App-Build`)
+- `app/(app)/useSettings.ts` (re-exports `APP_VERSION` instead of its own `Constants` read)
+- `lib/supabase-data.ts` (`fetchSavedOutfitsForReconciliation`/`fetchWeekPlanForReconciliation`
+  throw on failure instead of resolving to `[]`)
+- `lib/closet-outfit-sync.ts` (same contract change for the two backend-mediated reconciliation
+  reads)
+- `lib/domain-reconciliation-runner.ts` (`reconcileDomainRecords` aborts cleanly with
+  `skippedReason: 'server-fetch-failed'` on a fetch-level throw)
+- `backend/src/middleware/request-logger.ts` (sanitized `appVersion`/`appBuild` log fields)
+- `backend/src/modules/health/health.routes.ts` (`syncCapabilities` field)
+- `lib/__tests__/app-version.test.ts` (new)
+- `lib/__tests__/api-client-version-headers.test.ts` (new)
+- `lib/__tests__/closet-outfit-sync-reconciliation-reads.test.ts` (new)
+- `lib/__tests__/supabase-data-reconciliation-reads.test.ts` (updated: throw-on-error assertions)
+- `lib/__tests__/saved-outfits-reconciliation.test.ts` (new describe block: abort-on-fetch-failure)
+- `backend/src/middleware/__tests__/request-logger.test.ts` (new)
+- `backend/src/__tests__/app.smoke.test.ts` (extended: asserts `syncCapabilities`)
+- `docs/sync-phase2a-reconciliation-spec.md` (this section)
+
+### T.23 Remaining blocker before first real deployment
+
+The unresolved external check (§T.1/§T.6): actually consulting App Store Connect/TestFlight
+adoption data and/or the Firebase Analytics console for the production bundle id's version
+distribution. Nothing in this repository can substitute for that check, and per §T.2, Path A
+cannot be selected without it. This is an **operational** action item, not a code or documentation
+gap — no further local work closes it.
+
+### T.24 Recommended next operational action
+
+Consult the external adoption signal named in §T.23. If it confirms the legacy population is
+already at or near zero (consistent with, though not proven by, the 90-day TestFlight-expiration
+reasoning in §T.1), Path A may become selectable and Stage 1/2 of §T.3 could be skipped in favor
+of going straight to Stage 3 — but that re-classification requires the actual external data, not
+a re-reading of this repository. If it shows a real remaining population, proceed with Stage 1
+(§T.3) as planned. Either way, no further code work is required before that operational check —
+this checkpoint's code changes (telemetry, capability signal, fetch-failure safety net) are ready
+for either path.

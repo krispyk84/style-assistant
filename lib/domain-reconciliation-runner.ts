@@ -126,11 +126,27 @@ export async function reconcileDomainRecords<TContent>(config: DomainReconciliat
 
   void logAuthEvent(`${domain}-reconcile: started`, userId);
 
-  const [serverSnapshots, localRecords, metadataMap] = await Promise.all([
-    fetchServerSnapshots(),
-    loadLocalRecords(),
-    getDomainMetadata(domain),
-  ]);
+  // Phase 3B2: fetchServerSnapshots throws on failure (server capability
+  // missing, network error) rather than resolving to an empty array — a
+  // failed read must never be treated the same as "this user genuinely has
+  // zero server records" (that would let the loop below decide/apply every
+  // local record against a false empty-server picture). Abort the whole
+  // run before touching any local record; dirty state stays exactly as it
+  // was, no fallback to any legacy write path is attempted.
+  let serverSnapshots: DomainSnapshot<TContent>[];
+  let localRecords: TContent[];
+  let metadataMap: Awaited<ReturnType<typeof getDomainMetadata>>;
+  try {
+    [serverSnapshots, localRecords, metadataMap] = await Promise.all([
+      fetchServerSnapshots(),
+      loadLocalRecords(),
+      getDomainMetadata(domain),
+    ]);
+  } catch (error) {
+    recordError(error, `${domain}_reconcile_fetch_failed`);
+    void logAuthEvent(`${domain}-reconcile: aborted (server read failed)`, userId);
+    return emptySummary('server-fetch-failed');
+  }
 
   const serverById = new Map(serverSnapshots.map((snapshot) => [idOf(snapshot), snapshot]));
   const localById = new Map(localRecords.map((record) => [idOf(record), record]));

@@ -1,4 +1,5 @@
 import { appConfig, assertApiBaseUrl } from '@/constants/config';
+import { appVersionHeaders } from '@/lib/app-version';
 import type { ApiResponse } from '@/types/api';
 
 type RequestOptions = {
@@ -20,7 +21,7 @@ export class ApiClient {
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', ...appVersionHeaders() };
       if (_authToken) {
         headers['Authorization'] = `Bearer ${_authToken}`;
       }

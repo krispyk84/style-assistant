@@ -106,11 +106,11 @@ describe('fetchSavedOutfitsForReconciliation — tombstone-inclusive, version-ca
     ]);
   });
 
-  it('returns an empty array on error rather than throwing (matches every other fetch* function\'s existing contract)', async () => {
+  it('Phase 3B2: throws on error rather than resolving to [] — a failed read must never look like "zero server records" to the reconciliation runner', async () => {
     rpcMock.mockResolvedValue({ data: null, error: { message: 'boom' } });
 
     const { fetchSavedOutfitsForReconciliation } = await import('@/lib/supabase-data');
-    await expect(fetchSavedOutfitsForReconciliation()).resolves.toEqual([]);
+    await expect(fetchSavedOutfitsForReconciliation()).rejects.toThrow('boom');
   });
 });
 
@@ -170,5 +170,12 @@ describe('fetchWeekPlanForReconciliation — tombstone-inclusive, version-carryi
       { dayKey: 'mon', dayLabel: 'Monday', requestId: 'req-mon', assignedAt: WEEK_LIVE_ROW.assigned_at, input: { a: 1 }, recommendation: { b: 1 }, syncVersion: 2, deletedAt: null },
       { dayKey: 'tue', dayLabel: 'Monday', requestId: 'req-mon', assignedAt: WEEK_LIVE_ROW.assigned_at, input: { a: 1 }, recommendation: { b: 1 }, syncVersion: 4, deletedAt: '2026-02-02T00:00:00.000Z' },
     ]);
+  });
+
+  it('Phase 3B2: throws on error rather than resolving to []', async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: 'rpc missing' } });
+
+    const { fetchWeekPlanForReconciliation } = await import('@/lib/supabase-data');
+    await expect(fetchWeekPlanForReconciliation()).rejects.toThrow('rpc missing');
   });
 });

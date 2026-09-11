@@ -1,8 +1,8 @@
-import Constants from 'expo-constants';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useAppSession } from '@/hooks/use-app-session';
+import { APP_VERSION } from '@/lib/app-version';
 import { loadAppSettings, saveAppSettings } from '@/lib/app-settings-storage';
 import { fetchCloudBackupStatus } from '@/lib/cloud-backup-status';
 import { clearAuthEventLog, getAuthEventLog } from '@/lib/auth-event-log';
@@ -16,7 +16,7 @@ import type { Hemisphere } from '@/types/weather';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-export const appVersion = Constants.expoConfig?.version ?? '0.0.1';
+export const appVersion = APP_VERSION;
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 

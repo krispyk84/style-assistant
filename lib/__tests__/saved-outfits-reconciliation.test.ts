@@ -387,3 +387,41 @@ describe('reconcileSavedOutfits — single-flight coalescing', () => {
     expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: 1, isDeleted: false, isDirty: false });
   });
 });
+
+// Phase 3B2: a failed server read (missing reconciliation RPC, network
+// error — anything fetchSavedOutfitsForReconciliation throws) must abort
+// the whole run before deciding or applying anything, never be treated as
+// "this user has zero server records." Proves the safety principle
+// lib/domain-reconciliation-runner.ts's fetch-failure handling is built on.
+describe('reconcileSavedOutfits — server read failure (Phase 3B2 safety net)', () => {
+  it('aborts cleanly, leaves dirty local state untouched, and never attempts an RPC mutation', async () => {
+    const { writeOneSavedOutfitLocal, buildSavedOutfitId } = await import('@/lib/saved-outfits-storage');
+    const { markActive, setLastSeenVersion, getMetadata } = await import('@/lib/sync-metadata-storage');
+    const { reconcileSavedOutfits } = await import('@/lib/saved-outfits-reconciliation');
+
+    const id = buildSavedOutfitId('req-9', 'business', 0);
+    const content = { id, requestId: 'req-9', savedAt: '2026-01-01T00:00:00Z', input: INPUT, recommendation: RECOMMENDATION };
+    await writeOneSavedOutfitLocal(content);
+    await markActive('saved-outfits', id);
+    await setLastSeenVersion('saved-outfits', id, 1);
+    // Simulate a real dirty edit awaiting sync — this must survive the abort.
+    const { applyMetadataPatch } = await import('@/lib/sync-metadata-storage');
+    await applyMetadataPatch('saved-outfits', id, { isDirty: true });
+
+    fetchSavedOutfitsForReconciliation.mockRejectedValue(new Error('fetchSavedOutfitsForReconciliation failed: rpc missing'));
+
+    const summary = await reconcileSavedOutfits();
+
+    expect(summary).toEqual({
+      considered: 0, success: 0, noOp: 0, dirtyRemaining: 0, conflicts: 0, deferred: 0,
+      operationalFailures: 0, sameVersionDrift: 0, versionLineageReset: 0,
+      skippedReason: 'server-fetch-failed',
+    });
+    expect(createSavedOutfitViaRpc).not.toHaveBeenCalled();
+    expect(updateSavedOutfitViaRpc).not.toHaveBeenCalled();
+    expect(deleteSavedOutfitViaRpc).not.toHaveBeenCalled();
+    // The dirty flag this run should have tried to resolve is still exactly
+    // as it was before the aborted run — no silent fallback wiped it out.
+    expect(await getMetadata('saved-outfits', id)).toEqual({ lastSeenVersion: 1, isDeleted: false, isDirty: true });
+  });
+});

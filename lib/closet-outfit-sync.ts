@@ -120,9 +120,18 @@ export async function deleteClosetOutfitFavouriteViaRpc(id: string, baseVersion:
 // lib/domain-reconciliation-runner.ts's DomainSnapshot<TContent> expects.
 export type ClosetOutfitFavouriteServerSnapshot = SavedClosetOutfit & { syncVersion: number; deletedAt: string | null };
 
+// Phase 3B2: throws on failure (route missing, auth failure, network error)
+// instead of resolving to `[]` — same rationale as
+// lib/supabase-data.ts's fetchSavedOutfitsForReconciliation. This function's
+// only caller is lib/closet-outfit-favourites-reconciliation.ts's
+// fetchServerSnapshots; treating a failed read as "zero server records"
+// would let reconcileDomainRecords proceed against a false empty-server
+// picture instead of aborting the run.
 export async function fetchClosetOutfitFavouritesForReconciliation(): Promise<ClosetOutfitFavouriteServerSnapshot[]> {
   const response = await createApiClient().request<{ items: ClosetOutfitFavouriteServerSnapshot[] }>('/closet-outfit-sync/favourites/for-reconciliation');
-  if (!response.success || !response.data) return [];
+  if (!response.success || !response.data) {
+    throw new Error(`fetchClosetOutfitFavouritesForReconciliation failed: ${response.error?.message ?? 'unknown error'}`);
+  }
   return response.data.items;
 }
 
@@ -183,8 +192,12 @@ export async function deleteClosetOutfitWeekPlanItemViaRpc(dayKey: string, baseV
 // shape exactly (ClosetWeekPlanItem & {syncVersion, deletedAt}).
 export type ClosetOutfitWeekPlanItemServerSnapshot = ClosetWeekPlanItem & { syncVersion: number; deletedAt: string | null };
 
+// Phase 3B2: throws on failure — same rationale as
+// fetchClosetOutfitFavouritesForReconciliation above.
 export async function fetchClosetOutfitWeekPlanForReconciliation(): Promise<ClosetOutfitWeekPlanItemServerSnapshot[]> {
   const response = await createApiClient().request<{ items: ClosetOutfitWeekPlanItemServerSnapshot[] }>('/closet-outfit-sync/week-plan/for-reconciliation');
-  if (!response.success || !response.data) return [];
+  if (!response.success || !response.data) {
+    throw new Error(`fetchClosetOutfitWeekPlanForReconciliation failed: ${response.error?.message ?? 'unknown error'}`);
+  }
   return response.data.items;
 }

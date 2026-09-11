@@ -148,6 +148,16 @@ export async function fetchSavedOutfitsFromSupabase(): Promise<SavedOutfit[]> {
  * Kept as a dedicated RPC anyway for a schema-locked output contract and to
  * decouple this read from whatever the ordinary SELECT policy becomes in a
  * future phase.
+ *
+ * Phase 3B2: throws on failure (RPC missing, permission mismatch, network
+ * error) instead of resolving to `[]`. This function's only caller is
+ * lib/saved-outfits-reconciliation.ts's fetchServerSnapshots — silently
+ * treating "the read failed" the same as "this user genuinely has zero
+ * server records" would let reconcileDomainRecords proceed to decide/apply
+ * every local record against a false empty-server picture, exactly the
+ * unsafe-fallback failure mode Phase 3B2 was asked to rule out. Throwing
+ * lets lib/domain-reconciliation-runner.ts's top-level try/catch abort the
+ * whole run before touching any local record.
  */
 type SavedOutfitReconciliationRpcRow = {
   out_id: string;
@@ -161,7 +171,8 @@ type SavedOutfitReconciliationRpcRow = {
 
 export async function fetchSavedOutfitsForReconciliation(): Promise<SavedOutfitServerSnapshot[]> {
   const { data, error } = await supabase.rpc('get_saved_outfits_reconciliation_state');
-  if (error || !data) return [];
+  if (error) throw new Error(`fetchSavedOutfitsForReconciliation failed: ${error.message}`);
+  if (!data) return [];
   return (data as SavedOutfitReconciliationRpcRow[]).map((row) => ({
     id: row.out_id,
     requestId: row.out_request_id,
@@ -232,7 +243,8 @@ export async function fetchWeekPlanFromSupabase(): Promise<WeekPlannedOutfit[]> 
 /**
  * Reconciliation-only: includes tombstoned rows and sync_version/deleted_at.
  * See fetchSavedOutfitsForReconciliation's doc comment — same rationale,
- * routed through get_week_plan_reconciliation_state (Phase 3B1).
+ * routed through get_week_plan_reconciliation_state (Phase 3B1), and the
+ * same Phase 3B2 throw-on-failure contract (see that function's comment).
  */
 type WeekPlanItemReconciliationRpcRow = {
   out_day_key: string;
@@ -247,7 +259,8 @@ type WeekPlanItemReconciliationRpcRow = {
 
 export async function fetchWeekPlanForReconciliation(): Promise<WeekPlanItemServerSnapshot[]> {
   const { data, error } = await supabase.rpc('get_week_plan_reconciliation_state');
-  if (error || !data) return [];
+  if (error) throw new Error(`fetchWeekPlanForReconciliation failed: ${error.message}`);
+  if (!data) return [];
   return (data as WeekPlanItemReconciliationRpcRow[]).map((row) => ({
     dayKey: row.out_day_key,
     dayLabel: row.out_day_label,

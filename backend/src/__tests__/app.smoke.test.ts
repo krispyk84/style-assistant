@@ -49,6 +49,14 @@ describe('createApp (real installed dependencies, no mocks)', () => {
 
       const health = await fetch(`${baseUrl}/health`);
       expect(health.status).toBe(200);
+      // Phase 3B2: /health's syncCapabilities field is the client's
+      // preflight signal that this deployed build's code includes the
+      // Phase 1A/3B1 sync-protocol support it depends on.
+      const healthBody = await health.json();
+      expect(healthBody.data.syncCapabilities).toEqual({
+        closetOutfitVersionedSync: true,
+        closetOutfitLegacyCompatibilityBridge: true,
+      });
 
       // Hits a real requireAuth-protected route with no Authorization header.
       // This exercises the full real middleware stack (helmet, cors, the
