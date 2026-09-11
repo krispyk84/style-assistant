@@ -41,6 +41,7 @@ import {
 import { useToast } from '@/components/ui/toast-provider';
 import { trackSaveOutfit, trackAddToWeek } from '@/lib/analytics';
 import { buildSecondOpinionSubject } from '@/lib/outfit-utils';
+import { recordError } from '@/lib/crashlytics';
 
 const SKETCH_POLL_INTERVAL_MS = 4000;
 
@@ -212,27 +213,55 @@ export function MultiLookResults({
   }, []);
 
   // ── Sketch polling: poll each pending slot every 4s ────────────────────────
+  // Depends on a pendingSignature string (which requestIds are currently
+  // pending), not on `slots` itself — setSlots always produces a fresh array/
+  // object identity even when nothing semantically changed, so depending on
+  // `slots` directly tore this interval down and recreated it after every
+  // single tick. The signature only changes when a slot actually enters or
+  // leaves the pending set, matching useResultsPolling.ts's pendingSignature
+  // pattern for the single-tier path.
+  const pendingSignature = useMemo(
+    () =>
+      slots
+        .filter((slot) => slot.response?.recommendations.some((r) => r.sketchStatus === 'pending'))
+        .map((slot) => slot.requestId)
+        .join(','),
+    [slots],
+  );
+  // Reentrancy guard: at most one polling batch in flight at a time, mirroring
+  // useResultsPolling.ts's isPollingRef. Reset in `finally` so a failed batch
+  // never permanently blocks future ticks.
+  const isPollingRef = useRef(false);
   useEffect(() => {
-    const pendingSlots = slots.filter((slot) => {
-      if (!slot.response) return false;
-      return slot.response.recommendations.some((r) => r.sketchStatus === 'pending');
-    });
-    if (!pendingSlots.length) return;
+    const pendingRequestIds = pendingSignature ? pendingSignature.split(',') : [];
+    if (!pendingRequestIds.length) return;
 
     const interval = setInterval(async () => {
-      await Promise.all(
-        pendingSlots.map(async (slot) => {
-          const result = await outfitsService.getOutfitResult(slot.requestId);
-          if (!result.success || !result.data) return;
-          setSlots((prev) =>
-            prev.map((s) => (s.requestId === slot.requestId ? { ...s, response: result.data } : s)),
-          );
-        }),
-      );
+      if (isPollingRef.current) return;
+      isPollingRef.current = true;
+      try {
+        await Promise.all(
+          pendingRequestIds.map(async (requestId) => {
+            const result = await outfitsService.getOutfitResult(requestId);
+            if (!result.success || !result.data) return;
+            setSlots((prev) =>
+              prev.map((s) => (s.requestId === requestId ? { ...s, response: result.data } : s)),
+            );
+          }),
+        );
+      } catch (error) {
+        // getOutfitResult goes through ApiClient.request, which never
+        // rejects in practice — this exists so a poll tick can never become
+        // an unhandled rejection if that contract ever changes, matching
+        // useResultsPolling.ts's own defensive catch.
+        recordError(error, 'multi_look_results_polling_tick_failed');
+      } finally {
+        isPollingRef.current = false;
+      }
     }, SKETCH_POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [slots]);
+  }, [pendingSignature]);
 
   // ── Per-slot match lookup (initial deterministic match; rematch via thumbs-down deferred) ──
   const matchMaps = useMemo(() => {
@@ -308,17 +337,28 @@ export function MultiLookResults({
       });
       return;
     }
+    const previousFeedback = feedbackMap[slot.requestId];
     setFeedbackMap((prev) => ({ ...prev, [slot.requestId]: thumb }));
-    await saveRecommendationFeedback({
-      id: `${slot.requestId}:${tier}:outfit`,
-      requestId: slot.requestId,
-      tier,
-      outfitTitle: recommendation.title,
-      thumb,
-      regenerated: false,
-      createdAt: new Date().toISOString(),
-    });
-    showToast(thumb === 'love' ? 'Noted — glad you love it.' : "Noted — we'll keep that in mind.");
+    try {
+      await saveRecommendationFeedback({
+        id: `${slot.requestId}:${tier}:outfit`,
+        requestId: slot.requestId,
+        tier,
+        outfitTitle: recommendation.title,
+        thumb,
+        regenerated: false,
+        createdAt: new Date().toISOString(),
+      });
+      showToast(thumb === 'love' ? 'Noted — glad you love it.' : "Noted — we'll keep that in mind.");
+    } catch (error) {
+      recordError(error, 'outfit_feedback_save');
+      setFeedbackMap((prev) => {
+        const next = { ...prev };
+        if (previousFeedback) next[slot.requestId] = previousFeedback;
+        else delete next[slot.requestId];
+        return next;
+      });
+    }
   }
 
   // ── Initial loading gate (closet modal + at least one slot in flight) ──────

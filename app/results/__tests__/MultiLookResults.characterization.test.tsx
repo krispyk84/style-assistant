@@ -94,6 +94,9 @@ vi.mock('@/lib/recommendation-feedback-storage', () => ({
 
 vi.mock('@/lib/analytics', () => ({ trackSaveOutfit: vi.fn(), trackAddToWeek: vi.fn() }));
 
+const recordError = vi.fn();
+vi.mock('@/lib/crashlytics', () => ({ recordError: (...args: unknown[]) => recordError(...args), log: vi.fn() }));
+
 // lib/closet-match (findBestClosetMatch) and lib/outfit-utils/lib/look-route
 // (pure, no react-native import) are deliberately left real.
 
@@ -400,18 +403,17 @@ describe('MultiLookResults — outfit feedback', () => {
     expect(toggled.outfitFeedback).toBeNull();
   });
 
-  // NEWLY DISCOVERED (Phase R2, not in the original audit): the shared
-  // app/results/useResultsActions.ts's handleOutfitFeedback wraps
-  // saveRecommendationFeedback in try/catch, calls recordError on failure,
-  // AND rolls the optimistic local feedback state back to whatever it was
-  // before the failed attempt. MultiLookResults's handleOutfitFeedback has
-  // NONE of that — no try/catch at all. This is a real semantic difference
-  // beyond the polling-effect gap the original audit found, proven here the
-  // same way the polling rejection was proven in Section 10.
-  it('DISCOVERED GAP (Phase R3 fix target): a failed feedback save is an unhandled rejection and leaves the optimistic local state un-rolled-back, unlike useResultsActions', async () => {
+  // Phase R3A fix, regression coverage: brought into alignment with
+  // useResultsActions.ts's handleOutfitFeedback — try/catch, recordError,
+  // and a rollback of the optimistic local feedback state to whatever it
+  // was before the failed attempt. Originally discovered as a gap in Phase
+  // R2 (proven as a real unhandled rejection + no rollback); now proves the
+  // corrected behavior instead of the bug.
+  it('a failed feedback save is caught, recorded, and rolled back to the previous value — no unhandled rejection, sibling slots untouched', async () => {
     saveRecommendationFeedback.mockRejectedValue(new Error('offline'));
-    renderScreen();
-    const props = await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary'));
+    renderScreen(['req-variant']);
+    await waitFor(() => lastCallFor(LookResultCardMock, 'req-variant'));
+    const props = await lastCallFor(LookResultCardMock, 'req-primary');
 
     const unhandled: unknown[] = [];
     const onUnhandledRejection = (reason: unknown) => unhandled.push(reason);
@@ -426,12 +428,52 @@ describe('MultiLookResults — outfit feedback', () => {
       process.off('unhandledRejection', onUnhandledRejection);
     }
 
-    expect(unhandled).toHaveLength(1);
-    expect((unhandled[0] as Error).message).toBe('offline');
+    // Fixed: caught, no unhandled rejection.
+    expect(unhandled).toHaveLength(0);
 
-    // The optimistic setFeedbackMap update from before the failed save is
-    // NOT rolled back today — 'love' stays selected despite the save
-    // failing, unlike useResultsActions's previousFeedback rollback.
+    // Fixed: recordError called with the same context string
+    // useResultsActions.ts already uses for this exact scenario.
+    expect(recordError).toHaveBeenCalledWith(expect.any(Error), 'outfit_feedback_save');
+    expect((recordError.mock.calls[0]![0] as Error).message).toBe('offline');
+
+    // Fixed: the optimistic 'love' selection is rolled back to its previous
+    // value (null — there was no prior feedback for this slot).
+    const after = await lastCallFor(LookResultCardMock, 'req-primary');
+    expect(after.outfitFeedback).toBeNull();
+
+    // Sibling slot is untouched by the primary slot's failed feedback.
+    const variant = await lastCallFor(LookResultCardMock, 'req-variant');
+    expect(variant.outfitFeedback).toBeNull();
+  });
+
+  it('rollback restores the PREVIOUS thumb (not just null) when switching from an existing selection fails', async () => {
+    saveRecommendationFeedback.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('offline'));
+    renderScreen();
+    const props = await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary'));
+
+    // First selection succeeds — 'love' is the established prior value.
+    await act(async () => {
+      (props.onOutfitFeedback as (t: 'love' | 'hate') => void)('love');
+    });
+    const loved = await waitFor(async () => {
+      const p = await lastCallFor(LookResultCardMock, 'req-primary');
+      if (p.outfitFeedback !== 'love') throw new Error('not yet loved');
+      return p;
+    });
+
+    // Switching to 'hate' fails — must roll back to 'love', not to null.
+    const onUnhandledRejection = () => undefined;
+    process.on('unhandledRejection', onUnhandledRejection);
+    try {
+      await act(async () => {
+        (loved.onOutfitFeedback as (t: 'love' | 'hate') => void)('hate');
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection);
+    }
+
     const after = await lastCallFor(LookResultCardMock, 'req-primary');
     expect(after.outfitFeedback).toBe('love');
   });
@@ -571,8 +613,8 @@ describe('MultiLookResults — sketch polling data behavior', () => {
 // assert it as desired behavior. Per this phase's instructions, the fix
 // belongs to Phase R3; this test is a TODO regression marker for the
 // invariant that fix must satisfy.
-describe('MultiLookResults — interval-recreation bug (Phase R3 fix target)', () => {
-  it('reproduces: setInterval is called again after a tick updates slots, even though polling should still be one continuous cycle', async () => {
+describe('MultiLookResults — interval lifecycle (Phase R3A fix, regression coverage)', () => {
+  it('a polling tick with unchanged pending state does not restart the interval', async () => {
     vi.useFakeTimers();
     generateOutfits.mockImplementation(async (req: { requestId: string }) =>
       ({ success: true, data: makeResponse(req.requestId, { sketchStatus: 'pending' }) }),
@@ -581,9 +623,9 @@ describe('MultiLookResults — interval-recreation bug (Phase R3 fix target)', (
     await untilPendingFake();
 
     const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
-    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
-    // Still pending after the tick, so the effect's dependency (slots)
-    // changes identity but the pending set is otherwise unchanged.
+    // Still pending after the tick — slots' object identity still changes
+    // (setSlots always produces a fresh array), but the LOGICAL pending set
+    // (which requestIds are pending) is unchanged.
     getOutfitResult.mockResolvedValue({ success: true, data: makeResponse('req-primary', { sketchStatus: 'pending' }) });
 
     const setIntervalCallsBefore = setIntervalSpy.mock.calls.length;
@@ -591,25 +633,14 @@ describe('MultiLookResults — interval-recreation bug (Phase R3 fix target)', (
       await vi.advanceTimersByTimeAsync(4000);
     });
 
-    // BUG, proven: a single tick that leaves the pending set unchanged still
-    // produces at least one more setInterval call (the effect re-ran because
-    // `slots` — the whole object — changed identity) and a matching
-    // clearInterval for the torn-down interval. A correctly-behaving
-    // implementation (Phase R3 target) would NOT need to tear down and
-    // restart its interval merely because slot object identity changed
-    // while the semantically-relevant pending state stayed the same.
-    expect(setIntervalSpy.mock.calls.length).toBeGreaterThan(setIntervalCallsBefore);
-    expect(clearIntervalSpy).toHaveBeenCalled();
+    // Fixed: the polling effect now depends on a pendingSignature string
+    // (which requestIds are pending), not on `slots` itself — a tick that
+    // leaves the pending set unchanged no longer tears down and recreates
+    // the interval.
+    expect(setIntervalSpy.mock.calls.length).toBe(setIntervalCallsBefore);
   });
 
-  // TODO(Phase R3): once the polling effect no longer keys off whole-`slots`
-  // identity, replace the reproduction test above with this permanent
-  // regression assertion of the desired invariant: "while pending state
-  // remains semantically unchanged, a polling tick must not cause the
-  // polling interval lifecycle to restart merely because slot object
-  // identity changed." Left as skipped (not deleted) so R3 has a ready-made
-  // assertion to un-skip once the fix lands.
-  it.skip('TODO(R3): a polling tick with unchanged pending state does not restart the interval', async () => {
+  it('pending transitioning to none stops polling (no further poll requests after the last pending slot completes)', async () => {
     vi.useFakeTimers();
     generateOutfits.mockImplementation(async (req: { requestId: string }) =>
       ({ success: true, data: makeResponse(req.requestId, { sketchStatus: 'pending' }) }),
@@ -617,15 +648,18 @@ describe('MultiLookResults — interval-recreation bug (Phase R3 fix target)', (
     renderScreen();
     await untilPendingFake();
 
-    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
-    getOutfitResult.mockResolvedValue({ success: true, data: makeResponse('req-primary', { sketchStatus: 'pending' }) });
-
-    const setIntervalCallsBefore = setIntervalSpy.mock.calls.length;
+    getOutfitResult.mockResolvedValue({ success: true, data: makeResponse('req-primary', { sketchStatus: 'ready' }) });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4000);
     });
+    const callsAfterCompletion = getOutfitResult.mock.calls.length;
+    expect(callsAfterCompletion).toBeGreaterThan(0);
 
-    expect(setIntervalSpy.mock.calls.length).toBe(setIntervalCallsBefore);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20000);
+    });
+    // No pending slots remain — polling must not continue.
+    expect(getOutfitResult.mock.calls.length).toBe(callsAfterCompletion);
   });
 });
 
@@ -634,8 +668,8 @@ describe('MultiLookResults — interval-recreation bug (Phase R3 fix target)', (
 // useResultsPolling.ts has an isPollingRef reentrancy guard; this inline
 // poller has none. This proves whether a second poll tick can start before
 // the first tick's request for the same requestId has resolved.
-describe('MultiLookResults — reentrancy gap (Phase R3 fix target)', () => {
-  it('reproduces: a slow-resolving poll request does not block a second tick from starting another request for the same requestId', async () => {
+describe('MultiLookResults — reentrancy guard (Phase R3A fix, regression coverage)', () => {
+  it('a second poll tick does not start a new request while the previous one is still in flight, and the guard releases once it resolves', async () => {
     vi.useFakeTimers();
     generateOutfits.mockImplementation(async (req: { requestId: string }) =>
       ({ success: true, data: makeResponse(req.requestId, { sketchStatus: 'pending' }) }),
@@ -660,29 +694,57 @@ describe('MultiLookResults — reentrancy gap (Phase R3 fix target)', () => {
     });
     expect(callCount).toBe(1);
 
-    // A second tick fires (interval still active, or recreated per the
-    // Section 8 bug — either way, from the user's perspective this is a
-    // second 4s window) BEFORE the first request has resolved.
+    // A second tick fires before the first request has resolved.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4000);
     });
 
-    // BUG, proven: no reentrancy guard exists — a second request for the
-    // same requestId started while the first was still in flight.
-    expect(callCount).toBeGreaterThan(1);
+    // Fixed: isPollingRef blocks the second tick from starting a new
+    // request while the first is still in flight.
+    expect(callCount).toBe(1);
 
+    // Resolve the first request — the guard must release (in `finally`),
+    // so the NEXT tick can poll normally.
     resolveFirst!({ success: true, data: makeResponse('req-primary', { sketchStatus: 'pending' }) });
     await act(async () => {
       await Promise.resolve();
     });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+    expect(callCount).toBe(2);
   });
 
-  // TODO(Phase R3): once an isPollingRef-equivalent guard is added, replace
-  // the reproduction above with this permanent assertion of the desired
-  // invariant: "at most one polling request for a given polling cycle may
-  // be in flight at a time."
-  it.skip('TODO(R3): a second poll tick does not start a new request while the previous one is still in flight', async () => {
-    expect(true).toBe(true);
+  it('the guard also releases after a FAILED poll — a failed request does not permanently disable future polling', async () => {
+    vi.useFakeTimers();
+    generateOutfits.mockImplementation(async (req: { requestId: string }) =>
+      ({ success: true, data: makeResponse(req.requestId, { sketchStatus: 'pending' }) }),
+    );
+    renderScreen();
+    await untilPendingFake();
+
+    let callCount = 0;
+    getOutfitResult.mockImplementation(async () => {
+      callCount += 1;
+      if (callCount === 1) throw new Error('first tick network error');
+      return { success: true, data: makeResponse('req-primary', { sketchStatus: 'ready' }) };
+    });
+
+    // First tick fires and rejects.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+    expect(callCount).toBe(1);
+
+    // A second tick must still be able to poll — the guard was released in
+    // `finally` despite the first request failing.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+    expect(callCount).toBe(2);
+
+    const primary = await lastCallFor(LookResultCardMock, 'req-primary');
+    expect((primary.recommendation as { sketchStatus?: string }).sketchStatus).toBe('ready');
   });
 });
 
@@ -691,8 +753,8 @@ describe('MultiLookResults — reentrancy gap (Phase R3 fix target)', () => {
 // useResultsPolling.ts wraps its poll in try/catch + recordError; this
 // inline poller does not. This characterizes exactly what happens today
 // when the poll request rejects — not what SHOULD happen.
-describe('MultiLookResults — polling error-handling gap (Phase R3 fix target)', () => {
-  it('a rejected poll request does not corrupt sibling slot state and does not crash the test/render', async () => {
+describe('MultiLookResults — polling error handling (Phase R3A fix, regression coverage)', () => {
+  it('a rejected poll request is caught and recorded, produces no unhandled rejection, does not corrupt sibling slot state, and polling continues on the next tick', async () => {
     vi.useFakeTimers();
     generateOutfits.mockImplementation(async (req: { requestId: string }) =>
       ({ success: true, data: makeResponse(req.requestId, { sketchStatus: 'pending' }) }),
@@ -701,39 +763,50 @@ describe('MultiLookResults — polling error-handling gap (Phase R3 fix target)'
     await untilPendingFake('req-primary');
     await untilPendingFake('req-variant');
 
+    let primaryCallCount = 0;
     getOutfitResult.mockImplementation(async (requestId: string) => {
-      if (requestId === 'req-primary') throw new Error('network down');
+      if (requestId === 'req-primary') {
+        primaryCallCount += 1;
+        if (primaryCallCount === 1) throw new Error('network down');
+        return { success: true, data: makeResponse('req-primary', { sketchStatus: 'ready' }) };
+      }
       return { success: true, data: makeResponse('req-variant', { sketchStatus: 'ready', sketchImageUrl: 'https://example.test/variant.png' }) };
     });
 
-    // Known current gap, proven directly rather than left as ambient test
-    // noise: the rejection is unhandled inside Promise.all — this becomes a
-    // REAL unhandled promise rejection today (no try/catch, no recordError
-    // call exists in this poller, unlike useResultsPolling.ts). Captured
-    // explicitly via process's unhandledRejection event (confirmed present
-    // by first running this test without a listener — vitest reported an
-    // "Unhandled Rejection" for exactly this error) rather than letting it
-    // leak into the rest of the suite as ambient noise.
+    // Fixed: the poll tick's try/catch now catches this rejection — proven
+    // directly (not just inferred from the test not crashing) by asserting
+    // no unhandledRejection event fires, matching how the original bug was
+    // proven in R2.
     const unhandled: unknown[] = [];
     const onUnhandledRejection = (reason: unknown) => unhandled.push(reason);
     process.on('unhandledRejection', onUnhandledRejection);
     try {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(4000);
-        // Let the unhandled rejection actually surface before asserting.
         await Promise.resolve();
       });
     } finally {
       process.off('unhandledRejection', onUnhandledRejection);
     }
+    expect(unhandled).toHaveLength(0);
 
-    expect(unhandled).toHaveLength(1);
-    expect((unhandled[0] as Error).message).toBe('network down');
+    // recordError is called using the same context-string convention
+    // useResultsPolling.ts already established for the identical scenario.
+    expect(recordError).toHaveBeenCalledWith(expect.any(Error), 'multi_look_results_polling_tick_failed');
+    expect((recordError.mock.calls[0]![0] as Error).message).toBe('network down');
 
+    // Sibling slot state is untouched by the failure.
     const variant = await lastCallFor(LookResultCardMock, 'req-variant');
     expect((variant.recommendation as { sketchStatus?: string }).sketchStatus).toBe('ready');
+    const primaryAfterFailure = await lastCallFor(LookResultCardMock, 'req-primary');
+    expect((primaryAfterFailure.recommendation as { sketchStatus?: string }).sketchStatus).toBe('pending');
 
-    const primary = await lastCallFor(LookResultCardMock, 'req-primary');
-    expect((primary.recommendation as { sketchStatus?: string }).sketchStatus).toBe('pending');
+    // Polling continues after the failure — the next tick successfully
+    // updates the primary slot too.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+    const primaryAfterRecovery = await lastCallFor(LookResultCardMock, 'req-primary');
+    expect((primaryAfterRecovery.recommendation as { sketchStatus?: string }).sketchStatus).toBe('ready');
   });
 });
