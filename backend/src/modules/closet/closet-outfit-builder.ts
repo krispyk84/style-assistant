@@ -163,6 +163,32 @@ export function buildDeterministicOutfit<TItem extends BuilderClosetItem>(
   };
 }
 
+// Previously duplicated verbatim in trips.service.ts and
+// closet-outfits.service.ts — both now call this. Used for the narrower
+// "add a hat/bag to an already-composed outfit" toggle: a single accessory
+// pick via the same deterministic builder above, rather than a full
+// re-generation.
+export function pickAccessory<TItem extends BuilderClosetItem>(
+  group: 'hat' | 'bag',
+  closetItems: TItem[],
+  tier: TierSlug,
+  targetFormalityRank: number,
+  excludeItemIds: ReadonlySet<string>,
+): TItem | null {
+  const candidates = closetItems.filter((item) => resolveGarmentGroup(item) === group);
+  const result = buildDeterministicOutfit({
+    closetItems: candidates,
+    targetFormalityRank,
+    tier,
+    includeThermalLayer: false,
+    includeOuterwear: false,
+    includeHat: group === 'hat',
+    includeBag: group === 'bag',
+    excludeItemIds,
+  });
+  return result.bySlot.hat ?? result.bySlot.bag ?? null;
+}
+
 export type SlotShortlists<TItem> = Partial<Record<OutfitSlot, TItem[]>>;
 
 // Safety valve for pathologically large closets — NOT a quality cap. The

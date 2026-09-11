@@ -238,6 +238,28 @@ export function requiredSlotsForTier(tier: TierSlug): OutfitSlot[] {
     .map(([slot]) => slot);
 }
 
+// Previously duplicated verbatim in outfits.service.ts, trips.service.ts,
+// and closet-outfits.service.ts — all three now call this.
+export function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThermalLayer: boolean; includeOuterwear: boolean } {
+  const gates =
+    temperatureC == null
+      ? { includeThermalLayer: true, includeOuterwear: true }
+      : temperatureC >= 24
+        ? { includeThermalLayer: false, includeOuterwear: false }
+        : temperatureC >= 18
+          ? { includeThermalLayer: false, includeOuterwear: true }
+          : { includeThermalLayer: true, includeOuterwear: true };
+
+  // Business always has a structured secondary top (blazer or suit jacket)
+  // already providing warmth/structure — a genuine overcoat only belongs
+  // over that when it's actually cold, not just "mild-cool" like the base
+  // gate above allows for casual/smart-casual's optional secondary top.
+  if (tier === 'business' && gates.includeOuterwear && temperatureC != null) {
+    gates.includeOuterwear = temperatureC < 10;
+  }
+  return gates;
+}
+
 // Whether a tier permits the suit dual-role path at all — casual never
 // offers a suit as a bottoms/secondaryTop candidate, no matter what's in
 // the closet.

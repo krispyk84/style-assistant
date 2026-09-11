@@ -19,12 +19,12 @@ import { buildClosetIndex } from '../closet/closet-index.js';
 import { closetRepository } from '../closet/closet.repository.js';
 import {
   buildAccessoryShortlist,
-  buildDeterministicOutfit,
   buildFrameworkBreakdown,
   buildOutfitSlotShortlists,
   buildVariantCandidates,
   fillMissingRequiredSlots,
   normalizeSuitDualRole,
+  pickAccessory,
 } from '../closet/closet-outfit-builder.js';
 import {
   ACCESSORY_GROUPS,
@@ -35,6 +35,7 @@ import {
   TIER_FORMALITY_TARGET,
   TRIP_DAY_TYPE_FORMALITY_TARGET,
   tierForFormalityRank,
+  weatherGates,
   type OutfitSlot,
   type TierSlug,
 } from '../closet/closet-taxonomy.js';
@@ -154,26 +155,6 @@ function parseShoesCap(shoesCount: string | undefined): number {
 type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
 type BuilderProfile = Awaited<ReturnType<typeof profileRepository.findByUserId>>;
 
-function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThermalLayer: boolean; includeOuterwear: boolean } {
-  const gates =
-    temperatureC == null
-      ? { includeThermalLayer: true, includeOuterwear: true }
-      : temperatureC >= 24
-        ? { includeThermalLayer: false, includeOuterwear: false }
-        : temperatureC >= 18
-          ? { includeThermalLayer: false, includeOuterwear: true }
-          : { includeThermalLayer: true, includeOuterwear: true };
-
-  // Business always has a structured secondary top (blazer or suit jacket)
-  // already providing warmth/structure — a genuine overcoat only belongs
-  // over that when it's actually cold, not just "mild-cool" like the base
-  // gate above allows for casual/smart-casual's optional secondary top.
-  if (tier === 'business' && gates.includeOuterwear && temperatureC != null) {
-    gates.includeOuterwear = temperatureC < 10;
-  }
-  return gates;
-}
-
 function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
   return {
     id: item.id,
@@ -289,27 +270,6 @@ function buildBySlotFromItemIds(
 // restricting its candidate pool to just that garment group — a single,
 // low-stakes accessory addition doesn't warrant its own LLM round-trip the
 // way full day assembly does.
-function pickAccessory(
-  group: 'hat' | 'bag',
-  closetItems: BuilderItem[],
-  tier: TierSlug,
-  targetFormalityRank: number,
-  excludeItemIds: ReadonlySet<string>,
-): BuilderItem | null {
-  const candidates = closetItems.filter((item) => resolveGarmentGroup(item) === group);
-  const result = buildDeterministicOutfit({
-    closetItems: candidates,
-    targetFormalityRank,
-    tier,
-    includeThermalLayer: false,
-    includeOuterwear: false,
-    includeHat: group === 'hat',
-    includeBag: group === 'bag',
-    excludeItemIds,
-  });
-  return result.bySlot.hat ?? result.bySlot.bag ?? null;
-}
-
 const FALLBACK_TRIP_TITLE = 'A Day From Your Closet';
 const FALLBACK_TRIP_RATIONALE = 'A complete outfit built entirely from pieces you already own.';
 

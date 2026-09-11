@@ -33,6 +33,7 @@ import {
   GROUP_TO_SLOTS,
   requiredSlotsForTier,
   TIER_FORMALITY_TARGET,
+  weatherGates,
   type OutfitSlot,
   type TierSlug,
 } from '../closet/closet-taxonomy.js';
@@ -116,26 +117,6 @@ export type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[
 
 // Exported for characterization tests only (see __tests__/closet-only-accessories.characterization.test.ts) —
 // no behavior change, just visibility into the closet-only accessory resolution this module already performs.
-export function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThermalLayer: boolean; includeOuterwear: boolean } {
-  const gates =
-    temperatureC == null
-      ? { includeThermalLayer: true, includeOuterwear: true }
-      : temperatureC >= 24
-        ? { includeThermalLayer: false, includeOuterwear: false }
-        : temperatureC >= 18
-          ? { includeThermalLayer: false, includeOuterwear: true }
-          : { includeThermalLayer: true, includeOuterwear: true };
-
-  // Business always has a structured secondary top (blazer or suit jacket)
-  // already providing warmth/structure — a genuine overcoat only belongs
-  // over that when it's actually cold, not just "mild-cool" like the base
-  // gate above allows for casual/smart-casual's optional secondary top.
-  if (tier === 'business' && gates.includeOuterwear && temperatureC != null) {
-    gates.includeOuterwear = temperatureC < 10;
-  }
-  return gates;
-}
-
 function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
   return {
     id: item.id,

@@ -29,13 +29,13 @@ import {
 } from './closet.schemas.js';
 import {
   buildAccessoryShortlist,
-  buildDeterministicOutfit,
   buildFrameworkBreakdown,
   buildOutfitSlotShortlists,
   buildVariantCandidates,
   effectiveAllowedGroups,
   filterByFormalityBand,
   normalizeSuitDualRole,
+  pickAccessory,
   type FrameworkBreakdown,
 } from './closet-outfit-builder.js';
 import {
@@ -47,6 +47,7 @@ import {
   SLOT_GROUPS,
   TIER_FORMALITY_TARGET,
   tierForFormalityRank,
+  weatherGates,
   type OutfitSlot,
   type TierSlug,
 } from './closet-taxonomy.js';
@@ -113,29 +114,6 @@ async function loadIndex(supabaseUserId: string) {
     );
   }
   return { itemsById };
-}
-
-// ── Weather gating — translates temperature into whether a thermal-layer/
-// outerwear slot should be offered at all (the caller's job, not the shared
-// builder's concern). ─────────────────────────────────────────────────────────
-function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThermalLayer: boolean; includeOuterwear: boolean } {
-  const gates =
-    temperatureC == null
-      ? { includeThermalLayer: true, includeOuterwear: true }
-      : temperatureC >= 24
-        ? { includeThermalLayer: false, includeOuterwear: false }
-        : temperatureC >= 18
-          ? { includeThermalLayer: false, includeOuterwear: true }
-          : { includeThermalLayer: true, includeOuterwear: true };
-
-  // Business always has a structured secondary top (blazer or suit jacket)
-  // already providing warmth/structure — a genuine overcoat only belongs
-  // over that when it's actually cold, not just "mild-cool" like the base
-  // gate above allows for casual/smart-casual's optional secondary top.
-  if (tier === 'business' && gates.includeOuterwear && temperatureC != null) {
-    gates.includeOuterwear = temperatureC < 10;
-  }
-  return gates;
 }
 
 async function buildVarietyContext(
@@ -385,27 +363,6 @@ async function attachSketchJobs(
 // restricting its candidate pool to just that garment group — a single,
 // low-stakes accessory addition to an already-composed outfit doesn't
 // warrant its own LLM round-trip the way full outfit assembly does.
-function pickAccessory(
-  group: 'hat' | 'bag',
-  closetItems: BuilderItem[],
-  tier: TierSlug,
-  targetFormalityRank: number,
-  excludeItemIds: ReadonlySet<string>,
-): BuilderItem | null {
-  const candidates = closetItems.filter((item) => resolveGarmentGroup(item) === group);
-  const result = buildDeterministicOutfit({
-    closetItems: candidates,
-    targetFormalityRank,
-    tier,
-    includeThermalLayer: false,
-    includeOuterwear: false,
-    includeHat: group === 'hat',
-    includeBag: group === 'bag',
-    excludeItemIds,
-  });
-  return result.bySlot.hat ?? result.bySlot.bag ?? null;
-}
-
 // Last-resort, no-exceptions guarantee: every outfit must have footwear, and
 // on a Formal-target tier it must be a dressy pair (dress shoes/loafers) —
 // not left to chance even though the schema already requires a valid
