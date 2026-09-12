@@ -292,6 +292,16 @@ async function runSketchJob(jobId: string, imageUrl: string, supabaseUserId?: st
   }
 }
 
+// A ClosetSketchJob left in 'pending' this long almost certainly had its
+// in-flight generation killed by a restart/deploy with no code path left to
+// ever write its terminal status — mirrors the identical STALE_MS window
+// already established for the same class of problem (an AI image job
+// orphaned mid-generation) in trend-sketch.service.ts's retryStuckSketches.
+// Unlike that precedent, ClosetSketchJob has no persisted prompt-rebuild
+// data, so a stuck row is reconciled to 'failed' (a status every existing
+// caller already understands), never retried.
+const STALE_PENDING_MS = 1000 * 60 * 10;
+
 export const closetSketchService = {
   async startSketchJob(imageUrl: string, supabaseUserId?: string, options?: SketchOptions): Promise<string> {
     const job = await closetRepository.createSketchJob();
@@ -306,5 +316,18 @@ export const closetSketchService = {
       sketchStatus: job.status as 'pending' | 'ready' | 'failed',
       sketchImageUrl: job.sketchImageUrl ?? null,
     };
+  },
+
+  /**
+   * Reconciles ClosetSketchJob rows stuck in 'pending' past STALE_PENDING_MS
+   * into 'failed' — run periodically by the trend-refresh scheduler,
+   * independent of any client's own polling. Never deletes a row, never
+   * touches a completed image, never retries generation. See
+   * closetRepository.reconcileStaleSketchJobs for the race-safe update.
+   */
+  async reconcileStaleSketchJobs() {
+    const reconciled = await closetRepository.reconcileStaleSketchJobs(new Date(Date.now() - STALE_PENDING_MS));
+    logger.info({ reconciled }, 'Closet sketch job reconcile sweep: ran');
+    return reconciled;
   },
 };
