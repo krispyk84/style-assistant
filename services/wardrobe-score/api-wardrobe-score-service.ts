@@ -1,4 +1,4 @@
-import { createApiClient } from '@/lib/api/api-client';
+import { createApiClient, unwrapOrThrow } from '@/lib/api/api-client';
 import type { WardrobeScore } from './wardrobe-score.types';
 
 export const wardrobeScoreService = {
@@ -6,11 +6,7 @@ export const wardrobeScoreService = {
     const path = force ? '/wardrobe/score?force=true' : '/wardrobe/score';
     const response = await createApiClient().request<WardrobeScore>(path);
 
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message ?? 'Failed to load wardrobe score.');
-    }
-
-    return response.data;
+    return unwrapOrThrow(response, 'Failed to load wardrobe score.');
   },
 
   async invalidateTrendCache(): Promise<void> {

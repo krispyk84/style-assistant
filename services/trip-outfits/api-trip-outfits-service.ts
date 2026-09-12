@@ -1,4 +1,4 @@
-import { createApiClient } from '@/lib/api/api-client';
+import { createApiClient, unwrapOrThrow } from '@/lib/api/api-client';
 import type {
   GenerateTripDayVariantsParams,
   GenerateTripOutfitsParams,
@@ -26,13 +26,11 @@ export const tripOutfitsService = {
       body: params,
     });
 
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message ?? 'Failed to generate trip outfits.');
-    }
+    const data = unwrapOrThrow(response, 'Failed to generate trip outfits.');
 
     return {
-      tripId: response.data.tripId,
-      days: response.data.days.map((day) => ({
+      tripId: data.tripId,
+      days: data.days.map((day) => ({
         ...day,
         sketchStatus: 'not_started' as const,
         feedback: null,
@@ -46,12 +44,10 @@ export const tripOutfitsService = {
       body: params,
     });
 
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message ?? 'Failed to regenerate day outfit.');
-    }
+    const data = unwrapOrThrow(response, 'Failed to regenerate day outfit.');
 
     return {
-      ...response.data.day,
+      ...data.day,
       sketchStatus: 'not_started' as const,
       feedback: null,
     };
@@ -63,11 +59,9 @@ export const tripOutfitsService = {
       body: params,
     });
 
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message ?? 'Failed to generate outfit variants.');
-    }
+    const data = unwrapOrThrow(response, 'Failed to generate outfit variants.');
 
-    return response.data.variants.map((variant) => ({
+    return data.variants.map((variant) => ({
       ...variant,
       sketchStatus: 'not_started' as const,
       feedback: null,
@@ -80,11 +74,7 @@ export const tripOutfitsService = {
       body: params,
     });
 
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message ?? 'Could not update this day.');
-    }
-
-    return response.data;
+    return unwrapOrThrow(response, 'Could not update this day.');
   },
 
   async startDaySketch(params: {
