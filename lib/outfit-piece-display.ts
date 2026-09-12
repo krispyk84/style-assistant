@@ -40,6 +40,8 @@ export type LabeledPiece = {
   confidencePercent: number;
   isAnchor?: boolean;
   category?: TripItemCategory;
+  /** The piece's own dominant-color name (OutfitPiece.metadata.color), when structured metadata exists. Resolved to a display swatch via lib/outfit-color-swatch.ts. */
+  colorName?: string;
 };
 
 // ── Trip categorisation ────────────────────────────────────────────────────────

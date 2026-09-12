@@ -12,6 +12,7 @@ import {
   type LabeledPiece,
   type TripItemCategory,
 } from '@/lib/outfit-piece-display';
+import { resolveOutfitColorHex } from '@/lib/outfit-color-swatch';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -134,6 +135,31 @@ function OwnedHint({ visible }: { visible: boolean }) {
   );
 }
 
+// ── Color swatch (labeled mode only) ───────────────────────────────────────────
+
+/**
+ * Small square swatch shown beside a suggested item's name, in "The Look"
+ * only — never beside the category label. A consistent border keeps light
+ * colors (white/ivory/cream) visible against the card's own light surface,
+ * matching every other swatch rather than special-casing light colors.
+ */
+function ColorSwatch({ hex }: { hex: string }) {
+  const { theme } = useTheme();
+  return (
+    <View
+      style={{
+        backgroundColor: hex,
+        borderColor: theme.colors.border,
+        borderRadius: 4,
+        borderWidth: 1,
+        height: 16,
+        marginTop: 3,
+        width: 16,
+      }}
+    />
+  );
+}
+
 // ── Labeled mode ──────────────────────────────────────────────────────────────
 
 type ListChildProps = {
@@ -153,6 +179,7 @@ function LabeledList({ pieces, regeneratingMatches, onPiecePress, hideOwnershipI
 
       {pieces.map((piece) => {
         const isRematching = (!piece.isAnchor && regeneratingMatches?.has(piece.value)) ?? false;
+        const swatchHex = resolveOutfitColorHex(piece.colorName);
         return (
           <View key={`${piece.label}-${piece.value}`} style={{ gap: spacing.xs }}>
             {/* Match checkmark sits next to the category label — short and
@@ -172,7 +199,13 @@ function LabeledList({ pieces, regeneratingMatches, onPiecePress, hideOwnershipI
                 </Pressable>
               ) : null}
             </View>
-            <AppText tone="muted">{piece.value}</AppText>
+            {/* Swatch sits beside the item NAME, never the category label
+                above — aligned to the first line via ColorSwatch's own
+                marginTop, so a long wrapping name doesn't push it down. */}
+            <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+              {swatchHex ? <ColorSwatch hex={swatchHex} /> : null}
+              <AppText tone="muted" style={{ flex: 1 }}>{piece.value}</AppText>
+            </View>
           </View>
         );
       })}

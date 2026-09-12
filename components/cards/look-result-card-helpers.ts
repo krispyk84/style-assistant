@@ -73,17 +73,32 @@ export function buildLabeledPieces(
     })
     .map((piece, index) => {
       const normalized = normalizePiece(piece);
-      return { label: uniqueLabel(labelForKeyPiece(normalized, index), usedLabels), value: normalized.display_name, piece: normalized };
+      return {
+        label: uniqueLabel(labelForKeyPiece(normalized, index), usedLabels),
+        value: normalized.display_name,
+        colorName: normalized.metadata?.color,
+        piece: normalized,
+      };
     });
 
   const shoeSlots = recommendation.shoes.map((shoe, index) => {
     const normalized = normalizePiece(shoe);
-    return { label: uniqueLabel(index === 0 ? 'Shoes' : `Shoe ${index + 1}`, usedLabels), value: normalized.display_name, piece: normalized };
+    return {
+      label: uniqueLabel(index === 0 ? 'Shoes' : `Shoe ${index + 1}`, usedLabels),
+      value: normalized.display_name,
+      colorName: normalized.metadata?.color,
+      piece: normalized,
+    };
   });
 
   const accessorySlots = recommendation.accessories.map((accessory, index) => {
     const normalized = normalizePiece(accessory);
-    return { label: uniqueLabel(`Accessory ${index + 1}`, usedLabels), value: normalized.display_name, piece: normalized };
+    return {
+      label: uniqueLabel(`Accessory ${index + 1}`, usedLabels),
+      value: normalized.display_name,
+      colorName: normalized.metadata?.color,
+      piece: normalized,
+    };
   });
 
   const nonAnchorSlots = [...keySlots, ...shoeSlots, ...accessorySlots];

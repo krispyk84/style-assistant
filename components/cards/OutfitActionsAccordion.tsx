@@ -11,9 +11,10 @@ type OutfitActionsAccordionProps = {
 };
 
 /**
- * Collapsed-by-default "Actions" section shared by every outfit card — Love/Hate
- * stay outside it, always visible, everything else (Save, Add to week, Selfie
- * Check, Second Opinion, Ask Questions, Redo sketch) lives inside.
+ * Collapsed-by-default "Actions" section shared by every outfit card. Save
+ * outfit and Add to week now live outside it, directly below the sketch,
+ * always visible — same as Love/Hate. Everything else (Selfie Check, Second
+ * Opinion, Ask Questions, Redo sketch) lives inside.
  */
 export function OutfitActionsAccordion({ children }: OutfitActionsAccordionProps) {
   const { theme } = useTheme();

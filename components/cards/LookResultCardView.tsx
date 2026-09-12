@@ -121,6 +121,27 @@ export function LookResultCardView({
         borderRadius={0}
       />
 
+      {/* Primary actions — always visible, directly below the sketch, outside
+          the collapsible ACTIONS section below (which now holds only the
+          secondary tools). */}
+      <View style={{ flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+        <Pressable
+          disabled={isSaved || isSaving || !onSave}
+          onPress={onSave}
+          style={[quietButtonStyle, isSaved ? { backgroundColor: theme.colors.border } : null]}>
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+            <AppIcon color={theme.colors.text} name="bookmark" size={16} />
+            <AppText style={{ fontSize: 13 }}>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}</AppText>
+          </View>
+        </Pressable>
+        <Pressable disabled={!onAddToWeek} onPress={onAddToWeek} style={quietButtonStyle}>
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+            <AppIcon color={theme.colors.text} name="calendar" size={16} />
+            <AppText style={{ fontSize: 13 }}>Add to week</AppText>
+          </View>
+        </Pressable>
+      </View>
+
       <View style={{ gap: spacing.lg, padding: spacing.lg }}>
         {/* Stylist rationale — comes before the itemized breakdown, matching how a stylist actually explains a look */}
         <View style={{ gap: spacing.xs }}>
@@ -158,24 +179,6 @@ export function LookResultCardView({
         ) : null}
 
         <OutfitActionsAccordion>
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <Pressable
-              disabled={isSaved || isSaving || !onSave}
-              onPress={onSave}
-              style={[quietButtonStyle, isSaved ? { backgroundColor: theme.colors.border } : null]}>
-              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-                <AppIcon color={theme.colors.text} name="bookmark" size={16} />
-                <AppText style={{ fontSize: 13 }}>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save outfit'}</AppText>
-              </View>
-            </Pressable>
-            <Pressable disabled={!onAddToWeek} onPress={onAddToWeek} style={quietButtonStyle}>
-              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-                <AppIcon color={theme.colors.text} name="calendar" size={16} />
-                <AppText style={{ fontSize: 13 }}>Add to week</AppText>
-              </View>
-            </Pressable>
-          </View>
-
           <Pressable
             onPress={() => router.push(detailHref)}
             style={[primaryButtonStyle, { backgroundColor: theme.colors.text, flexDirection: 'row', gap: spacing.xs }]}>
