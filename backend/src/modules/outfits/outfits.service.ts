@@ -23,11 +23,11 @@ import {
   buildAccessoryShortlist,
   buildFrameworkBreakdown,
   buildOutfitSlotShortlists,
+  classifyItemsBySlot,
   fillMissingRequiredSlots,
   normalizeSuitDualRole,
 } from '../closet/closet-outfit-builder.js';
 import {
-  ACCESSORY_GROUPS,
   FORMALITY_RANK,
   resolveGarmentGroup,
   GROUP_TO_SLOTS,
@@ -209,30 +209,6 @@ export function buildTierRoleShortlists(params: {
 
 function isSuit(item: BuilderItem | undefined): boolean {
   return !!item && resolveGarmentGroup(item) === 'suit';
-}
-
-// Classifies a flat resolved item-id list back into slots (plus any multi-
-// pick "Additional Accessories" items) for the framework breakdown — mirrors
-// closet-outfits.service.ts's/trips.service.ts's equivalent.
-function classifyItemsBySlot(
-  itemIds: string[],
-  itemsById: Map<string, BuilderItem>,
-): { bySlot: Partial<Record<OutfitSlot, BuilderItem>>; accessoryItems: BuilderItem[] } {
-  const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
-  const accessoryItems: BuilderItem[] = [];
-  for (const id of itemIds) {
-    const item = itemsById.get(id);
-    if (!item) continue;
-    const group = resolveGarmentGroup(item);
-    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
-    if (slot) {
-      bySlot[slot] = item;
-    } else if (group && ACCESSORY_GROUPS.includes(group)) {
-      accessoryItems.push(item);
-    }
-  }
-  normalizeSuitDualRole(bySlot);
-  return { bySlot, accessoryItems };
 }
 
 const KEY_PIECE_SLOTS: OutfitSlot[] = ['bottoms', 'primaryTop', 'secondaryTop', 'thermalLayer', 'outerwear'];
