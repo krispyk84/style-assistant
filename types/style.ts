@@ -1,7 +1,5 @@
 import type { CreateLookInput, LookRecommendation } from '@/types/look-request';
 
-export type OutfitTierKey = 'essential' | 'refined' | 'editorial';
-
 export type AnchorItem = {
   id: string;
   name: string;
