@@ -1,83 +1,77 @@
-import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { recordError } from '@/lib/crashlytics';
 import { outfitsService } from '@/services/outfits';
 import type { GenerateOutfitsResponse } from '@/types/api';
-import type { LookTierSlug } from '@/types/look-request';
+
+/**
+ * One thing to poll: `key` is whatever identity the caller uses to apply the
+ * result back to its own state (a fixed sentinel for the single-response
+ * caller, the requestId itself for the multi-look caller); `requestId` is
+ * always the actual outfitsService.getOutfitResult() argument. The two are
+ * often the same value (MultiLookResults) but don't have to be
+ * ([requestId].tsx uses a fixed key since it only ever has one response).
+ */
+export type ResultsPollTarget = { key: string; requestId: string };
 
 type UseResultsPollingParams = {
-  response: GenerateOutfitsResponse | null;
-  // loadingTiers is owned by useResultsData and passed here as a read-only gate.
-  // The poll must not start until loadingTiers drains to [] — otherwise a server
-  // response containing only already-finished tiers would overwrite the client-merged
-  // partial response that holds in-flight tier placeholders.
-  loadingTiers: LookTierSlug[];
-  regeneratingTiersRef: MutableRefObject<LookTierSlug[]>;
-  setResponse: Dispatch<SetStateAction<GenerateOutfitsResponse | null>>;
+  /** Recomputed by the caller on every render from its own pending-detection
+   * logic — this hook derives its own stable signature from the CONTENT
+   * (key+requestId pairs), not from array identity, so passing a fresh
+   * array each render is safe and does not recreate the interval unless the
+   * actual set of targets changes. */
+  targets: ResultsPollTarget[];
+  /** Called once per target that successfully returns data on a tick. The
+   * caller owns applying this to its own state shape (a full replace for a
+   * single independent slot, or a merge that protects in-flight
+   * regeneration for the single-response/multi-tier caller). */
+  onResult: (key: string, data: GenerateOutfitsResponse) => void;
 };
 
-export function useResultsPolling({
-  response,
-  loadingTiers,
-  regeneratingTiersRef,
-  setResponse,
-}: UseResultsPollingParams) {
-  const requestId = response?.requestId;
-  // Changes only on a real per-tier sketch-status transition (e.g. pending -> ready),
-  // not on every poll tick — setResponse below always produces a fresh response object
-  // even when nothing actually changed, so depending on `response` itself would tear
-  // down and recreate the interval every 4s.
-  const pendingSignature = response?.recommendations.map((item) => `${item.tier}:${item.sketchStatus}`).join(',') ?? '';
+const POLL_INTERVAL_MS = 4000;
+
+/**
+ * Shared polling primitive for both results screens: batches N independent
+ * `getOutfitResult` polls on one interval, single-flight-guarded as ONE
+ * batch (a slow tick never overlaps with the next), and never lets a
+ * rejected request become an unhandled promise rejection. Depends on a
+ * signature string derived from `targets`' content rather than `targets`
+ * itself, so a caller recomputing a fresh array every render (because its
+ * own state changed) does not tear down and recreate the interval unless
+ * the actual set of things needing a poll changed.
+ */
+export function useResultsPolling({ targets, onResult }: UseResultsPollingParams) {
+  const signature = targets.map((t) => `${t.key}:${t.requestId}`).join(',');
   const isPollingRef = useRef(false);
 
   useEffect(() => {
-    // Wait until all tiers are loaded before polling for sketches — otherwise the server
-    // response would only contain the tiers already saved (potentially just 1) and would
-    // overwrite the client-merged partial response.
-    if (loadingTiers.length > 0) return;
-
-    if (!requestId || !response?.recommendations.some((item) => item.sketchStatus === 'pending')) {
-      return;
-    }
+    if (!targets.length) return;
 
     const interval = setInterval(async () => {
-      // Skip this tick if the previous one is still awaiting — a slow response
-      // must not overlap with the next scheduled poll.
+      // Skip this tick if the previous one is still awaiting — a slow
+      // response must not overlap with the next scheduled poll.
       if (isPollingRef.current) return;
       isPollingRef.current = true;
       try {
-        const serviceResponse = await outfitsService.getOutfitResult(requestId);
-
-        if (serviceResponse.success && serviceResponse.data) {
-          setResponse((current) => {
-            if (!current || !serviceResponse.data) return current;
-            const protecting = regeneratingTiersRef.current;
-            // If no tiers are mid-regeneration, apply the full server response as-is.
-            if (protecting.length === 0) return serviceResponse.data;
-            // Otherwise preserve the in-flight state for any tier currently being regenerated
-            // so stale server data doesn't overwrite a pending regeneration.
-            return {
-              ...serviceResponse.data,
-              recommendations: serviceResponse.data.recommendations.map((newRec) =>
-                protecting.includes(newRec.tier)
-                  ? (current.recommendations.find((r) => r.tier === newRec.tier) ?? newRec)
-                  : newRec,
-              ),
-            };
-          });
-        }
+        await Promise.all(
+          targets.map(async ({ key, requestId }) => {
+            const result = await outfitsService.getOutfitResult(requestId);
+            if (result.success && result.data) onResult(key, result.data);
+          }),
+        );
       } catch (error) {
-        // outfitsService.getOutfitResult goes through ApiClient.request, which
-        // never rejects in practice — this exists so a poll tick can never
-        // become an unhandled rejection if that contract ever changes.
+        // outfitsService.getOutfitResult goes through ApiClient.request,
+        // which never rejects in practice — this exists so a poll tick can
+        // never become an unhandled rejection if that contract ever changes.
         recordError(error, 'results_polling_tick_failed');
       } finally {
         isPollingRef.current = false;
       }
-    }, 4000);
+    }, POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
-    // regeneratingTiersRef and setResponse are stable (ref + setState dispatcher) — omitted intentionally.
+    // targets/onResult are recomputed every render by design — signature is
+    // the real, content-based dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestId, pendingSignature, loadingTiers.length]);
+  }, [signature]);
 }

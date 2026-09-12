@@ -5,6 +5,7 @@ import { seasonalColorsService } from '../modules/seasonal-colors/seasonal-color
 import { colorSwatchSketchService } from '../modules/seasonal-colors/color-swatch-sketch.service.js';
 import { haircutTrendsService } from '../modules/haircut-trends/haircut-trends.service.js';
 import { haircutService } from '../modules/haircut/haircut.service.js';
+import { closetSketchService } from '../modules/closet/closet-sketch.service.js';
 
 // Server-side "auto load at the first opportunity after a new season starts"
 // refresh — decouples generation from any single user opening a report.
@@ -59,6 +60,13 @@ function runSketchRetrySweep() {
   });
   haircutService.retryStuckAngleShots().catch((error) => {
     logger.error({ error }, 'Haircut angle shot retry sweep failed to fire');
+  });
+  // Same failure mode again (a restart orphans an in-flight closet/outfit/
+  // trip sketch, leaving the row stuck at 'pending' with nothing left to
+  // ever write its terminal status) — reconciled to 'failed' rather than
+  // retried, since ClosetSketchJob has no persisted prompt-rebuild data.
+  closetSketchService.reconcileStaleSketchJobs().catch((error) => {
+    logger.error({ error }, 'Closet sketch job reconcile sweep failed to fire');
   });
 }
 

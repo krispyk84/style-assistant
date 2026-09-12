@@ -3,12 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   buildTierRoleShortlists,
   resolveClosetOnlyRecommendation,
-  weatherGates,
   type BuilderItem,
   type TierRoleIdSets,
 } from '../outfits.service.js';
 import type { ClosetOnlyOutfitRecommendation } from '../outfits.schemas.js';
-import type { TierSlug } from '../../closet/closet-taxonomy.js';
+import { weatherGates, type TierSlug } from '../../closet/closet-taxonomy.js';
 
 // ── What this file is ───────────────────────────────────────────────────────
 //
@@ -40,10 +39,13 @@ import type { TierSlug } from '../../closet/closet-taxonomy.js';
 // place to assert the new, correct behavior once the fix landed, with a
 // comment noting what it asserted before.
 //
-// resolveClosetOnlyRecommendation/buildTierRoleShortlists/weatherGates were
-// exported from outfits.service.ts (no behavior change on their own) so this
-// file can unit-test the real resolution logic directly, without mocking the
-// OpenAI call, DB, or profile/style-guide lookups this module also depends on.
+// resolveClosetOnlyRecommendation/buildTierRoleShortlists were exported from
+// outfits.service.ts (no behavior change on their own) so this file can
+// unit-test the real resolution logic directly, without mocking the OpenAI
+// call, DB, or profile/style-guide lookups this module also depends on.
+// weatherGates itself now lives in closet-taxonomy.ts (hoisted — it was
+// byte-identical across outfits.service.ts/trips.service.ts/
+// closet-outfits.service.ts) and is imported from there below.
 
 function makeItem(overrides: {
   id: string;

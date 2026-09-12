@@ -20,11 +20,17 @@ function fakeResponse(requestId: string, statuses: ('pending' | 'ready')[]): Gen
   } as unknown as GenerateOutfitsResponse;
 }
 
-function poll(response: GenerateOutfitsResponse) {
-  const setResponse = vi.fn();
-  const regeneratingTiersRef = { current: [] as LookTierSlug[] };
-  const rendered = renderHook(() => useResultsPolling({ response, loadingTiers: [], regeneratingTiersRef, setResponse }));
-  return { ...rendered, setResponse };
+// Phase R3B: useResultsPolling is now a generic N-target batch poller (both
+// [requestId].tsx and MultiLookResults.tsx call the same hook) — these
+// tests exercise it the way the single-response caller does: one target,
+// key === 'main', requestId fixed. The batching/isolation behavior across
+// MULTIPLE simultaneous targets is covered by
+// MultiLookResults.characterization.test.tsx, which is the real multi-target
+// caller; duplicating that here would just be the same assertions twice.
+function poll(requestId: string) {
+  const onResult = vi.fn();
+  const rendered = renderHook(() => useResultsPolling({ targets: [{ key: 'main', requestId }], onResult }));
+  return { ...rendered, onResult };
 }
 
 beforeEach(() => {
@@ -37,11 +43,11 @@ afterEach(() => {
 });
 
 describe('useResultsPolling', () => {
-  it('only one async poll can be active at a time — an overlapping tick is skipped, not run in parallel', async () => {
+  it('only one async poll batch can be active at a time — an overlapping tick is skipped, not run in parallel', async () => {
     let resolveFirst!: (value: unknown) => void;
     getOutfitResultMock.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }));
 
-    poll(fakeResponse('req-1', ['pending']));
+    poll('req-1');
 
     await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     expect(getOutfitResultMock).toHaveBeenCalledTimes(1);
@@ -56,13 +62,14 @@ describe('useResultsPolling', () => {
     });
   });
 
-  it('polling continues normally after the active request completes', async () => {
+  it('polling continues normally after the active request completes, and onResult is called with the target\'s key', async () => {
     getOutfitResultMock.mockResolvedValue({ success: true, data: fakeResponse('req-1', ['pending']) });
 
-    poll(fakeResponse('req-1', ['pending']));
+    const { onResult } = poll('req-1');
 
     await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     expect(getOutfitResultMock).toHaveBeenCalledTimes(1);
+    expect(onResult).toHaveBeenCalledWith('main', fakeResponse('req-1', ['pending']));
     await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     expect(getOutfitResultMock).toHaveBeenCalledTimes(2);
   });
@@ -70,7 +77,7 @@ describe('useResultsPolling', () => {
   it('cleanup (unmount) stops polling', async () => {
     getOutfitResultMock.mockResolvedValue({ success: true, data: fakeResponse('req-1', ['pending']) });
 
-    const { unmount } = poll(fakeResponse('req-1', ['pending']));
+    const { unmount } = poll('req-1');
 
     await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     expect(getOutfitResultMock).toHaveBeenCalledTimes(1);
@@ -80,8 +87,9 @@ describe('useResultsPolling', () => {
     expect(getOutfitResultMock).toHaveBeenCalledTimes(1); // no further calls after unmount
   });
 
-  it('the completion condition (no pending tiers) never schedules a poll at all', async () => {
-    poll(fakeResponse('req-1', ['ready']));
+  it('an empty target list never schedules a poll at all', async () => {
+    const onResult = vi.fn();
+    renderHook(() => useResultsPolling({ targets: [], onResult }));
     await act(async () => { await vi.advanceTimersByTimeAsync(8000); });
     expect(getOutfitResultMock).not.toHaveBeenCalled();
   });
@@ -91,12 +99,28 @@ describe('useResultsPolling', () => {
       .mockRejectedValueOnce(new Error('network blip'))
       .mockResolvedValueOnce({ success: true, data: fakeResponse('req-1', ['pending']) });
 
-    poll(fakeResponse('req-1', ['pending']));
+    poll('req-1');
 
     await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     expect(recordErrorMock).toHaveBeenCalledWith(expect.any(Error), 'results_polling_tick_failed');
 
     await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     expect(getOutfitResultMock).toHaveBeenCalledTimes(2); // the failed tick didn't kill polling
+  });
+
+  it('a stable target list (same key+requestId content, fresh array each render) does not recreate the interval', async () => {
+    getOutfitResultMock.mockResolvedValue({ success: true, data: fakeResponse('req-1', ['pending']) });
+    const onResult = vi.fn();
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+
+    const { rerender } = renderHook(
+      ({ requestId }) => useResultsPolling({ targets: [{ key: 'main', requestId }], onResult }),
+      { initialProps: { requestId: 'req-1' } },
+    );
+    const callsAfterMount = setIntervalSpy.mock.calls.length;
+
+    // Fresh array, same content — must not recreate the interval.
+    rerender({ requestId: 'req-1' });
+    expect(setIntervalSpy.mock.calls.length).toBe(callsAfterMount);
   });
 });

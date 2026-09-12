@@ -1,6 +1,7 @@
 import {
   ACCESSORY_GROUPS,
   FORMALITY_RANK,
+  GROUP_TO_SLOTS,
   resolveGarmentGroup,
   SLOT_GROUPS,
   TIER_ALLOWS_SUIT,
@@ -161,6 +162,68 @@ export function buildDeterministicOutfit<TItem extends BuilderClosetItem>(
     itemIds: Object.values(bySlot).map((item) => (item as TItem).id),
     bySlot,
   };
+}
+
+// Previously duplicated verbatim in trips.service.ts and
+// closet-outfits.service.ts — both now call this. Used for the narrower
+// "add a hat/bag to an already-composed outfit" toggle: a single accessory
+// pick via the same deterministic builder above, rather than a full
+// re-generation.
+export function pickAccessory<TItem extends BuilderClosetItem>(
+  group: 'hat' | 'bag',
+  closetItems: TItem[],
+  tier: TierSlug,
+  targetFormalityRank: number,
+  excludeItemIds: ReadonlySet<string>,
+): TItem | null {
+  const candidates = closetItems.filter((item) => resolveGarmentGroup(item) === group);
+  const result = buildDeterministicOutfit({
+    closetItems: candidates,
+    targetFormalityRank,
+    tier,
+    includeThermalLayer: false,
+    includeOuterwear: false,
+    includeHat: group === 'hat',
+    includeBag: group === 'bag',
+    excludeItemIds,
+  });
+  return result.bySlot.hat ?? result.bySlot.bag ?? null;
+}
+
+// Previously duplicated verbatim in closet-outfits.service.ts's
+// updateOutfitAccessories and trips.service.ts's updateDayAccessories — both
+// now call this. Applies a hat/bag ON/OFF toggle to an already-resolved flat
+// item-id list: removes the current hat/bag when toggled off, adds one via
+// pickAccessory when toggled on and currently absent, and leaves every other
+// item id untouched (including an already-present hat/bag left ON, which is
+// never re-picked or duplicated). Each caller resolves its own tier/
+// targetFormalityRank/itemsById from its own engine-specific fields — this
+// function only orchestrates the toggle itself, not tier derivation.
+export function applyHatBagToggles<TItem extends BuilderClosetItem>(params: {
+  itemIds: string[];
+  itemsById: Map<string, TItem>;
+  closetItems: TItem[];
+  tier: TierSlug;
+  targetFormalityRank: number;
+  includeHat: boolean;
+  includeBag: boolean;
+}): string[] {
+  const currentHatId = params.itemIds.find((id) => resolveGarmentGroup(params.itemsById.get(id)!) === 'hat');
+  const currentBagId = params.itemIds.find((id) => resolveGarmentGroup(params.itemsById.get(id)!) === 'bag');
+
+  let itemIds = params.itemIds.filter((id) => id !== currentHatId || params.includeHat);
+  itemIds = itemIds.filter((id) => id !== currentBagId || params.includeBag);
+
+  if (params.includeHat && !currentHatId) {
+    const hat = pickAccessory('hat', params.closetItems, params.tier, params.targetFormalityRank, new Set(itemIds));
+    if (hat) itemIds.push(hat.id);
+  }
+  if (params.includeBag && !currentBagId) {
+    const bag = pickAccessory('bag', params.closetItems, params.tier, params.targetFormalityRank, new Set(itemIds));
+    if (bag) itemIds.push(bag.id);
+  }
+
+  return itemIds;
 }
 
 export type SlotShortlists<TItem> = Partial<Record<OutfitSlot, TItem[]>>;
@@ -356,6 +419,39 @@ export function fillMissingRequiredSlots<TItem extends BuilderClosetItem>(params
     const picked = fresh ?? candidates[0];
     if (picked) params.bySlot[slot] = picked;
   }
+}
+
+// Previously duplicated verbatim as classifyItemsBySlot in
+// closet-outfits.service.ts and buildBySlotFromItemIds in trips.service.ts —
+// both now call this. Classifies an already-resolved flat item-id list back
+// into slots (plus any multi-pick "Additional Accessories" items, which don't
+// fit a single-item slot) for framework/DTO display — used by resolveChoiceOutfits,
+// generateDayVariants, and both hat/bag accessory-toggle endpoints. This is a
+// display-reconstruction step only: every caller already guarantees at most
+// one non-suit item per slot BEFORE calling this (each engine's own
+// generation-time duplicate handling runs upstream) — this function does not
+// itself decide which item wins a slot. normalizeSuitDualRole re-promotes a
+// suit's single flat id into both its structural slots for correct display;
+// it does not re-arbitrate anything either.
+export function classifyItemsBySlot<TItem extends BuilderClosetItem>(
+  itemIds: string[],
+  itemsById: Map<string, TItem>,
+): { bySlot: Partial<Record<OutfitSlot, TItem>>; accessoryItems: TItem[] } {
+  const bySlot: Partial<Record<OutfitSlot, TItem>> = {};
+  const accessoryItems: TItem[] = [];
+  for (const id of itemIds) {
+    const item = itemsById.get(id);
+    if (!item) continue;
+    const group = resolveGarmentGroup(item);
+    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
+    if (slot) {
+      bySlot[slot] = item;
+    } else if (group && ACCESSORY_GROUPS.includes(group)) {
+      accessoryItems.push(item);
+    }
+  }
+  normalizeSuitDualRole(bySlot);
+  return { bySlot, accessoryItems };
 }
 
 // ── Framework breakdown — for displaying the enforced structure on cards ────

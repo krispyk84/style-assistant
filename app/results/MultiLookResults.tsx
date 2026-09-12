@@ -17,16 +17,8 @@ import { useTheme } from '@/contexts/theme-context';
 import { useTrendiness } from '@/hooks/use-trendiness';
 import { closetService } from '@/services/closet';
 import { findBestClosetMatch } from '@/lib/closet-match';
-import {
-  buildSavedOutfitId,
-  loadSavedOutfits,
-  saveSavedOutfit,
-} from '@/lib/saved-outfits-storage';
-import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
-import {
-  loadRecommendationFeedback,
-  saveRecommendationFeedback,
-} from '@/lib/recommendation-feedback-storage';
+import { buildSavedOutfitId, loadSavedOutfits } from '@/lib/saved-outfits-storage';
+import { loadRecommendationFeedback } from '@/lib/recommendation-feedback-storage';
 import { buildSelfieReviewHref } from '@/lib/look-route';
 import { outfitsService } from '@/services/outfits';
 import type { GenerateOutfitsResponse, VariationSummary } from '@/types/api';
@@ -39,10 +31,9 @@ import {
   type OutfitPiece,
 } from '@/types/look-request';
 import { useToast } from '@/components/ui/toast-provider';
-import { trackSaveOutfit, trackAddToWeek } from '@/lib/analytics';
 import { buildSecondOpinionSubject } from '@/lib/outfit-utils';
-
-const SKETCH_POLL_INTERVAL_MS = 4000;
+import { useResultsPolling, type ResultsPollTarget } from './useResultsPolling';
+import { performSaveOutfit, performAssignToWeek, performOutfitFeedback } from './result-actions';
 
 type SlotState = {
   requestId: string;
@@ -105,7 +96,7 @@ export function MultiLookResults({
   const [savingRequestId, setSavingRequestId] = useState<string | null>(null);
   const [weekPickerRequestId, setWeekPickerRequestId] = useState<string | null>(null);
   const [secondOpinionRequestId, setSecondOpinionRequestId] = useState<string | null>(null);
-  const [feedbackMap, setFeedbackMap] = useState<Record<string, 'love' | 'hate'>>({});
+  const [feedbackMap, setFeedbackMap] = useState<Partial<Record<string, 'love' | 'hate'>>>({});
 
   // ── Closet items (shared across all variations) ────────────────────────────
   const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
@@ -212,27 +203,21 @@ export function MultiLookResults({
   }, []);
 
   // ── Sketch polling: poll each pending slot every 4s ────────────────────────
-  useEffect(() => {
-    const pendingSlots = slots.filter((slot) => {
-      if (!slot.response) return false;
-      return slot.response.recommendations.some((r) => r.sketchStatus === 'pending');
-    });
-    if (!pendingSlots.length) return;
-
-    const interval = setInterval(async () => {
-      await Promise.all(
-        pendingSlots.map(async (slot) => {
-          const result = await outfitsService.getOutfitResult(slot.requestId);
-          if (!result.success || !result.data) return;
-          setSlots((prev) =>
-            prev.map((s) => (s.requestId === slot.requestId ? { ...s, response: result.data } : s)),
-          );
-        }),
-      );
-    }, SKETCH_POLL_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [slots]);
+  // Shared with the single-response results screen (useResultsPolling.ts) —
+  // this component's own key IS its requestId, one target per pending slot.
+  const pollTargets: ResultsPollTarget[] = useMemo(
+    () =>
+      slots
+        .filter((slot) => slot.response?.recommendations.some((r) => r.sketchStatus === 'pending'))
+        .map((slot) => ({ key: slot.requestId, requestId: slot.requestId })),
+    [slots],
+  );
+  useResultsPolling({
+    targets: pollTargets,
+    onResult: (key, data) => {
+      setSlots((prev) => prev.map((s) => (s.requestId === key ? { ...s, response: data } : s)));
+    },
+  });
 
   // ── Per-slot match lookup (initial deterministic match; rematch via thumbs-down deferred) ──
   const matchMaps = useMemo(() => {
@@ -262,22 +247,27 @@ export function MultiLookResults({
   }, [slots, closetItems, tier]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
+  // Save/assign/feedback bodies are shared with the single-response results
+  // screen (result-actions.ts) — each was byte-for-byte identical to
+  // useResultsActions.ts's equivalent except for which identity (tier vs
+  // requestId) it resolves state from; this component still owns resolving
+  // its own slot/recommendation and its own state shape (savedOutfitIds,
+  // savingRequestId, feedbackMap), same as before.
   async function handleSave(slot: SlotState) {
     if (!slot.response) return;
     const recommendation = slot.response.recommendations.find((r) => r.tier === tier);
     if (!recommendation) return;
-    const savedId = buildSavedOutfitId(slot.requestId, tier, slot.tierGeneration);
-    if (savedOutfitIds.includes(savedId)) return;
-    setSavingRequestId(slot.requestId);
-    try {
-      await saveSavedOutfit(slot.response.input, { ...recommendation }, slot.requestId, slot.tierGeneration);
-      setSavedOutfitIds((prev) => [...prev, savedId]);
-      trackSaveOutfit({ tier });
-      showToast('Outfit saved to history.');
-    } catch {
-      showToast('Could not save this outfit.', 'error');
-    }
-    setSavingRequestId(null);
+    await performSaveOutfit({
+      requestId: slot.requestId,
+      tier,
+      tierGeneration: slot.tierGeneration,
+      input: slot.response.input,
+      recommendation,
+      savedOutfitIds,
+      setSaving: (isSaving) => setSavingRequestId(isSaving ? slot.requestId : null),
+      onSaved: (savedOutfitId) => setSavedOutfitIds((prev) => [...prev, savedOutfitId]),
+      showToast,
+    });
   }
 
   async function handleAssignToWeek(dayKey: string, dayLabel: string) {
@@ -286,13 +276,15 @@ export function MultiLookResults({
     if (!slot?.response) return;
     const recommendation = slot.response.recommendations.find((r) => r.tier === tier);
     if (!recommendation) return;
-    try {
-      await assignOutfitToWeekDay(dayKey, dayLabel, slot.response.input, { ...recommendation }, slot.requestId);
-      trackAddToWeek({ tier, day_label: dayLabel });
-      showToast(`Added to ${dayLabel}.`);
-    } catch {
-      showToast('Could not add this outfit to your week.', 'error');
-    }
+    await performAssignToWeek({
+      dayKey,
+      dayLabel,
+      requestId: slot.requestId,
+      tier,
+      input: slot.response.input,
+      recommendation,
+      showToast,
+    });
     setWeekPickerRequestId(null);
   }
 
@@ -300,25 +292,16 @@ export function MultiLookResults({
     if (!slot.response) return;
     const recommendation = slot.response.recommendations.find((r) => r.tier === tier);
     if (!recommendation) return;
-    if (feedbackMap[slot.requestId] === thumb) {
-      setFeedbackMap((prev) => {
-        const next = { ...prev };
-        delete next[slot.requestId];
-        return next;
-      });
-      return;
-    }
-    setFeedbackMap((prev) => ({ ...prev, [slot.requestId]: thumb }));
-    await saveRecommendationFeedback({
-      id: `${slot.requestId}:${tier}:outfit`,
+    await performOutfitFeedback({
+      key: slot.requestId,
       requestId: slot.requestId,
       tier,
-      outfitTitle: recommendation.title,
+      recommendationTitle: recommendation.title,
       thumb,
-      regenerated: false,
-      createdAt: new Date().toISOString(),
+      currentFeedback: feedbackMap[slot.requestId],
+      setFeedbackMap,
+      showToast,
     });
-    showToast(thumb === 'love' ? 'Noted — glad you love it.' : "Noted — we'll keep that in mind.");
   }
 
   // ── Initial loading gate (closet modal + at least one slot in flight) ──────

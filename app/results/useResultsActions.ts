@@ -4,12 +4,10 @@ import type { Dispatch, SetStateAction } from 'react';
 import { outfitsService } from '@/services/outfits';
 import type { GenerateOutfitsResponse } from '@/types/api';
 import { type LookTierSlug } from '@/types/look-request';
-import { buildSavedOutfitId, loadSavedOutfits, saveSavedOutfit } from '@/lib/saved-outfits-storage';
-import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
-import { loadRecommendationFeedback, saveRecommendationFeedback } from '@/lib/recommendation-feedback-storage';
+import { buildSavedOutfitId, loadSavedOutfits } from '@/lib/saved-outfits-storage';
+import { loadRecommendationFeedback } from '@/lib/recommendation-feedback-storage';
 import { useToast } from '@/components/ui/toast-provider';
-import { trackSaveOutfit, trackAddToWeek } from '@/lib/analytics';
-import { recordError } from '@/lib/crashlytics';
+import { performSaveOutfit, performAssignToWeek, performOutfitFeedback } from './result-actions';
 
 type UseResultsActionsParams = {
   response: GenerateOutfitsResponse | null;
@@ -111,42 +109,34 @@ export function useResultsActions({
 
   async function handleSave(tier: LookTierSlug) {
     if (!response) return;
-
     const recommendation = response.recommendations.find((item) => item.tier === tier);
     if (!recommendation) return;
-
-    const savedOutfitId = buildSavedOutfitId(response.requestId, tier, tierGenerations[tier] ?? 0);
-    if (savedOutfitIds.includes(savedOutfitId)) return;
-
-    setSavingTier(tier);
-
-    try {
-      // Deep-copy the recommendation snapshot so later regenerations can't mutate what was saved.
-      await saveSavedOutfit(response.input, { ...recommendation }, response.requestId, tierGenerations[tier] ?? 0);
-      setSavedOutfitIds((current) => [...current, savedOutfitId]);
-      trackSaveOutfit({ tier });
-      showToast('Outfit saved to history.');
-    } catch {
-      showToast('Could not save this outfit.', 'error');
-    }
-
-    setSavingTier(null);
+    await performSaveOutfit({
+      requestId: response.requestId,
+      tier,
+      tierGeneration: tierGenerations[tier] ?? 0,
+      input: response.input,
+      recommendation,
+      savedOutfitIds,
+      setSaving: (isSaving) => setSavingTier(isSaving ? tier : null),
+      onSaved: (savedOutfitId) => setSavedOutfitIds((current) => [...current, savedOutfitId]),
+      showToast,
+    });
   }
 
   async function handleAssignToWeek(dayKey: string, dayLabel: string) {
     if (!response || !weekPickerTier) return;
-
     const recommendation = response.recommendations.find((item) => item.tier === weekPickerTier);
     if (!recommendation) return;
-
-    try {
-      await assignOutfitToWeekDay(dayKey, dayLabel, response.input, { ...recommendation }, response.requestId);
-      trackAddToWeek({ tier: weekPickerTier, day_label: dayLabel });
-      showToast(`Added to ${dayLabel}.`);
-    } catch {
-      showToast('Could not add this outfit to your week.', 'error');
-    }
-
+    await performAssignToWeek({
+      dayKey,
+      dayLabel,
+      requestId: response.requestId,
+      tier: weekPickerTier,
+      input: response.input,
+      recommendation,
+      showToast,
+    });
     setWeekPickerTier(null);
   }
 
@@ -154,33 +144,16 @@ export function useResultsActions({
     if (!response) return;
     const recommendation = response.recommendations.find((r) => r.tier === tier);
     if (!recommendation) return;
-    // Tapping the already-selected state deselects
-    if (outfitFeedbackMap[tier] === thumb) {
-      setOutfitFeedbackMap((prev) => { const next = { ...prev }; delete next[tier]; return next; });
-      return;
-    }
-    const previousFeedback = outfitFeedbackMap[tier];
-    setOutfitFeedbackMap((prev) => ({ ...prev, [tier]: thumb }));
-    try {
-      await saveRecommendationFeedback({
-        id: `${response.requestId}:${tier}:outfit`,
-        requestId: response.requestId,
-        tier,
-        outfitTitle: recommendation.title,
-        thumb,
-        regenerated: false,
-        createdAt: new Date().toISOString(),
-      });
-      showToast(thumb === 'love' ? 'Noted — glad you love it.' : "Noted — we'll keep that in mind.");
-    } catch (error) {
-      recordError(error, 'outfit_feedback_save');
-      setOutfitFeedbackMap((prev) => {
-        const next = { ...prev };
-        if (previousFeedback) next[tier] = previousFeedback;
-        else delete next[tier];
-        return next;
-      });
-    }
+    await performOutfitFeedback({
+      key: tier,
+      requestId: response.requestId,
+      tier,
+      recommendationTitle: recommendation.title,
+      thumb,
+      currentFeedback: outfitFeedbackMap[tier],
+      setFeedbackMap: setOutfitFeedbackMap,
+      showToast,
+    });
   }
 
   return {

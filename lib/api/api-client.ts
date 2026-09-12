@@ -73,3 +73,18 @@ export function createApiClient() {
 export function canUseRealApi() {
   return !appConfig.useMockServices && Boolean(appConfig.apiBaseUrl);
 }
+
+// Previously duplicated verbatim (or near-verbatim) across several
+// api-*-service.ts files' throw-on-failure endpoints — extracts response.data
+// on success, otherwise throws the server's own error message when present,
+// falling back to the caller-supplied message otherwise. `!response.data`
+// (not a null/undefined-only check) is intentional and preserved exactly as
+// every prior call site already had it — every endpoint currently routed
+// through this helper only ever returns object-shaped data on success, so
+// there is no legitimate falsy-but-valid value this could ever misclassify.
+export function unwrapOrThrow<T>(response: ApiResponse<T>, fallbackMessage: string): T {
+  if (!response.success || !response.data) {
+    throw new Error(response.error?.message ?? fallbackMessage);
+  }
+  return response.data;
+}

@@ -23,16 +23,17 @@ import {
   buildAccessoryShortlist,
   buildFrameworkBreakdown,
   buildOutfitSlotShortlists,
+  classifyItemsBySlot,
   fillMissingRequiredSlots,
   normalizeSuitDualRole,
 } from '../closet/closet-outfit-builder.js';
 import {
-  ACCESSORY_GROUPS,
   FORMALITY_RANK,
   resolveGarmentGroup,
   GROUP_TO_SLOTS,
   requiredSlotsForTier,
   TIER_FORMALITY_TARGET,
+  weatherGates,
   type OutfitSlot,
   type TierSlug,
 } from '../closet/closet-taxonomy.js';
@@ -116,26 +117,6 @@ export type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[
 
 // Exported for characterization tests only (see __tests__/closet-only-accessories.characterization.test.ts) —
 // no behavior change, just visibility into the closet-only accessory resolution this module already performs.
-export function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThermalLayer: boolean; includeOuterwear: boolean } {
-  const gates =
-    temperatureC == null
-      ? { includeThermalLayer: true, includeOuterwear: true }
-      : temperatureC >= 24
-        ? { includeThermalLayer: false, includeOuterwear: false }
-        : temperatureC >= 18
-          ? { includeThermalLayer: false, includeOuterwear: true }
-          : { includeThermalLayer: true, includeOuterwear: true };
-
-  // Business always has a structured secondary top (blazer or suit jacket)
-  // already providing warmth/structure — a genuine overcoat only belongs
-  // over that when it's actually cold, not just "mild-cool" like the base
-  // gate above allows for casual/smart-casual's optional secondary top.
-  if (tier === 'business' && gates.includeOuterwear && temperatureC != null) {
-    gates.includeOuterwear = temperatureC < 10;
-  }
-  return gates;
-}
-
 function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
   return {
     id: item.id,
@@ -228,30 +209,6 @@ export function buildTierRoleShortlists(params: {
 
 function isSuit(item: BuilderItem | undefined): boolean {
   return !!item && resolveGarmentGroup(item) === 'suit';
-}
-
-// Classifies a flat resolved item-id list back into slots (plus any multi-
-// pick "Additional Accessories" items) for the framework breakdown — mirrors
-// closet-outfits.service.ts's/trips.service.ts's equivalent.
-function classifyItemsBySlot(
-  itemIds: string[],
-  itemsById: Map<string, BuilderItem>,
-): { bySlot: Partial<Record<OutfitSlot, BuilderItem>>; accessoryItems: BuilderItem[] } {
-  const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
-  const accessoryItems: BuilderItem[] = [];
-  for (const id of itemIds) {
-    const item = itemsById.get(id);
-    if (!item) continue;
-    const group = resolveGarmentGroup(item);
-    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
-    if (slot) {
-      bySlot[slot] = item;
-    } else if (group && ACCESSORY_GROUPS.includes(group)) {
-      accessoryItems.push(item);
-    }
-  }
-  normalizeSuitDualRole(bySlot);
-  return { bySlot, accessoryItems };
 }
 
 const KEY_PIECE_SLOTS: OutfitSlot[] = ['bottoms', 'primaryTop', 'secondaryTop', 'thermalLayer', 'outerwear'];

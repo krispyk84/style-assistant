@@ -18,16 +18,16 @@ import { profileRepository } from '../profile/profile.repository.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
 import { closetRepository } from '../closet/closet.repository.js';
 import {
+  applyHatBagToggles,
   buildAccessoryShortlist,
-  buildDeterministicOutfit,
   buildFrameworkBreakdown,
   buildOutfitSlotShortlists,
   buildVariantCandidates,
+  classifyItemsBySlot,
   fillMissingRequiredSlots,
   normalizeSuitDualRole,
 } from '../closet/closet-outfit-builder.js';
 import {
-  ACCESSORY_GROUPS,
   FORMALITY_RANK,
   resolveGarmentGroup,
   GROUP_TO_SLOTS,
@@ -35,6 +35,7 @@ import {
   TIER_FORMALITY_TARGET,
   TRIP_DAY_TYPE_FORMALITY_TARGET,
   tierForFormalityRank,
+  weatherGates,
   type OutfitSlot,
   type TierSlug,
 } from '../closet/closet-taxonomy.js';
@@ -154,26 +155,6 @@ function parseShoesCap(shoesCount: string | undefined): number {
 type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
 type BuilderProfile = Awaited<ReturnType<typeof profileRepository.findByUserId>>;
 
-function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThermalLayer: boolean; includeOuterwear: boolean } {
-  const gates =
-    temperatureC == null
-      ? { includeThermalLayer: true, includeOuterwear: true }
-      : temperatureC >= 24
-        ? { includeThermalLayer: false, includeOuterwear: false }
-        : temperatureC >= 18
-          ? { includeThermalLayer: false, includeOuterwear: true }
-          : { includeThermalLayer: true, includeOuterwear: true };
-
-  // Business always has a structured secondary top (blazer or suit jacket)
-  // already providing warmth/structure — a genuine overcoat only belongs
-  // over that when it's actually cold, not just "mild-cool" like the base
-  // gate above allows for casual/smart-casual's optional secondary top.
-  if (tier === 'business' && gates.includeOuterwear && temperatureC != null) {
-    gates.includeOuterwear = temperatureC < 10;
-  }
-  return gates;
-}
-
 function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
   return {
     id: item.id,
@@ -257,59 +238,10 @@ function mapDaySlotsToDto(
   };
 }
 
-// Reconstructs a bySlot map (plus any multi-pick "Additional Accessories"
-// items, which don't fit the single-item-per-slot bySlot model) from a flat
-// item-id list — needed by generateDayVariants/updateDayAccessories, which
-// work with real item ids (from a swap/toggle request) rather than a fresh
-// choice result that already carries slots.
-function buildBySlotFromItemIds(
-  itemIds: string[],
-  itemsById: Map<string, BuilderItem>,
-): { bySlot: Partial<Record<OutfitSlot, BuilderItem>>; accessoryItems: BuilderItem[] } {
-  const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
-  const accessoryItems: BuilderItem[] = [];
-  for (const id of itemIds) {
-    const item = itemsById.get(id);
-    if (!item) continue;
-    const group = resolveGarmentGroup(item);
-    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
-    if (slot) {
-      bySlot[slot] = item;
-    } else if (group && ACCESSORY_GROUPS.includes(group)) {
-      accessoryItems.push(item);
-    }
-  }
-  // A suit in a flat id list only ever lands in 'bottoms' (GROUP_TO_SLOTS
-  // takes the first slot) — this promotes it to also fill 'secondaryTop'.
-  normalizeSuitDualRole(bySlot);
-  return { bySlot, accessoryItems };
-}
-
 // Reuses the shared deterministic builder to pick a single hat/bag by
 // restricting its candidate pool to just that garment group — a single,
 // low-stakes accessory addition doesn't warrant its own LLM round-trip the
 // way full day assembly does.
-function pickAccessory(
-  group: 'hat' | 'bag',
-  closetItems: BuilderItem[],
-  tier: TierSlug,
-  targetFormalityRank: number,
-  excludeItemIds: ReadonlySet<string>,
-): BuilderItem | null {
-  const candidates = closetItems.filter((item) => resolveGarmentGroup(item) === group);
-  const result = buildDeterministicOutfit({
-    closetItems: candidates,
-    targetFormalityRank,
-    tier,
-    includeThermalLayer: false,
-    includeOuterwear: false,
-    includeHat: group === 'hat',
-    includeBag: group === 'bag',
-    excludeItemIds,
-  });
-  return result.bySlot.hat ?? result.bySlot.bag ?? null;
-}
-
 const FALLBACK_TRIP_TITLE = 'A Day From Your Closet';
 const FALLBACK_TRIP_RATIONALE = 'A complete outfit built entirely from pieces you already own.';
 
@@ -937,7 +869,7 @@ export const tripsService = {
       if (seenKeys.has(key)) continue;
       seenKeys.add(key);
 
-      const { bySlot, accessoryItems } = buildBySlotFromItemIds(itemIds, itemsById);
+      const { bySlot, accessoryItems } = classifyItemsBySlot(itemIds, itemsById);
       variants.push({
         id: `${request.tripId}-day-${request.dayIndex}-v${Date.now()}-${variants.length}`,
         tripId: request.tripId,
@@ -976,22 +908,17 @@ export const tripsService = {
     const tier =
       request.formalityTier ?? tierForFormalityRank(TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual']);
     const targetFormalityRank = TIER_FORMALITY_TARGET[tier] ?? FORMALITY_RANK['Smart Casual'];
-    const currentHatId = validItemIds.find((id) => resolveGarmentGroup(itemsById.get(id)!) === 'hat');
-    const currentBagId = validItemIds.find((id) => resolveGarmentGroup(itemsById.get(id)!) === 'bag');
+    const itemIds = applyHatBagToggles({
+      itemIds: validItemIds,
+      itemsById,
+      closetItems,
+      tier,
+      targetFormalityRank,
+      includeHat: request.includeHat,
+      includeBag: request.includeBag,
+    });
 
-    let itemIds = validItemIds.filter((id) => id !== currentHatId || request.includeHat);
-    itemIds = itemIds.filter((id) => id !== currentBagId || request.includeBag);
-
-    if (request.includeHat && !currentHatId) {
-      const hat = pickAccessory('hat', closetItems, tier, targetFormalityRank, new Set(itemIds));
-      if (hat) itemIds.push(hat.id);
-    }
-    if (request.includeBag && !currentBagId) {
-      const bag = pickAccessory('bag', closetItems, tier, targetFormalityRank, new Set(itemIds));
-      if (bag) itemIds.push(bag.id);
-    }
-
-    const { bySlot, accessoryItems } = buildBySlotFromItemIds(itemIds, itemsById);
+    const { bySlot, accessoryItems } = classifyItemsBySlot(itemIds, itemsById);
     return mapDaySlotsToDto(bySlot, accessoryItems, tier);
   },
 

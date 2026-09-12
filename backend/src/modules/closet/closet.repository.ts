@@ -141,6 +141,28 @@ export const closetRepository = {
     return prisma.closetSketchJob.update({ where: { id }, data });
   },
 
+  // A single atomic UPDATE ... WHERE status='pending' AND createdAt < olderThan
+  // — race-safe by construction: if a worker's own completion/failure write
+  // lands first, this row's status is no longer 'pending' by the time this
+  // statement runs, so the WHERE clause simply excludes it (Prisma/SQL
+  // re-evaluates the predicate at execution time, not from an earlier read).
+  // No image/storage field is touched for any row this doesn't match.
+  async reconcileStaleSketchJobs(olderThan: Date) {
+    const result = await prisma.closetSketchJob.updateMany({
+      where: { status: 'pending', createdAt: { lt: olderThan } },
+      data: {
+        status: 'failed',
+        sketchImageUrl: null,
+        sketchStorageKey: null,
+        sketchMimeType: null,
+        sketchImageData: null,
+        sketchErrorCode: 'SKETCH_JOB_STALE',
+        sketchErrorMessage: 'Sketch generation timed out and was not completed.',
+      },
+    });
+    return result.count;
+  },
+
   // One row per outfit created at generation time (createOutfitFeedbackRows),
   // later updated in place when the user taps love/hate (updateOutfitFeedback).
   async createOutfitFeedbackRows(

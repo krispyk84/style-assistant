@@ -28,18 +28,17 @@ import {
   buildClosetOutfitVariationsChoiceJsonSchema,
 } from './closet.schemas.js';
 import {
+  applyHatBagToggles,
   buildAccessoryShortlist,
-  buildDeterministicOutfit,
   buildFrameworkBreakdown,
   buildOutfitSlotShortlists,
   buildVariantCandidates,
+  classifyItemsBySlot,
   effectiveAllowedGroups,
   filterByFormalityBand,
-  normalizeSuitDualRole,
   type FrameworkBreakdown,
 } from './closet-outfit-builder.js';
 import {
-  ACCESSORY_GROUPS,
   FORMALITY_RANK,
   resolveGarmentGroup,
   GROUP_TO_SLOTS,
@@ -47,6 +46,7 @@ import {
   SLOT_GROUPS,
   TIER_FORMALITY_TARGET,
   tierForFormalityRank,
+  weatherGates,
   type OutfitSlot,
   type TierSlug,
 } from './closet-taxonomy.js';
@@ -115,29 +115,6 @@ async function loadIndex(supabaseUserId: string) {
   return { itemsById };
 }
 
-// ── Weather gating — translates temperature into whether a thermal-layer/
-// outerwear slot should be offered at all (the caller's job, not the shared
-// builder's concern). ─────────────────────────────────────────────────────────
-function weatherGates(temperatureC: number | null, tier: TierSlug): { includeThermalLayer: boolean; includeOuterwear: boolean } {
-  const gates =
-    temperatureC == null
-      ? { includeThermalLayer: true, includeOuterwear: true }
-      : temperatureC >= 24
-        ? { includeThermalLayer: false, includeOuterwear: false }
-        : temperatureC >= 18
-          ? { includeThermalLayer: false, includeOuterwear: true }
-          : { includeThermalLayer: true, includeOuterwear: true };
-
-  // Business always has a structured secondary top (blazer or suit jacket)
-  // already providing warmth/structure — a genuine overcoat only belongs
-  // over that when it's actually cold, not just "mild-cool" like the base
-  // gate above allows for casual/smart-casual's optional secondary top.
-  if (tier === 'business' && gates.includeOuterwear && temperatureC != null) {
-    gates.includeOuterwear = temperatureC < 10;
-  }
-  return gates;
-}
-
 async function buildVarietyContext(
   supabaseUserId: string,
   itemsById: Map<string, BuilderItem>,
@@ -171,30 +148,6 @@ function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
     material: item.material ?? null,
     brand: item.brand || null,
   };
-}
-
-// Classifies a flat resolved item-id list back into slots (plus any multi-
-// pick "Additional Accessories" items, which don't fit a single-item slot)
-// for the framework breakdown — mirrors trips.service.ts's equivalent.
-function classifyItemsBySlot(
-  itemIds: string[],
-  itemsById: Map<string, BuilderItem>,
-): { bySlot: Partial<Record<OutfitSlot, BuilderItem>>; accessoryItems: BuilderItem[] } {
-  const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
-  const accessoryItems: BuilderItem[] = [];
-  for (const id of itemIds) {
-    const item = itemsById.get(id);
-    if (!item) continue;
-    const group = resolveGarmentGroup(item);
-    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
-    if (slot) {
-      bySlot[slot] = item;
-    } else if (group && ACCESSORY_GROUPS.includes(group)) {
-      accessoryItems.push(item);
-    }
-  }
-  normalizeSuitDualRole(bySlot);
-  return { bySlot, accessoryItems };
 }
 
 type ChoiceOutfit = {
@@ -385,27 +338,6 @@ async function attachSketchJobs(
 // restricting its candidate pool to just that garment group — a single,
 // low-stakes accessory addition to an already-composed outfit doesn't
 // warrant its own LLM round-trip the way full outfit assembly does.
-function pickAccessory(
-  group: 'hat' | 'bag',
-  closetItems: BuilderItem[],
-  tier: TierSlug,
-  targetFormalityRank: number,
-  excludeItemIds: ReadonlySet<string>,
-): BuilderItem | null {
-  const candidates = closetItems.filter((item) => resolveGarmentGroup(item) === group);
-  const result = buildDeterministicOutfit({
-    closetItems: candidates,
-    targetFormalityRank,
-    tier,
-    includeThermalLayer: false,
-    includeOuterwear: false,
-    includeHat: group === 'hat',
-    includeBag: group === 'bag',
-    excludeItemIds,
-  });
-  return result.bySlot.hat ?? result.bySlot.bag ?? null;
-}
-
 // Last-resort, no-exceptions guarantee: every outfit must have footwear, and
 // on a Formal-target tier it must be a dressy pair (dress shoes/loafers) —
 // not left to chance even though the schema already requires a valid
@@ -648,20 +580,15 @@ export const closetOutfitsService = {
     const targetFormalityRank = TIER_FORMALITY_TARGET[payload.formality] ?? FORMALITY_RANK['Refined Casual'];
     const tier = tierForFormalityRank(targetFormalityRank);
 
-    const currentHatId = validItemIds.find((id) => resolveGarmentGroup(itemsById.get(id)!) === 'hat');
-    const currentBagId = validItemIds.find((id) => resolveGarmentGroup(itemsById.get(id)!) === 'bag');
-
-    let itemIds = validItemIds.filter((id) => id !== currentHatId || payload.includeHat);
-    itemIds = itemIds.filter((id) => id !== currentBagId || payload.includeBag);
-
-    if (payload.includeHat && !currentHatId) {
-      const hat = pickAccessory('hat', closetItems, tier, targetFormalityRank, new Set(itemIds));
-      if (hat) itemIds.push(hat.id);
-    }
-    if (payload.includeBag && !currentBagId) {
-      const bag = pickAccessory('bag', closetItems, tier, targetFormalityRank, new Set(itemIds));
-      if (bag) itemIds.push(bag.id);
-    }
+    const itemIds = applyHatBagToggles({
+      itemIds: validItemIds,
+      itemsById,
+      closetItems,
+      tier,
+      targetFormalityRank,
+      includeHat: payload.includeHat,
+      includeBag: payload.includeBag,
+    });
 
     const items = itemIds.map((id) => mapClosetItem(itemsById.get(id)!));
     const [feedbackRow] = await closetRepository.createOutfitFeedbackRows(supabaseUserId, payload.formality, [

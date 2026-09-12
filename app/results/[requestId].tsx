@@ -21,7 +21,7 @@ import { buildSecondOpinionSubject, formatTierLabel } from '@/lib/outfit-utils';
 
 import { MultiLookResults } from './MultiLookResults';
 import { useResultsData } from './useResultsData';
-import { useResultsPolling } from './useResultsPolling';
+import { useResultsPolling, type ResultsPollTarget } from './useResultsPolling';
 import { useResultsMatchFeedback } from './useResultsMatchFeedback';
 import { useResultsActions } from './useResultsActions';
 
@@ -63,7 +63,37 @@ export default function ResultDetailsScreen() {
     handleRetry,
   } = useResultsData(stableParams);
 
-  useResultsPolling({ response, loadingTiers, regeneratingTiersRef, setResponse });
+  // Poll while any tier's sketch is still pending — gated the same way the
+  // single-response poller always was (don't start until every tier has
+  // finished its initial progressive fetch). One entry, key is a fixed
+  // sentinel since there is only ever one response here.
+  const pollTargets: ResultsPollTarget[] = useMemo(() => {
+    if (loadingTiers.length > 0 || !response?.requestId) return [];
+    if (!response.recommendations.some((r) => r.sketchStatus === 'pending')) return [];
+    return [{ key: 'main', requestId: response.requestId }];
+  }, [response, loadingTiers.length]);
+
+  useResultsPolling({
+    targets: pollTargets,
+    onResult: (_key, data) => {
+      setResponse((current) => {
+        if (!current) return data;
+        const protecting = regeneratingTiersRef.current;
+        // If no tiers are mid-regeneration, apply the full server response as-is.
+        if (protecting.length === 0) return data;
+        // Otherwise preserve the in-flight state for any tier currently being
+        // regenerated so stale server data doesn't overwrite a pending regeneration.
+        return {
+          ...data,
+          recommendations: data.recommendations.map((newRec) =>
+            protecting.includes(newRec.tier)
+              ? (current.recommendations.find((r) => r.tier === newRec.tier) ?? newRec)
+              : newRec,
+          ),
+        };
+      });
+    },
+  });
 
   const {
     closetItems,

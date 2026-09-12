@@ -1,4 +1,4 @@
-import { createApiClient } from '@/lib/api/api-client';
+import { createApiClient, unwrapOrThrow } from '@/lib/api/api-client';
 import type { SavedTripDetail, SavedTripSummary, SaveTripParams } from './saved-trip-types';
 import type { TripOutfitDay } from '@/services/trip-outfits';
 
@@ -20,12 +20,10 @@ export const savedTripsService = {
       method: 'POST',
       body: params,
     });
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message ?? 'Failed to save trip.');
-    }
+    const data = unwrapOrThrow(response, 'Failed to save trip.');
     return {
-      ...response.data,
-      days: normalizeDays(response.data.days as unknown[]),
+      ...data,
+      days: normalizeDays(data.days as unknown[]),
     };
   },
 
@@ -33,22 +31,17 @@ export const savedTripsService = {
     const response = await createApiClient().request<{ trips: SavedTripSummary[] }>('/trips/saved', {
       method: 'GET',
     });
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message ?? 'Failed to load saved trips.');
-    }
-    return response.data.trips;
+    return unwrapOrThrow(response, 'Failed to load saved trips.').trips;
   },
 
   async getById(id: string): Promise<SavedTripDetail> {
     const response = await createApiClient().request<SavedTripDetail>(`/trips/saved/${id}`, {
       method: 'GET',
     });
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message ?? 'Failed to load saved trip.');
-    }
+    const data = unwrapOrThrow(response, 'Failed to load saved trip.');
     return {
-      ...response.data,
-      days: normalizeDays(response.data.days as unknown[]),
+      ...data,
+      days: normalizeDays(data.days as unknown[]),
     };
   },
 
