@@ -18,13 +18,13 @@ import { profileRepository } from '../profile/profile.repository.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
 import { closetRepository } from '../closet/closet.repository.js';
 import {
+  applyHatBagToggles,
   buildAccessoryShortlist,
   buildFrameworkBreakdown,
   buildOutfitSlotShortlists,
   buildVariantCandidates,
   fillMissingRequiredSlots,
   normalizeSuitDualRole,
-  pickAccessory,
 } from '../closet/closet-outfit-builder.js';
 import {
   ACCESSORY_GROUPS,
@@ -936,20 +936,15 @@ export const tripsService = {
     const tier =
       request.formalityTier ?? tierForFormalityRank(TRIP_DAY_TYPE_FORMALITY_TARGET[request.dayType] ?? FORMALITY_RANK['Smart Casual']);
     const targetFormalityRank = TIER_FORMALITY_TARGET[tier] ?? FORMALITY_RANK['Smart Casual'];
-    const currentHatId = validItemIds.find((id) => resolveGarmentGroup(itemsById.get(id)!) === 'hat');
-    const currentBagId = validItemIds.find((id) => resolveGarmentGroup(itemsById.get(id)!) === 'bag');
-
-    let itemIds = validItemIds.filter((id) => id !== currentHatId || request.includeHat);
-    itemIds = itemIds.filter((id) => id !== currentBagId || request.includeBag);
-
-    if (request.includeHat && !currentHatId) {
-      const hat = pickAccessory('hat', closetItems, tier, targetFormalityRank, new Set(itemIds));
-      if (hat) itemIds.push(hat.id);
-    }
-    if (request.includeBag && !currentBagId) {
-      const bag = pickAccessory('bag', closetItems, tier, targetFormalityRank, new Set(itemIds));
-      if (bag) itemIds.push(bag.id);
-    }
+    const itemIds = applyHatBagToggles({
+      itemIds: validItemIds,
+      itemsById,
+      closetItems,
+      tier,
+      targetFormalityRank,
+      includeHat: request.includeHat,
+      includeBag: request.includeBag,
+    });
 
     const { bySlot, accessoryItems } = buildBySlotFromItemIds(itemIds, itemsById);
     return mapDaySlotsToDto(bySlot, accessoryItems, tier);

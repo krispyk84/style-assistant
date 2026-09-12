@@ -28,6 +28,7 @@ import {
   buildClosetOutfitVariationsChoiceJsonSchema,
 } from './closet.schemas.js';
 import {
+  applyHatBagToggles,
   buildAccessoryShortlist,
   buildFrameworkBreakdown,
   buildOutfitSlotShortlists,
@@ -35,7 +36,6 @@ import {
   effectiveAllowedGroups,
   filterByFormalityBand,
   normalizeSuitDualRole,
-  pickAccessory,
   type FrameworkBreakdown,
 } from './closet-outfit-builder.js';
 import {
@@ -605,20 +605,15 @@ export const closetOutfitsService = {
     const targetFormalityRank = TIER_FORMALITY_TARGET[payload.formality] ?? FORMALITY_RANK['Refined Casual'];
     const tier = tierForFormalityRank(targetFormalityRank);
 
-    const currentHatId = validItemIds.find((id) => resolveGarmentGroup(itemsById.get(id)!) === 'hat');
-    const currentBagId = validItemIds.find((id) => resolveGarmentGroup(itemsById.get(id)!) === 'bag');
-
-    let itemIds = validItemIds.filter((id) => id !== currentHatId || payload.includeHat);
-    itemIds = itemIds.filter((id) => id !== currentBagId || payload.includeBag);
-
-    if (payload.includeHat && !currentHatId) {
-      const hat = pickAccessory('hat', closetItems, tier, targetFormalityRank, new Set(itemIds));
-      if (hat) itemIds.push(hat.id);
-    }
-    if (payload.includeBag && !currentBagId) {
-      const bag = pickAccessory('bag', closetItems, tier, targetFormalityRank, new Set(itemIds));
-      if (bag) itemIds.push(bag.id);
-    }
+    const itemIds = applyHatBagToggles({
+      itemIds: validItemIds,
+      itemsById,
+      closetItems,
+      tier,
+      targetFormalityRank,
+      includeHat: payload.includeHat,
+      includeBag: payload.includeBag,
+    });
 
     const items = itemIds.map((id) => mapClosetItem(itemsById.get(id)!));
     const [feedbackRow] = await closetRepository.createOutfitFeedbackRows(supabaseUserId, payload.formality, [

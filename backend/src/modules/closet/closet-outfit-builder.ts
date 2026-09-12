@@ -189,6 +189,42 @@ export function pickAccessory<TItem extends BuilderClosetItem>(
   return result.bySlot.hat ?? result.bySlot.bag ?? null;
 }
 
+// Previously duplicated verbatim in closet-outfits.service.ts's
+// updateOutfitAccessories and trips.service.ts's updateDayAccessories — both
+// now call this. Applies a hat/bag ON/OFF toggle to an already-resolved flat
+// item-id list: removes the current hat/bag when toggled off, adds one via
+// pickAccessory when toggled on and currently absent, and leaves every other
+// item id untouched (including an already-present hat/bag left ON, which is
+// never re-picked or duplicated). Each caller resolves its own tier/
+// targetFormalityRank/itemsById from its own engine-specific fields — this
+// function only orchestrates the toggle itself, not tier derivation.
+export function applyHatBagToggles<TItem extends BuilderClosetItem>(params: {
+  itemIds: string[];
+  itemsById: Map<string, TItem>;
+  closetItems: TItem[];
+  tier: TierSlug;
+  targetFormalityRank: number;
+  includeHat: boolean;
+  includeBag: boolean;
+}): string[] {
+  const currentHatId = params.itemIds.find((id) => resolveGarmentGroup(params.itemsById.get(id)!) === 'hat');
+  const currentBagId = params.itemIds.find((id) => resolveGarmentGroup(params.itemsById.get(id)!) === 'bag');
+
+  let itemIds = params.itemIds.filter((id) => id !== currentHatId || params.includeHat);
+  itemIds = itemIds.filter((id) => id !== currentBagId || params.includeBag);
+
+  if (params.includeHat && !currentHatId) {
+    const hat = pickAccessory('hat', params.closetItems, params.tier, params.targetFormalityRank, new Set(itemIds));
+    if (hat) itemIds.push(hat.id);
+  }
+  if (params.includeBag && !currentBagId) {
+    const bag = pickAccessory('bag', params.closetItems, params.tier, params.targetFormalityRank, new Set(itemIds));
+    if (bag) itemIds.push(bag.id);
+  }
+
+  return itemIds;
+}
+
 export type SlotShortlists<TItem> = Partial<Record<OutfitSlot, TItem[]>>;
 
 // Safety valve for pathologically large closets — NOT a quality cap. The
