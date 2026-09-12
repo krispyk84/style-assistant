@@ -790,9 +790,12 @@ describe('MultiLookResults — polling error handling (Phase R3A fix, regression
     }
     expect(unhandled).toHaveLength(0);
 
-    // recordError is called using the same context-string convention
-    // useResultsPolling.ts already established for the identical scenario.
-    expect(recordError).toHaveBeenCalledWith(expect.any(Error), 'multi_look_results_polling_tick_failed');
+    // Phase R3B: polling is now the SAME shared useResultsPolling hook the
+    // single-response screen uses, so the recordError context string is
+    // that hook's own 'results_polling_tick_failed' — no longer a
+    // MultiLookResults-specific label, by design (this is exactly what
+    // consolidating onto one shared implementation means).
+    expect(recordError).toHaveBeenCalledWith(expect.any(Error), 'results_polling_tick_failed');
     expect((recordError.mock.calls[0]![0] as Error).message).toBe('network down');
 
     // Sibling slot state is untouched by the failure.

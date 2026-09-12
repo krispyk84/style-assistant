@@ -17,16 +17,8 @@ import { useTheme } from '@/contexts/theme-context';
 import { useTrendiness } from '@/hooks/use-trendiness';
 import { closetService } from '@/services/closet';
 import { findBestClosetMatch } from '@/lib/closet-match';
-import {
-  buildSavedOutfitId,
-  loadSavedOutfits,
-  saveSavedOutfit,
-} from '@/lib/saved-outfits-storage';
-import { assignOutfitToWeekDay } from '@/lib/week-plan-storage';
-import {
-  loadRecommendationFeedback,
-  saveRecommendationFeedback,
-} from '@/lib/recommendation-feedback-storage';
+import { buildSavedOutfitId, loadSavedOutfits } from '@/lib/saved-outfits-storage';
+import { loadRecommendationFeedback } from '@/lib/recommendation-feedback-storage';
 import { buildSelfieReviewHref } from '@/lib/look-route';
 import { outfitsService } from '@/services/outfits';
 import type { GenerateOutfitsResponse, VariationSummary } from '@/types/api';
@@ -39,11 +31,9 @@ import {
   type OutfitPiece,
 } from '@/types/look-request';
 import { useToast } from '@/components/ui/toast-provider';
-import { trackSaveOutfit, trackAddToWeek } from '@/lib/analytics';
 import { buildSecondOpinionSubject } from '@/lib/outfit-utils';
-import { recordError } from '@/lib/crashlytics';
-
-const SKETCH_POLL_INTERVAL_MS = 4000;
+import { useResultsPolling, type ResultsPollTarget } from './useResultsPolling';
+import { performSaveOutfit, performAssignToWeek, performOutfitFeedback } from './result-actions';
 
 type SlotState = {
   requestId: string;
@@ -106,7 +96,7 @@ export function MultiLookResults({
   const [savingRequestId, setSavingRequestId] = useState<string | null>(null);
   const [weekPickerRequestId, setWeekPickerRequestId] = useState<string | null>(null);
   const [secondOpinionRequestId, setSecondOpinionRequestId] = useState<string | null>(null);
-  const [feedbackMap, setFeedbackMap] = useState<Record<string, 'love' | 'hate'>>({});
+  const [feedbackMap, setFeedbackMap] = useState<Partial<Record<string, 'love' | 'hate'>>>({});
 
   // ── Closet items (shared across all variations) ────────────────────────────
   const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
@@ -213,55 +203,21 @@ export function MultiLookResults({
   }, []);
 
   // ── Sketch polling: poll each pending slot every 4s ────────────────────────
-  // Depends on a pendingSignature string (which requestIds are currently
-  // pending), not on `slots` itself — setSlots always produces a fresh array/
-  // object identity even when nothing semantically changed, so depending on
-  // `slots` directly tore this interval down and recreated it after every
-  // single tick. The signature only changes when a slot actually enters or
-  // leaves the pending set, matching useResultsPolling.ts's pendingSignature
-  // pattern for the single-tier path.
-  const pendingSignature = useMemo(
+  // Shared with the single-response results screen (useResultsPolling.ts) —
+  // this component's own key IS its requestId, one target per pending slot.
+  const pollTargets: ResultsPollTarget[] = useMemo(
     () =>
       slots
         .filter((slot) => slot.response?.recommendations.some((r) => r.sketchStatus === 'pending'))
-        .map((slot) => slot.requestId)
-        .join(','),
+        .map((slot) => ({ key: slot.requestId, requestId: slot.requestId })),
     [slots],
   );
-  // Reentrancy guard: at most one polling batch in flight at a time, mirroring
-  // useResultsPolling.ts's isPollingRef. Reset in `finally` so a failed batch
-  // never permanently blocks future ticks.
-  const isPollingRef = useRef(false);
-  useEffect(() => {
-    const pendingRequestIds = pendingSignature ? pendingSignature.split(',') : [];
-    if (!pendingRequestIds.length) return;
-
-    const interval = setInterval(async () => {
-      if (isPollingRef.current) return;
-      isPollingRef.current = true;
-      try {
-        await Promise.all(
-          pendingRequestIds.map(async (requestId) => {
-            const result = await outfitsService.getOutfitResult(requestId);
-            if (!result.success || !result.data) return;
-            setSlots((prev) =>
-              prev.map((s) => (s.requestId === requestId ? { ...s, response: result.data } : s)),
-            );
-          }),
-        );
-      } catch (error) {
-        // getOutfitResult goes through ApiClient.request, which never
-        // rejects in practice — this exists so a poll tick can never become
-        // an unhandled rejection if that contract ever changes, matching
-        // useResultsPolling.ts's own defensive catch.
-        recordError(error, 'multi_look_results_polling_tick_failed');
-      } finally {
-        isPollingRef.current = false;
-      }
-    }, SKETCH_POLL_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [pendingSignature]);
+  useResultsPolling({
+    targets: pollTargets,
+    onResult: (key, data) => {
+      setSlots((prev) => prev.map((s) => (s.requestId === key ? { ...s, response: data } : s)));
+    },
+  });
 
   // ── Per-slot match lookup (initial deterministic match; rematch via thumbs-down deferred) ──
   const matchMaps = useMemo(() => {
@@ -291,22 +247,27 @@ export function MultiLookResults({
   }, [slots, closetItems, tier]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
+  // Save/assign/feedback bodies are shared with the single-response results
+  // screen (result-actions.ts) — each was byte-for-byte identical to
+  // useResultsActions.ts's equivalent except for which identity (tier vs
+  // requestId) it resolves state from; this component still owns resolving
+  // its own slot/recommendation and its own state shape (savedOutfitIds,
+  // savingRequestId, feedbackMap), same as before.
   async function handleSave(slot: SlotState) {
     if (!slot.response) return;
     const recommendation = slot.response.recommendations.find((r) => r.tier === tier);
     if (!recommendation) return;
-    const savedId = buildSavedOutfitId(slot.requestId, tier, slot.tierGeneration);
-    if (savedOutfitIds.includes(savedId)) return;
-    setSavingRequestId(slot.requestId);
-    try {
-      await saveSavedOutfit(slot.response.input, { ...recommendation }, slot.requestId, slot.tierGeneration);
-      setSavedOutfitIds((prev) => [...prev, savedId]);
-      trackSaveOutfit({ tier });
-      showToast('Outfit saved to history.');
-    } catch {
-      showToast('Could not save this outfit.', 'error');
-    }
-    setSavingRequestId(null);
+    await performSaveOutfit({
+      requestId: slot.requestId,
+      tier,
+      tierGeneration: slot.tierGeneration,
+      input: slot.response.input,
+      recommendation,
+      savedOutfitIds,
+      setSaving: (isSaving) => setSavingRequestId(isSaving ? slot.requestId : null),
+      onSaved: (savedOutfitId) => setSavedOutfitIds((prev) => [...prev, savedOutfitId]),
+      showToast,
+    });
   }
 
   async function handleAssignToWeek(dayKey: string, dayLabel: string) {
@@ -315,13 +276,15 @@ export function MultiLookResults({
     if (!slot?.response) return;
     const recommendation = slot.response.recommendations.find((r) => r.tier === tier);
     if (!recommendation) return;
-    try {
-      await assignOutfitToWeekDay(dayKey, dayLabel, slot.response.input, { ...recommendation }, slot.requestId);
-      trackAddToWeek({ tier, day_label: dayLabel });
-      showToast(`Added to ${dayLabel}.`);
-    } catch {
-      showToast('Could not add this outfit to your week.', 'error');
-    }
+    await performAssignToWeek({
+      dayKey,
+      dayLabel,
+      requestId: slot.requestId,
+      tier,
+      input: slot.response.input,
+      recommendation,
+      showToast,
+    });
     setWeekPickerRequestId(null);
   }
 
@@ -329,36 +292,16 @@ export function MultiLookResults({
     if (!slot.response) return;
     const recommendation = slot.response.recommendations.find((r) => r.tier === tier);
     if (!recommendation) return;
-    if (feedbackMap[slot.requestId] === thumb) {
-      setFeedbackMap((prev) => {
-        const next = { ...prev };
-        delete next[slot.requestId];
-        return next;
-      });
-      return;
-    }
-    const previousFeedback = feedbackMap[slot.requestId];
-    setFeedbackMap((prev) => ({ ...prev, [slot.requestId]: thumb }));
-    try {
-      await saveRecommendationFeedback({
-        id: `${slot.requestId}:${tier}:outfit`,
-        requestId: slot.requestId,
-        tier,
-        outfitTitle: recommendation.title,
-        thumb,
-        regenerated: false,
-        createdAt: new Date().toISOString(),
-      });
-      showToast(thumb === 'love' ? 'Noted — glad you love it.' : "Noted — we'll keep that in mind.");
-    } catch (error) {
-      recordError(error, 'outfit_feedback_save');
-      setFeedbackMap((prev) => {
-        const next = { ...prev };
-        if (previousFeedback) next[slot.requestId] = previousFeedback;
-        else delete next[slot.requestId];
-        return next;
-      });
-    }
+    await performOutfitFeedback({
+      key: slot.requestId,
+      requestId: slot.requestId,
+      tier,
+      recommendationTitle: recommendation.title,
+      thumb,
+      currentFeedback: feedbackMap[slot.requestId],
+      setFeedbackMap,
+      showToast,
+    });
   }
 
   // ── Initial loading gate (closet modal + at least one slot in flight) ──────
