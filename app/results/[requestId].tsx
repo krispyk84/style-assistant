@@ -192,7 +192,7 @@ export default function ResultDetailsScreen() {
         <ScreenHeader title="Outfit Results" showBack />
         <View style={{ gap: spacing.xs }}>
           <AppText variant="heroSmall">Your Looks</AppText>
-          <AppText tone="muted">Styling directions built from the same anchor item.</AppText>
+          <AppText tone="muted">Styling directions built from the same starting piece.</AppText>
         </View>
         <LookRequestReviewCard
           input={response.input}
@@ -228,7 +228,7 @@ export default function ResultDetailsScreen() {
                   <AppIcon color={theme.colors.background} name="add" size={8} />
                 </View>
               </View>
-              <AppText>Add anchor to closet</AppText>
+              <AppText>Add item to closet</AppText>
             </Pressable>
           );
         })()}

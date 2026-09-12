@@ -352,7 +352,7 @@ export function MultiLookResults({
         <View style={{ gap: spacing.xs }}>
           <AppText variant="heroSmall">Your Looks</AppText>
           <AppText tone="muted">
-            {totalLooks} distinct styling directions built from the same anchor.
+            {totalLooks} distinct styling directions built from the same starting piece.
           </AppText>
         </View>
         <LookRequestReviewCard

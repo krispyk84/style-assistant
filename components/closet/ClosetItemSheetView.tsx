@@ -300,7 +300,7 @@ export function ClosetItemSheetView({ item, startInEditMode, onClose, onSaved, o
               )}
             </View>
 
-            {/* Anchor to Outfit button */}
+            {/* Build Around This button */}
             {!editor.isEditing && !editor.confirmDelete ? (
               <Pressable
                 onPress={handleAnchorToOutfit}
@@ -316,7 +316,7 @@ export function ClosetItemSheetView({ item, startInEditMode, onClose, onSaved, o
                 }}>
                 <AppIcon color="#FFF" name="shirt" size={16} />
                 <AppText variant="eyebrow" style={{ color: '#FFF', letterSpacing: 1.4 }}>
-                  Anchor to Outfit
+                  Build Around This
                 </AppText>
               </Pressable>
             ) : null}

@@ -128,7 +128,7 @@ export function HelpMePickModal({ hook, onUseItem }: HelpMePickModalProps) {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ gap: 2 }}>
               <AppText variant="sectionTitle">Help Me Pick</AppText>
-              <AppText tone="muted" style={{ fontSize: 13 }}>Let a stylist choose your anchor piece</AppText>
+              <AppText tone="muted" style={{ fontSize: 13 }}>Let a stylist choose your starting piece</AppText>
             </View>
             <Pressable hitSlop={8} onPress={dismissAndClose}>
               <AppIcon color={theme.colors.mutedText} name="close" size={22} />

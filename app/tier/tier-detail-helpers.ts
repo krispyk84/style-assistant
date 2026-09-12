@@ -59,9 +59,9 @@ export function buildPiecesToCheck(
   const anchorText =
     (userText && !isGeneric)
       ? userText
-      : (recommendation.anchorItem?.trim() || userText || 'Anchor item');
+      : (recommendation.anchorItem?.trim() || userText || 'Starting piece');
   const rows: LabeledPiece[] = [
-    { label: 'Anchor', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true },
+    { label: 'Starting Piece', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true },
   ];
 
   recommendation.keyPieces.forEach((piece, index) => {

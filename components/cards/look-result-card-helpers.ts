@@ -53,8 +53,8 @@ export function buildLabeledPieces(
   const anchorText =
     (userText && !isGeneric)
       ? userText
-      : (recommendation.anchorItem?.trim() || userText || 'Anchor item');
-  const anchorPiece: LabeledPiece = { label: 'Anchor', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true };
+      : (recommendation.anchorItem?.trim() || userText || 'Starting piece');
+  const anchorPiece: LabeledPiece = { label: 'Starting Piece', value: anchorText, matchedClosetItem: null, confidencePercent: 0, isAnchor: true };
 
   // Normalizer used to deduplicate anchor from keyPieces.
   const normStr = (s: string) =>

@@ -31,13 +31,13 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
         overflow: 'hidden',
       }}>
 
-      {/* ── Wardrobe Anchors ── */}
+      {/* ── Starting Pieces ── */}
       <View style={{ padding: spacing.lg, gap: spacing.md }}>
         <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
           <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
             <AppIcon color={theme.colors.accent} name="shirt" size={16} />
             <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>
-              Wardrobe Anchors
+              Starting Pieces
             </AppText>
           </View>
           <AppText variant="eyebrow" tone="subtle">
@@ -86,7 +86,7 @@ export function LookRequestReviewCard({ input, hideInfoBox = false, recommendati
               {/* Description */}
               <View style={{ flex: 1 }}>
                 <AppText variant="sectionTitle" numberOfLines={2}>
-                  {description ?? 'Anchor item'}
+                  {description ?? 'Starting piece'}
                 </AppText>
               </View>
             </View>

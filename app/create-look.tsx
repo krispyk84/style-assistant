@@ -13,11 +13,13 @@ import { trackCreateLookStarted } from '@/lib/analytics';
 export default function CreateLookScreen() {
   useEffect(() => { trackCreateLookStarted(); }, []);
 
-  const { closetItemId, closetItemTitle, closetItemImageUrl, closetItemFitStatus, fresh } = useLocalSearchParams<{
+  const { closetItemId, closetItemTitle, closetItemImageUrl, closetItemFitStatus, closetOnly, fresh } = useLocalSearchParams<{
     closetItemId?: string;
     closetItemTitle?: string;
     closetItemImageUrl?: string;
     closetItemFitStatus?: string;
+    /** Set by the "Build Around a Piece" link inside the Build From My Closet modal, so the form opens with "Pair only items from my closet" already on — keeping that flow's "entirely from your closet" promise true. */
+    closetOnly?: string;
     fresh?: string;
   }>();
 
@@ -51,6 +53,7 @@ export default function CreateLookScreen() {
             photoPending: false,
             selectedTiers: ['business', 'smart-casual', 'casual'],
             weatherContext: null,
+            closetOnly: closetOnly === 'true',
           }}
         />
       </View>

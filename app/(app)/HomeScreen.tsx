@@ -4,7 +4,6 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/app-icon';
-import { ClosetReadinessTracker, joinWithAnd } from '@/components/closet/ClosetReadinessTracker';
 import { GenerateOutfitsModal } from '@/components/closet/GenerateOutfitsModal';
 import { useGenerateOutfits } from '@/components/closet/useGenerateOutfits';
 import { FashionTrendReportModal } from '@/components/cards/fashion-trend-report-modal';
@@ -13,8 +12,8 @@ import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
-import type { ClosetReadiness } from '@/lib/closet-readiness';
 import { splashShrinkOverlay } from '@/lib/splash-shrink-overlay';
+import { GenerateFromClosetButton, HeroCardContent } from './HomeCards';
 import { HOME_HEADER_LOGO_RECT_CONSTANTS } from './home-header-logo-constants';
 import { useFashionTrendReport } from './useFashionTrendReport';
 import { useHomeData } from './useHomeData';
@@ -34,8 +33,8 @@ export function HomeScreen() {
   const isShrinkOverlayActive = useSyncExternalStore(splashShrinkOverlay.subscribe, splashShrinkOverlay.getSnapshot);
 
   // Home's content height changes at several independent points as async data
-  // resolves (closetReadiness mounting/unmounting the ~320px "Create Outfits
-  // From My Closet" card, the weather card growing from its loading placeholder,
+  // resolves (closetReadiness mounting/unmounting the ~320px "Build From My
+  // Closet" card, the weather card growing from its loading placeholder,
   // both image carousels swapping in) — including on every refocus, since
   // closetReadiness is refetched via useFocusEffect each time the user returns
   // to this tab. A stale scroll offset relative to shorter new content can leave
@@ -199,159 +198,5 @@ export function HomeScreen() {
         onSetColorFeedback={trendReport.setColorFeedback}
       />
     </AppScreen>
-  );
-}
-
-// ── Private components ─────────────────────────────────────────────────────────
-
-function GenerateFromClosetButton({
-  readiness,
-  onPress,
-  currentImageUrl,
-  isResolved,
-  accentColor,
-  inverseColor,
-}: {
-  readiness: ClosetReadiness;
-  onPress: () => void;
-  currentImageUrl: string | null;
-  isResolved: boolean;
-  accentColor: string;
-  inverseColor: string;
-}) {
-  const { theme } = useTheme();
-
-  if (!readiness.ready) {
-    return (
-      <View
-        style={{
-          backgroundColor: theme.colors.subtleSurface,
-          borderColor: theme.colors.border,
-          borderRadius: 20,
-          borderWidth: 1,
-          gap: spacing.md,
-          padding: spacing.lg,
-        }}>
-        <View style={{ gap: spacing.xs }}>
-          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-            <AppIcon color={theme.colors.subtleText} name="closet" size={18} />
-            <AppText tone="subtle" style={{ fontFamily: theme.fonts.sansMedium, fontSize: 15 }}>
-              Closet Outfits needs a wider variety first
-            </AppText>
-          </View>
-          <AppText tone="subtle" style={{ fontSize: 12, lineHeight: 17 }}>
-            Unlike Create a New Look above — which can suggest new pieces too — this builds looks entirely from what&apos;s already in
-            your closet, so it needs enough to mix and match. You&apos;re missing {joinWithAnd(readiness.missing)}.
-          </AppText>
-        </View>
-        <ClosetReadinessTracker progress={readiness.progress} />
-      </View>
-    );
-  }
-
-  // Mirrors the "Create a New Look" hero card above — same size, same dark
-  // base + gradient-over-photo treatment, same carousel behavior (shuffled
-  // order, prefetch-then-swap, CAROUSEL_INTERVAL_MS cadence) — just sourced
-  // from closet item photos instead of saved-outfit sketches.
-  return (
-    <Pressable onPress={onPress} style={{ borderRadius: 24, overflow: 'hidden' }}>
-      <View style={{ minHeight: 320 }}>
-        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#2A1F14' }]} />
-
-        {isResolved && currentImageUrl ? (
-          <Image
-            contentFit="cover"
-            source={{ uri: currentImageUrl }}
-            style={StyleSheet.absoluteFillObject}
-            transition={600}
-          />
-        ) : null}
-
-        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(18, 12, 6, 0.40)' }]} />
-
-        <View
-          style={{
-            flex: 1,
-            justifyContent: 'flex-end',
-            minHeight: 320,
-            padding: spacing.lg,
-            gap: spacing.md,
-          }}>
-          <View style={{ gap: spacing.xs }}>
-            <AppText variant="eyebrow" style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: 2 }}>
-              From your wardrobe
-            </AppText>
-            <AppText variant="hero" style={{ color: '#FFFFFF' }}>
-              Create Outfits{'\n'}From My Closet
-            </AppText>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-            <AppText style={{ color: 'rgba(255,255,255,0.72)', fontSize: 14, lineHeight: 20, maxWidth: '65%' }}>
-              Five complete looks, built entirely from what you already own.
-            </AppText>
-            <View
-              style={{
-                alignItems: 'center',
-                backgroundColor: accentColor,
-                borderRadius: 999,
-                height: 48,
-                justifyContent: 'center',
-                width: 48,
-              }}>
-              <AppIcon color={inverseColor} name="arrow-right" size={20} />
-            </View>
-          </View>
-        </View>
-      </View>
-    </Pressable>
-  );
-}
-
-function HeroCardContent({ accentColor, inverseColor }: { accentColor: string; inverseColor: string }) {
-  return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: 'flex-end',
-        minHeight: 320,
-        padding: spacing.lg,
-        gap: spacing.md,
-      }}>
-      <View style={{ gap: spacing.xs }}>
-        <AppText variant="eyebrow" style={{ color: 'rgba(255,255,255,0.7)', letterSpacing: 2 }}>
-          Start your journey
-        </AppText>
-        <AppText variant="hero" style={{ color: '#FFFFFF' }}>
-          Create a{'\n'}New Look
-        </AppText>
-      </View>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-        }}>
-        <AppText
-          style={{
-            color: 'rgba(255,255,255,0.72)',
-            fontSize: 14,
-            lineHeight: 20,
-            maxWidth: '65%',
-          }}>
-          Define your vibe and let our digital atelier curate your perfect ensemble.
-        </AppText>
-        <View
-          style={{
-            alignItems: 'center',
-            backgroundColor: accentColor,
-            borderRadius: 999,
-            height: 48,
-            justifyContent: 'center',
-            width: 48,
-          }}>
-          <AppIcon color={inverseColor} name="arrow-right" size={20} />
-        </View>
-      </View>
-    </View>
   );
 }

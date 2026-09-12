@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppIcon, type AppIconName } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
@@ -29,6 +29,18 @@ export function GenerateOutfitsModal({ hook }: GenerateOutfitsModalProps) {
   function handleGenerate() {
     close();
     router.push(buildGenerateOutfitsHref(formality, additionalDetails));
+  }
+
+  // Cross-link into Build Around a Piece — pre-sets closetOnly so that flow's
+  // own "Pair only items from my closet" mode is already on, keeping this
+  // sentence's "entirely from your closet" promise true (see
+  // backend/src/modules/outfits/outfits.service.ts's closetOnly-constrained
+  // generation path, which is a hard shortlist constraint, not a soft
+  // preference). Mirrors handleGenerate's close-then-navigate pattern so no
+  // modal is left stacked underneath the new screen.
+  function handleBuildAroundPiece() {
+    close();
+    router.push({ pathname: '/create-look', params: { closetOnly: 'true', fresh: String(Date.now()) } });
   }
 
   return (
@@ -143,6 +155,16 @@ export function GenerateOutfitsModal({ hook }: GenerateOutfitsModalProps) {
               {isDetailsExpanded ? (
                 <View style={{ gap: spacing.md }}>
                   <AppText tone="muted">Steer these outfits toward a look or event — occasion, style direction, things to avoid.</AppText>
+                  <AppText tone="muted" style={{ fontSize: 13, lineHeight: 19 }}>
+                    Want to start with a specific item you own? Try{' '}
+                    <Text
+                      accessibilityRole="link"
+                      onPress={handleBuildAroundPiece}
+                      style={{ color: theme.colors.accent, fontFamily: theme.fonts.sansMedium, textDecorationLine: 'underline' }}>
+                      Build Around a Piece
+                    </Text>{' '}
+                    and keep the outfit entirely from your closet.
+                  </AppText>
                   <TextInput
                     multiline
                     autoCapitalize="sentences"

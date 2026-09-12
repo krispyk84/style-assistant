@@ -29,7 +29,7 @@ export type TripOutfitGroup = {
  * Used by both the look-results card and the trip-day card so they can share the
  * same piece-list rendering and match-sheet interaction.
  *
- * - `label` is the display heading (e.g. 'Anchor', 'Top', 'Outerwear').
+ * - `label` is the display heading (e.g. 'Starting Piece', 'Top', 'Outerwear').
  * - `category` is set when the piece originated from a trip day — drives grouped rendering.
  *   Look pieces leave it undefined and use `label` flat.
  */

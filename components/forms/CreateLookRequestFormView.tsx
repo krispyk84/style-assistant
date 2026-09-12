@@ -87,10 +87,10 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
   return (
     <View style={{ gap: spacing.xl }}>
 
-      {/* Wardrobe Anchors */}
+      {/* Starting Pieces */}
       <View style={{ gap: spacing.md }}>
         <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Wardrobe Anchors</AppText>
+          <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Starting Pieces</AppText>
           <AppText variant="eyebrow" tone="subtle">{anchorItems.length}/5 Items</AppText>
         </View>
 
@@ -541,7 +541,7 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
           <AppText tone="muted" style={{ fontSize: 12 }}>
             {lookCount === 1
               ? 'Generate one outfit for this tier.'
-              : `Generate ${lookCount} distinct outfits from the same anchors and tier.`}
+              : `Generate ${lookCount} distinct outfits from the same pieces and tier.`}
           </AppText>
         </View>
       ) : null}

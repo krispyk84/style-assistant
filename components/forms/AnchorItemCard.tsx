@@ -72,7 +72,7 @@ export function AnchorItemCard({
       }}>
 
       {/* Badge row — plain eyebrow caption instead of bordered pills, echoing
-          the "Wardrobe Anchors" section header just above this card, rather
+          the "Starting Pieces" section header just above this card, rather
           than introducing a separate pill-chrome visual language. */}
       <View
         style={{
@@ -84,7 +84,7 @@ export function AnchorItemCard({
         }}>
         <AppText variant="eyebrow" style={{ letterSpacing: 1.4 }}>
           <AppText variant="eyebrow" style={{ color: theme.colors.accent, letterSpacing: 1.4 }}>
-            {isPrimary ? 'Primary Anchor' : 'Anchor Item'}
+            {isPrimary ? 'Starting Piece' : 'Additional Piece'}
           </AppText>
           {isPrimary ? <AppText variant="eyebrow" tone="subtle" style={{ letterSpacing: 1.4 }}> · Fixed</AppText> : null}
         </AppText>
@@ -196,7 +196,7 @@ export function AnchorItemCard({
               size={22}
             />
             <AppText tone="muted" style={{ flex: 1, fontSize: 14 }}>
-              Save anchor item to my closet
+              Save this piece to my closet
             </AppText>
           </Pressable>
         ) : null}

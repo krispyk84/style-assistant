@@ -108,7 +108,7 @@ export function WeatherCard({ weather, isLoading = false, errorMessage }: Weathe
         ) : (
           <AppText tone="muted">
             {errorMessage ??
-              'Weather is unavailable right now — outfit choices will rely on your anchor item and profile only.'}
+              'Weather is unavailable right now — outfit choices will rely on your starting piece and profile only.'}
           </AppText>
         )}
       </Pressable>
