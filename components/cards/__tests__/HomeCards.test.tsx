@@ -8,11 +8,15 @@ import { cleanup, render, screen } from '@testing-library/react';
 // names for Vesture's two outfit-generation flows — "Build Around a Piece"
 // (the anchor flow) and "Build From My Closet" (the closet-only / Generate 5
 // Outfits flow). HeroCardContent/GenerateFromClosetButton were split out of
-// HomeScreen.tsx into HomeCards.tsx specifically so this file can render the
-// exact same card-content components production uses without also pulling in
-// HomeScreen's `require('../../logo.png')`-style static asset imports and
-// carousel/splash-overlay data-loading machinery, none of which survive a
-// bare vitest/jsdom environment.
+// HomeScreen.tsx into components/cards/HomeCards.tsx specifically so this
+// file can render the exact same card-content components production uses
+// without also pulling in HomeScreen's `require('../../logo.png')`-style
+// static asset imports and carousel/splash-overlay data-loading machinery,
+// none of which survive a bare vitest/jsdom environment. This file (and
+// HomeCards.tsx itself) must live under components/, not app/(app)/ — any
+// .tsx file directly inside app/(app)/ is auto-registered as a tab route by
+// Expo Router unless explicitly hidden in _layout.tsx, and a pure
+// presentational component has no reason to be a route at all.
 
 vi.mock('react-native', () => ({
   View: (props: { children?: unknown }) => <div>{props.children as any}</div>,
@@ -32,7 +36,7 @@ vi.mock('@/components/closet/ClosetReadinessTracker', async () => {
   return { ClosetReadinessTracker: () => null, joinWithAnd: actual.joinWithAnd };
 });
 
-const { HeroCardContent, GenerateFromClosetButton } = await import('@/app/(app)/HomeCards');
+const { HeroCardContent, GenerateFromClosetButton } = await import('@/components/cards/HomeCards');
 
 function textOf(container: HTMLElement) {
   return (container.textContent ?? '').replace(/\s+/g, ' ').trim();
