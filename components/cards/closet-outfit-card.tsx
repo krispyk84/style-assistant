@@ -12,7 +12,6 @@ import { outfitChatFlow } from '@/lib/outfit-chat-flow';
 import { buildSecondOpinionSubjectFromClosetOutfit } from '@/lib/outfit-utils';
 import type { ClosetGeneratedOutfit } from '@/types/api';
 import { OutfitActionsAccordion } from './OutfitActionsAccordion';
-import { OutfitFrameworkView } from './OutfitFrameworkView';
 import { OutfitItemThumbnailRow } from './OutfitItemThumbnailRow';
 
 const MAX_SWAP_SELECTION = 2;
@@ -25,7 +24,7 @@ type ClosetOutfitCardProps = {
   onAddToWeek?: () => void;
   onDelete?: () => void;
   onFeedback?: (value: 'love' | 'hate') => void;
-  /** When set, item thumbnails become selectable (up to 2) and a "Generate Variants" button appears above Save/Add to week. */
+  /** When set, item thumbnails become selectable (up to 2) and a "Generate Variants" button appears below them. */
   onGenerateVariants?: (selectedItemIds: string[]) => void;
   onSecondOpinion?: () => void;
   /** Toggles a hat/bag in or out of this outfit — reloads just this card's item list and sketch, leaving every other already-chosen item untouched. */
@@ -50,7 +49,6 @@ export function ClosetOutfitCard({
 }: ClosetOutfitCardProps) {
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const showActions = onSave || onAddToWeek || onDelete;
   const hasHat = outfit.items.some((item) => item.category === 'Hat');
   const hasBag = outfit.items.some((item) => item.category === 'Bag');
 
@@ -91,6 +89,34 @@ export function ClosetOutfitCard({
 
       <ClosetOutfitDetailModal visible={isDetailOpen} outfit={outfit} onClose={() => setIsDetailOpen(false)} />
 
+      {/* Primary actions — always visible, directly below the sketch, outside
+          the collapsible ACTIONS section below (which now holds only the
+          secondary tools). Not shown in delete/favourites mode (onDelete set,
+          onSave/onAddToWeek absent). */}
+      {onSave || onAddToWeek ? (
+        <View style={{ flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+          {onSave ? (
+            <Pressable
+              disabled={isSaved || isSaving}
+              onPress={onSave}
+              style={[quietButtonStyle, isSaved ? { backgroundColor: theme.colors.border } : null]}>
+              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                <AppIcon color={theme.colors.text} name={isSaved ? 'bookmark-filled' : 'bookmark'} size={16} />
+                <AppText style={{ fontSize: 13 }}>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save'}</AppText>
+              </View>
+            </Pressable>
+          ) : null}
+          {onAddToWeek ? (
+            <Pressable onPress={onAddToWeek} style={quietButtonStyle}>
+              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                <AppIcon color={theme.colors.text} name="calendar" size={16} />
+                <AppText style={{ fontSize: 13 }}>Add to week</AppText>
+              </View>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
       <View style={{ gap: spacing.lg, padding: spacing.lg }}>
       <View style={{ gap: spacing.xs }}>
         <AppText variant="eyebrow" style={{ color: theme.colors.mutedText }}>Why This Works</AppText>
@@ -109,8 +135,6 @@ export function ClosetOutfitCard({
         onToggleSelect={onGenerateVariants ? toggleItemSelected : undefined}
       />
       </View>
-
-      {outfit.framework ? <OutfitFrameworkView framework={outfit.framework} /> : null}
 
       {onToggleHat || onToggleBag ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -176,38 +200,14 @@ export function ClosetOutfitCard({
       ) : null}
 
       <OutfitActionsAccordion>
-          {showActions ? (
+          {onDelete ? (
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-              {onDelete ? (
-                <Pressable onPress={onDelete} style={quietButtonStyle}>
-                  <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-                    <AppIcon color={theme.colors.danger} name="trash" size={16} />
-                    <AppText style={{ color: theme.colors.danger, fontSize: 13 }}>Remove</AppText>
-                  </View>
-                </Pressable>
-              ) : (
-                <>
-                  {onSave ? (
-                    <Pressable
-                      disabled={isSaved || isSaving}
-                      onPress={onSave}
-                      style={[quietButtonStyle, isSaved ? { backgroundColor: theme.colors.border } : null]}>
-                      <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-                        <AppIcon color={theme.colors.text} name={isSaved ? 'bookmark-filled' : 'bookmark'} size={16} />
-                        <AppText style={{ fontSize: 13 }}>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save'}</AppText>
-                      </View>
-                    </Pressable>
-                  ) : null}
-                  {onAddToWeek ? (
-                    <Pressable onPress={onAddToWeek} style={quietButtonStyle}>
-                      <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
-                        <AppIcon color={theme.colors.text} name="calendar" size={16} />
-                        <AppText style={{ fontSize: 13 }}>Add to week</AppText>
-                      </View>
-                    </Pressable>
-                  ) : null}
-                </>
-              )}
+              <Pressable onPress={onDelete} style={quietButtonStyle}>
+                <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs, justifyContent: 'center' }}>
+                  <AppIcon color={theme.colors.danger} name="trash" size={16} />
+                  <AppText style={{ color: theme.colors.danger, fontSize: 13 }}>Remove</AppText>
+                </View>
+              </Pressable>
             </View>
           ) : null}
 
