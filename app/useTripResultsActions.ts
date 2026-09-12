@@ -22,6 +22,10 @@ type UseTripResultsActionsParams = {
   stopSketchPoll: (dayId: string) => void;
 };
 
+// Shared with useTripSketchPolling, which calls the latest persistDay via a
+// ref the screen keeps current — see TripResultsScreen.tsx.
+export type PersistDayFn = (tripId: string, updatedDay: TripOutfitDay) => Promise<void>;
+
 export function useTripResultsActions({
   plan,
   days,
@@ -50,6 +54,15 @@ export function useTripResultsActions({
   // toggle, remove-from-outfit) only ever updated in-memory `days` and
   // reverted to the last-saved version on the next visit.
   //
+  // Branches on savedDbId, NOT the savedTripId route param — savedTripId is
+  // frozen for the life of this screen (useLocalSearchParams), so a trip
+  // that becomes saved mid-session (via handleSaveTrip below, which sets
+  // savedDbId) would otherwise keep routing every later mutation to local
+  // storage even though the trip now genuinely exists in the backend.
+  // savedDbId is initialized from savedTripId and only ever updated to an
+  // equally-valid fresher id, so this is a strict improvement, not a
+  // behavior change for the already-saved-on-load case.
+  //
   // savedTripsService.save already converts a resolved {success:false} API
   // response into a thrown Error (services/saved-trips/api-saved-trips-service.ts),
   // so the only two outcomes this needs to distinguish are "resolved" and
@@ -61,7 +74,7 @@ export function useTripResultsActions({
   // holds the last-confirmed value to revert to on failure, with no new
   // state needed to track it separately.
   const persistDay = useCallback(async (activeTripId: string, updatedDay: TripOutfitDay) => {
-    if (savedTripId && plan) {
+    if (savedDbId && plan) {
       const previousDay = days.find((d) => d.id === updatedDay.id);
       const nextDays = days.map((d) => (d.id === updatedDay.id ? updatedDay : d));
       try {
@@ -78,7 +91,7 @@ export function useTripResultsActions({
     } else {
       await tripOutfitsStorage.updateDay(activeTripId, updatedDay);
     }
-  }, [days, plan, savedTripId, setDays]);
+  }, [days, plan, savedDbId, setDays]);
 
   const handleGenerateSketch = useCallback(async (day: TripOutfitDay) => {
     const activeTripId = plan?.tripId ?? tripId;
@@ -341,6 +354,7 @@ export function useTripResultsActions({
     isSaving,
     savedDbId,
     updatingAccessoryDayId,
+    persistDay,
     handleGenerateSketch,
     handleLove,
     handleHate,

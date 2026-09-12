@@ -25,7 +25,8 @@ vi.mock('@/services/saved-trips', () => ({ savedTripsService: { save: saveMock }
 const { recordErrorMock } = vi.hoisted(() => ({ recordErrorMock: vi.fn() }));
 vi.mock('@/lib/crashlytics', () => ({ recordError: recordErrorMock, log: vi.fn() }));
 
-vi.mock('@/lib/trip-outfits-storage', () => ({ tripOutfitsStorage: { updateDay: vi.fn() } }));
+const { updateDayMock } = vi.hoisted(() => ({ updateDayMock: vi.fn() }));
+vi.mock('@/lib/trip-outfits-storage', () => ({ tripOutfitsStorage: { updateDay: updateDayMock } }));
 vi.mock('@/services/trip-outfits', () => ({ tripOutfitsService: {} }));
 vi.mock('@/lib/trip-day-variant-flow', () => ({
   tripDayVariantFlow: { setPendingRequest: vi.fn(), setListener: vi.fn(), clearListener: vi.fn() },
@@ -151,5 +152,145 @@ describe('persistDay (via handleLove) — saved-trip day-edit reliability', () =
     sync();
     expect(getDays()[0]?.feedback).toBe('love'); // succeeds on retry
     expect(saveMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── Fix: saved-trip sketch persistence ───────────────────────────────────────
+//
+// persistDay now branches on savedDbId (live state, updated the moment
+// handleSaveTrip succeeds) instead of savedTripId (a frozen route param) —
+// these tests protect that branch selection directly, plus the two
+// regression scenarios the bug/fix report called out: mixed-sketch-day
+// isolation and fresh-reload persistence via a stateful save/get mock.
+
+function renderActionsWithSavedTripId(initialDays: TripOutfitDay[], savedTripId: string | undefined) {
+  let days = initialDays;
+  const setDays = vi.fn((updater: TripOutfitDay[] | ((prev: TripOutfitDay[]) => TripOutfitDay[])) => {
+    days = typeof updater === 'function' ? (updater as (prev: TripOutfitDay[]) => TripOutfitDay[])(days) : updater;
+  });
+
+  const { result, rerender } = renderHook(
+    (props: { days: TripOutfitDay[] }) => useTripResultsActions({
+      plan: FAKE_PLAN,
+      days: props.days,
+      setDays,
+      tripId: 'trip-1',
+      savedTripId,
+      startSketchPoll: vi.fn(),
+      stopSketchPoll: vi.fn(),
+    }),
+    { initialProps: { days } },
+  );
+
+  const sync = () => rerender({ days });
+  return { result, sync, getDays: () => days };
+}
+
+describe('persistDay — savedDbId (live) vs savedTripId (frozen route param) branch selection', () => {
+  it('an unsaved trip (no savedTripId on load) persists via tripOutfitsStorage, NOT savedTripsService', async () => {
+    const day = fakeDay();
+    const updatedDay = { ...day, sketchStatus: 'ready' as const, sketchUrl: 'https://example.com/a.jpg' };
+    const { result } = renderActionsWithSavedTripId([day], undefined);
+
+    await act(async () => {
+      await result.current.persistDay('trip-1', updatedDay);
+    });
+
+    expect(updateDayMock).toHaveBeenCalledWith('trip-1', updatedDay);
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
+  it('first-save-in-same-session: after handleSaveTrip succeeds, the NEXT persistDay call routes through savedTripsService — not tripOutfitsStorage', async () => {
+    saveMock.mockResolvedValueOnce({ id: 'newly-saved-id', days: [] }); // handleSaveTrip's own save
+    const day = fakeDay();
+    const { result, sync } = renderActionsWithSavedTripId([day], undefined);
+
+    expect(result.current.savedDbId).toBeNull();
+
+    await act(async () => {
+      await result.current.handleSaveTrip();
+    });
+    sync();
+    expect(result.current.savedDbId).toBe('newly-saved-id');
+    updateDayMock.mockClear();
+    saveMock.mockClear();
+
+    const updatedDay = { ...day, sketchStatus: 'ready' as const, sketchUrl: 'https://example.com/a.jpg' };
+    saveMock.mockResolvedValueOnce({ id: 'newly-saved-id', days: [] });
+    await act(async () => {
+      await result.current.persistDay('trip-1', updatedDay);
+    });
+
+    expect(saveMock).toHaveBeenCalledTimes(1);
+    expect(updateDayMock).not.toHaveBeenCalled();
+  });
+
+  it('an already-saved trip (savedTripId present on load) persists via savedTripsService from the very first call', async () => {
+    saveMock.mockResolvedValueOnce({ id: 'saved-1', days: [] });
+    const day = fakeDay();
+    const updatedDay = { ...day, sketchStatus: 'ready' as const, sketchUrl: 'https://example.com/a.jpg' };
+    const { result } = renderActionsWithSavedTripId([day], 'saved-1');
+
+    await act(async () => {
+      await result.current.persistDay('trip-1', updatedDay);
+    });
+
+    expect(saveMock).toHaveBeenCalledTimes(1);
+    expect(updateDayMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('persistDay — mixed-sketch-day isolation (the reported bug scenario)', () => {
+  it('generating Day A\'s sketch persists ONLY Day A — Day B\'s existing sketch is byte-identical in the save payload', async () => {
+    saveMock.mockResolvedValueOnce({ id: 'saved-1', days: [] });
+    const dayA = fakeDay({ id: 'day-a', sketchStatus: 'failed', sketchUrl: undefined });
+    const dayB = fakeDay({ id: 'day-b', sketchStatus: 'ready', sketchUrl: 'https://example.com/b.jpg', sketchJobId: 'job-b' });
+    const { result } = renderActionsWithSavedTripId([dayA, dayB], 'saved-1');
+
+    const updatedDayA = { ...dayA, sketchStatus: 'ready' as const, sketchUrl: 'https://example.com/a.jpg', sketchJobId: 'job-a' };
+    await act(async () => {
+      await result.current.persistDay('trip-1', updatedDayA);
+    });
+
+    expect(saveMock).toHaveBeenCalledTimes(1);
+    const payload = saveMock.mock.calls[0][0];
+    const savedDayA = payload.days.find((d: TripOutfitDay) => d.id === 'day-a');
+    const savedDayB = payload.days.find((d: TripOutfitDay) => d.id === 'day-b');
+    expect(savedDayA.sketchUrl).toBe('https://example.com/a.jpg');
+    expect(savedDayB).toEqual(dayB); // untouched, byte-identical to before
+  });
+});
+
+describe('persistDay — fresh-reload proves real persistence (stateful save/get mock, not just React state)', () => {
+  it('a sketch persisted for Day A is present on a SEPARATE, later read from the same backing store; Day B is unaffected', async () => {
+    // A minimal in-memory stand-in for the backend's SavedTrip row: save()
+    // writes into it, get() reads from that SAME variable — independent of
+    // any React state, so this proves durability across a simulated reload
+    // rather than merely proving setDays ran.
+    const dayA = fakeDay({ id: 'day-a', sketchStatus: 'failed', sketchUrl: undefined });
+    const dayB = fakeDay({ id: 'day-b', sketchStatus: 'ready', sketchUrl: 'https://example.com/b.jpg', sketchJobId: 'job-b' });
+    let backingStore: { id: string; days: TripOutfitDay[] } = { id: 'saved-1', days: [dayA, dayB] };
+    saveMock.mockImplementation(async (payload: { days: TripOutfitDay[] }) => {
+      backingStore = { id: backingStore.id, days: payload.days };
+      return backingStore;
+    });
+    const getById = async (id: string) => (id === backingStore.id ? backingStore : null);
+
+    const { result } = renderActionsWithSavedTripId([dayA, dayB], 'saved-1');
+    const updatedDayA = { ...dayA, sketchStatus: 'ready' as const, sketchUrl: 'https://example.com/a.jpg', sketchJobId: 'job-a' };
+
+    await act(async () => {
+      await result.current.persistDay('trip-1', updatedDayA);
+    });
+
+    // Discard all hook/screen state and re-fetch from the SAME backing store,
+    // simulating a fresh saved-trip reload.
+    const reloaded = await getById('saved-1');
+    expect(reloaded).not.toBeNull();
+    const reloadedDayA = reloaded!.days.find((d) => d.id === 'day-a');
+    const reloadedDayB = reloaded!.days.find((d) => d.id === 'day-b');
+    expect(reloadedDayA?.sketchUrl).toBe('https://example.com/a.jpg');
+    expect(reloadedDayA?.sketchStatus).toBe('ready');
+    expect(reloadedDayB).toEqual(dayB);
   });
 });

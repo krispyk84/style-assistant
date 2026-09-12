@@ -1,14 +1,21 @@
-import { Dispatch, SetStateAction, useCallback, useEffect, useRef } from 'react';
+import { Dispatch, MutableRefObject, SetStateAction, useCallback, useEffect, useRef } from 'react';
 
-import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
 import { tripOutfitsService } from '@/services/trip-outfits';
 import type { TripOutfitDay } from '@/services/trip-outfits';
+import type { PersistDayFn } from './useTripResultsActions';
 
 type UseTripSketchPollingParams = {
   setDays: Dispatch<SetStateAction<TripOutfitDay[]>>;
+  // Bridges to useTripResultsActions' persistDay — the screen keeps this ref
+  // current (see TripResultsScreen.tsx) so a poll tick always calls whatever
+  // persistDay implementation exists NOW, never a copy captured back when
+  // startSketchPoll's setInterval was first created. persistDay itself
+  // already owns the saved-trip-vs-local-storage branch; this hook never
+  // decides that, it just calls through the ref.
+  persistDayRef: MutableRefObject<PersistDayFn>;
 };
 
-export function useTripSketchPolling({ setDays }: UseTripSketchPollingParams) {
+export function useTripSketchPolling({ setDays, persistDayRef }: UseTripSketchPollingParams) {
   const pollIntervals = useRef<Record<string, ReturnType<typeof setInterval>>>({});
   // Per-day in-flight guard — setInterval doesn't wait for its async callback,
   // so a slow getDaySketchStatus call could otherwise still be pending when
@@ -44,7 +51,7 @@ export function useTripSketchPolling({ setDays }: UseTripSketchPollingParams) {
             });
             return next;
           });
-          if (updatedDay) await tripOutfitsStorage.updateDay(tripId, updatedDay);
+          if (updatedDay) await persistDayRef.current(tripId, updatedDay);
         } else if (status.sketchStatus === 'failed') {
           stopSketchPoll(dayId);
           setDays((prev) =>
@@ -57,7 +64,7 @@ export function useTripSketchPolling({ setDays }: UseTripSketchPollingParams) {
         pollInFlight.current[dayId] = false;
       }
     }, 4000);
-  }, [setDays, stopSketchPoll]);
+  }, [setDays, stopSketchPoll, persistDayRef]);
 
   useEffect(() => {
     const intervals = pollIntervals.current;

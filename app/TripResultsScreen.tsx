@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -11,7 +11,7 @@ import { LoadingState } from '@/components/ui/loading-state';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import { buildPackingListHref } from '@/lib/trip-route';
-import { useTripResultsActions } from './useTripResultsActions';
+import { useTripResultsActions, type PersistDayFn } from './useTripResultsActions';
 import { useTripResultsData } from './useTripResultsData';
 import { useTripSketchPolling } from './useTripSketchPolling';
 
@@ -39,12 +39,27 @@ export function TripResultsScreen() {
     totalProgressDays,
     closetItems,
   } = useTripResultsData({ tripId, savedTripId, isProgressive });
-  const { startSketchPoll, stopSketchPoll } = useTripSketchPolling({ setDays });
+  // Bridges useTripResultsActions' persistDay into useTripSketchPolling
+  // without either hook importing the other (useTripSketchPolling is
+  // instantiated first, since useTripResultsActions needs its
+  // startSketchPoll/stopSketchPoll — persistDay isn't available yet at that
+  // point). The effect below keeps this pointed at the CURRENT persistDay on
+  // every render, so a poll tick — which may fire minutes after
+  // startSketchPoll was called — never invokes a stale closure. The initial
+  // value throws rather than silently no-opping if somehow called before the
+  // first effect run, which cannot happen in practice (sketch polling only
+  // starts after a user-initiated "Generate Sketch" tap, well after mount).
+  const persistDayRef = useRef<PersistDayFn>(async () => {
+    throw new Error('persistDayRef invoked before useTripResultsActions initialized persistDay');
+  });
+
+  const { startSketchPoll, stopSketchPoll } = useTripSketchPolling({ setDays, persistDayRef });
   const {
     regeneratingDays,
     isSaving,
     savedDbId,
     updatingAccessoryDayId,
+    persistDay,
     handleGenerateSketch,
     handleLove,
     handleHate,
@@ -61,6 +76,10 @@ export function TripResultsScreen() {
     startSketchPoll,
     stopSketchPoll,
   });
+
+  useEffect(() => {
+    persistDayRef.current = persistDay;
+  }, [persistDay]);
 
   // ── Packing list navigation ──────────────────────────────────────────────────
 
