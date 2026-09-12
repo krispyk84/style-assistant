@@ -23,11 +23,11 @@ import {
   buildFrameworkBreakdown,
   buildOutfitSlotShortlists,
   buildVariantCandidates,
+  classifyItemsBySlot,
   fillMissingRequiredSlots,
   normalizeSuitDualRole,
 } from '../closet/closet-outfit-builder.js';
 import {
-  ACCESSORY_GROUPS,
   FORMALITY_RANK,
   resolveGarmentGroup,
   GROUP_TO_SLOTS,
@@ -236,34 +236,6 @@ function mapDaySlotsToDto(
     closetItemIds,
     framework: tier ? buildFrameworkBreakdown({ tier, bySlot, accessoryItems: extraAccessoryItems }) : undefined,
   };
-}
-
-// Reconstructs a bySlot map (plus any multi-pick "Additional Accessories"
-// items, which don't fit the single-item-per-slot bySlot model) from a flat
-// item-id list — needed by generateDayVariants/updateDayAccessories, which
-// work with real item ids (from a swap/toggle request) rather than a fresh
-// choice result that already carries slots.
-function buildBySlotFromItemIds(
-  itemIds: string[],
-  itemsById: Map<string, BuilderItem>,
-): { bySlot: Partial<Record<OutfitSlot, BuilderItem>>; accessoryItems: BuilderItem[] } {
-  const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
-  const accessoryItems: BuilderItem[] = [];
-  for (const id of itemIds) {
-    const item = itemsById.get(id);
-    if (!item) continue;
-    const group = resolveGarmentGroup(item);
-    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
-    if (slot) {
-      bySlot[slot] = item;
-    } else if (group && ACCESSORY_GROUPS.includes(group)) {
-      accessoryItems.push(item);
-    }
-  }
-  // A suit in a flat id list only ever lands in 'bottoms' (GROUP_TO_SLOTS
-  // takes the first slot) — this promotes it to also fill 'secondaryTop'.
-  normalizeSuitDualRole(bySlot);
-  return { bySlot, accessoryItems };
 }
 
 // Reuses the shared deterministic builder to pick a single hat/bag by
@@ -897,7 +869,7 @@ export const tripsService = {
       if (seenKeys.has(key)) continue;
       seenKeys.add(key);
 
-      const { bySlot, accessoryItems } = buildBySlotFromItemIds(itemIds, itemsById);
+      const { bySlot, accessoryItems } = classifyItemsBySlot(itemIds, itemsById);
       variants.push({
         id: `${request.tripId}-day-${request.dayIndex}-v${Date.now()}-${variants.length}`,
         tripId: request.tripId,
@@ -946,7 +918,7 @@ export const tripsService = {
       includeBag: request.includeBag,
     });
 
-    const { bySlot, accessoryItems } = buildBySlotFromItemIds(itemIds, itemsById);
+    const { bySlot, accessoryItems } = classifyItemsBySlot(itemIds, itemsById);
     return mapDaySlotsToDto(bySlot, accessoryItems, tier);
   },
 

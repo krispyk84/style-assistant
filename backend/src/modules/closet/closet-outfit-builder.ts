@@ -1,6 +1,7 @@
 import {
   ACCESSORY_GROUPS,
   FORMALITY_RANK,
+  GROUP_TO_SLOTS,
   resolveGarmentGroup,
   SLOT_GROUPS,
   TIER_ALLOWS_SUIT,
@@ -418,6 +419,39 @@ export function fillMissingRequiredSlots<TItem extends BuilderClosetItem>(params
     const picked = fresh ?? candidates[0];
     if (picked) params.bySlot[slot] = picked;
   }
+}
+
+// Previously duplicated verbatim as classifyItemsBySlot in
+// closet-outfits.service.ts and buildBySlotFromItemIds in trips.service.ts —
+// both now call this. Classifies an already-resolved flat item-id list back
+// into slots (plus any multi-pick "Additional Accessories" items, which don't
+// fit a single-item slot) for framework/DTO display — used by resolveChoiceOutfits,
+// generateDayVariants, and both hat/bag accessory-toggle endpoints. This is a
+// display-reconstruction step only: every caller already guarantees at most
+// one non-suit item per slot BEFORE calling this (each engine's own
+// generation-time duplicate handling runs upstream) — this function does not
+// itself decide which item wins a slot. normalizeSuitDualRole re-promotes a
+// suit's single flat id into both its structural slots for correct display;
+// it does not re-arbitrate anything either.
+export function classifyItemsBySlot<TItem extends BuilderClosetItem>(
+  itemIds: string[],
+  itemsById: Map<string, TItem>,
+): { bySlot: Partial<Record<OutfitSlot, TItem>>; accessoryItems: TItem[] } {
+  const bySlot: Partial<Record<OutfitSlot, TItem>> = {};
+  const accessoryItems: TItem[] = [];
+  for (const id of itemIds) {
+    const item = itemsById.get(id);
+    if (!item) continue;
+    const group = resolveGarmentGroup(item);
+    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
+    if (slot) {
+      bySlot[slot] = item;
+    } else if (group && ACCESSORY_GROUPS.includes(group)) {
+      accessoryItems.push(item);
+    }
+  }
+  normalizeSuitDualRole(bySlot);
+  return { bySlot, accessoryItems };
 }
 
 // ── Framework breakdown — for displaying the enforced structure on cards ────

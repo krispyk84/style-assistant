@@ -33,13 +33,12 @@ import {
   buildFrameworkBreakdown,
   buildOutfitSlotShortlists,
   buildVariantCandidates,
+  classifyItemsBySlot,
   effectiveAllowedGroups,
   filterByFormalityBand,
-  normalizeSuitDualRole,
   type FrameworkBreakdown,
 } from './closet-outfit-builder.js';
 import {
-  ACCESSORY_GROUPS,
   FORMALITY_RANK,
   resolveGarmentGroup,
   GROUP_TO_SLOTS,
@@ -149,30 +148,6 @@ function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
     material: item.material ?? null,
     brand: item.brand || null,
   };
-}
-
-// Classifies a flat resolved item-id list back into slots (plus any multi-
-// pick "Additional Accessories" items, which don't fit a single-item slot)
-// for the framework breakdown — mirrors trips.service.ts's equivalent.
-function classifyItemsBySlot(
-  itemIds: string[],
-  itemsById: Map<string, BuilderItem>,
-): { bySlot: Partial<Record<OutfitSlot, BuilderItem>>; accessoryItems: BuilderItem[] } {
-  const bySlot: Partial<Record<OutfitSlot, BuilderItem>> = {};
-  const accessoryItems: BuilderItem[] = [];
-  for (const id of itemIds) {
-    const item = itemsById.get(id);
-    if (!item) continue;
-    const group = resolveGarmentGroup(item);
-    const slot = group ? GROUP_TO_SLOTS[group]?.[0] : undefined;
-    if (slot) {
-      bySlot[slot] = item;
-    } else if (group && ACCESSORY_GROUPS.includes(group)) {
-      accessoryItems.push(item);
-    }
-  }
-  normalizeSuitDualRole(bySlot);
-  return { bySlot, accessoryItems };
 }
 
 type ChoiceOutfit = {
