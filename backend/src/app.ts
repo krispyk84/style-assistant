@@ -25,6 +25,7 @@ import { outfitChatRouter } from './modules/outfit-chat/outfit-chat.routes.js';
 import { selfieReviewRouter } from './modules/selfie-review/selfie-review.routes.js';
 import { uploadsRouter } from './modules/uploads/uploads.routes.js';
 import { stylistBriefRouter } from './modules/stylist-brief/stylist-brief.routes.js';
+import { tripItineraryRouter } from './modules/trip-itinerary/trip-itinerary.routes.js';
 import { tripsRouter } from './modules/trips/trips.routes.js';
 import { savedTripsRouter } from './modules/trips/saved-trips.routes.js';
 import { tripPlansRouter } from './modules/trips/trip-plans.routes.js';
@@ -233,6 +234,7 @@ export function createApp() {
   apiRouter.use(outfitChatRouter);
   apiRouter.use(uploadsRouter);
   apiRouter.use(stylistBriefRouter);
+  apiRouter.use(tripItineraryRouter);
   apiRouter.use(tripsRouter);
   apiRouter.use(savedTripsRouter);
   apiRouter.use(tripPlansRouter);

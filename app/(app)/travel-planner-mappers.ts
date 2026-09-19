@@ -56,6 +56,7 @@ type BuildTripDraftParams = {
   rewearOk: YesNo;
   specialNeeds: string;
   dayFormality: Record<number, 'casual' | 'smart-casual' | 'business'>;
+  itineraryDays: { date: string; summary: string }[];
 };
 
 export function buildTripDraft({
@@ -80,6 +81,7 @@ export function buildTripDraft({
   rewearOk,
   specialNeeds,
   dayFormality,
+  itineraryDays,
 }: BuildTripDraftParams): TripDraft {
   return {
     draftId: `draft-${Date.now()}`,
@@ -113,6 +115,7 @@ export function buildTripDraft({
     rewearOk: rewearOk === 'Yes',
     specialNeeds: specialNeeds.trim() || undefined,
     dayFormality: Object.keys(dayFormality).length > 0 ? dayFormality : undefined,
+    itineraryDays: itineraryDays.length > 0 ? itineraryDays : undefined,
     createdAt: new Date().toISOString(),
   };
 }

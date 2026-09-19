@@ -52,6 +52,8 @@ export type TripDraft = {
   specialNeeds?: string;
   /** Per-day formality picker (0-based day index → tier), defaults to 'casual' for any day not explicitly set. */
   dayFormality?: Record<number, 'casual' | 'smart-casual' | 'business'>;
+  /** Day-by-day summaries extracted from an uploaded itinerary PDF on the Plans step, already filtered to the overlap with this trip's own destination/dates, and reviewed/edited by the user. */
+  itineraryDays?: { date: string; summary: string }[];
   // Anchors saved just before progressive generation starts
   pendingAnchors?: PendingAnchorInput[];
   pendingAnchorMode?: 'guided' | 'auto' | 'manual' | 'fullCloset';

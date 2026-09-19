@@ -100,6 +100,20 @@ function buildTripContext(req: GenerateTripOutfitsRequest): string {
     );
   }
 
+  // Itinerary PDF, already filtered to the overlap between the uploaded
+  // document and this trip's own destination/dates (see the trip-itinerary
+  // module) — the user's actual confirmed plans, stronger than specialNeeds
+  // free text since it isn't just a note, it's what's really happening.
+  if (req.itineraryDays && req.itineraryDays.length > 0) {
+    lines.push(
+      '',
+      'ITINERARY BREAKDOWN — confirmed plans from the user\'s uploaded itinerary, one entry per date. Treat each entry as authoritative for the day whose date it names: let it directly decide that day\'s type/formality (e.g. "Conference all day" → business; "Free day, walking tour" → sightseeing/casual). Days with no matching entry below fall back to the general trip context above.',
+    );
+    for (const day of req.itineraryDays) {
+      lines.push(`  ${day.date}: ${day.summary}`);
+    }
+  }
+
   // Previously generated days — for progressive (per-day) generation coherence
   if (req.previousDaysSummary && req.previousDaysSummary.length > 0) {
     lines.push('', 'ALREADY-PLANNED DAYS:');

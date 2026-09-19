@@ -66,6 +66,7 @@ export const generateTripOutfitsSchema = z.object({
   carryOnOnly:  z.boolean(),
   rewearOk:     z.boolean().optional(),
   specialNeeds: z.string().optional(),
+  itineraryDays: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), summary: z.string().min(1) })).optional(),
   generateOnlyDayIndex: z.number().int().min(0).optional(),
   previousDaysSummary: z.array(z.string()).optional(),
   formalityTier: z.enum(['casual', 'smart-casual', 'business']).optional(),

@@ -50,6 +50,23 @@ export function useTravelPlannerForm() {
     setDayFormality((prev) => ({ ...prev, [dayIndex]: tier }));
   }, []);
 
+  // Day-by-day summaries reviewed/edited from an uploaded itinerary PDF (see
+  // useItineraryUpload, assembled by the screen via replaceItineraryDays —
+  // hooks never import each other, per this codebase's cross-hook
+  // coordination convention). Mirrors dayFormality's inline-in-this-hook
+  // shape rather than a separate form hook, since this is the same kind of
+  // small per-day editable list, on the same screen.
+  const [itineraryDays, setItineraryDays] = useState<{ date: string; summary: string }[]>([]);
+  const replaceItineraryDays = useCallback((days: { date: string; summary: string }[]) => {
+    setItineraryDays(days);
+  }, []);
+  const updateItineraryDaySummary = useCallback((date: string, summary: string) => {
+    setItineraryDays((prev) => prev.map((day) => (day.date === date ? { ...day, summary } : day)));
+  }, []);
+  const removeItineraryDay = useCallback((date: string) => {
+    setItineraryDays((prev) => prev.filter((day) => day.date !== date));
+  }, []);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -130,6 +147,7 @@ export function useTravelPlannerForm() {
     setRewearOk('No');
     setSpecialNeeds('');
     setDayFormality({});
+    setItineraryDays([]);
     setSubmitError(null);
     setStep(1);
   }, []);
@@ -174,6 +192,7 @@ export function useTravelPlannerForm() {
         rewearOk,
         specialNeeds,
         dayFormality,
+        itineraryDays,
       });
       if (options?.wantToBring && options.wantToBring.length > 0) {
         draft.pendingAnchors = options.wantToBring.map((item) => ({
@@ -204,6 +223,7 @@ export function useTravelPlannerForm() {
     dressCode,
     exceedsMaxDays,
     fancyNights,
+    itineraryDays,
     laundryAccess,
     numDays,
     purposes,
@@ -259,6 +279,10 @@ export function useTravelPlannerForm() {
     setSpecialNeeds,
     dayFormality,
     setDayFormalityForIndex,
+    itineraryDays,
+    replaceItineraryDays,
+    updateItineraryDaySummary,
+    removeItineraryDay,
     isSubmitting,
     submitError,
     numDays,

@@ -24,7 +24,8 @@ export type AiFeature =
   | 'trend-sketch'
   | 'color-swatch-sketch'
   | 'stylist-tier-inference'
-  | 'stylist-brief-transcription';
+  | 'stylist-brief-transcription'
+  | 'trip-itinerary-extraction';
 
 const TEXT_INPUT_COST_PER_TOKEN = 0.15 / 1_000_000;
 const TEXT_OUTPUT_COST_PER_TOKEN = 0.60 / 1_000_000;

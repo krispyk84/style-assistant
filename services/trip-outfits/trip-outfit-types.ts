@@ -129,6 +129,8 @@ export type GenerateTripOutfitsParams = {
   carryOnOnly: boolean;
   rewearOk?: boolean;
   specialNeeds?: string;
+  /** Day-by-day summaries extracted from an uploaded itinerary PDF, filtered to this trip's own destination/dates — authoritative context for the day-shape step. */
+  itineraryDays?: { date: string; summary: string }[];
   generateOnlyDayIndex?: number;
   previousDaysSummary?: string[];
   /** User-selected formality for the day at generateOnlyDayIndex (trip form's per-day picker, defaults to 'casual') — authoritative when set. */

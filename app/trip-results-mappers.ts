@@ -184,6 +184,7 @@ export function buildTripDayGenerationParams({
     carryOnOnly: draft.carryOnOnly,
     rewearOk: draft.rewearOk,
     specialNeeds: draft.specialNeeds,
+    itineraryDays: draft.itineraryDays,
     anchors: draft.pendingAnchors,
     anchorMode: draft.pendingAnchorMode,
     generateOnlyDayIndex: dayIndex,

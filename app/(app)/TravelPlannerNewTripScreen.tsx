@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { DestinationAutocomplete } from '@/components/forms/destination-autocomplete';
+import { ItineraryDayCard } from '@/components/forms/ItineraryDayCard';
 import { TravelDatePicker } from '@/components/forms/travel-date-picker';
 import { ClosetPickerModal } from '@/components/closet/closet-picker-modal';
 import { AppIcon } from '@/components/ui/app-icon';
@@ -17,8 +18,11 @@ import { buildTripModeHref } from '@/lib/trip-route';
 import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
 import { Card, ChipGrid, FieldLabel } from './travel-planner-primitives';
+import { toTripISODate } from './travel-planner-mappers';
+import { useItineraryUpload } from './useItineraryUpload';
 import { useTravelPlannerForm } from './useTravelPlannerForm';
 import { PURPOSES, type JacketCount, type ShoeCount, type TravelParty, type YesNo, type YesNoUnsure } from './travel-planner-types';
+import type { DestinationResult } from '@/services/destination';
 
 const STEP_TITLES: Record<1 | 2 | 3, string> = {
   1: 'Trip',
@@ -43,6 +47,7 @@ export function TravelPlannerNewTripScreen() {
     rewearOk, setRewearOk,
     specialNeeds, setSpecialNeeds,
     dayFormality, setDayFormalityForIndex,
+    itineraryDays, replaceItineraryDays, updateItineraryDaySummary, removeItineraryDay,
     numDays, canContinueStep1, isSubmitting, submitError,
     step, goNext, goBack,
     saveDraft,
@@ -126,7 +131,17 @@ export function TravelPlannerNewTripScreen() {
         ) : null}
 
         {step === 2 ? (
-          <Step2Plans purposes={purposes} togglePurpose={togglePurpose} />
+          <Step2Plans
+            purposes={purposes}
+            togglePurpose={togglePurpose}
+            destination={destination}
+            departureDate={departureDate}
+            returnDate={returnDate}
+            itineraryDays={itineraryDays}
+            replaceItineraryDays={replaceItineraryDays}
+            updateItineraryDaySummary={updateItineraryDaySummary}
+            removeItineraryDay={removeItineraryDay}
+          />
         ) : null}
 
         {step === 3 ? (
@@ -239,25 +254,117 @@ function Step1Trip({
 function Step2Plans({
   purposes,
   togglePurpose,
+  destination,
+  departureDate,
+  returnDate,
+  itineraryDays,
+  replaceItineraryDays,
+  updateItineraryDaySummary,
+  removeItineraryDay,
 }: {
   purposes: string[];
   togglePurpose: (v: string) => void;
+  destination: DestinationResult | null;
+  departureDate: Date | null;
+  returnDate: Date | null;
+  itineraryDays: { date: string; summary: string }[];
+  replaceItineraryDays: (days: { date: string; summary: string }[]) => void;
+  updateItineraryDaySummary: (date: string, summary: string) => void;
+  removeItineraryDay: (date: string) => void;
 }) {
+  const { theme } = useTheme();
+  const upload = useItineraryUpload();
+  const canUpload = destination !== null && departureDate !== null && returnDate !== null;
+
+  function handleUploadPress() {
+    if (!destination || !departureDate || !returnDate) return;
+    upload.pickAndExtract({
+      destination: destination.label,
+      departureDate: toTripISODate(departureDate),
+      returnDate: toTripISODate(returnDate),
+      onExtracted: replaceItineraryDays,
+    });
+  }
+
   return (
-    <Card>
-      <View style={{ gap: spacing.xs }}>
-        <FieldLabel>What will you be doing?</FieldLabel>
-        <AppText tone="muted" style={{ fontSize: 12, marginBottom: spacing.xs }}>
-          Pick as many as apply — this tells the stylist what formality and pieces to plan for.
-        </AppText>
-        <ChipGrid
-          options={PURPOSES}
-          values={purposes}
-          onChange={togglePurpose}
-          onAddCustom={togglePurpose}
-        />
-      </View>
-    </Card>
+    <>
+      <Card>
+        <View style={{ gap: spacing.xs }}>
+          <FieldLabel>What will you be doing?</FieldLabel>
+          <AppText tone="muted" style={{ fontSize: 12, marginBottom: spacing.xs }}>
+            Pick as many as apply — this tells the stylist what formality and pieces to plan for.
+          </AppText>
+          <ChipGrid
+            options={PURPOSES}
+            values={purposes}
+            onChange={togglePurpose}
+            onAddCustom={togglePurpose}
+          />
+        </View>
+      </Card>
+
+      {/* Itinerary upload — optional, and only meaningful once destination/
+          dates are set (Step 1), since extraction filters to the overlap
+          with them. A failure here never blocks the trip: it only surfaces
+          an inline note, and the purposes above still work on their own. */}
+      <Card>
+        <View style={{ gap: spacing.xs }}>
+          <FieldLabel>Have an itinerary?</FieldLabel>
+          <AppText tone="muted" style={{ fontSize: 12 }}>
+            Upload a PDF (flights, conference, hotel confirmations) and your actual plans will shape each day instead of a guess.
+          </AppText>
+        </View>
+
+        {itineraryDays.length > 0 ? (
+          <View style={{ gap: spacing.sm }}>
+            {itineraryDays.map((day) => (
+              <ItineraryDayCard
+                key={day.date}
+                date={day.date}
+                summary={day.summary}
+                onChangeSummary={(summary) => updateItineraryDaySummary(day.date, summary)}
+                onRemove={() => removeItineraryDay(day.date)}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {upload.noOverlapMessage ? (
+          <AppText tone="muted" style={{ fontSize: 12 }}>{upload.noOverlapMessage}</AppText>
+        ) : null}
+        {upload.error ? (
+          <AppText style={{ color: theme.colors.danger, fontSize: 12 }}>{upload.error}</AppText>
+        ) : null}
+        {!canUpload ? (
+          <AppText tone="muted" style={{ fontSize: 12 }}>Set your destination and dates on the previous step first.</AppText>
+        ) : null}
+
+        <Pressable
+          disabled={!canUpload || upload.isUploading}
+          onPress={handleUploadPress}
+          style={{
+            alignItems: 'center',
+            borderColor: theme.colors.border,
+            borderRadius: 999,
+            borderStyle: 'dashed',
+            borderWidth: 1,
+            flexDirection: 'row',
+            gap: spacing.xs,
+            justifyContent: 'center',
+            opacity: !canUpload || upload.isUploading ? 0.5 : 1,
+            paddingVertical: spacing.md,
+          }}>
+          {upload.isUploading ? (
+            <ActivityIndicator color={theme.colors.mutedText} size="small" />
+          ) : (
+            <AppIcon color={theme.colors.mutedText} name="upload" size={16} />
+          )}
+          <AppText tone="muted">
+            {upload.isUploading ? 'Reading itinerary…' : itineraryDays.length > 0 ? 'Upload a different itinerary' : 'Upload itinerary PDF'}
+          </AppText>
+        </Pressable>
+      </Card>
+    </>
   );
 }
 

@@ -77,6 +77,15 @@ export type GenerateTripOutfitsRequest = {
   carryOnOnly: boolean;
   rewearOk?: boolean;
   specialNeeds?: string;
+  /**
+   * Day-by-day summaries extracted from an uploaded itinerary PDF (see the
+   * trip-itinerary module), already filtered to the overlap between the
+   * itinerary and this trip's own destination/date range — authoritative
+   * per-day context for buildTripDayShapePrompt, stronger than the generic
+   * specialNeeds free text since it reflects the user's actual confirmed
+   * plans rather than a note.
+   */
+  itineraryDays?: { date: string; summary: string }[];
   /** Progressive generation: generate only this day (0-based index). */
   generateOnlyDayIndex?: number;
   /** Summaries of already-generated days to avoid piece repetition. */
