@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { ClosetOutfitDetailModal } from '@/components/cards/closet-outfit-detail-modal';
+import { FragranceRecommendationCard } from '@/components/cards/FragranceRecommendationCard';
 import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPanel';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AppText } from '@/components/ui/app-text';
@@ -135,6 +136,10 @@ export function ClosetOutfitCard({
         onToggleSelect={onGenerateVariants ? toggleItemSelected : undefined}
       />
       </View>
+
+      {outfit.fragranceRecommendation ? (
+        <FragranceRecommendationCard recommendation={outfit.fragranceRecommendation} />
+      ) : null}
 
       {onToggleHat || onToggleBag ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>

@@ -8,6 +8,7 @@ import { requireAuth } from '../../middleware/auth.js';
 import { closetService } from './closet.service.js';
 import {
   analyzeClosetItemSchema,
+  classifyItemKindSchema,
   closetMatchSchema,
   createClosetItemPairSchema,
   generateClosetOutfitsSchema,
@@ -87,6 +88,19 @@ closetRouter.post(
   asyncHandler(async (request, response) => {
     const payload = parseWithSchema(closetMatchSchema, request.body);
     const result = await closetService.matchItems(payload, request.userId!);
+    return sendSuccess(response, result);
+  })
+);
+
+// Type-aware Add Closet Item flow, step 1 — classifies garment vs fragrance
+// vs unknown before any type-specific processing runs. Must be before
+// /closet/items/analyze in reading order only for clarity; no path collision.
+closetRouter.post(
+  '/closet/items/classify-kind',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(classifyItemKindSchema, request.body);
+    const result = await closetService.classifyItemKind(payload, request.userId!);
     return sendSuccess(response, result);
   })
 );

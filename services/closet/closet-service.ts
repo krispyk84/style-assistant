@@ -1,6 +1,8 @@
 import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
+  ClassifyItemKindRequest,
+  ClassifyItemKindResponse,
   ClosetAnalyseResponse,
   ClosetMatchRequest,
   ClosetMatchResponse,
@@ -25,6 +27,8 @@ import type { ClosetItem } from '@/types/closet';
 
 export type ClosetService = {
   analyzeItem: (request: AnalyzeClosetItemRequest) => Promise<ApiResponse<AnalyzeClosetItemResponse>>;
+  /** Best-effort garment-vs-fragrance classification for the Add Closet Item flow — never blocks saving, only offers a mode switch. */
+  classifyItemKind: (request: ClassifyItemKindRequest) => Promise<ApiResponse<ClassifyItemKindResponse>>;
   saveItem: (request: SaveClosetItemRequest) => Promise<ApiResponse<ClosetItem>>;
   /** Combines two existing closet items (e.g. a blazer + trousers) into a new, independent item (e.g. a suit) — the two source items are left untouched. */
   createPairedItem: (itemIds: [string, string]) => Promise<ApiResponse<ClosetItem>>;

@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { LayoutAnimation, Platform, Pressable, UIManager, View } from 'react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { FragranceRecommendationCard } from '@/components/cards/FragranceRecommendationCard';
 import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPanel';
 import { ClosetItemSheet } from '@/components/closet/closet-item-sheet';
 import { AppIcon } from '@/components/ui/app-icon';
@@ -350,6 +351,10 @@ export function TripDayCard({
             ))}
           </View>
         )}
+
+        {day.fragranceRecommendation ? (
+          <FragranceRecommendationCard recommendation={day.fragranceRecommendation} />
+        ) : null}
 
         {/* Love / Hate — always visible */}
         <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs }}>

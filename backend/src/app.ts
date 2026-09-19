@@ -12,6 +12,7 @@ import { errorHandler } from './middleware/error-handler.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { closetRouter } from './modules/closet/closet.routes.js';
+import { fragrancesRouter } from './modules/fragrances/fragrances.routes.js';
 import { closetFitCheckRouter } from './modules/closet-fit-check/closet-fit-check.routes.js';
 import { closetOutfitSyncRouter } from './modules/closet-outfit-sync/closet-outfit-sync.routes.js';
 import { compatibilityRouter } from './modules/compatibility/compatibility.routes.js';
@@ -224,6 +225,7 @@ export function createApp() {
   apiRouter.use(profileRouter);
   apiRouter.use(outfitsRouter);
   apiRouter.use(closetRouter);
+  apiRouter.use(fragrancesRouter);
   apiRouter.use(closetFitCheckRouter);
   apiRouter.use(closetOutfitSyncRouter);
   apiRouter.use(diagnosticsRouter);

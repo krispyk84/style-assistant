@@ -28,6 +28,20 @@ export type TripOutfitDayDto = {
   closetItemIds?: string[];
   /** Set only for "From My Closet" (fullCloset) days — the enforced framework's slot breakdown. */
   framework?: OutfitFrameworkDto;
+  /** Additive, optional — old clients/results without this field remain fully valid. Null/absent whenever the user owns no eligible fragrances. */
+  fragranceRecommendation?: FragranceRecommendationDto | null;
+};
+
+export type FragranceRecommendationDto = {
+  userFragranceId: string;
+  fragranceId: string;
+  brand: string;
+  name: string;
+  concentration: string | null;
+  bottleSketchUrl: string | null;
+  keyAccords: string[];
+  primaryVibe: string | null;
+  reason: string;
 };
 
 export type TripAnchorInputDto = {

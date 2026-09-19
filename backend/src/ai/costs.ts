@@ -25,7 +25,11 @@ export type AiFeature =
   | 'color-swatch-sketch'
   | 'stylist-tier-inference'
   | 'stylist-brief-transcription'
-  | 'trip-itinerary-extraction';
+  | 'trip-itinerary-extraction'
+  | 'fragrance-classify'
+  | 'fragrance-describe'
+  | 'fragrance-profile'
+  | 'fragrance-sketch';
 
 const TEXT_INPUT_COST_PER_TOKEN = 0.15 / 1_000_000;
 const TEXT_OUTPUT_COST_PER_TOKEN = 0.60 / 1_000_000;

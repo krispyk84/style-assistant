@@ -3,6 +3,8 @@ import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
   ApiResponse,
+  ClassifyItemKindRequest,
+  ClassifyItemKindResponse,
   ClosetAnalyseResponse,
   ClosetMatchRequest,
   ClosetMatchResponse,
@@ -82,6 +84,10 @@ export const mockClosetService: ClosetService = {
       },
       error: null,
     };
+  },
+
+  async classifyItemKind(_request: ClassifyItemKindRequest): Promise<ApiResponse<ClassifyItemKindResponse>> {
+    return { success: true, data: { itemKind: 'garment', confidence: 0 }, error: null };
   },
 
   async saveItem(request: SaveClosetItemRequest): Promise<ApiResponse<ClosetItem>> {

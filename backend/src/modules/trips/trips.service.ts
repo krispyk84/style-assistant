@@ -15,6 +15,7 @@ import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { describeError, HttpError } from '../../lib/http-error.js';
 import { profileRepository } from '../profile/profile.repository.js';
+import { loadOwnedFragrances, scoreLoadedFragrances } from '../fragrances/fragrance-recommendation-integration.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
 import { closetRepository } from '../closet/closet.repository.js';
 import {
@@ -195,6 +196,16 @@ const THERMAL_LAYER_HALLUCINATION_KEYWORDS = ['sweater', 'cardigan', 'hoodie', '
 function textMentionsAny(text: string, keywords: string[]): boolean {
   const lower = text.toLowerCase();
   return keywords.some((keyword) => lower.includes(keyword));
+}
+
+// Same dayType→formality mapping already stated in trips.prompts.ts's own
+// shape-inference instructions — used only to give the fragrance scorer a
+// formality signal for non-fullCloset days, which have no explicit
+// formalityTier of their own (that field is fullCloset-only).
+function dayTypeToFormalityTier(dayType: string): 'casual' | 'smart-casual' | 'business' {
+  if (['business', 'meeting', 'wedding_event'].includes(dayType)) return 'business';
+  if (['conference', 'dinner_out', 'sightseeing'].includes(dayType)) return 'smart-casual';
+  return 'casual';
 }
 
 function buildSafeRationale(bySlot: Partial<Record<OutfitSlot, BuilderItem>>): string {
@@ -593,6 +604,9 @@ async function generateFullClosetTripOutfits(
     });
   const usedAnchorItemIds = new Set(request.usedAnchorItemIds ?? []);
 
+  // Loaded once (spec section 36), scored once per day below.
+  const ownedFragrances = await loadOwnedFragrances(supabaseUserId);
+
   // Sequential, not parallel — the outerwear/footwear cap must be threaded
   // day-by-day in order (each day narrows or updates the running "used" list
   // the next day reads).
@@ -641,6 +655,12 @@ async function generateFullClosetTripOutfits(
       rationale: chosen.rationale,
       contextTags: shape.contextTags,
       ...mapDaySlotsToDto(chosen.bySlot, chosen.accessoryItems, resolvedTier),
+      fragranceRecommendation: scoreLoadedFragrances(ownedFragrances, {
+        season: request.dressSeason === 'summer' || request.dressSeason === 'tropical' ? 'summer' : request.dressSeason === 'winter' ? 'winter' : undefined,
+        temperatureC: request.avgHighC,
+        formalityTier: resolvedTier,
+        aestheticText: [request.styleVibe, request.activities].filter(Boolean).join(' '),
+      }),
     });
   }
 
@@ -737,6 +757,10 @@ export const tripsService = {
     const shoesCap = parseShoesCap(request.shoesCount);
     let usedFootwear = request.usedFootwear ?? [];
 
+    // Loaded once (spec section 36), scored once per day below — never
+    // influences the garment pieces already resolved above, purely additive.
+    const ownedFragrances = await loadOwnedFragrances(supabaseUserId);
+
     const days: TripOutfitDayDto[] = result.days.map((day) => {
       const { pieces, usedOuterwear: nextUsedOuterwear } = enforceOuterwearCap(day.pieces, usedOuterwear, jacketsCap);
       usedOuterwear = nextUsedOuterwear;
@@ -752,6 +776,12 @@ export const tripsService = {
         bag: day.bag ?? null,
         accessories: day.accessories ?? [],
         closetItemIds: undefined,
+        fragranceRecommendation: scoreLoadedFragrances(ownedFragrances, {
+          season: request.dressSeason === 'summer' || request.dressSeason === 'tropical' ? 'summer' : request.dressSeason === 'winter' ? 'winter' : undefined,
+          temperatureC: request.avgHighC,
+          formalityTier: dayTypeToFormalityTier(day.dayType),
+          aestheticText: [request.styleVibe, request.activities].filter(Boolean).join(' '),
+        }),
       };
     });
 

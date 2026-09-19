@@ -3,6 +3,8 @@ import { deleteClosetItem, saveClosetItem, updateClosetItem } from '@/lib/closet
 import type {
   AnalyzeClosetItemRequest,
   AnalyzeClosetItemResponse,
+  ClassifyItemKindRequest,
+  ClassifyItemKindResponse,
   ClosetAnalyseResponse,
   ClosetMatchRequest,
   ClosetMatchResponse,
@@ -30,6 +32,13 @@ import type { ClosetService } from '@/services/closet/closet-service';
 export const apiClosetService: ClosetService = {
   async analyzeItem(request: AnalyzeClosetItemRequest): Promise<ApiResponse<AnalyzeClosetItemResponse>> {
     return createApiClient().request<AnalyzeClosetItemResponse>('/closet/items/analyze', {
+      method: 'POST',
+      body: request,
+    });
+  },
+
+  async classifyItemKind(request: ClassifyItemKindRequest): Promise<ApiResponse<ClassifyItemKindResponse>> {
+    return createApiClient().request<ClassifyItemKindResponse>('/closet/items/classify-kind', {
       method: 'POST',
       body: request,
     });

@@ -7,6 +7,12 @@ export const analyzeClosetItemSchema = z.object({
   description: z.string().optional(),
 });
 
+// The FIRST step of a type-aware Add Closet Item flow (spec section 4) —
+// classifies garment vs fragrance before any type-specific processing runs.
+export const classifyItemKindSchema = z.object({
+  uploadedImageUrl: z.string(),
+});
+
 const closetMetadataFields = {
   subcategory: z.string().optional(),
   primaryColor: z.string().optional(),
@@ -154,6 +160,7 @@ export const setClosetOutfitFeedbackSchema = z.object({
 
 export type StylistId = 'vittorio' | 'alessandra';
 export type AnalyzeClosetItemPayload = z.infer<typeof analyzeClosetItemSchema>;
+export type ClassifyItemKindPayload = z.infer<typeof classifyItemKindSchema>;
 export type SaveClosetItemPayload = z.infer<typeof saveClosetItemSchema>;
 export type UpdateClosetItemPayload = z.infer<typeof updateClosetItemSchema>;
 export type GenerateClosetSketchPayload = z.infer<typeof generateClosetSketchSchema>;

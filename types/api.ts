@@ -3,6 +3,7 @@ import type { CreateLookInput, LookRequestResponse, LookTierSlug } from '@/types
 import type { LocalImageAsset, UploadedImageAsset } from '@/types/media';
 import type { PersistedSession, Profile, SkinTone } from '@/types/profile';
 import type { Hemisphere, WeatherContext } from '@/types/weather';
+import type { FragranceRecommendationDto } from '@/types/fragrance';
 
 export type ApiError = {
   code: string;
@@ -135,6 +136,19 @@ export type AnalyzeClosetItemResponse = {
   pattern?: string | null;
   lensShape?: string | null;
   frameColor?: string | null;
+};
+
+export type ClassifyItemKindRequest = {
+  uploadedImageId?: string;
+  uploadedImageUrl?: string;
+  description?: string;
+};
+
+export type ClassifyItemKindResponse = {
+  itemKind: 'garment' | 'fragrance' | 'unknown';
+  confidence: number;
+  fragranceBrandGuess?: string | null;
+  fragranceNameGuess?: string | null;
 };
 
 export type SaveClosetItemRequest = {
@@ -402,6 +416,8 @@ export type ClosetGeneratedOutfit = {
   sketchJobId: string;
   sketchStatus: 'pending' | 'ready' | 'failed';
   sketchImageUrl: string | null;
+  /** Additive, optional — absent/null whenever the user owns no eligible fragrances. */
+  fragranceRecommendation?: FragranceRecommendationDto | null;
 };
 
 export type GenerateClosetOutfitsRequest = {
