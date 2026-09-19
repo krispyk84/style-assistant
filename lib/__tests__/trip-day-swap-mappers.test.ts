@@ -134,7 +134,29 @@ describe('mapLookRecommendationToTripDay', () => {
     expect(result.feedback).toBeNull();
   });
 
-  it('resets sketch state so the existing auto-generate effect kicks off a fresh sketch', () => {
+  it('carries over the look\'s own already-generated sketch instead of discarding it', () => {
+    const day = makeDay({ sketchStatus: 'ready', sketchUrl: 'https://example.com/old-day-sketch.png', sketchJobId: 'job-old' });
+    const recommendation = makeRecommendation({ sketchStatus: 'ready', sketchImageUrl: 'https://example.com/look-sketch.png' });
+    const result = mapLookRecommendationToTripDay(day, recommendation, 'casual');
+
+    expect(result.sketchStatus).toBe('ready');
+    expect(result.sketchUrl).toBe('https://example.com/look-sketch.png');
+    // The old trip-side sketch job id is always cleared — it belongs to the
+    // outfit that no longer exists, and carrying the URL over doesn't need it.
+    expect(result.sketchJobId).toBeUndefined();
+  });
+
+  it('falls back to not_started (letting the auto-generate effect kick off a fresh sketch) when the look\'s own sketch was not actually ready', () => {
+    const day = makeDay({ sketchStatus: 'ready', sketchUrl: 'https://example.com/old.png', sketchJobId: 'job-old' });
+    const recommendation = makeRecommendation({ sketchStatus: 'pending', sketchImageUrl: null });
+    const result = mapLookRecommendationToTripDay(day, recommendation, 'casual');
+
+    expect(result.sketchStatus).toBe('not_started');
+    expect(result.sketchUrl).toBeUndefined();
+    expect(result.sketchJobId).toBeUndefined();
+  });
+
+  it('falls back to not_started when the recommendation has no sketch info at all', () => {
     const day = makeDay({ sketchStatus: 'ready', sketchUrl: 'https://example.com/old.png', sketchJobId: 'job-old' });
     const result = mapLookRecommendationToTripDay(day, makeRecommendation(), 'casual');
 

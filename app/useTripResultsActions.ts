@@ -238,6 +238,16 @@ export function useTripResultsActions({
     const swapParams = {
       swapDayTitle: day.title,
       swapTripId: activeTripId,
+      // Threaded through to the return trip's router.dismissTo call
+      // (MultiLookResults.tsx) so it lands back on trip-results with the SAME
+      // savedTripId this screen was loaded with — without it, dismissTo's
+      // params would be missing savedTripId, useTripResultsData's load effect
+      // would see savedTripId change to undefined and re-run down its
+      // local-AsyncStorage branch instead of the DB one, reloading a stale
+      // local snapshot (this trip's real state lives only in the DB once
+      // savedDbId is set — persistDay never mirrors DB writes back to local
+      // storage) and making every day look like it needs a fresh sketch.
+      swapSavedTripId: savedDbId ?? undefined,
       swapContextLine: `${plan.destination} — ${day.title}`,
       swapClosetOnly: day.closetItemIds?.length ? 'true' : undefined,
     };
@@ -247,7 +257,7 @@ export function useTripResultsActions({
         ? { pathname: '/create-look', params: { ...swapParams, swapFormality: day.formalityTier ?? 'casual' } }
         : { pathname: '/stylist-outfit', params: swapParams },
     );
-  }, [persistDay, plan, setDays, stopSketchPoll, tripId]);
+  }, [persistDay, plan, savedDbId, setDays, stopSketchPoll, tripId]);
 
   // Clear any dangling swap listener if the screen unmounts before a selection is made.
   useEffect(() => () => tripDaySwapFlow.clearListener(), []);

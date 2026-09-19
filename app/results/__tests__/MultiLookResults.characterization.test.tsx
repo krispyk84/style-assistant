@@ -884,6 +884,53 @@ describe('MultiLookResults — swap-outfit "Use for Day" action', () => {
     expect(routerDismissTo).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/trip-results', params: expect.objectContaining({ tripId: 'trip-1' }) }));
   });
 
+  // Regression test: omitting savedTripId from the dismissTo call made
+  // trip-results' reload effect think this was a local-only trip, reload a
+  // stale AsyncStorage snapshot, and regenerate every already-ready day's
+  // sketch. swapSavedTripId must reach the dismissTo params unchanged.
+  it('includes swapSavedTripId in the dismissTo params for an already-saved trip, so trip-results reloads from the same DB-backed source it originally loaded from', async () => {
+    render(
+      <MultiLookResults
+        primaryRequestId="req-primary"
+        variantRequestIds={[]}
+        parsedInput={BASE_INPUT}
+        addAnchorToCloset={false}
+        swapDayTitle="Montmartre Art Walk"
+        swapTripId="trip-1"
+        swapSavedTripId="saved-db-id-1"
+      />,
+    );
+
+    const primaryProps = await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary'));
+    (primaryProps.onUseForTripDay as () => void)();
+
+    expect(routerDismissTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: '/trip-results',
+        params: expect.objectContaining({ tripId: 'trip-1', savedTripId: 'saved-db-id-1' }),
+      }),
+    );
+  });
+
+  it('omits savedTripId from the dismissTo params for a trip that was never saved to the backend (local-only)', async () => {
+    render(
+      <MultiLookResults
+        primaryRequestId="req-primary"
+        variantRequestIds={[]}
+        parsedInput={BASE_INPUT}
+        addAnchorToCloset={false}
+        swapDayTitle="Montmartre Art Walk"
+        swapTripId="trip-1"
+      />,
+    );
+
+    const primaryProps = await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary'));
+    (primaryProps.onUseForTripDay as () => void)();
+
+    const call = routerDismissTo.mock.calls[0]![0] as { params: Record<string, unknown> };
+    expect(call.params.savedTripId).toBeUndefined();
+  });
+
   it('picking the variant slot emits that slot\'s own recommendation, not the primary\'s', async () => {
     const { tripDaySwapFlow } = await import('@/lib/trip-day-swap-flow');
     const emitSpy = vi.spyOn(tripDaySwapFlow, 'emit');

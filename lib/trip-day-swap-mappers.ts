@@ -16,11 +16,13 @@ function pieceLabel(piece: OutfitPiece | string): string {
  * whichever accessory piece is tagged category "Bag" becomes `bag`, the rest
  * stay in `accessories`.
  *
- * Sketch state resets (not_started, no url/job) rather than carrying over
- * the old day's sketch or the look's own — this is a full outfit swap, and
- * useTripResultsActions.ts's existing auto-generate effect already kicks off
- * a fresh sketch for any day it finds at 'not_started' with no job, the same
- * way handleRemoveItemFromDay's full-composition changes do.
+ * Sketch: the picked look already had its own sketch generated on the
+ * results screen — the user watched it render before tapping "Use for
+ * [Day]" — so it's carried over directly rather than discarded and
+ * regenerated from scratch. Only falls back to 'not_started' (letting
+ * useTripResultsActions.ts's existing auto-generate effect kick off a fresh
+ * one, the same way handleRemoveItemFromDay's full-composition changes do)
+ * in the rare case the look's own sketch wasn't actually ready yet.
  */
 export function mapLookRecommendationToTripDay(
   originalDay: TripOutfitDay,
@@ -31,6 +33,8 @@ export function mapLookRecommendationToTripDay(
   const otherAccessories = recommendation.accessories
     .filter((piece) => piece !== bagPiece)
     .map(pieceLabel);
+
+  const sketchReady = recommendation.sketchStatus === 'ready' && !!recommendation.sketchImageUrl;
 
   return {
     ...originalDay,
@@ -44,8 +48,8 @@ export function mapLookRecommendationToTripDay(
     closetItemIds: recommendation.closetItemIds,
     framework: recommendation.framework,
     feedback: null,
-    sketchStatus: 'not_started',
-    sketchUrl: undefined,
+    sketchStatus: sketchReady ? 'ready' : 'not_started',
+    sketchUrl: sketchReady ? recommendation.sketchImageUrl! : undefined,
     sketchJobId: undefined,
   };
 }

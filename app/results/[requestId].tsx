@@ -26,10 +26,10 @@ import { useResultsMatchFeedback } from './useResultsMatchFeedback';
 import { useResultsActions } from './useResultsActions';
 
 export default function ResultDetailsScreen() {
-  const params = useLocalSearchParams<LookRouteParams & { requestId: string; swapDayTitle?: string; swapTripId?: string }>();
+  const params = useLocalSearchParams<LookRouteParams & { requestId: string; swapDayTitle?: string; swapTripId?: string; swapSavedTripId?: string }>();
   const routeKey = JSON.stringify(params);
   const stableParams = useMemo(
-    () => JSON.parse(routeKey) as LookRouteParams & { requestId: string; swapDayTitle?: string; swapTripId?: string },
+    () => JSON.parse(routeKey) as LookRouteParams & { requestId: string; swapDayTitle?: string; swapTripId?: string; swapSavedTripId?: string },
     [routeKey],
   );
 
@@ -47,6 +47,7 @@ export default function ResultDetailsScreen() {
           addAnchorToCloset={stableParams.addAnchorToCloset === 'true'}
           swapDayTitle={stableParams.swapDayTitle}
           swapTripId={stableParams.swapTripId}
+          swapSavedTripId={stableParams.swapSavedTripId}
         />
       );
     }

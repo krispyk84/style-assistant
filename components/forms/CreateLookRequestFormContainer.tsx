@@ -14,6 +14,7 @@ type CreateLookRequestFormProps = {
   /** Set only when launched to swap a trip day's outfit — carried through to the results screen so it can show a "Use for [Day]" action instead of (or alongside) Save/Add to Week. */
   swapDayTitle?: string;
   swapTripId?: string;
+  swapSavedTripId?: string;
 };
 
 const DEFAULT_INITIAL_VALUE: CreateLookInput = {
@@ -25,7 +26,7 @@ const DEFAULT_INITIAL_VALUE: CreateLookInput = {
   selectedTiers: ['business', 'smart-casual', 'casual'],
 };
 
-export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE, lockedTier, swapDayTitle, swapTripId }: CreateLookRequestFormProps) {
+export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE, lockedTier, swapDayTitle, swapTripId, swapSavedTripId }: CreateLookRequestFormProps) {
   const anchorForm = useAnchorItemsForm(initialValue);
   const lookForm = useCreateLookRequestForm(initialValue, { initialLookCount: lockedTier ? 3 : undefined });
 
@@ -65,7 +66,7 @@ export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE, lo
           additionalDetails: lookForm.additionalDetails,
           lookCount: lookForm.lookCount,
         }),
-        ...(swapDayTitle ? { swapDayTitle, swapTripId } : {}),
+        ...(swapDayTitle ? { swapDayTitle, swapTripId, swapSavedTripId } : {}),
       },
     });
   }

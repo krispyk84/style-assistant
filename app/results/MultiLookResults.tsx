@@ -58,6 +58,8 @@ type MultiLookResultsProps = {
   /** Set only when reached via a trip day's "Swap outfit" action — shows a "Use for [Day]" action on each look instead of requiring Save + a separate assignment step. */
   swapDayTitle?: string;
   swapTripId?: string;
+  /** Present only if the trip is already saved to the backend — MUST be passed back to buildTripResultsHref on return (see handleUseForTripDay) so useTripResultsData's reload reads the same DB-backed source trip-results loaded from originally, not a stale local-AsyncStorage snapshot. */
+  swapSavedTripId?: string;
 };
 
 function buildSummary(recommendation: LookRecommendation): VariationSummary {
@@ -77,6 +79,7 @@ export function MultiLookResults({
   addAnchorToCloset,
   swapDayTitle,
   swapTripId,
+  swapSavedTripId,
 }: MultiLookResultsProps) {
   const trendiness = useTrendiness();
   const { showToast } = useToast();
@@ -302,12 +305,17 @@ export function MultiLookResults({
   // useTripResultsActions.ts's handleSwapOutfit before this screen's launch)
   // and pops the stack straight back to it, however many screens deep this
   // sub-journey went (the swap's own form screen + this results screen).
+  // swapSavedTripId MUST be included here — omitting it would make trip-
+  // results' reload effect see savedTripId flip to undefined and fall back
+  // to a stale local-AsyncStorage read instead of the DB-backed trip it
+  // actually loaded from, making every already-generated day look like it
+  // needs a brand new sketch.
   function handleUseForTripDay(slot: SlotState) {
     if (!slot.response || !swapTripId) return;
     const recommendation = slot.response.recommendations.find((r) => r.tier === tier);
     if (!recommendation) return;
     tripDaySwapFlow.emit(recommendation, tier);
-    router.dismissTo(buildTripResultsHref({ tripId: swapTripId }));
+    router.dismissTo(buildTripResultsHref({ tripId: swapTripId, savedTripId: swapSavedTripId }));
   }
 
   async function handleOutfitFeedback(slot: SlotState, thumb: 'love' | 'hate') {

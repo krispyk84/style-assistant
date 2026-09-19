@@ -16,7 +16,7 @@ export default function CreateLookScreen() {
 
   const {
     closetItemId, closetItemTitle, closetItemImageUrl, closetItemFitStatus, closetOnly, fresh,
-    swapDayTitle, swapTripId, swapContextLine, swapClosetOnly, swapFormality,
+    swapDayTitle, swapTripId, swapSavedTripId, swapContextLine, swapClosetOnly, swapFormality,
   } = useLocalSearchParams<{
     closetItemId?: string;
     closetItemTitle?: string;
@@ -28,6 +28,8 @@ export default function CreateLookScreen() {
     /** Set only when launched from a trip day's "Swap outfit" action (see useTripResultsActions.ts's handleSwapOutfit) — locks the tier and pre-seeds context/closet-only from that day. */
     swapDayTitle?: string;
     swapTripId?: string;
+    /** Present only if the trip is already saved to the backend — carried through so the eventual return trip (MultiLookResults.tsx's dismissTo) doesn't drop it and force a stale local-storage reload. */
+    swapSavedTripId?: string;
     swapContextLine?: string;
     swapClosetOnly?: string;
     swapFormality?: string;
@@ -72,6 +74,7 @@ export default function CreateLookScreen() {
           lockedTier={lockedTier}
           swapDayTitle={swapDayTitle}
           swapTripId={swapTripId}
+          swapSavedTripId={swapSavedTripId}
         />
       </View>
     </AppScreen>

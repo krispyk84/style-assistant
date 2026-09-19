@@ -12,10 +12,12 @@ import { trackAskStylistStarted } from '@/lib/analytics';
 export default function StylistOutfitScreen() {
   useEffect(() => { trackAskStylistStarted(); }, []);
 
-  const { swapDayTitle, swapTripId, swapContextLine, swapClosetOnly } = useLocalSearchParams<{
+  const { swapDayTitle, swapTripId, swapSavedTripId, swapContextLine, swapClosetOnly } = useLocalSearchParams<{
     /** Set only when launched from a trip day's "Swap outfit" action (see useTripResultsActions.ts's handleSwapOutfit) — pre-seeds the brief/closet-only default from that day. */
     swapDayTitle?: string;
     swapTripId?: string;
+    /** Present only if the trip is already saved to the backend — carried through so the eventual return trip (MultiLookResults.tsx's dismissTo) doesn't drop it and force a stale local-storage reload. */
+    swapSavedTripId?: string;
     swapContextLine?: string;
     swapClosetOnly?: string;
   }>();
@@ -35,6 +37,7 @@ export default function StylistOutfitScreen() {
           initialClosetOnly={swapClosetOnly === 'true'}
           swapDayTitle={swapDayTitle}
           swapTripId={swapTripId}
+          swapSavedTripId={swapSavedTripId}
         />
       </View>
     </AppScreen>

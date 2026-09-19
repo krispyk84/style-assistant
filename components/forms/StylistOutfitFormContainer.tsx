@@ -17,9 +17,10 @@ type StylistOutfitFormProps = {
   /** Carried through to the results screen so it can show a "Use for [Day]" action. */
   swapDayTitle?: string;
   swapTripId?: string;
+  swapSavedTripId?: string;
 };
 
-export function StylistOutfitForm({ initialBrief, initialClosetOnly, swapDayTitle, swapTripId }: StylistOutfitFormProps = {}) {
+export function StylistOutfitForm({ initialBrief, initialClosetOnly, swapDayTitle, swapTripId, swapSavedTripId }: StylistOutfitFormProps = {}) {
   const anchorForm = useAnchorItemsForm({
     anchorItems: [],
     anchorItemDescription: '',
@@ -97,7 +98,7 @@ export function StylistOutfitForm({ initialBrief, initialClosetOnly, swapDayTitl
             lookCount: STYLIST_LOOK_COUNT,
             stylistId: stylistForm.stylistId!,
           }),
-          ...(swapDayTitle ? { swapDayTitle, swapTripId } : {}),
+          ...(swapDayTitle ? { swapDayTitle, swapTripId, swapSavedTripId } : {}),
         },
       });
       // Not resetting isSubmitting on success — the screen navigates away;
