@@ -16,6 +16,11 @@ export function setApiAuthToken(token: string | null): void {
   _authToken = token;
 }
 
+/** For request paths that can't go through ApiClient.request (e.g. multipart file uploads needing a raw fetch/XHR) but still hit an authenticated route. */
+export function getApiAuthToken(): string | null {
+  return _authToken;
+}
+
 export class ApiClient {
   constructor(private readonly baseUrl: string) {}
 

@@ -7,7 +7,7 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { GenerateOutfitsModal } from '@/components/closet/GenerateOutfitsModal';
 import { useGenerateOutfits } from '@/components/closet/useGenerateOutfits';
 import { FashionTrendReportModal } from '@/components/cards/fashion-trend-report-modal';
-import { GenerateFromClosetButton, HeroCardContent } from '@/components/cards/HomeCards';
+import { AskStylistCard, GenerateFromClosetButton, HeroCardContent } from '@/components/cards/HomeCards';
 import { WeatherCard } from '@/components/cards/weather-card';
 import { AppScreen } from '@/components/ui/app-screen';
 import { AppText } from '@/components/ui/app-text';
@@ -136,6 +136,10 @@ export function HomeScreen() {
           />
         ) : null}
         <GenerateOutfitsModal hook={generateOutfits} />
+
+        {/* Ask a Stylist — the separate, conversational way to build an
+            outfit. Does not replace either hero card above. */}
+        <AskStylistCard onPress={() => router.push('/stylist-outfit')} />
 
         {/* Weather section */}
         <View style={{ gap: spacing.md }}>

@@ -1,0 +1,1 @@
+export { StylistOutfitForm } from './StylistOutfitFormContainer';

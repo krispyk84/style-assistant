@@ -43,6 +43,9 @@ const envSchema = z.object({
   OPENAI_OUTFIT_SKETCH_QUALITY: z.enum(['low', 'medium', 'high', 'auto']).default('medium'),
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com'),
   OPENAI_TIMEOUT_MS: z.coerce.number().int().positive().default(120000),
+  /** Speech-to-text for the "Ask a Stylist" voice brief — same OpenAI account/key as every other call in this file, just a different endpoint (/v1/audio/transcriptions). */
+  OPENAI_TRANSCRIPTION_MODEL: z.string().min(1).default('gpt-4o-mini-transcribe'),
+  OPENAI_TRANSCRIPTION_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   STYLE_GUIDE_ENABLED: z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1').default('false'),
   STYLE_GUIDE_VECTOR_STORE_ID: z.string().optional(),
   STYLE_GUIDE_SOURCE_PATH: z.string().default('style-guides/source/Esquire-2024.epub'),

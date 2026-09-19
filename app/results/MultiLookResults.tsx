@@ -32,6 +32,7 @@ import {
 } from '@/types/look-request';
 import { useToast } from '@/components/ui/toast-provider';
 import { buildSecondOpinionSubject } from '@/lib/outfit-utils';
+import { STYLISTS } from '@/lib/stylists';
 import { useResultsPolling, type ResultsPollTarget } from './useResultsPolling';
 import { performSaveOutfit, performAssignToWeek, performOutfitFeedback } from './result-actions';
 
@@ -344,13 +345,17 @@ export function MultiLookResults({
 
   const reviewResponse = slots[0]?.response;
   const reviewInput = reviewResponse?.input ?? parsedInput;
+  // Set only by the "Ask a Stylist" flow — the original structured-form flow
+  // never sets stylistId, so this always falls through to the original
+  // generic heading there.
+  const stylist = parsedInput.stylistId ? STYLISTS.find((s) => s.id === parsedInput.stylistId) : null;
 
   return (
     <AppScreen scrollable floatingBack avoidsKeyboard={false}>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
         <ScreenHeader title="Outfit Results" showBack />
         <View style={{ gap: spacing.xs }}>
-          <AppText variant="heroSmall">Your Looks</AppText>
+          <AppText variant="heroSmall">{stylist ? `${stylist.name}'s Looks` : 'Your Looks'}</AppText>
           <AppText tone="muted">
             {totalLooks} distinct styling directions built from the same starting piece.
           </AppText>

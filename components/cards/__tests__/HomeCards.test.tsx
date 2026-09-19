@@ -36,7 +36,7 @@ vi.mock('@/components/closet/ClosetReadinessTracker', async () => {
   return { ClosetReadinessTracker: () => null, joinWithAnd: actual.joinWithAnd };
 });
 
-const { HeroCardContent, GenerateFromClosetButton } = await import('@/components/cards/HomeCards');
+const { HeroCardContent, GenerateFromClosetButton, AskStylistCard } = await import('@/components/cards/HomeCards');
 
 function textOf(container: HTMLElement) {
   return (container.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -133,5 +133,20 @@ describe('Home — Build From My Closet card (not-ready state references the oth
     const { container } = render(<GenerateFromClosetButton {...notReadyProps} />);
     expect(textOf(container)).toContain('Unlike Build Around a Piece above');
     expect(textOf(container)).not.toContain('Create a New Look');
+  });
+});
+
+describe('Home — Ask a Stylist card (separate third entry point)', () => {
+  it('renders its own distinct entry point, not a variant of the two hero cards', () => {
+    const { container } = render(<AskStylistCard onPress={vi.fn()} />);
+    expect(textOf(container)).toContain('Ask a Stylist');
+    expect(textOf(container)).toContain('Describe what you need and let Vittorio or Alessandra build the look.');
+  });
+
+  it('tapping the card fires its own onPress — a separate navigation target from either hero card', () => {
+    const onPress = vi.fn();
+    const { container } = render(<AskStylistCard onPress={onPress} />);
+    (container.querySelector('button') as HTMLButtonElement).click();
+    expect(onPress).toHaveBeenCalledTimes(1);
   });
 });

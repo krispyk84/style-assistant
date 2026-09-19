@@ -6,7 +6,7 @@ import { HttpError } from '../../lib/http-error.js';
 import { parseWithSchema } from '../../lib/validation.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { outfitsService } from './outfits.service.js';
-import { generateOutfitsSchema, regenerateTierSchema } from './outfits.validation.js';
+import { generateOutfitsSchema, inferStylistTierSchema, regenerateTierSchema } from './outfits.validation.js';
 
 export const outfitsRouter = Router();
 
@@ -73,6 +73,16 @@ outfitsRouter.post(
     const payload = parseWithSchema(generateOutfitsSchema, request.body);
     const result = await outfitsService.generateOutfits(payload, request.userId!);
     return sendSuccess(response, result, 201);
+  })
+);
+
+outfitsRouter.post(
+  '/outfits/stylist/infer-tier',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const payload = parseWithSchema(inferStylistTierSchema, request.body);
+    const tier = await outfitsService.inferStylistTier(payload.stylistBrief, request.userId!);
+    return sendSuccess(response, { tier });
   })
 );
 

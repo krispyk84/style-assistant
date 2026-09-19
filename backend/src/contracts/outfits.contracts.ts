@@ -25,9 +25,14 @@ export type OutfitPieceDto = {
   metadata: OutfitPieceMeta | null;
 };
 
+/** Virtual stylist persona for the conversational "Ask a Stylist" flow. Absent for the original structured-form flow. */
+export type StylistId = 'vittorio' | 'alessandra';
+
 export type GenerateOutfitsRequest = {
   requestId: string;
   profileId?: string;
+  /** Set only by the "Ask a Stylist" flow — adds a persona-specific generation instruction layer on top of the normal rules. */
+  stylistId?: StylistId;
   anchorItems?: Array<{
     description: string;
     imageId?: string;
@@ -131,6 +136,7 @@ export type OutfitResponse = {
     closetOnly?: boolean;
     additionalDetails?: string;
     trendiness?: number;
+    stylistId?: StylistId;
   };
   recommendations: TierRecommendationDto[];
 };

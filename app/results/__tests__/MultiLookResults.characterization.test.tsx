@@ -813,3 +813,28 @@ describe('MultiLookResults — polling error handling (Phase R3A fix, regression
     expect((primaryAfterRecovery.recommendation as { sketchStatus?: string }).sketchStatus).toBe('ready');
   });
 });
+
+// ── 11. "Ask a Stylist" heading — additive, original flow unaffected ───────
+//
+// parsedInput.stylistId is only ever set by the new conversational flow; the
+// original structured-form flow never sets it, so BASE_INPUT (used by every
+// test above) exercises the untouched "Your Looks" branch throughout this
+// whole file. These two tests isolate the new branch specifically.
+
+describe('MultiLookResults — stylist attribution heading', () => {
+  it('shows the stylist-attributed heading when parsedInput.stylistId is set', async () => {
+    const input = { ...BASE_INPUT, stylistId: 'alessandra' } as CreateLookInput;
+    const { container } = render(
+      <MultiLookResults primaryRequestId="req-primary" variantRequestIds={[]} parsedInput={input} addAnchorToCloset={false} />,
+    );
+    await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary'));
+    expect(container.textContent).toContain("Alessandra's Looks");
+    expect(container.textContent).not.toContain('Your Looks');
+  });
+
+  it('keeps the original generic heading when stylistId is absent (the original flow, unchanged)', async () => {
+    const { container } = renderScreen();
+    await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary'));
+    expect(container.textContent).toContain('Your Looks');
+  });
+});

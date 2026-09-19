@@ -7,6 +7,9 @@ export const LOOK_TIER_OPTIONS = ['business', 'smart-casual', 'casual'] as const
 
 export type LookTierSlug = (typeof LOOK_TIER_OPTIONS)[number];
 
+/** Virtual stylist persona for the conversational "Ask a Stylist" flow. Re-exported from lib/stylists.ts, which also carries display data (name, keywords, avatar). */
+export type StylistId = 'vittorio' | 'alessandra';
+
 // ── Outfit piece taxonomy ──────────────────────────────────────────────────────
 
 /**
@@ -127,6 +130,8 @@ export type CreateLookInput = {
   trendiness?: number;
   /** User opted to constrain every recommendation to real items already in their closet. */
   closetOnly?: boolean;
+  /** Set only by the "Ask a Stylist" conversational flow — absent for the original structured-form flow. */
+  stylistId?: StylistId;
 };
 
 export type LookTierDefinition = {

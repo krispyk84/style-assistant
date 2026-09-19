@@ -9,4 +9,6 @@ export type OutfitsService = {
   getOutfitHistory: (params?: { page?: number; limit?: number }) => Promise<ApiResponse<OutfitHistoryResponse>>;
   deleteOutfitFromHistory: (requestId: string) => Promise<ApiResponse<{ deleted: boolean }>>;
   getOutfitResult: (requestId: string) => Promise<ApiResponse<GenerateOutfitsResponse>>;
+  /** "Ask a Stylist" flow — infers a formality tier from a freeform brief before generation. */
+  inferStylistTier: (stylistBrief: string) => Promise<ApiResponse<{ tier: GenerateOutfitsRequest['selectedTiers'][number] }>>;
 };

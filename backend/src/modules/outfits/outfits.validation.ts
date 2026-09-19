@@ -5,6 +5,8 @@ const outfitTierSchema = z.enum(['business', 'smart-casual', 'casual']);
 export const generateOutfitsSchema = z.object({
   requestId: z.string().min(1),
   profileId: z.string().optional(),
+  /** Set only by the "Ask a Stylist" flow. */
+  stylistId: z.enum(['vittorio', 'alessandra']).optional(),
   anchorItems: z
     .array(
       z.object({
@@ -77,4 +79,9 @@ export const generateOutfitsSchema = z.object({
 
 export const regenerateTierSchema = z.object({
   tier: outfitTierSchema,
+});
+
+/** "Ask a Stylist" flow — infers a formality tier from the user's freeform brief before generation, since that flow has no explicit tier picker. */
+export const inferStylistTierSchema = z.object({
+  stylistBrief: z.string().trim().min(1).max(1000),
 });

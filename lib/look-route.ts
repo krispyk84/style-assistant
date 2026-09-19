@@ -49,6 +49,7 @@ export function parseLookInput(params: LookRouteParams): CreateLookInput | null 
     includeHat: params.includeHat === 'true',
     closetOnly: params.closetOnly === 'true',
     additionalDetails: params.additionalDetails ?? '',
+    stylistId: params.stylistId === 'vittorio' || params.stylistId === 'alessandra' ? params.stylistId : undefined,
   };
 }
 
@@ -87,6 +88,7 @@ export function buildLookRouteParams(requestId: string, input: CreateLookInput) 
     includeHat: input.includeHat ? 'true' : undefined,
     closetOnly: input.closetOnly ? 'true' : undefined,
     additionalDetails: input.additionalDetails?.trim() || undefined,
+    stylistId: input.stylistId,
   };
 }
 

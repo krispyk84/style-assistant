@@ -7,6 +7,7 @@ import { ClosetReadinessTracker, joinWithAnd } from '@/components/closet/ClosetR
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
 import type { ClosetReadiness } from '@/lib/closet-readiness';
+import { STYLISTS } from '@/lib/stylists';
 
 // ── Home's two entry cards ───────────────────────────────────────────────────
 //
@@ -165,5 +166,73 @@ export function HeroCardContent({ accentColor, inverseColor }: { accentColor: st
         </View>
       </View>
     </View>
+  );
+}
+
+/**
+ * "Ask a Stylist" — the separate, conversational way to build an outfit.
+ * A distinct third entry point, not a variant of the two hero cards above:
+ * compact rather than full-bleed, using the two stylist portraits (the same
+ * imagery/data already used by the Second Opinion feature — no new artwork)
+ * as its visual identity instead of a photo carousel.
+ */
+export function AskStylistCard({ onPress }: { onPress: () => void }) {
+  const { theme } = useTheme();
+  const [vittorio, alessandra] = STYLISTS;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        alignItems: 'center',
+        backgroundColor: theme.colors.card,
+        borderColor: theme.colors.border,
+        borderRadius: 24,
+        borderWidth: 1,
+        flexDirection: 'row',
+        gap: spacing.md,
+        padding: spacing.md,
+      }}>
+      <View style={{ flexDirection: 'row' }}>
+        {vittorio ? (
+          <View
+            style={{
+              backgroundColor: theme.colors.background,
+              borderColor: theme.colors.border,
+              borderRadius: 28,
+              borderWidth: 2,
+              height: 56,
+              overflow: 'hidden',
+              width: 56,
+            }}>
+            <Image contentFit="cover" contentPosition="top" source={vittorio.image} style={{ height: '100%', width: '100%' }} />
+          </View>
+        ) : null}
+        {alessandra ? (
+          <View
+            style={{
+              backgroundColor: theme.colors.background,
+              borderColor: theme.colors.border,
+              borderRadius: 28,
+              borderWidth: 2,
+              height: 56,
+              marginLeft: -20,
+              overflow: 'hidden',
+              width: 56,
+            }}>
+            <Image contentFit="cover" contentPosition="top" source={alessandra.image} style={{ height: '100%', width: '100%' }} />
+          </View>
+        ) : null}
+      </View>
+
+      <View style={{ flex: 1, gap: 2 }}>
+        <AppText variant="sectionTitle">Ask a Stylist</AppText>
+        <AppText tone="muted" style={{ fontSize: 13, lineHeight: 18 }}>
+          Describe what you need and let Vittorio or Alessandra build the look.
+        </AppText>
+      </View>
+
+      <AppIcon color={theme.colors.subtleText} name="chevron-right" size={18} />
+    </Pressable>
   );
 }

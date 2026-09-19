@@ -56,6 +56,7 @@ import { seasonalTrendsService } from '../seasonal-trends/seasonal-trends.servic
 import { trendFeedbackService } from '../seasonal-trends/trend-feedback.service.js';
 import type { FashionGender } from '../seasonal-trends/seasonal-trends.repository.js';
 import type { Hemisphere } from '../seasonal-trends/season-math.js';
+import { inferStylistBriefTier } from './stylist-tier-inference.js';
 
 const CANONICAL_TIERS: OutfitTierSlug[] = ['business', 'smart-casual', 'casual'];
 
@@ -371,6 +372,10 @@ export function resolveClosetOnlyRecommendation(
 }
 
 export const outfitsService = {
+  async inferStylistTier(stylistBrief: string, supabaseUserId: string) {
+    return inferStylistBriefTier(stylistBrief, supabaseUserId);
+  },
+
   async getOutfitResult(requestId: string) {
     const existing = await outfitsRepository.findGeneratedOutfit(requestId);
 
@@ -491,7 +496,7 @@ export const outfitsService = {
 
     userContent.push(...await buildAnchorImageContent(uploadedAnchorImages, anchorItems));
 
-    const instructions = buildGenerateOutfitsInstructions(tiersToGenerate, profile?.gender, input.closetOnly);
+    const instructions = buildGenerateOutfitsInstructions(tiersToGenerate, profile?.gender, input.closetOnly, input.stylistId);
     const description = profile?.gender === 'woman' ? 'Three womenswear outfit tiers for one anchor item.' : 'Three menswear outfit tiers for one anchor item.';
 
     let recommendationMap: Map<string, TieredOutfitGeneration['recommendations'][number]>;
@@ -553,6 +558,7 @@ export const outfitsService = {
         closetOnly: input.closetOnly ?? false,
         additionalDetails: input.additionalDetails?.trim() || undefined,
         trendiness: input.trendiness,
+        stylistId: input.stylistId,
       },
       recommendations: tiersToGenerate.map((tier) => {
         const recommendation = recommendationMap.get(tier);

@@ -48,6 +48,8 @@ export type AppIconName =
   | 'more-horizontal' | 'suitcase' | 'log-out'
   // Tab-specific Streamline icons
   | 'clothes-pattern' | 'nav-menu-vertical'
+  // Voice input
+  | 'mic'
 
 // ── Shared stroke shorthand ──────────────────────────────────────────────────
 
@@ -562,6 +564,16 @@ const ICONS: Record<AppIconName, Render> = {
       <Circle cx={7} cy={2} r={1.5} fill={c} />
       <Circle cx={7} cy={7} r={1.5} fill={c} />
       <Circle cx={7} cy={12} r={1.5} fill={c} />
+    </G>
+  ),
+
+  // ── Voice input ──────────────────────────────────────────────────────────
+
+  mic: (c, sw) => (
+    // classic microphone — capsule body, stand arc, stem, base
+    <G {...S} stroke={c} strokeWidth={sw}>
+      <Rect x={4.75} y={0.5} width={4.5} height={7} rx={2.25} />
+      <Path d="M2.5 6.5a4.5 4.5 0 0 0 9 0M7 11v2.5m-2.25 0h4.5" />
     </G>
   ),
 };

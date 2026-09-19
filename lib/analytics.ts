@@ -12,6 +12,8 @@ export const EVENTS = {
   CREATE_LOOK_STARTED: 'create_look_started',
   CREATE_LOOK_COMPLETED: 'create_look_completed',
   CREATE_LOOK_FAILED: 'create_look_failed',
+  ASK_STYLIST_STARTED: 'ask_stylist_started',
+  ASK_STYLIST_VOICE_USED: 'ask_stylist_voice_used',
   CHECK_PIECE_STARTED: 'check_piece_started',
   CHECK_PIECE_COMPLETED: 'check_piece_completed',
   CHECK_PIECE_FAILED: 'check_piece_failed',
@@ -44,6 +46,14 @@ export function trackOnboardingStarted() {
 
 export function trackOnboardingCompleted() {
   trackEvent(EVENTS.ONBOARDING_COMPLETED);
+}
+
+export function trackAskStylistStarted() {
+  trackEvent(EVENTS.ASK_STYLIST_STARTED);
+}
+
+export function trackAskStylistVoiceUsed(params: { stylist_id: string }) {
+  trackEvent(EVENTS.ASK_STYLIST_VOICE_USED, params);
 }
 
 export function trackCreateLookStarted() {

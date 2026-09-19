@@ -22,7 +22,9 @@ export type AiFeature =
   | 'trip-sketch'
   | 'haircut-generation'
   | 'trend-sketch'
-  | 'color-swatch-sketch';
+  | 'color-swatch-sketch'
+  | 'stylist-tier-inference'
+  | 'stylist-brief-transcription';
 
 const TEXT_INPUT_COST_PER_TOKEN = 0.15 / 1_000_000;
 const TEXT_OUTPUT_COST_PER_TOKEN = 0.60 / 1_000_000;

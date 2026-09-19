@@ -64,6 +64,13 @@ const config: ExpoConfig = {
       },
     ],
     [
+      'expo-audio',
+      {
+        microphonePermission:
+          'Vesture uses your microphone so you can speak your stylist brief instead of typing it.',
+      },
+    ],
+    [
       'expo-calendar',
       {
         calendarPermission:

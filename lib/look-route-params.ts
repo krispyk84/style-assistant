@@ -50,6 +50,8 @@ export type LookRouteParams = {
   includeHat?: string;
   closetOnly?: string;
   additionalDetails?: string;
+  /** Set only by the "Ask a Stylist" flow. */
+  stylistId?: string;
   /** Comma-separated additional requestIds for same-tier variations (variation 2..N, base is the URL). */
   variantRequestIds?: string;
   /** Total number of looks the user requested ("1" | "2" | "3"). Default "1". */

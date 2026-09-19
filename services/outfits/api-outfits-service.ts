@@ -36,6 +36,7 @@ export const apiOutfitsService: OutfitsService = {
         trendiness: request.trendiness,
         hemisphere: request.hemisphere,
         region: request.region,
+        stylistId: request.stylistId,
       },
     });
 
@@ -99,5 +100,12 @@ export const apiOutfitsService: OutfitsService = {
     }
 
     return response;
+  },
+
+  async inferStylistTier(stylistBrief: string) {
+    return createApiClient().request<{ tier: 'business' | 'smart-casual' | 'casual' }>('/outfits/stylist/infer-tier', {
+      method: 'POST',
+      body: { stylistBrief },
+    });
   },
 };

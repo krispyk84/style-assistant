@@ -100,6 +100,7 @@ function AppNavigation() {
         <Stack.Screen name="results/[requestId]" options={{ headerShown: false }} />
         <Stack.Screen name="tier/[tier]" options={{ headerShown: false }} />
         <Stack.Screen name="create-look" options={{ headerShown: false }} />
+        <Stack.Screen name="stylist-outfit" options={{ headerShown: false }} />
         <Stack.Screen name="trip-mode" options={{ headerShown: false }} />
         <Stack.Screen name="trip-results" options={{ headerShown: false }} />
         <Stack.Screen name="trip-anchors" options={{ headerShown: false }} />

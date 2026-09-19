@@ -1,7 +1,7 @@
 import { buildLookRouteParams } from '@/lib/look-route';
 import { createMockRequestId } from '@/lib/look-mock-data';
 import type { ClosetItemFitStatus } from '@/types/closet';
-import type { CreateLookInput, LookAnchorItem, LookTierSlug } from '@/types/look-request';
+import type { CreateLookInput, LookAnchorItem, LookTierSlug, StylistId } from '@/types/look-request';
 import type { WeatherContext, WeatherSeason } from '@/types/weather';
 
 /**
@@ -77,8 +77,10 @@ export function buildSubmitRouteParams(params: {
   additionalDetails: string;
   /** 1-3 — only honoured when selectedTiers.length === 1; otherwise treated as 1. */
   lookCount: number;
+  /** Set only by the "Ask a Stylist" flow — absent for the original structured-form flow. */
+  stylistId?: StylistId;
 }) {
-  const { populatedAnchorItems, vibeKeywords, selectedTiers, shouldAddAnchorToCloset, weatherContext, manualSeason, includeBag, includeHat, closetOnly, additionalDetails, lookCount } = params;
+  const { populatedAnchorItems, vibeKeywords, selectedTiers, shouldAddAnchorToCloset, weatherContext, manualSeason, includeBag, includeHat, closetOnly, additionalDetails, lookCount, stylistId } = params;
 
   const SEASON_HINT: Record<WeatherSeason, string> = {
     spring: 'Mild transitional weather — light layers appropriate.',
@@ -137,6 +139,7 @@ export function buildSubmitRouteParams(params: {
       includeHat,
       closetOnly,
       additionalDetails,
+      stylistId,
     }),
     addAnchorToCloset: shouldAddAnchorToCloset ? 'true' : undefined,
     lookCount: effectiveLookCount > 1 ? String(effectiveLookCount) : undefined,

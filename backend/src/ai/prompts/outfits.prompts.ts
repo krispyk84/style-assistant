@@ -1,4 +1,5 @@
-import type { GenerateOutfitsRequest, OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
+import type { GenerateOutfitsRequest, OutfitResponse, OutfitTierSlug, StylistId } from '../../contracts/outfits.contracts.js';
+import { buildStylistGenerationPersonaRules } from './stylist-generation-persona.prompts.js';
 import type { TrendFeedbackValue } from '../../modules/seasonal-trends/trend-feedback.repository.js';
 import { buildBaseOutfitRules } from './base-stylist-rules.js';
 import { formatProfileContext } from '../prompt-context.js';
@@ -118,10 +119,11 @@ function buildFemaleBodyTypeGuidance(bodyType: string): string | null {
   return note ? `FEMALE BODY TYPE GUIDANCE — ${bodyType}: ${note}` : null;
 }
 
-export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[], gender?: string | null, closetOnly?: boolean) {
+export function buildGenerateOutfitsInstructions(selectedTiers: OutfitTierSlug[], gender?: string | null, closetOnly?: boolean, stylistId?: StylistId) {
   return [
     ...buildBaseOutfitRules(gender),
     ...(closetOnly ? buildClosetOnlyInstructions() : []),
+    ...(stylistId ? buildStylistGenerationPersonaRules(stylistId, gender) : []),
     'Return only structured JSON matching the provided schema.',
     `Return only the requested tier recommendations in this order: ${selectedTiers.join(', ')}.`,
     'Anchor the recommendations to the provided item or image evidence.',

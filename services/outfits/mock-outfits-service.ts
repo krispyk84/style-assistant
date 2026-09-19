@@ -66,4 +66,8 @@ export const mockOutfitsService: OutfitsService = {
       error: null,
     };
   },
+
+  async inferStylistTier(_stylistBrief: string) {
+    return { success: true, data: { tier: 'smart-casual' as const }, error: null };
+  },
 };
