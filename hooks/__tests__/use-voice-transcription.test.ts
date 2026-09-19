@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ── What this file is ───────────────────────────────────────────────────────
 //
@@ -123,5 +123,120 @@ describe('useVoiceTranscription — stopRecordingAndTranscribe', () => {
 
     expect(transcript).toBeNull();
     expect(recorderMock.stop).not.toHaveBeenCalled();
+  });
+});
+
+// ── S2 fix: 120s max recording duration ─────────────────────────────────────
+describe('useVoiceTranscription — 120s recording limit', () => {
+  async function startRecording(result: { current: ReturnType<typeof useVoiceTranscription> }) {
+    requestRecordingPermissionsAsyncMock.mockResolvedValue({ granted: true });
+    await act(async () => { result.current.startRecording(); });
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('manual stop before the limit transcribes normally and disarms the timer — no second transcription when 120s later elapses', async () => {
+    const onAutoStop = vi.fn();
+    const { result } = renderHook(() => useVoiceTranscription({ onAutoStop }));
+    await startRecording(result);
+
+    recorderMock.uri = 'file://recording.m4a';
+    transcribeAudioMock.mockResolvedValue({ success: true, data: { text: 'manual stop text' }, error: null });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000); // well under the 120s limit
+      await result.current.stopRecordingAndTranscribe();
+    });
+
+    expect(transcribeAudioMock).toHaveBeenCalledTimes(1);
+
+    // Advance well past where the auto-stop timer would have fired had it
+    // not been cleared by the manual stop.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+
+    expect(transcribeAudioMock).toHaveBeenCalledTimes(1); // still just the one, manual call
+    expect(onAutoStop).not.toHaveBeenCalled(); // this was a manual stop, not an auto-stop
+  });
+
+  it('automatically stops and transcribes at exactly 120s, delivering the result via onAutoStop', async () => {
+    const onAutoStop = vi.fn();
+    const { result } = renderHook(() => useVoiceTranscription({ onAutoStop }));
+    await startRecording(result);
+
+    recorderMock.uri = 'file://recording.m4a';
+    transcribeAudioMock.mockResolvedValue({ success: true, data: { text: 'auto-stopped text' }, error: null });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+
+    expect(recorderMock.stop).toHaveBeenCalledTimes(1);
+    expect(transcribeAudioMock).toHaveBeenCalledTimes(1);
+    expect(onAutoStop).toHaveBeenCalledWith('auto-stopped text');
+    expect(result.current.status).toBe('idle');
+  });
+
+  it('does not fire before 120s', async () => {
+    const onAutoStop = vi.fn();
+    const { result } = renderHook(() => useVoiceTranscription({ onAutoStop }));
+    await startRecording(result);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(119_999);
+    });
+
+    expect(recorderMock.stop).not.toHaveBeenCalled();
+    expect(onAutoStop).not.toHaveBeenCalled();
+    expect(result.current.isRecording).toBe(true);
+  });
+
+  it('a manual stop racing right at the auto-stop boundary only transcribes once (no second-stop race)', async () => {
+    const onAutoStop = vi.fn();
+    const { result } = renderHook(() => useVoiceTranscription({ onAutoStop }));
+    await startRecording(result);
+
+    recorderMock.uri = 'file://recording.m4a';
+    transcribeAudioMock.mockResolvedValue({ success: true, data: { text: 'race text' }, error: null });
+
+    // Advance to just before the limit, then fire a manual stop and the
+    // auto-stop timer in the same tick — the manual call runs first (it's
+    // awaited directly), and stopRecordingAndTranscribe's own
+    // `status !== 'recording'` guard makes the timer's later call a no-op.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(119_999);
+      await result.current.stopRecordingAndTranscribe();
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(transcribeAudioMock).toHaveBeenCalledTimes(1);
+    expect(recorderMock.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('unmounting mid-recording clears the timer and stops the recorder, without transcribing', async () => {
+    const onAutoStop = vi.fn();
+    const { result, unmount } = renderHook(() => useVoiceTranscription({ onAutoStop }));
+    await startRecording(result);
+
+    unmount();
+    expect(recorderMock.stop).toHaveBeenCalledTimes(1);
+
+    transcribeAudioMock.mockClear();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+
+    // The auto-stop timer must have been cleared on unmount — it must not
+    // fire afterward and attempt to transcribe or call back into an
+    // unmounted component's state setter.
+    expect(transcribeAudioMock).not.toHaveBeenCalled();
+    expect(onAutoStop).not.toHaveBeenCalled();
   });
 });

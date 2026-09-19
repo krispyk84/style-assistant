@@ -52,6 +52,46 @@ describe('buildStylistGenerationPersonaRules — persona distinctness', () => {
   });
 });
 
+// ── S2 fix: explicit user-brief / closet-only / weather precedence ─────────
+//
+// Pre-push audit finding: the persona block and buildAdditionalDetailsRule
+// both independently call themselves a "HARD styling constraint" with no
+// stated tie-breaker. Both stylists must receive the same explicit
+// precedence instruction — this is a single shared rule (see
+// buildStylistGenerationPersonaRules), not per-persona duplicated text.
+describe('buildStylistGenerationPersonaRules — user-brief/closet-only/weather precedence', () => {
+  it('Vittorio receives the precedence instruction', () => {
+    const rules = buildStylistGenerationPersonaRules('vittorio').join(' ');
+    expect(rules).toContain('PRECEDENCE');
+    expect(rules).toContain("the user's stated brief");
+  });
+
+  it('Alessandra receives the same precedence instruction', () => {
+    const rules = buildStylistGenerationPersonaRules('alessandra').join(' ');
+    expect(rules).toContain('PRECEDENCE');
+    expect(rules).toContain("the user's stated brief");
+  });
+
+  it('the precedence instruction explicitly names closet-only/inventory constraints as taking priority over the persona', () => {
+    const vittorio = buildStylistGenerationPersonaRules('vittorio').join(' ');
+    const alessandra = buildStylistGenerationPersonaRules('alessandra').join(' ');
+    expect(vittorio).toContain('closet-only/available-inventory constraints');
+    expect(alessandra).toContain('closet-only/available-inventory constraints');
+  });
+
+  it('the precedence instruction explicitly forbids inventing a piece to satisfy a persona preference (Alessandra\'s "stronger accessory" cannot manufacture one that isn\'t owned)', () => {
+    const alessandra = buildStylistGenerationPersonaRules('alessandra').join(' ');
+    expect(alessandra).toContain('never invent, add, or substitute a piece just to satisfy a persona preference');
+  });
+
+  it('the precedence rule is identical text for both stylists (one shared rule, not two independently-maintained copies)', () => {
+    const vittorioRules = buildStylistGenerationPersonaRules('vittorio');
+    const alessandraRules = buildStylistGenerationPersonaRules('alessandra');
+    const precedenceLine = (rules: string[]) => rules.find((r) => r.includes('PRECEDENCE'));
+    expect(precedenceLine(vittorioRules)).toBe(precedenceLine(alessandraRules));
+  });
+});
+
 describe('buildGenerateOutfitsInstructions — persona is additive, not a replacement', () => {
   it('includes no persona rules when stylistId is absent (the original structured-form flow)', () => {
     const instructions = buildGenerateOutfitsInstructions(['smart-casual'], 'man', false);

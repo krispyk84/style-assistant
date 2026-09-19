@@ -41,7 +41,15 @@ export const generateOutfitsSchema = z.object({
   includeBag: z.boolean().optional(),
   includeHat: z.boolean().optional(),
   closetOnly: z.boolean().optional(),
-  additionalDetails: z.string().trim().max(500).optional(),
+  // Raised from 500 to 1000 to match the "Ask a Stylist" flow's brief field
+  // (StylistBriefInput's maxLength and inferStylistTierSchema below already
+  // allow 1000) — additionalDetails is this flow's sole information channel,
+  // unlike the original form which has five other fields to carry context.
+  // Purely permissive: anything that validated at 500 still validates: the
+  // original Create-a-Look form (CreateLookRequestFormView.tsx) and the
+  // closet-only Generate-5-Outfits modal (GenerateOutfitsModal.tsx) both
+  // still cap their own text inputs at 500 and are unaffected either way.
+  additionalDetails: z.string().trim().max(1000).optional(),
   variantContext: z
     .object({
       index: z.number().int().min(1).max(3),

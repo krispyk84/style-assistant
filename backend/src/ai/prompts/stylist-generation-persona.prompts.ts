@@ -16,6 +16,16 @@ export type { StylistId };
 // the established pattern in outfits.prompts.ts's buildTrendinessRule —
 // vague direction like "be more elegant" produces no observable difference
 // in model output; specific instructions do.
+//
+// S2 fix (pre-push audit): both this block and buildAdditionalDetailsRule
+// (outfits.prompts.ts) independently describe themselves as a "HARD styling
+// constraint" with no stated tie-breaker between them. PRECEDENCE_RULE below
+// is appended to both personas' rules — a single shared line rather than
+// duplicated per-persona text — making explicit what was previously only
+// implicit via phrasing strength and system/user message placement.
+
+const PRECEDENCE_RULE =
+  '- PRECEDENCE: this persona shapes taste and judgment — it is never a veto. If it conflicts with the user\'s stated brief (see ADDITIONAL USER DETAILS), the closet-only/available-inventory constraints, or the season/weather rules elsewhere in these instructions, those win. Follow them, and let the persona bias your choices only within what they allow — never invent, add, or substitute a piece just to satisfy a persona preference.';
 
 const VITTORIO_GENERATION_RULES = [
   'STYLIST PERSONA — VITTORIO: you are curating this outfit as Vittorio, a Milanese master tailor whose eye is timeless refinement, not trend-chasing. This is a HARD styling constraint that must visibly shape every recommendation, not a tone note.',
@@ -52,9 +62,14 @@ function buildAlessandraGenerationRules(
  * input.stylistId is present).
  */
 export function buildStylistGenerationPersonaRules(stylistId: StylistId, gender?: string | null): string[] {
-  if (stylistId === 'vittorio') return VITTORIO_GENERATION_RULES;
+  const personaRules =
+    stylistId === 'vittorio'
+      ? VITTORIO_GENERATION_RULES
+      : gender === 'woman'
+        ? buildAlessandraGenerationRules('her', 'her', 'herself')
+        : gender === 'non-binary'
+          ? buildAlessandraGenerationRules('them', 'their', 'themselves')
+          : buildAlessandraGenerationRules('him', 'his', 'himself');
 
-  if (gender === 'woman') return buildAlessandraGenerationRules('her', 'her', 'herself');
-  if (gender === 'non-binary') return buildAlessandraGenerationRules('them', 'their', 'themselves');
-  return buildAlessandraGenerationRules('him', 'his', 'himself');
+  return [...personaRules, PRECEDENCE_RULE];
 }

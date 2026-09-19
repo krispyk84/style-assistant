@@ -24,7 +24,17 @@ type StylistBriefInputProps = {
  */
 export function StylistBriefInput({ value, onChangeText, stylist }: StylistBriefInputProps) {
   const { theme } = useTheme();
-  const voice = useVoiceTranscription();
+
+  // Shared by the manual mic-tap stop AND the 120s auto-stop (see
+  // useVoiceTranscription's onAutoStop) — same append-or-replace rule either
+  // way: an empty field is replaced, a non-empty one is appended to.
+  function applyTranscript(transcript: string | null) {
+    if (!transcript) return;
+    if (stylist) trackAskStylistVoiceUsed({ stylist_id: stylist.id });
+    onChangeText(value.trim() ? `${value.trim()} ${transcript}` : transcript);
+  }
+
+  const voice = useVoiceTranscription({ onAutoStop: applyTranscript });
 
   const stylistName = stylist?.name ?? 'your stylist';
   const stylistPronoun = stylist?.id === 'alessandra' ? 'she' : 'he';
@@ -33,9 +43,7 @@ export function StylistBriefInput({ value, onChangeText, stylist }: StylistBrief
   async function handleMicPress() {
     if (voice.isRecording) {
       const transcript = await voice.stopRecordingAndTranscribe();
-      if (!transcript) return;
-      if (stylist) trackAskStylistVoiceUsed({ stylist_id: stylist.id });
-      onChangeText(value.trim() ? `${value.trim()} ${transcript}` : transcript);
+      applyTranscript(transcript);
       return;
     }
     voice.startRecording();
