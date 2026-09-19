@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 
 import { loadWeatherContext } from '@/lib/weather-storage';
 import { outfitsService } from '@/services/outfits';
@@ -22,6 +22,22 @@ export function StylistOutfitForm() {
   const stylistForm = useStylistOutfitForm();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // A successful submit navigates away without resetting isSubmitting (see
+  // the comment at the bottom of handleGenerate) — but expo-router's stack
+  // keeps this screen instance mounted, so navigating back from results
+  // returns to that same stuck isSubmitting=true state instead of a fresh
+  // form. Resetting on focus (this codebase's established pattern — see
+  // useHomeData.ts, useClosetData.ts) clears it every time this screen
+  // becomes active again, matching a genuinely fresh form on back-navigation
+  // without reintroducing the enabled-button flash the original comment
+  // was avoiding.
+  useFocusEffect(
+    useCallback(() => {
+      setIsSubmitting(false);
+      setSubmitError(null);
+    }, [])
+  );
 
   async function handleGenerate() {
     if (isSubmitting) return;

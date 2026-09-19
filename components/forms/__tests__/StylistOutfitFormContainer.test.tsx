@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 // ── Why this file exists ─────────────────────────────────────────────────────
 //
@@ -19,7 +19,18 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 // get a populated fixture state.
 
 const pushMock = vi.fn();
-vi.mock('expo-router', () => ({ router: { push: pushMock } }));
+// Captures the callback the component registers via useFocusEffect without
+// auto-invoking it (a real useEffect-based mock would fire on every mount,
+// resetting isSubmitting before the duplicate-submission/error-state tests
+// below get to observe it). The dedicated "regains focus" test below invokes
+// the captured callback directly to simulate expo-router calling it when
+// this screen becomes focused again — the actual trigger for the bug this
+// hook fixes (see StylistOutfitFormContainer.tsx).
+const { useFocusEffectMock } = vi.hoisted(() => ({ useFocusEffectMock: vi.fn() }));
+vi.mock('expo-router', () => ({
+  router: { push: pushMock },
+  useFocusEffect: useFocusEffectMock,
+}));
 
 vi.mock('@/lib/weather-storage', () => ({ loadWeatherContext: vi.fn().mockResolvedValue(null) }));
 
@@ -27,9 +38,10 @@ const { inferStylistTierMock } = vi.hoisted(() => ({ inferStylistTierMock: vi.fn
 vi.mock('@/services/outfits', () => ({ outfitsService: { inferStylistTier: inferStylistTierMock } }));
 
 vi.mock('@/components/forms/StylistOutfitFormView', () => ({
-  StylistOutfitFormView: (props: { onGenerate: () => void; submitError: string | null }) => (
+  StylistOutfitFormView: (props: { onGenerate: () => void; submitError: string | null; isSubmitting: boolean }) => (
     <div>
       <button onClick={props.onGenerate}>Generate</button>
+      <div>{props.isSubmitting ? 'submitting' : 'idle'}</div>
       {props.submitError ? <div>{props.submitError}</div> : null}
     </div>
   ),
@@ -179,5 +191,35 @@ describe('StylistOutfitFormContainer — generation request', () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledTimes(1));
 
     expect(inferStylistTierMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── S3 fix: back-navigation from results left the form stuck mid-submission ─
+//
+// A successful submit deliberately never resets isSubmitting (it expected
+// the screen to unmount on navigation — see the comment in
+// StylistOutfitFormContainer.tsx). But expo-router's stack keeps this screen
+// instance mounted, so navigating back re-focuses that same stuck state:
+// a permanently disabled "Generating..." button with no way to submit again
+// without leaving and re-entering the flow. Caught via physical-device
+// testing, not the deterministic suite — this test locks in the fix.
+describe('StylistOutfitFormContainer — regains focus after a successful submit', () => {
+  it('resets isSubmitting and submitError so the form is usable again on back-navigation', async () => {
+    inferStylistTierMock.mockResolvedValue({ success: true, data: { tier: 'smart-casual' }, error: null });
+
+    render(<StylistOutfitForm />);
+    fireEvent.click(screen.getByText('Generate'));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledTimes(1));
+
+    // Mirrors the screenshot: still mounted, still stuck submitting, exactly
+    // as if the user just navigated back from results.
+    expect(screen.getByText('submitting')).toBeTruthy();
+
+    const registeredFocusCallback = useFocusEffectMock.mock.calls.at(-1)![0] as () => void;
+    act(() => {
+      registeredFocusCallback();
+    });
+
+    expect(screen.getByText('idle')).toBeTruthy();
   });
 });
