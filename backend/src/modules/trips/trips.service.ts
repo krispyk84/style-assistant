@@ -152,7 +152,7 @@ function parseShoesCap(shoesCount: string | undefined): number {
 
 // ── fullCloset helpers ────────────────────────────────────────────────────────
 
-type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
+export type BuilderItem = Awaited<ReturnType<typeof closetRepository.getItems>>[number];
 type BuilderProfile = Awaited<ReturnType<typeof profileRepository.findByUserId>>;
 
 function toIndexItem(item: BuilderItem): ClosetOutfitIndexItem {
@@ -310,31 +310,57 @@ const ANCHOR_FORMALITY_DISTANCE_TOLERANCE = 1;
  * an all-Casual trip. Gating on the anchor ITEM's own formality distance
  * instead still blocks the business-suit-on-a-beach-day case while letting
  * a casual anchor match a casual day.
+ *
+ * usedAnchorItemIds is recomputed by the frontend on every request by
+ * scanning every closet item id used across ALL previously generated days
+ * (see collectUsedAnchorItemIds) — it only ever grows. Once every anchor has
+ * appeared somewhere in the trip, `unused` permanently empties out, and
+ * without the round-robin fallback below an anchor would be scheduled once
+ * and then silently excluded for the rest of the trip, however many days
+ * remained — a "definitely bring" coat or pair of sneakers should keep
+ * reappearing across a trip longer than the anchor count, not vanish after
+ * its first day. `dayIndex` rotates which anchor gets first refusal once
+ * every anchor is in that state, so a multi-anchor trip fairly cycles
+ * through all of them instead of the single closest-formality match winning
+ * every remaining day.
  */
-function pickAnchorForDay(params: {
+export function pickAnchorForDay(params: {
+  dayIndex: number;
   targetFormalityRank: number;
   closetAnchorItems: BuilderItem[];
   usedAnchorItemIds: ReadonlySet<string>;
 }): BuilderItem | null {
-  const unused = params.closetAnchorItems.filter((item) => !params.usedAnchorItemIds.has(item.id));
-  if (unused.length === 0) return null;
+  if (params.closetAnchorItems.length === 0) return null;
 
   const rankOf = (item: BuilderItem): number | undefined => (item.formality ? FORMALITY_RANK[item.formality] : undefined);
+  // Unknown formality isn't disqualifying — the user explicitly asked to
+  // bring this exact item, so that intent outweighs an absent metadata
+  // field. Only implausible when the anchor's formality is KNOWN and too far
+  // from this day's target (e.g. a known-Formal suit on a Casual day).
+  const isPlausible = (item: BuilderItem): boolean => {
+    const rank = rankOf(item);
+    return rank === undefined || Math.abs(rank - params.targetFormalityRank) <= ANCHOR_FORMALITY_DISTANCE_TOLERANCE;
+  };
 
-  const sorted = [...unused].sort((a, b) => {
+  const unused = params.closetAnchorItems.filter((item) => !params.usedAnchorItemIds.has(item.id));
+
+  if (unused.length === 0) {
+    const rotated = params.closetAnchorItems[params.dayIndex % params.closetAnchorItems.length]!;
+    if (isPlausible(rotated)) return rotated;
+    // The rotated pick doesn't suit this day — fall through to the normal
+    // closest-formality-match logic over the full list rather than skipping
+    // the day's anchor entirely just because it wasn't this day's "turn".
+  }
+
+  const candidates = unused.length > 0 ? unused : params.closetAnchorItems;
+  const sorted = [...candidates].sort((a, b) => {
     const rankA = rankOf(a) ?? 2;
     const rankB = rankOf(b) ?? 2;
     return Math.abs(rankA - params.targetFormalityRank) - Math.abs(rankB - params.targetFormalityRank);
   });
 
   const best = sorted[0]!;
-  const bestRank = rankOf(best);
-  // Unknown formality isn't disqualifying — the user explicitly asked to
-  // bring this exact item, so that intent outweighs an absent metadata
-  // field. Only skip pinning when the anchor's formality is KNOWN and
-  // implausible for this day (e.g. a known-Formal suit on a Casual day).
-  if (bestRank !== undefined && Math.abs(bestRank - params.targetFormalityRank) > ANCHOR_FORMALITY_DISTANCE_TOLERANCE) return null;
-
+  if (!isPlausible(best)) return null;
   return best;
 }
 
@@ -581,7 +607,7 @@ async function generateFullClosetTripOutfits(
       request.formalityTier && request.generateOnlyDayIndex === shape.dayIndex ? request.formalityTier : null;
     const resolvedTier = formalityOverride ?? shape.formalityTier;
     const targetFormalityRank = TIER_FORMALITY_TARGET[resolvedTier] ?? FORMALITY_RANK['Smart Casual'];
-    const pinnedItem = pickAnchorForDay({ targetFormalityRank, closetAnchorItems, usedAnchorItemIds });
+    const pinnedItem = pickAnchorForDay({ dayIndex: shape.dayIndex, targetFormalityRank, closetAnchorItems, usedAnchorItemIds });
     if (pinnedItem) usedAnchorItemIds.add(pinnedItem.id);
 
     const chosen = await chooseFullClosetDay({
