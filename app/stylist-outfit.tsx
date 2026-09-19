@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 
@@ -11,6 +12,14 @@ import { trackAskStylistStarted } from '@/lib/analytics';
 export default function StylistOutfitScreen() {
   useEffect(() => { trackAskStylistStarted(); }, []);
 
+  const { swapDayTitle, swapTripId, swapContextLine, swapClosetOnly } = useLocalSearchParams<{
+    /** Set only when launched from a trip day's "Swap outfit" action (see useTripResultsActions.ts's handleSwapOutfit) — pre-seeds the brief/closet-only default from that day. */
+    swapDayTitle?: string;
+    swapTripId?: string;
+    swapContextLine?: string;
+    swapClosetOnly?: string;
+  }>();
+
   return (
     <AppScreen scrollable floatingBack avoidsKeyboard>
       <View style={{ gap: spacing.xl, paddingBottom: spacing.xl }}>
@@ -21,7 +30,12 @@ export default function StylistOutfitScreen() {
           <AppText tone="muted">Pick your pieces, choose a stylist, and tell them what you need.</AppText>
         </View>
 
-        <StylistOutfitForm />
+        <StylistOutfitForm
+          initialBrief={swapContextLine}
+          initialClosetOnly={swapClosetOnly === 'true'}
+          swapDayTitle={swapDayTitle}
+          swapTripId={swapTripId}
+        />
       </View>
     </AppScreen>
   );

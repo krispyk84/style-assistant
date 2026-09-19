@@ -40,6 +40,13 @@ vi.mock('react-native', () => ({
   Pressable: (props: { children?: unknown }) => props.children ?? null,
 }));
 
+// "Use for [Day]" (swap-outfit feature) — the only reason this file now
+// needs expo-router mocked at all: MultiLookResults previously only used
+// its Href TYPE (erased at compile time), never a runtime import.
+const routerPush = vi.fn();
+const routerDismissTo = vi.fn();
+vi.mock('expo-router', () => ({ router: { push: routerPush, dismissTo: routerDismissTo } }));
+
 const LookResultCardMock = vi.fn((_props: Record<string, unknown>) => null);
 vi.mock('@/components/cards/look-result-card', () => ({ LookResultCard: (props: unknown) => LookResultCardMock(props as Record<string, unknown>) }));
 
@@ -836,5 +843,66 @@ describe('MultiLookResults — stylist attribution heading', () => {
     const { container } = renderScreen();
     await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary'));
     expect(container.textContent).toContain('Your Looks');
+  });
+});
+
+// ── "Use for [Day]" (swap-outfit feature) ───────────────────────────────────
+describe('MultiLookResults — swap-outfit "Use for Day" action', () => {
+  it('does not pass onUseForTripDay/swapDayTitle when this screen was not reached via a swap', async () => {
+    renderScreen();
+    const props = await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary'));
+    expect(props.onUseForTripDay).toBeUndefined();
+    expect(props.swapDayTitle).toBeUndefined();
+  });
+
+  it('passes swapDayTitle and a working onUseForTripDay to every slot when reached via a swap', async () => {
+    const { tripDaySwapFlow } = await import('@/lib/trip-day-swap-flow');
+    const emitSpy = vi.spyOn(tripDaySwapFlow, 'emit');
+
+    render(
+      <MultiLookResults
+        primaryRequestId="req-primary"
+        variantRequestIds={['req-primary-v2']}
+        parsedInput={BASE_INPUT}
+        addAnchorToCloset={false}
+        swapDayTitle="Montmartre Art Walk"
+        swapTripId="trip-1"
+      />,
+    );
+
+    const primaryProps = await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary'));
+    const variantProps = await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary-v2'));
+    expect(primaryProps.swapDayTitle).toBe('Montmartre Art Walk');
+    expect(variantProps.swapDayTitle).toBe('Montmartre Art Walk');
+
+    (primaryProps.onUseForTripDay as () => void)();
+
+    expect(emitSpy).toHaveBeenCalledTimes(1);
+    const [emittedRecommendation, emittedTier] = emitSpy.mock.calls[0]!;
+    expect(emittedRecommendation.title).toBe('Look for req-primary');
+    expect(emittedTier).toBe('casual');
+    expect(routerDismissTo).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/trip-results', params: expect.objectContaining({ tripId: 'trip-1' }) }));
+  });
+
+  it('picking the variant slot emits that slot\'s own recommendation, not the primary\'s', async () => {
+    const { tripDaySwapFlow } = await import('@/lib/trip-day-swap-flow');
+    const emitSpy = vi.spyOn(tripDaySwapFlow, 'emit');
+
+    render(
+      <MultiLookResults
+        primaryRequestId="req-primary"
+        variantRequestIds={['req-primary-v2']}
+        parsedInput={BASE_INPUT}
+        addAnchorToCloset={false}
+        swapDayTitle="Montmartre Art Walk"
+        swapTripId="trip-1"
+      />,
+    );
+
+    const variantProps = await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary-v2'));
+    (variantProps.onUseForTripDay as () => void)();
+
+    expect(emitSpy).toHaveBeenCalledTimes(1);
+    expect(emitSpy.mock.calls[0]![0].title).toBe('Look for req-primary-v2');
   });
 });

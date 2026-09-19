@@ -2,9 +2,12 @@ import { router } from 'expo-router';
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
 
 import type { OutfitThumbnailItem } from '@/components/cards/OutfitItemThumbnailRow';
+import type { SwapOutfitWorkflow } from '@/components/cards/SwapOutfitChooserSheet';
 import { recordError } from '@/lib/crashlytics';
 import { buildTripDayVariantsHref } from '@/lib/trip-route';
 import { tripDayVariantFlow } from '@/lib/trip-day-variant-flow';
+import { tripDaySwapFlow } from '@/lib/trip-day-swap-flow';
+import { mapLookRecommendationToTripDay } from '@/lib/trip-day-swap-mappers';
 import type { StoredTripPlan } from '@/lib/trip-outfits-storage';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
 import { savedTripsService } from '@/services/saved-trips';
@@ -215,6 +218,40 @@ export function useTripResultsActions({
   // Clear any dangling listener if the screen unmounts before a selection is made.
   useEffect(() => () => tripDayVariantFlow.clearListener(), []);
 
+  // Replaces this day's entire outfit via Build Around a Piece or Ask a
+  // Stylist: launches the real standalone screen (route params carry the
+  // day's formality/closet-only default/context — the same mechanism
+  // create-look.tsx already uses for its closetItemId/closetOnly pre-fill,
+  // not a new pending-request slot, since these are simple strings) and
+  // waits for tripDaySwapFlow to hand back whichever look the user picked.
+  const handleSwapOutfit = useCallback((day: TripOutfitDay, workflow: SwapOutfitWorkflow) => {
+    const activeTripId = plan?.tripId ?? tripId;
+    if (!activeTripId || !plan) return;
+
+    tripDaySwapFlow.setListener((recommendation, tier) => {
+      stopSketchPoll(day.id);
+      const merged = mapLookRecommendationToTripDay(day, recommendation, tier);
+      setDays((prev) => prev.map((current) => (current.id === day.id ? merged : current)));
+      void persistDay(activeTripId, merged);
+    });
+
+    const swapParams = {
+      swapDayTitle: day.title,
+      swapTripId: activeTripId,
+      swapContextLine: `${plan.destination} — ${day.title}`,
+      swapClosetOnly: day.closetItemIds?.length ? 'true' : undefined,
+    };
+
+    router.push(
+      workflow === 'buildAroundPiece'
+        ? { pathname: '/create-look', params: { ...swapParams, swapFormality: day.formalityTier ?? 'casual' } }
+        : { pathname: '/stylist-outfit', params: swapParams },
+    );
+  }, [persistDay, plan, setDays, stopSketchPoll, tripId]);
+
+  // Clear any dangling swap listener if the screen unmounts before a selection is made.
+  useEffect(() => () => tripDaySwapFlow.clearListener(), []);
+
   // Toggle a hat/bag in or out of a fullCloset day: reloads just that day's
   // item list and sketch, leaving every other already-chosen item, plus the
   // title/rationale, untouched. Mirrors handleGenerateSketch's job-then-poll
@@ -359,6 +396,7 @@ export function useTripResultsActions({
     handleLove,
     handleHate,
     handleGenerateVariants,
+    handleSwapOutfit,
     handleSaveTrip,
     handleToggleDayAccessory,
     handleRemoveItemFromDay,

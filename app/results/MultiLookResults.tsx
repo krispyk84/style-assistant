@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -20,6 +21,8 @@ import { findBestClosetMatch } from '@/lib/closet-match';
 import { buildSavedOutfitId, loadSavedOutfits } from '@/lib/saved-outfits-storage';
 import { loadRecommendationFeedback } from '@/lib/recommendation-feedback-storage';
 import { buildSelfieReviewHref } from '@/lib/look-route';
+import { tripDaySwapFlow } from '@/lib/trip-day-swap-flow';
+import { buildTripResultsHref } from '@/lib/trip-route';
 import { outfitsService } from '@/services/outfits';
 import type { GenerateOutfitsResponse, VariationSummary } from '@/types/api';
 import type { ClosetItem } from '@/types/closet';
@@ -52,6 +55,9 @@ type MultiLookResultsProps = {
   variantRequestIds: string[];
   parsedInput: CreateLookInput;
   addAnchorToCloset: boolean;
+  /** Set only when reached via a trip day's "Swap outfit" action — shows a "Use for [Day]" action on each look instead of requiring Save + a separate assignment step. */
+  swapDayTitle?: string;
+  swapTripId?: string;
 };
 
 function buildSummary(recommendation: LookRecommendation): VariationSummary {
@@ -69,6 +75,8 @@ export function MultiLookResults({
   variantRequestIds,
   parsedInput,
   addAnchorToCloset,
+  swapDayTitle,
+  swapTripId,
 }: MultiLookResultsProps) {
   const trendiness = useTrendiness();
   const { showToast } = useToast();
@@ -289,6 +297,19 @@ export function MultiLookResults({
     setWeekPickerRequestId(null);
   }
 
+  // "Use for [Day]" — hands the chosen look back to trip-results via
+  // tripDaySwapFlow (the listener was already registered by
+  // useTripResultsActions.ts's handleSwapOutfit before this screen's launch)
+  // and pops the stack straight back to it, however many screens deep this
+  // sub-journey went (the swap's own form screen + this results screen).
+  function handleUseForTripDay(slot: SlotState) {
+    if (!slot.response || !swapTripId) return;
+    const recommendation = slot.response.recommendations.find((r) => r.tier === tier);
+    if (!recommendation) return;
+    tripDaySwapFlow.emit(recommendation, tier);
+    router.dismissTo(buildTripResultsHref({ tripId: swapTripId }));
+  }
+
   async function handleOutfitFeedback(slot: SlotState, thumb: 'love' | 'hate') {
     if (!slot.response) return;
     const recommendation = slot.response.recommendations.find((r) => r.tier === tier);
@@ -425,6 +446,8 @@ export function MultiLookResults({
                 matchMap={matchMaps[slot.requestId]}
                 anchorDescription={parsedInput.anchorItemDescription}
                 detailHref={buildSelfieReviewHref(slot.requestId, recommendation, parsedInput.anchorItemDescription)}
+                swapDayTitle={swapDayTitle}
+                onUseForTripDay={swapDayTitle ? () => handleUseForTripDay(slot) : undefined}
               />
             </View>
           );

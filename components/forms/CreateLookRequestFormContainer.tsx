@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 
 import { loadWeatherContext } from '@/lib/weather-storage';
-import type { CreateLookInput } from '@/types/look-request';
+import type { CreateLookInput, LookTierSlug } from '@/types/look-request';
 import { useAnchorItemsForm } from './useAnchorItemsForm';
 import { useCreateLookRequestForm } from './useCreateLookRequestForm';
 import { buildSubmitRouteParams } from './createLookRequest-mappers';
@@ -9,6 +9,11 @@ import { CreateLookRequestFormView } from './CreateLookRequestFormView';
 
 type CreateLookRequestFormProps = {
   initialValue?: CreateLookInput;
+  /** Set only when launched to swap a trip day's outfit — locks the tier picker and forces exactly 3 looks (see CreateLookRequestFormView). */
+  lockedTier?: LookTierSlug;
+  /** Set only when launched to swap a trip day's outfit — carried through to the results screen so it can show a "Use for [Day]" action instead of (or alongside) Save/Add to Week. */
+  swapDayTitle?: string;
+  swapTripId?: string;
 };
 
 const DEFAULT_INITIAL_VALUE: CreateLookInput = {
@@ -20,9 +25,9 @@ const DEFAULT_INITIAL_VALUE: CreateLookInput = {
   selectedTiers: ['business', 'smart-casual', 'casual'],
 };
 
-export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE }: CreateLookRequestFormProps) {
+export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE, lockedTier, swapDayTitle, swapTripId }: CreateLookRequestFormProps) {
   const anchorForm = useAnchorItemsForm(initialValue);
-  const lookForm = useCreateLookRequestForm(initialValue);
+  const lookForm = useCreateLookRequestForm(initialValue, { initialLookCount: lockedTier ? 3 : undefined });
 
   async function handleContinue() {
     if (!anchorForm.populatedAnchorItems.length) {
@@ -46,19 +51,22 @@ export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE }: 
     // needs, including the requestId itself.
     router.push({
       pathname: '/results/[requestId]',
-      params: buildSubmitRouteParams({
-        populatedAnchorItems: anchorForm.populatedAnchorItems,
-        vibeKeywords: lookForm.vibeKeywords,
-        selectedTiers: lookForm.selectedTiers,
-        shouldAddAnchorToCloset: anchorForm.shouldAddAnchorToCloset,
-        weatherContext,
-        manualSeason: lookForm.selectedSeason,
-        includeBag: lookForm.includeBag,
-        includeHat: lookForm.includeHat,
-        closetOnly: lookForm.closetOnly,
-        additionalDetails: lookForm.additionalDetails,
-        lookCount: lookForm.lookCount,
-      }),
+      params: {
+        ...buildSubmitRouteParams({
+          populatedAnchorItems: anchorForm.populatedAnchorItems,
+          vibeKeywords: lookForm.vibeKeywords,
+          selectedTiers: lookForm.selectedTiers,
+          shouldAddAnchorToCloset: anchorForm.shouldAddAnchorToCloset,
+          weatherContext,
+          manualSeason: lookForm.selectedSeason,
+          includeBag: lookForm.includeBag,
+          includeHat: lookForm.includeHat,
+          closetOnly: lookForm.closetOnly,
+          additionalDetails: lookForm.additionalDetails,
+          lookCount: lookForm.lookCount,
+        }),
+        ...(swapDayTitle ? { swapDayTitle, swapTripId } : {}),
+      },
     });
   }
 
@@ -67,6 +75,7 @@ export function CreateLookRequestForm({ initialValue = DEFAULT_INITIAL_VALUE }: 
       anchorForm={anchorForm}
       lookForm={lookForm}
       onContinue={() => void handleContinue()}
+      lockedTier={lockedTier}
     />
   );
 }

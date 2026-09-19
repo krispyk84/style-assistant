@@ -64,6 +64,7 @@ export function TripResultsScreen() {
     handleLove,
     handleHate,
     handleGenerateVariants,
+    handleSwapOutfit,
     handleSaveTrip,
     handleToggleDayAccessory,
     handleRemoveItemFromDay,
@@ -179,6 +180,7 @@ export function TripResultsScreen() {
                 onToggleAccessory={(targetDay, toggle) => void handleToggleDayAccessory(targetDay, toggle)}
                 isUpdatingAccessories={updatingAccessoryDayId === day.id}
                 onRemoveFromOutfit={(targetDay, itemId, accessoryState) => void handleRemoveItemFromDay(targetDay, itemId, accessoryState)}
+                onSwapOutfit={handleSwapOutfit}
               />
             ))}
 

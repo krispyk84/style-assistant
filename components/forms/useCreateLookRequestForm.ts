@@ -5,7 +5,7 @@ import type { WeatherSeason } from '@/types/weather';
 
 export type LookCount = 1 | 2 | 3;
 
-export function useCreateLookRequestForm(initialValue: CreateLookInput) {
+export function useCreateLookRequestForm(initialValue: CreateLookInput, options?: { initialLookCount?: LookCount }) {
   const [vibeKeywords, setVibeKeywords] = useState(initialValue.vibeKeywords ?? '');
   const [selectedTiers, setSelectedTiers] = useState<LookTierSlug[]>(initialValue.selectedTiers);
   // Auto-expand if the form was initialised with pre-filled keywords (e.g. anchor flows)
@@ -26,7 +26,7 @@ export function useCreateLookRequestForm(initialValue: CreateLookInput) {
     !!(initialValue.additionalDetails?.trim()),
   );
   // Same-tier variation count — only meaningful when exactly one tier is selected.
-  const [lookCount, setLookCount] = useState<LookCount>(1);
+  const [lookCount, setLookCount] = useState<LookCount>(options?.initialLookCount ?? 1);
 
   // When the user selects more than one tier, force back to a single look — the
   // multi-look option is only valid for a single-tier brief.

@@ -16,6 +16,7 @@ import type { ClosetItem } from '@/types/closet';
 import { OutfitActionsAccordion } from './OutfitActionsAccordion';
 import { OutfitItemThumbnailRow, type OutfitThumbnailItem } from './OutfitItemThumbnailRow';
 import { OutfitPieceListView } from './OutfitPieceListView';
+import { SwapOutfitChooserSheet, type SwapOutfitWorkflow } from './SwapOutfitChooserSheet';
 
 const MAX_SWAP_SELECTION = 2;
 
@@ -54,6 +55,8 @@ type Props = {
   isUpdatingAccessories?: boolean;
   /** fullCloset days only — drops exactly one piece from this day and clears the sketch (the user re-taps Generate Sketch for the new composition). */
   onRemoveFromOutfit?: (day: TripOutfitDay, itemId: string, accessoryState: { includeHat: boolean; includeBag: boolean }) => void;
+  /** Replaces this day's entire outfit via Build Around a Piece or Ask a Stylist. */
+  onSwapOutfit?: (day: TripOutfitDay, workflow: SwapOutfitWorkflow) => void;
 };
 
 export function TripDayCard({
@@ -67,10 +70,12 @@ export function TripDayCard({
   onToggleAccessory,
   isUpdatingAccessories = false,
   onRemoveFromOutfit,
+  onSwapOutfit,
 }: Props) {
   const { theme } = useTheme();
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [detailsItemId, setDetailsItemId] = useState<string | null>(null);
+  const [swapSheetVisible, setSwapSheetVisible] = useState(false);
 
   function toggleItemSelected(itemId: string) {
     setSelectedItemIds((current) => {
@@ -439,6 +444,25 @@ export function TripDayCard({
             <AppIcon color={theme.colors.text} name="chat" size={16} />
             <AppText style={{ fontSize: 13 }}>Ask Questions</AppText>
           </Pressable>
+
+          {onSwapOutfit ? (
+            <Pressable
+              onPress={() => setSwapSheetVisible(true)}
+              style={{
+                alignItems: 'center',
+                borderColor: theme.colors.border,
+                borderRadius: 999,
+                borderWidth: 1,
+                flexDirection: 'row',
+                gap: spacing.xs,
+                justifyContent: 'center',
+                minHeight: 44,
+                paddingHorizontal: spacing.md,
+              }}>
+              <AppIcon color={theme.colors.text} name="swap" size={16} />
+              <AppText style={{ fontSize: 13 }}>Swap outfit</AppText>
+            </Pressable>
+          ) : null}
         </OutfitActionsAccordion>
       </View>
     </View>
@@ -449,6 +473,11 @@ export function TripDayCard({
         onClose={() => setDetailsItemId(null)}
       />
     ) : null}
+    <SwapOutfitChooserSheet
+      visible={swapSheetVisible}
+      onPick={(workflow) => onSwapOutfit?.(day, workflow)}
+      onDismiss={() => setSwapSheetVisible(false)}
+    />
     </>
   );
 }

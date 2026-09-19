@@ -8,10 +8,10 @@ import type { StylistId } from '@/lib/stylists';
  * separately by the reused useAnchorItemsForm; this hook only owns what's
  * unique to this flow.
  */
-export function useStylistOutfitForm() {
+export function useStylistOutfitForm(options?: { initialBrief?: string; initialClosetOnly?: boolean }) {
   const [stylistId, setStylistId] = useState<StylistId | null>(null);
-  const [stylistBrief, setStylistBrief] = useState('');
-  const [closetOnly, setClosetOnly] = useState(false);
+  const [stylistBrief, setStylistBrief] = useState(options?.initialBrief ?? '');
+  const [closetOnly, setClosetOnly] = useState(options?.initialClosetOnly ?? false);
   const [stylistError, setStylistError] = useState<string | null>(null);
   const [briefError, setBriefError] = useState<string | null>(null);
 

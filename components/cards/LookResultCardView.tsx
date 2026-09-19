@@ -48,6 +48,10 @@ export type LookResultCardViewProps = {
   outfitFeedback?: 'love' | 'hate' | null;
   /** Called when the user taps Love it or Hate it. */
   onOutfitFeedback?: (thumb: 'love' | 'hate') => void;
+  /** Set only when this screen was reached via a trip day's "Swap outfit" action — the day's title, shown on the new "Use for [Day]" button. */
+  swapDayTitle?: string;
+  /** Called when the user picks this look to replace swapDayTitle's outfit. */
+  onUseForTripDay?: () => void;
 };
 
 // ── View ───────────────────────────────────────────────────────────────────────
@@ -69,6 +73,8 @@ export function LookResultCardView({
   anchorDescription,
   outfitFeedback,
   onOutfitFeedback,
+  swapDayTitle,
+  onUseForTripDay,
 }: LookResultCardViewProps) {
   const { theme } = useTheme();
   const labeledPieces = useMemo(
@@ -141,6 +147,19 @@ export function LookResultCardView({
           </View>
         </Pressable>
       </View>
+
+      {onUseForTripDay ? (
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+          <Pressable
+            onPress={onUseForTripDay}
+            style={[primaryButtonStyle, { backgroundColor: theme.colors.accent, flexDirection: 'row', gap: spacing.xs }]}>
+            <AppIcon color={theme.colors.inverseText} name="swap" size={18} />
+            <AppText style={{ color: theme.colors.inverseText }}>
+              {swapDayTitle ? `Use for ${swapDayTitle}` : 'Use for this day'}
+            </AppText>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={{ gap: spacing.lg, padding: spacing.lg }}>
         {/* Stylist rationale — comes before the itemized breakdown, matching how a stylist actually explains a look */}

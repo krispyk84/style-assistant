@@ -33,9 +33,11 @@ export type CreateLookRequestFormViewProps = {
   anchorForm: ReturnType<typeof useAnchorItemsForm>;
   lookForm: ReturnType<typeof useCreateLookRequestForm>;
   onContinue: () => void;
+  /** Set only when launched to swap a trip day's outfit — the tier is already decided by that day, so the picker becomes a static label instead of a choice, and the "Number of Looks" picker is hidden since it's fixed at 3. */
+  lockedTier?: LookTierSlug;
 };
 
-export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: CreateLookRequestFormViewProps) {
+export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue, lockedTier }: CreateLookRequestFormViewProps) {
   const {
     anchorItems,
     anchorError,
@@ -442,57 +444,74 @@ export function CreateLookRequestFormView({ anchorForm, lookForm, onContinue }: 
         ) : null}
       </View>
 
-      {/* Occasion Formality */}
+      {/* Occasion Formality — locked to a static label when swapping a trip day's outfit, since that day already decided its own formality. */}
       <View style={{ gap: spacing.md }}>
         <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Occasion Formality</AppText>
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          {LOOK_TIER_OPTIONS.map((tier) => {
-            const isSelected = selectedTiers.includes(tier);
-            const config = TIER_CONFIG[tier];
-            return (
-              <Pressable
-                key={tier}
-                onPress={() => toggleTier(tier)}
-                style={{
-                  alignItems: 'center',
-                  backgroundColor: isSelected ? theme.colors.accent : theme.colors.surface,
-                  borderColor: isSelected ? theme.colors.accent : theme.colors.border,
-                  borderRadius: 20,
-                  borderWidth: 1,
-                  flex: 1,
-                  gap: spacing.sm,
-                  padding: spacing.md,
-                }}>
-                {isSelected ? (
-                  <View style={{ position: 'absolute', right: spacing.sm, top: spacing.sm }}>
-                    <AppIcon color={theme.colors.inverseText} name="check-circle" size={16} />
-                  </View>
-                ) : null}
-                <AppIcon
-                  color={isSelected ? theme.colors.inverseText : theme.colors.text}
-                  name={config.icon}
-                  size={24}
-                />
-                <AppText
-                  variant="eyebrow"
+        {lockedTier ? (
+          <View
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.colors.accent,
+              borderRadius: 20,
+              flexDirection: 'row',
+              gap: spacing.sm,
+              padding: spacing.md,
+            }}>
+            <AppIcon color={theme.colors.inverseText} name={TIER_CONFIG[lockedTier].icon} size={20} />
+            <AppText style={{ color: theme.colors.inverseText, fontFamily: theme.fonts.sansMedium }}>
+              {TIER_CONFIG[lockedTier].label.replace('\n', ' ')} — matches this day
+            </AppText>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {LOOK_TIER_OPTIONS.map((tier) => {
+              const isSelected = selectedTiers.includes(tier);
+              const config = TIER_CONFIG[tier];
+              return (
+                <Pressable
+                  key={tier}
+                  onPress={() => toggleTier(tier)}
                   style={{
-                    color: isSelected ? theme.colors.inverseText : theme.colors.text,
-                    letterSpacing: 1.2,
-                    textAlign: 'center',
+                    alignItems: 'center',
+                    backgroundColor: isSelected ? theme.colors.accent : theme.colors.surface,
+                    borderColor: isSelected ? theme.colors.accent : theme.colors.border,
+                    borderRadius: 20,
+                    borderWidth: 1,
+                    flex: 1,
+                    gap: spacing.sm,
+                    padding: spacing.md,
                   }}>
-                  {config.label}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
+                  {isSelected ? (
+                    <View style={{ position: 'absolute', right: spacing.sm, top: spacing.sm }}>
+                      <AppIcon color={theme.colors.inverseText} name="check-circle" size={16} />
+                    </View>
+                  ) : null}
+                  <AppIcon
+                    color={isSelected ? theme.colors.inverseText : theme.colors.text}
+                    name={config.icon}
+                    size={24}
+                  />
+                  <AppText
+                    variant="eyebrow"
+                    style={{
+                      color: isSelected ? theme.colors.inverseText : theme.colors.text,
+                      letterSpacing: 1.2,
+                      textAlign: 'center',
+                    }}>
+                    {config.label}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
         {tierError ? (
           <AppText style={{ color: theme.colors.danger }}>{tierError}</AppText>
         ) : null}
       </View>
 
-      {/* Number of Looks — only meaningful when exactly one tier is selected */}
-      {selectedTiers.length === 1 ? (
+      {/* Number of Looks — only meaningful when exactly one tier is selected; hidden entirely when swapping a trip day, since that's fixed at 3 so there's always something to pick between. */}
+      {selectedTiers.length === 1 && !lockedTier ? (
         <View style={{ gap: spacing.md }}>
           <AppText variant="eyebrow" style={{ color: theme.colors.mutedText, letterSpacing: 1.8 }}>Number of Looks</AppText>
           <View

@@ -10,7 +10,16 @@ import { StylistOutfitFormView } from './StylistOutfitFormView';
 
 const STYLIST_LOOK_COUNT = 3;
 
-export function StylistOutfitForm() {
+type StylistOutfitFormProps = {
+  /** Set only when launched to swap a trip day's outfit — pre-seeds the brief text (editable) and the closet-only default. */
+  initialBrief?: string;
+  initialClosetOnly?: boolean;
+  /** Carried through to the results screen so it can show a "Use for [Day]" action. */
+  swapDayTitle?: string;
+  swapTripId?: string;
+};
+
+export function StylistOutfitForm({ initialBrief, initialClosetOnly, swapDayTitle, swapTripId }: StylistOutfitFormProps = {}) {
   const anchorForm = useAnchorItemsForm({
     anchorItems: [],
     anchorItemDescription: '',
@@ -19,7 +28,7 @@ export function StylistOutfitForm() {
     photoPending: false,
     selectedTiers: ['smart-casual'],
   });
-  const stylistForm = useStylistOutfitForm();
+  const stylistForm = useStylistOutfitForm({ initialBrief, initialClosetOnly });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -73,20 +82,23 @@ export function StylistOutfitForm() {
 
       router.push({
         pathname: '/results/[requestId]',
-        params: buildSubmitRouteParams({
-          populatedAnchorItems: anchorForm.populatedAnchorItems,
-          vibeKeywords: '',
-          selectedTiers: [tierResult.data.tier],
-          shouldAddAnchorToCloset: anchorForm.shouldAddAnchorToCloset,
-          weatherContext,
-          manualSeason: null,
-          includeBag: false,
-          includeHat: false,
-          closetOnly: stylistForm.closetOnly,
-          additionalDetails: stylistForm.stylistBrief.trim(),
-          lookCount: STYLIST_LOOK_COUNT,
-          stylistId: stylistForm.stylistId!,
-        }),
+        params: {
+          ...buildSubmitRouteParams({
+            populatedAnchorItems: anchorForm.populatedAnchorItems,
+            vibeKeywords: '',
+            selectedTiers: [tierResult.data.tier],
+            shouldAddAnchorToCloset: anchorForm.shouldAddAnchorToCloset,
+            weatherContext,
+            manualSeason: null,
+            includeBag: false,
+            includeHat: false,
+            closetOnly: stylistForm.closetOnly,
+            additionalDetails: stylistForm.stylistBrief.trim(),
+            lookCount: STYLIST_LOOK_COUNT,
+            stylistId: stylistForm.stylistId!,
+          }),
+          ...(swapDayTitle ? { swapDayTitle, swapTripId } : {}),
+        },
       });
       // Not resetting isSubmitting on success — the screen navigates away;
       // resetting it here would only risk a flash of an enabled button an

@@ -9,11 +9,15 @@ import { AppText } from '@/components/ui/app-text';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { spacing } from '@/constants/theme';
 import { trackCreateLookStarted } from '@/lib/analytics';
+import { LOOK_TIER_OPTIONS, type LookTierSlug } from '@/types/look-request';
 
 export default function CreateLookScreen() {
   useEffect(() => { trackCreateLookStarted(); }, []);
 
-  const { closetItemId, closetItemTitle, closetItemImageUrl, closetItemFitStatus, closetOnly, fresh } = useLocalSearchParams<{
+  const {
+    closetItemId, closetItemTitle, closetItemImageUrl, closetItemFitStatus, closetOnly, fresh,
+    swapDayTitle, swapTripId, swapContextLine, swapClosetOnly, swapFormality,
+  } = useLocalSearchParams<{
     closetItemId?: string;
     closetItemTitle?: string;
     closetItemImageUrl?: string;
@@ -21,6 +25,12 @@ export default function CreateLookScreen() {
     /** Set by the "Build Around a Piece" link inside the Build From My Closet modal, so the form opens with "Pair only items from my closet" already on — keeping that flow's "entirely from your closet" promise true. */
     closetOnly?: string;
     fresh?: string;
+    /** Set only when launched from a trip day's "Swap outfit" action (see useTripResultsActions.ts's handleSwapOutfit) — locks the tier and pre-seeds context/closet-only from that day. */
+    swapDayTitle?: string;
+    swapTripId?: string;
+    swapContextLine?: string;
+    swapClosetOnly?: string;
+    swapFormality?: string;
   }>();
 
   const anchorItems = buildAnchorItemsFromClosetParams({
@@ -29,6 +39,9 @@ export default function CreateLookScreen() {
     closetItemImageUrl,
     closetItemFitStatus,
   });
+
+  const lockedTier: LookTierSlug | undefined =
+    swapFormality && LOOK_TIER_OPTIONS.includes(swapFormality as LookTierSlug) ? (swapFormality as LookTierSlug) : undefined;
 
   return (
     <AppScreen scrollable floatingBack avoidsKeyboard>
@@ -43,7 +56,7 @@ export default function CreateLookScreen() {
         </View>
 
         <CreateLookRequestForm
-          key={closetItemId ? `anchor-${closetItemId}` : `fresh-${fresh ?? 'default'}`}
+          key={swapDayTitle ? `swap-${swapDayTitle}` : closetItemId ? `anchor-${closetItemId}` : `fresh-${fresh ?? 'default'}`}
           initialValue={{
             anchorItems,
             anchorItemDescription: closetItemTitle ?? '',
@@ -51,10 +64,14 @@ export default function CreateLookScreen() {
             anchorImage: null,
             uploadedAnchorImage: null,
             photoPending: false,
-            selectedTiers: ['business', 'smart-casual', 'casual'],
+            selectedTiers: lockedTier ? [lockedTier] : ['business', 'smart-casual', 'casual'],
             weatherContext: null,
-            closetOnly: closetOnly === 'true',
+            closetOnly: swapDayTitle ? swapClosetOnly === 'true' : closetOnly === 'true',
+            additionalDetails: swapContextLine,
           }}
+          lockedTier={lockedTier}
+          swapDayTitle={swapDayTitle}
+          swapTripId={swapTripId}
         />
       </View>
     </AppScreen>

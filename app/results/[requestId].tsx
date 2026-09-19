@@ -26,9 +26,12 @@ import { useResultsMatchFeedback } from './useResultsMatchFeedback';
 import { useResultsActions } from './useResultsActions';
 
 export default function ResultDetailsScreen() {
-  const params = useLocalSearchParams<LookRouteParams & { requestId: string }>();
+  const params = useLocalSearchParams<LookRouteParams & { requestId: string; swapDayTitle?: string; swapTripId?: string }>();
   const routeKey = JSON.stringify(params);
-  const stableParams = useMemo(() => JSON.parse(routeKey) as LookRouteParams & { requestId: string }, [routeKey]);
+  const stableParams = useMemo(
+    () => JSON.parse(routeKey) as LookRouteParams & { requestId: string; swapDayTitle?: string; swapTripId?: string },
+    [routeKey],
+  );
 
   // Multi-look branch — when the brief was created with > 1 variations of a single tier,
   // the dedicated MultiLookResults orchestrator owns generation, polling and per-slot state.
@@ -42,6 +45,8 @@ export default function ResultDetailsScreen() {
           variantRequestIds={variantRequestIds}
           parsedInput={inputForMulti}
           addAnchorToCloset={stableParams.addAnchorToCloset === 'true'}
+          swapDayTitle={stableParams.swapDayTitle}
+          swapTripId={stableParams.swapTripId}
         />
       );
     }
