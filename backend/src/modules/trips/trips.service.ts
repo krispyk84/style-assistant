@@ -16,6 +16,7 @@ import { logger } from '../../config/logger.js';
 import { describeError, HttpError } from '../../lib/http-error.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { loadOwnedFragrances, scoreLoadedFragrances } from '../fragrances/fragrance-recommendation-integration.js';
+import type { FragranceVibe } from '../fragrances/fragrance-types.js';
 import { buildClosetIndex } from '../closet/closet-index.js';
 import { closetRepository } from '../closet/closet.repository.js';
 import {
@@ -416,6 +417,7 @@ async function chooseFullClosetDay(params: {
   rationale: string;
   usedOuterwearTitles: string[];
   usedFootwearTitles: string[];
+  primaryVibe?: FragranceVibe;
 }> {
   const tier = params.formalityTier;
   const targetFormalityRank = TIER_FORMALITY_TARGET[tier] ?? FORMALITY_RANK['Smart Casual'];
@@ -496,7 +498,7 @@ async function chooseFullClosetDay(params: {
     specialNeeds: params.specialNeeds,
   });
 
-  let chosen: { title: string; rationale: string; chosenIds: Record<string, string | null>; accessoryIds: string[] } | null = null;
+  let chosen: { title: string; rationale: string; chosenIds: Record<string, string | null>; accessoryIds: string[]; primaryVibe?: FragranceVibe } | null = null;
   try {
     const aiResult = await openAiClient.createStructuredResponse({
       schema: tripDayChoiceResponseSchema,
@@ -518,7 +520,7 @@ async function chooseFullClosetDay(params: {
       const chosenEntries = Object.entries(dayResult.chosenIds).filter((entry): entry is [string, string] => entry[1] !== null);
       const valid = chosenEntries.length > 0 && chosenEntries.every(([slot, id]) => validIdSets.get(slot)?.has(id));
       if (valid) {
-        chosen = { title: dayResult.title, rationale: dayResult.rationale, chosenIds: dayResult.chosenIds, accessoryIds: dayResult.accessoryIds };
+        chosen = { title: dayResult.title, rationale: dayResult.rationale, chosenIds: dayResult.chosenIds, accessoryIds: dayResult.accessoryIds, primaryVibe: dayResult.primaryVibe };
       }
     }
   } catch (error) {
@@ -556,6 +558,7 @@ async function chooseFullClosetDay(params: {
     rationale,
     usedOuterwearTitles: updateUsedTitles(bySlot, 'outerwear', params.usedOuterwearTitles),
     usedFootwearTitles: updateUsedTitles(bySlot, 'footwear', params.usedFootwearTitles),
+    primaryVibe: chosen?.primaryVibe,
   };
 }
 
@@ -659,7 +662,7 @@ async function generateFullClosetTripOutfits(
         season: request.dressSeason === 'summer' || request.dressSeason === 'tropical' ? 'summer' : request.dressSeason === 'winter' ? 'winter' : undefined,
         temperatureC: request.avgHighC,
         formalityTier: resolvedTier,
-        aestheticText: [request.styleVibe, request.activities].filter(Boolean).join(' '),
+        outfitVibe: chosen.primaryVibe,
         varietyLevel: request.fragranceVariety,
       }),
     });
@@ -781,7 +784,7 @@ export const tripsService = {
           season: request.dressSeason === 'summer' || request.dressSeason === 'tropical' ? 'summer' : request.dressSeason === 'winter' ? 'winter' : undefined,
           temperatureC: request.avgHighC,
           formalityTier: dayTypeToFormalityTier(day.dayType),
-          aestheticText: [request.styleVibe, request.activities].filter(Boolean).join(' '),
+          outfitVibe: day.primaryVibe,
           varietyLevel: request.fragranceVariety,
         }),
       };

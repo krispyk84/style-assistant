@@ -16,6 +16,7 @@ import { buildClosetOutfitSketchPrompt } from '../../ai/prompts/closet-outfit-sk
 import { storageProvider } from '../../storage/index.js';
 import { profileRepository } from '../profile/profile.repository.js';
 import { loadOwnedFragrances, scoreLoadedFragrances, type FragranceRecommendationDto } from '../fragrances/fragrance-recommendation-integration.js';
+import type { FragranceVibe } from '../fragrances/fragrance-types.js';
 import { seasonalTrendsService } from '../seasonal-trends/seasonal-trends.service.js';
 import { trendFeedbackService } from '../seasonal-trends/trend-feedback.service.js';
 import type { FashionGender } from '../seasonal-trends/seasonal-trends.repository.js';
@@ -102,6 +103,8 @@ type ResolvedOutfit = {
   sketchJobId: string;
   sketchStatus: 'pending' | 'ready' | 'failed';
   sketchImageUrl: string | null;
+  /** The outfit's own vibe classification (generateOutfits only — generateOutfitVariations' schema doesn't ask for it) — used to score fragranceRecommendations below, not sent to the client as its own field. */
+  primaryVibe?: FragranceVibe;
   /** Additive, optional — old clients/results without this field remain fully valid. Up to 3, ranked best-first; empty/absent whenever the user owns no eligible fragrances. */
   fragranceRecommendations?: FragranceRecommendationDto[];
 };
@@ -159,6 +162,8 @@ type ChoiceOutfit = {
   whyItWorks: string;
   chosenIds: Record<string, string | null>;
   accessoryIds: string[];
+  /** Only present when the caller's schema asked for it (generateOutfits) — generateOutfitVariations' schema doesn't. */
+  primaryVibe?: FragranceVibe;
 };
 
 // Resolves the model's per-slot choices back into real items — validates
@@ -176,10 +181,10 @@ function resolveChoiceOutfits(params: {
   itemsById: Map<string, BuilderItem>;
   idPrefix: string;
   tier: TierSlug;
-}): { id: string; title: string; whyItWorks: string; items: MappedClosetItem[]; framework: FrameworkBreakdown }[] {
+}): { id: string; title: string; whyItWorks: string; items: MappedClosetItem[]; framework: FrameworkBreakdown; primaryVibe?: FragranceVibe }[] {
   const validIdSets = new Map(Object.entries(params.idsBySlot).map(([slot, ids]) => [slot, new Set(ids)]));
   const seenKeys = new Set<string>();
-  const resolved: { id: string; title: string; whyItWorks: string; items: MappedClosetItem[]; framework: FrameworkBreakdown }[] = [];
+  const resolved: { id: string; title: string; whyItWorks: string; items: MappedClosetItem[]; framework: FrameworkBreakdown; primaryVibe?: FragranceVibe }[] = [];
 
   for (const outfit of params.outfits) {
     const chosenEntries = Object.entries(outfit.chosenIds).filter((entry): entry is [string, string] => entry[1] !== null);
@@ -226,6 +231,7 @@ function resolveChoiceOutfits(params: {
       whyItWorks: outfit.whyItWorks,
       items: itemIds.map((id) => mapClosetItem(params.itemsById.get(id)!)),
       framework: buildFrameworkBreakdown({ tier: params.tier, bySlot: framedBySlot, accessoryItems: framedAccessoryItems }),
+      primaryVibe: outfit.primaryVibe,
     });
   }
 
@@ -491,7 +497,7 @@ export const closetOutfitsService = {
           season: payload.weatherContext?.season,
           temperatureC: temperatureC ?? undefined,
           formalityTier: payload.formality,
-          aestheticText: payload.additionalDetails,
+          outfitVibe: outfit.primaryVibe,
           varietyLevel: payload.fragranceVariety,
         }),
       })),

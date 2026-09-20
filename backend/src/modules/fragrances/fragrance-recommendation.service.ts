@@ -41,8 +41,16 @@ export type RecommendationContext = {
   formalityTier?: string;
   isFormalEvening?: boolean;
   dayNight?: 'day' | 'night';
-  /** Best-effort freeform aesthetic signal (vibeKeywords, styleVibe, dayType, etc.) — matched against the fixed vibe taxonomy by keyword, never a second taxonomy. */
-  aestheticText?: string;
+  /**
+   * The outfit's own aesthetic classified against the fixed FragranceVibe
+   * taxonomy — this is now the DOMINANT scoring signal (section 27). Always
+   * produced upstream by the outfit-generation LLM call itself (it already
+   * has full context on the pieces it just assembled — classifying vibe
+   * there is free, no extra API round-trip), never derived here from
+   * freeform text. Absent only for the rare non-LLM code path; scored
+   * neutrally in that case, never penalized.
+   */
+  outfitVibe?: FragranceVibe;
   /** Only passed when the caller already has reliable resolved-piece color metadata — never computed here. */
   outfitColorFamily?: string;
   /**
@@ -77,7 +85,7 @@ export function isEligible(owned: OwnedFragrance): boolean {
   return owned.currentVolumeMl !== 0;
 }
 
-// ── Weather / season scoring — 40 points (section 25) ────────────────────────
+// ── Weather / season scoring — 25 points (section 25) ────────────────────────
 
 const LIGHT_ACCORD_KEYWORDS = ['citrus', 'aquatic', 'marine', 'green', 'aromatic', 'tea', 'fresh', 'musk', 'clean'];
 const HEAVY_ACCORD_KEYWORDS = ['gourmand', 'amber', 'leather', 'tobacco', 'resin', 'smoky', 'sweet', 'vanilla', 'spicy', 'spice'];
@@ -90,30 +98,31 @@ function sumMatchingAccordWeights(accords: { name: string; weight: number }[], k
 }
 
 function scoreWeatherSeason(fragrance: ScorableFragrance, context: RecommendationContext): number {
-  // Base 30 pts: the fragrance's own profiled per-season suitability.
+  // Base 18.75 pts (75% of this dimension's 25-pt max): the fragrance's own
+  // profiled per-season suitability.
   let score: number;
   if (context.season && fragrance.seasonality) {
-    score = (fragrance.seasonality[context.season] ?? 0.5) * 30;
+    score = (fragrance.seasonality[context.season] ?? 0.5) * 18.75;
   } else {
-    score = 15;
+    score = 9.375;
   }
 
-  // Adjustment ±10 pts: accord-level warm/cold fit, bonuses/penalties only —
-  // never a hard exclusion.
+  // Adjustment ±6.25 pts (25% of max): accord-level warm/cold fit,
+  // bonuses/penalties only — never a hard exclusion.
   if (context.temperatureC != null && fragrance.mainAccords && fragrance.mainAccords.length > 0) {
     const isWarm = context.temperatureC >= 20;
     const isCold = context.temperatureC <= 10;
     if (isWarm || isCold) {
       const lightWeight = sumMatchingAccordWeights(fragrance.mainAccords, LIGHT_ACCORD_KEYWORDS);
       const heavyWeight = sumMatchingAccordWeights(fragrance.mainAccords, HEAVY_ACCORD_KEYWORDS);
-      score += isWarm ? (lightWeight - heavyWeight) * 10 : (heavyWeight - lightWeight) * 10;
+      score += isWarm ? (lightWeight - heavyWeight) * 6.25 : (heavyWeight - lightWeight) * 6.25;
     }
   }
 
-  return Math.max(0, Math.min(40, score));
+  return Math.max(0, Math.min(25, score));
 }
 
-// ── Formality scoring — 25 points (section 26) ───────────────────────────────
+// ── Formality scoring — 20 points (section 26) ───────────────────────────────
 
 function formalityKeyForTier(tier: string | undefined, isFormalEvening: boolean | undefined): 'casual' | 'smartCasual' | 'business' | 'formalEvening' {
   if (isFormalEvening) return 'formalEvening';
@@ -123,40 +132,25 @@ function formalityKeyForTier(tier: string | undefined, isFormalEvening: boolean 
 }
 
 function scoreFormality(fragrance: ScorableFragrance, context: RecommendationContext): number {
-  if (!fragrance.formality) return 12.5;
+  if (!fragrance.formality) return 10;
   const key = formalityKeyForTier(context.formalityTier, context.isFormalEvening);
-  return (fragrance.formality[key] ?? 0.5) * 25;
+  return (fragrance.formality[key] ?? 0.5) * 20;
 }
 
-// ── Vibe / aesthetic scoring — 20 points (section 27) ────────────────────────
-
-const VIBE_KEYWORDS: Record<FragranceVibe, string[]> = {
-  FRESH_CLEAN: ['clean', 'fresh', 'minimal', 'crisp', 'simple', 'light'],
-  WARM_COZY: ['cozy', 'warm', 'comfort', 'soft', 'relaxed'],
-  DARK_SEDUCTIVE: ['dark', 'seductive', 'moody', 'sultry', 'night', 'sexy'],
-  WOODY_EARTHY: ['earthy', 'rugged', 'outdoor', 'woody', 'natural', 'adventure'],
-  GOURMAND_SWEET: ['sweet', 'dessert', 'gourmand', 'indulgent'],
-  AROMATIC_SPORTY: ['sporty', 'athletic', 'active', 'casual', 'weekend'],
-  FLORAL_ROMANTIC: ['romantic', 'floral', 'date', 'soft'],
-  SPICY_CONFIDENT: ['bold', 'confident', 'statement', 'spicy', 'edgy', 'fashion-forward', 'expressive'],
-};
-
-/** Best-effort match of freeform outfit text to the fixed vibe taxonomy — not a second taxonomy, just a lookup. Returns null when no keyword matches (no penalty applied in that case). */
-export function matchOutfitVibe(aestheticText: string | undefined): FragranceVibe | null {
-  if (!aestheticText?.trim()) return null;
-  const haystack = aestheticText.toLowerCase();
-  for (const [vibe, keywords] of Object.entries(VIBE_KEYWORDS) as [FragranceVibe, string[]][]) {
-    if (keywords.some((kw) => haystack.includes(kw))) return vibe;
-  }
-  return null;
-}
+// ── Vibe scoring — 40 points, the dominant signal (section 27) ───────────────
+//
+// context.outfitVibe is classified upstream, by the same LLM call that
+// designed the outfit itself, against the fixed FragranceVibe taxonomy — see
+// RecommendationContext.outfitVibe's comment. This module stays a pure
+// lookup against that already-classified value; it never runs its own
+// classification (that would need an LLM, which this module can never
+// depend on — spec section 41).
 
 function scoreVibe(fragrance: ScorableFragrance, context: RecommendationContext): number {
-  const outfitVibe = matchOutfitVibe(context.aestheticText);
-  if (!outfitVibe) return 10;
-  if (fragrance.primaryVibe === outfitVibe) return 20;
-  if (fragrance.secondaryVibes?.includes(outfitVibe)) return 14;
-  return 6;
+  if (!context.outfitVibe) return 20;
+  if (fragrance.primaryVibe === context.outfitVibe) return 40;
+  if (fragrance.secondaryVibes?.includes(context.outfitVibe)) return 28;
+  return 12;
 }
 
 // ── Day / night scoring — 10 points (section 28) ─────────────────────────────
@@ -197,6 +191,7 @@ type ScoredFragrance = {
   total: number;
   weatherSeason: number;
   formality: number;
+  vibe: number;
 };
 
 function scoreOne(owned: OwnedFragrance, context: RecommendationContext): ScoredFragrance {
@@ -205,7 +200,7 @@ function scoreOne(owned: OwnedFragrance, context: RecommendationContext): Scored
   const vibe = scoreVibe(owned.fragrance, context);
   const dayNight = scoreDayNight(owned.fragrance, context);
   const colorBonus = scoreColorSynergy(owned.fragrance, context);
-  return { owned, total: weatherSeason + formality + vibe + dayNight + colorBonus, weatherSeason, formality };
+  return { owned, total: weatherSeason + formality + vibe + dayNight + colorBonus, weatherSeason, formality, vibe };
 }
 
 /**
@@ -215,6 +210,12 @@ function scoreOne(owned: OwnedFragrance, context: RecommendationContext): Scored
  * here, so marking a fragrance as a signature scent never biases it toward
  * being recommended more often.
  *
+ * vibe is checked right after total (before weatherSeason/formality) since
+ * it's now the single heaviest-weighted dimension (section 27) — the
+ * canonical ranking should agree with "which fragrance actually reads as
+ * the right aesthetic for this outfit" before falling back to secondary
+ * weather/formality fit.
+ *
  * This ordering is still the canonical "best fit first" ranking used by
  * variety mode below (section 33) to build its qualifying pool — variety
  * mode's randomness is scoped entirely to *which* member of that pool gets
@@ -222,6 +223,7 @@ function scoreOne(owned: OwnedFragrance, context: RecommendationContext): Scored
  */
 function compareCandidates(a: ScoredFragrance, b: ScoredFragrance): number {
   if (a.total !== b.total) return b.total - a.total;
+  if (a.vibe !== b.vibe) return b.vibe - a.vibe;
   if (a.weatherSeason !== b.weatherSeason) return b.weatherSeason - a.weatherSeason;
   if (a.formality !== b.formality) return b.formality - a.formality;
   const nameA = `${a.owned.fragrance.brand} ${a.owned.fragrance.name}`;
@@ -232,6 +234,17 @@ function compareCandidates(a: ScoredFragrance, b: ScoredFragrance): number {
 
 // ── Reason string (section 30) — deterministic, no LLM ───────────────────────
 
+const VIBE_LABELS: Record<FragranceVibe, string> = {
+  FRESH_CLEAN: 'fresh, clean',
+  WARM_COZY: 'warm, cozy',
+  DARK_SEDUCTIVE: 'dark, seductive',
+  WOODY_EARTHY: 'earthy, woody',
+  GOURMAND_SWEET: 'sweet, indulgent',
+  AROMATIC_SPORTY: 'aromatic, sporty',
+  FLORAL_ROMANTIC: 'romantic, floral',
+  SPICY_CONFIDENT: 'bold, confident',
+};
+
 function pickKeyAccords(fragrance: ScorableFragrance): string[] {
   if (!fragrance.mainAccords?.length) return [];
   return [...fragrance.mainAccords].sort((a, b) => b.weight - a.weight).slice(0, 3).map((a) => a.name);
@@ -241,15 +254,24 @@ function buildReason(scored: ScoredFragrance, context: RecommendationContext): s
   const accords = pickKeyAccords(scored.owned.fragrance);
   const accordPhrase = accords.length > 0 ? accords.slice(0, 2).join(' and ') : 'its character';
 
-  // Lead with whichever dimension contributed most, for a genuinely
-  // fragrance-specific (not generic) sentence.
+  // A genuine vibe match (not just the highest-scoring dimension) gets its
+  // own, most-specific sentence — vibe is the dominant signal, so lead with
+  // it whenever there's a real match to name rather than a generic fallback.
+  if (context.outfitVibe && scored.owned.fragrance.primaryVibe === context.outfitVibe) {
+    return `Its ${accordPhrase} profile matches this look's ${VIBE_LABELS[context.outfitVibe]} character.`;
+  }
+  if (context.outfitVibe && scored.owned.fragrance.secondaryVibes?.includes(context.outfitVibe)) {
+    return `Its ${accordPhrase} profile leans into this look's ${VIBE_LABELS[context.outfitVibe]} side.`;
+  }
+
+  // Otherwise lead with whichever remaining dimension contributed most.
   const dims: { key: 'weather' | 'formality'; value: number }[] = [
     { key: 'weather', value: scored.weatherSeason },
     { key: 'formality', value: scored.formality },
   ];
   const leading = dims.sort((a, b) => b.value - a.value)[0]!.key;
 
-  if (leading === 'formality' && scored.formality >= 20) {
+  if (leading === 'formality' && scored.formality >= 16) {
     return `Its ${accordPhrase} profile brings a refined, considered finish that matches how dressed-up this look is.`;
   }
   if (context.temperatureC != null && context.temperatureC >= 20) {

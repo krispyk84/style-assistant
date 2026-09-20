@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { FRAGRANCE_VIBE_OPTIONS, FRAGRANCE_VIBE_SCHEMA_DESCRIPTION } from '../fragrances/fragrance-types.js';
+
 // ── Closet sketch — footwear vision description ───────────────────────────────
 // Much richer than the garment schema — captures the specific construction cues
 // that distinguish technical sneakers from generic ones, etc.
@@ -224,6 +226,8 @@ const closetOutfitChoiceItemSchema = z.object({
   whyItWorks: z.string().min(1),
   chosenIds: z.record(z.string(), z.string().nullable()),
   accessoryIds: z.array(z.string()).default([]),
+  /** The outfit's own aesthetic, classified against the fixed fragrance-vibe taxonomy — used to pick a fragrance that actually matches this look's character, not just its weather/formality. */
+  primaryVibe: z.enum(FRAGRANCE_VIBE_OPTIONS),
 });
 
 export const closetOutfitsChoiceResponseSchema = z.object({
@@ -287,8 +291,13 @@ export function buildClosetOutfitsChoiceJsonSchema(params: {
                 maxItems: 4,
                 description: 'Additional accessories (belt/scarf/tie/socks) — 0 or more, only if they genuinely add to the look.',
               },
+              primaryVibe: {
+                type: 'string',
+                enum: [...FRAGRANCE_VIBE_OPTIONS],
+                description: FRAGRANCE_VIBE_SCHEMA_DESCRIPTION,
+              },
             },
-            required: ['index', 'title', 'whyItWorks', 'chosenIds', 'accessoryIds'],
+            required: ['index', 'title', 'whyItWorks', 'chosenIds', 'accessoryIds', 'primaryVibe'],
             additionalProperties: false,
           },
         },

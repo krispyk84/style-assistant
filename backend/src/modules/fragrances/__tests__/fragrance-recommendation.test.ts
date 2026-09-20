@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { isEligible, matchOutfitVibe, recommendFragrances } from '../fragrance-recommendation.service.js';
+import { isEligible, recommendFragrances } from '../fragrance-recommendation.service.js';
 import type { OwnedFragrance, RecommendationContext, ScorableFragrance } from '../fragrance-recommendation.service.js';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -48,20 +48,57 @@ describe('isEligible', () => {
   });
 });
 
-// ── Vibe keyword matching ────────────────────────────────────────────────────
+// ── Vibe scoring — now the dominant signal, fed a pre-classified vibe ────────
 
-describe('matchOutfitVibe', () => {
-  it('returns null for empty/whitespace-only text', () => {
-    expect(matchOutfitVibe(undefined)).toBeNull();
-    expect(matchOutfitVibe('   ')).toBeNull();
+describe('recommendFragrances — vibe scoring', () => {
+  it('with weather/formality fit held equal, the primaryVibe match wins — vibe is the deciding dimension', () => {
+    const equalProfile: Partial<ScorableFragrance> = {
+      seasonality: { spring: 0.6, summer: 0.6, fall: 0.6, winter: 0.6 },
+      formality: { casual: 0.6, smartCasual: 0.6, business: 0.6, formalEvening: 0.6 },
+    };
+    const vibeMatch = makeOwned({ userFragranceId: 'vibe' }, { id: 'vibe-frag', primaryVibe: 'WOODY_EARTHY', ...equalProfile });
+    const vibeMismatch = makeOwned({ userFragranceId: 'other' }, { id: 'other-frag', primaryVibe: 'FRESH_CLEAN', ...equalProfile });
+    const context: RecommendationContext = { season: 'summer', formalityTier: 'business', outfitVibe: 'WOODY_EARTHY' };
+    const result = recommendFragrances({ ownedFragrances: [vibeMismatch, vibeMatch], context, count: 1 });
+    expect(result[0]?.fragranceId).toBe('vibe-frag');
   });
 
-  it('returns null when no keyword matches any vibe', () => {
-    expect(matchOutfitVibe('xyzzy plugh')).toBeNull();
+  it('vibe alone (40 pts) is a larger single weight than any other individual dimension — a vibe match can outrank a fragrance that only wins on ONE other axis', () => {
+    const vibeMatch = makeOwned({ userFragranceId: 'vibe' }, {
+      id: 'vibe-frag',
+      primaryVibe: 'WOODY_EARTHY',
+      seasonality: { spring: 0.3, summer: 0.3, fall: 0.3, winter: 0.3 },
+    });
+    const seasonOnly = makeOwned({ userFragranceId: 'season' }, {
+      id: 'season-frag',
+      primaryVibe: 'FRESH_CLEAN',
+      seasonality: { spring: 1, summer: 1, fall: 1, winter: 1 },
+    });
+    const context: RecommendationContext = { season: 'summer', outfitVibe: 'WOODY_EARTHY' };
+    const result = recommendFragrances({ ownedFragrances: [seasonOnly, vibeMatch], context, count: 1 });
+    expect(result[0]?.fragranceId).toBe('vibe-frag');
   });
 
-  it('matches SPICY_CONFIDENT for bold/statement language', () => {
-    expect(matchOutfitVibe('a bold, statement-making evening look')).toBe('SPICY_CONFIDENT');
+  it('a secondaryVibes match scores between a primaryVibe match and no match at all', () => {
+    const primary = makeOwned({ userFragranceId: 'primary' }, { id: 'primary-frag', primaryVibe: 'SPICY_CONFIDENT' });
+    const secondary = makeOwned({ userFragranceId: 'secondary' }, { id: 'secondary-frag', primaryVibe: 'FRESH_CLEAN', secondaryVibes: ['SPICY_CONFIDENT'] });
+    const none = makeOwned({ userFragranceId: 'none' }, { id: 'none-frag', primaryVibe: 'FRESH_CLEAN', secondaryVibes: ['WARM_COZY'] });
+    const context: RecommendationContext = { outfitVibe: 'SPICY_CONFIDENT' };
+    const result = recommendFragrances({ ownedFragrances: [none, secondary, primary], context });
+    expect(result.map((r) => r.fragranceId)).toEqual(['primary-frag', 'secondary-frag', 'none-frag']);
+  });
+
+  it('an absent outfitVibe scores every fragrance neutrally on the vibe dimension (never penalized)', () => {
+    const owned = makeOwned({ userFragranceId: 'u1' }, { id: 'f1', primaryVibe: 'DARK_SEDUCTIVE' });
+    const result = recommendFragrances({ ownedFragrances: [owned], context: {}, count: 1 });
+    expect(result[0]?.fragranceId).toBe('f1');
+  });
+
+  it('the reason string names the matched vibe when there is a real primaryVibe match', () => {
+    const owned = makeOwned({ userFragranceId: 'u1' }, { id: 'f1', primaryVibe: 'DARK_SEDUCTIVE', mainAccords: [{ name: 'Oud', weight: 1 }] });
+    const context: RecommendationContext = { outfitVibe: 'DARK_SEDUCTIVE' };
+    const result = recommendFragrances({ ownedFragrances: [owned], context, count: 1 });
+    expect(result[0]?.reason).toContain('dark, seductive');
   });
 });
 

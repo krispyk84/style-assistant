@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { FRAGRANCE_VIBE_OPTIONS, FRAGRANCE_VIBE_SCHEMA_DESCRIPTION } from '../fragrances/fragrance-types.js';
+
 export const tripDaySchema = z.object({
   dayIndex:    z.number().int().min(0),
   date:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -11,6 +13,8 @@ export const tripDaySchema = z.object({
   bag:         z.string().nullable(),
   accessories: z.array(z.string().min(1)).max(3),
   contextTags: z.array(z.string().min(1)).min(1).max(4),
+  /** The day's own aesthetic, classified against the fixed fragrance-vibe taxonomy — drives fragrance pairing. Optional: this schema is shared with regenerate-day, whose JSON schema doesn't ask for it (that flow doesn't score fragrances). */
+  primaryVibe: z.enum(FRAGRANCE_VIBE_OPTIONS).optional(),
   // Set only for "From My Closet" (fullCloset) days — real closet item ids
   // the pieces above resolve to. Absent for guided/anchors days.
   closetItemIds: z.array(z.string()).optional(),
@@ -163,6 +167,8 @@ const tripDayChoiceItemSchema = z.object({
   rationale: z.string().min(1),
   chosenIds: z.record(z.string(), z.string().nullable()),
   accessoryIds: z.array(z.string()).default([]),
+  /** The day's own aesthetic, classified against the fixed fragrance-vibe taxonomy — drives fragrance pairing. Optional: this schema is shared with the variant-swap flow, whose JSON schema doesn't ask for it. */
+  primaryVibe: z.enum(FRAGRANCE_VIBE_OPTIONS).optional(),
 });
 
 export const tripDayChoiceResponseSchema = z.object({
@@ -226,8 +232,13 @@ export function buildTripDayChoiceJsonSchema(params: {
                 maxItems: 4,
                 description: 'Additional accessories (belt/scarf/tie/socks) — 0 or more, only if they genuinely add to the look.',
               },
+              primaryVibe: {
+                type: 'string',
+                enum: [...FRAGRANCE_VIBE_OPTIONS],
+                description: FRAGRANCE_VIBE_SCHEMA_DESCRIPTION,
+              },
             },
-            required: ['index', 'title', 'rationale', 'chosenIds', 'accessoryIds'],
+            required: ['index', 'title', 'rationale', 'chosenIds', 'accessoryIds', 'primaryVibe'],
             additionalProperties: false,
           },
         },

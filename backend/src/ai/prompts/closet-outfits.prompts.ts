@@ -248,6 +248,17 @@ export function buildClosetOutfitsChoiceSystemPrompt(): string {
     'NEVER include an item\'s id in the title or whyItWorks text — ids belong only in chosenIds/accessoryIds. Refer to every piece by name only.',
     'NEVER mention or imply a piece that isn\'t one of your actual chosenIds/accessoryIds for that outfit. If a slot wasn\'t offered to you at all, or you resolved it to null, that piece does not exist in this outfit — do not invent one in whyItWorks or the title. Only describe the exact pieces you actually chose ids for.',
     '',
+    'Also classify each outfit\'s own aesthetic as exactly one primaryVibe from this fixed taxonomy, judged from the actual pieces/colors you chose (not the occasion label):',
+    '- FRESH_CLEAN: crisp, minimal, understated',
+    '- WARM_COZY: soft, relaxed, comfort-forward',
+    '- DARK_SEDUCTIVE: moody, sultry, night-leaning',
+    '- WOODY_EARTHY: rugged, natural, outdoor-adjacent',
+    '- GOURMAND_SWEET: indulgent, playful, dessert-toned palettes',
+    '- AROMATIC_SPORTY: athletic, active, weekend-casual',
+    '- FLORAL_ROMANTIC: soft, romantic, date-leaning',
+    '- SPICY_CONFIDENT: bold, statement-making, fashion-forward',
+    'This drives which fragrance gets paired with the outfit downstream — pick the vibe that genuinely matches what you just assembled, not a default.',
+    '',
     'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');
 }
