@@ -291,13 +291,30 @@ function pickQualifyingPool(scored: ScoredFragrance[], varietyLevel: number): Sc
   return scored.filter((s) => topScore - s.total <= bandWidth);
 }
 
-/** Score-weighted random pick — never uniform, so the top of the pool still surfaces most often. */
-function weightedPick(pool: ScoredFragrance[], random: () => number): ScoredFragrance {
+/**
+ * Score-weighted random pick, blended toward uniform as varietyLevel rises.
+ *
+ * A pool member's raw score gap over its weakest pool-mate can be large
+ * (e.g. one fully AI-profiled fragrance vs. several manually-added ones
+ * sitting at flat neutral defaults) — a *constant* score-linear weighting
+ * would let that one fragrance dominate nearly every independent draw
+ * regardless of how wide pickQualifyingPool made the band, which is
+ * indistinguishable from "variety does nothing" in practice even though
+ * a different pick was technically always possible. Blending the weights
+ * toward uniform as varietyLevel approaches 100 makes the slider's high
+ * end mean what it says: real, visibly-rotating variety among the
+ * qualifying pool, not just a low-probability tail event.
+ */
+function weightedPick(pool: ScoredFragrance[], varietyLevel: number, random: () => number): ScoredFragrance {
   if (pool.length === 1) return pool[0]!;
   // Shift weights so the lowest-scoring pool member still has some (small,
   // non-zero) chance — a raw `total` weight would starve anything near 0.
   const floor = Math.min(...pool.map((s) => s.total));
-  const weights = pool.map((s) => s.total - floor + 1);
+  const scoreWeights = pool.map((s) => s.total - floor + 1);
+  const scoreTotal = scoreWeights.reduce((sum, w) => sum + w, 0);
+  const uniformWeight = scoreTotal / pool.length;
+  const uniformity = Math.max(0, Math.min(100, varietyLevel)) / 100;
+  const weights = scoreWeights.map((w) => (1 - uniformity) * w + uniformity * uniformWeight);
   const totalWeight = weights.reduce((sum, w) => sum + w, 0);
   let roll = random() * totalWeight;
   for (let i = 0; i < pool.length; i++) {
@@ -329,9 +346,10 @@ export function recommendFragrance(input: {
   const eligible = input.ownedFragrances.filter(isEligible);
   if (eligible.length === 0) return null;
 
+  const varietyLevel = input.context.varietyLevel ?? 0;
   const scored = eligible.map((owned) => scoreOne(owned, input.context)).sort(compareCandidates);
-  const pool = pickQualifyingPool(scored, input.context.varietyLevel ?? 0);
-  const winner = weightedPick(pool, input.random ?? Math.random);
+  const pool = pickQualifyingPool(scored, varietyLevel);
+  const winner = weightedPick(pool, varietyLevel, input.random ?? Math.random);
 
   return {
     userFragranceId: winner.owned.userFragranceId,
