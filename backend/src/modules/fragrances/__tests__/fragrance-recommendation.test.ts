@@ -205,6 +205,16 @@ describe('recommendFragrance — variety mode', () => {
     expect(lowRoll?.fragranceId).toBe('best-frag');
   });
 
+  it('at varietyLevel 100, a MODERATE roll (not just the extreme edge) reaches a much-lower-scoring pool member — weighting flattens toward uniform, so a large real score gap cannot make the top scorer win nearly every draw (regression: a big gap left the top scorer overwhelmingly likely even after the pool was widened, which reads as "variety does nothing" even though a different pick was technically possible — e.g. always getting the same fragrance across 5 independently-generated outfits)', () => {
+    const best = makeOwned({ userFragranceId: 'best' }, { id: 'best-frag', seasonality: { spring: 1, summer: 1, fall: 1, winter: 1 }, formality: { casual: 1, smartCasual: 1, business: 1, formalEvening: 1 } });
+    const farWorse = makeOwned({ userFragranceId: 'far-worse' }, { id: 'far-worse-frag', seasonality: { spring: 0, summer: 0, fall: 0, winter: 0 }, formality: { casual: 0, smartCasual: 0, business: 0, formalEvening: 0 } });
+    const context: RecommendationContext = { season: 'summer', formalityTier: 'business', varietyLevel: 100 };
+    // best/farWorse score 70/15 here — under the old raw-score weighting (56:1) this roll would
+    // still have landed on best; under uniform-at-100 weighting (50:50) it crosses to farWorse.
+    const result = recommendFragrance({ ownedFragrances: [best, farWorse], context, random: () => 0.51 });
+    expect(result?.fragranceId).toBe('far-worse-frag');
+  });
+
   it('at high varietyLevel, a close-second strong fit can be selected instead of the single best', () => {
     const best = makeOwned({ userFragranceId: 'best' }, { id: 'best-frag', seasonality: { spring: 1, summer: 1, fall: 1, winter: 1 } });
     const closeSecond = makeOwned({ userFragranceId: 'close-second' }, { id: 'close-second-frag', seasonality: { spring: 0.95, summer: 0.95, fall: 0.95, winter: 0.95 } });
