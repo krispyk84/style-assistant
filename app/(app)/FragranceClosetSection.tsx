@@ -47,7 +47,7 @@ export function FragranceClosetSection() {
   }, [items]);
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1 }}>
+    <SafeAreaView edges={[]} style={{ flex: 1 }}>
       <FlatList
         data={rows}
         keyExtractor={(_, index) => `fragrance-row-${index}`}

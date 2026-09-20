@@ -660,6 +660,7 @@ async function generateFullClosetTripOutfits(
         temperatureC: request.avgHighC,
         formalityTier: resolvedTier,
         aestheticText: [request.styleVibe, request.activities].filter(Boolean).join(' '),
+        varietyLevel: request.fragranceVariety,
       }),
     });
   }
@@ -781,6 +782,7 @@ export const tripsService = {
           temperatureC: request.avgHighC,
           formalityTier: dayTypeToFormalityTier(day.dayType),
           aestheticText: [request.styleVibe, request.activities].filter(Boolean).join(' '),
+          varietyLevel: request.fragranceVariety,
         }),
       };
     });

@@ -129,6 +129,12 @@ export type CreateLookInput = {
    * Read at request time; not user-specified per look.
    */
   trendiness?: number;
+  /**
+   * Fragrance best-fit ↔ variety 0–100 from app settings (0 = always the
+   * single best-matching fragrance, 100 = widest rotation among strong fits).
+   * Read at request time; not user-specified per look.
+   */
+  fragranceVariety?: number;
   /** User opted to constrain every recommendation to real items already in their closet. */
   closetOnly?: boolean;
   /** Set only by the "Ask a Stylist" conversational flow — absent for the original structured-form flow. */

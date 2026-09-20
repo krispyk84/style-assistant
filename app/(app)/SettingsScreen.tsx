@@ -25,6 +25,7 @@ export function SettingsScreen() {
   const {
     sensitivity, setSensitivity, persistSensitivity, sensitivityLabel,
     trendiness, setTrendiness, persistTrendiness, trendinessLabel,
+    fragranceVariety, setFragranceVariety, persistFragranceVariety, fragranceVarietyLabel,
     monthlyAiCost, appVersion,
     isRefreshingTrends, trendsRefreshMessage, refreshSeasonalTrends,
     isCheckingCloudBackup, cloudBackupMessage, checkCloudBackupStatus,
@@ -159,6 +160,41 @@ export function SettingsScreen() {
             }}>
             <AppText tone="muted" style={{ fontSize: 13, textAlign: 'center' }}>
               {trendinessLabel}
+            </AppText>
+          </View>
+        </View>
+
+        {/* Fragrance Variety */}
+        <View style={cardStyle}>
+          <View style={{ gap: spacing.xs }}>
+            <AppText variant="sectionTitle">Fragrance Variety</AppText>
+            <AppText tone="muted">
+              Controls how outfit-matched fragrance picks are chosen from your closet. Best fit always picks the single closest match; variety rotates among any fragrance that's still a strong fit.
+            </AppText>
+          </View>
+
+          <SensitivitySlider
+            value={fragranceVariety}
+            onChange={setFragranceVariety}
+            onChangeEnd={(v) => void persistFragranceVariety(v)}
+            accessibilityLabel="Fragrance variety"
+          />
+
+          <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+            <AppText tone="muted" style={{ fontSize: 12 }}>Best fit</AppText>
+            <AppText tone="muted" style={{ fontSize: 12 }}>Variety</AppText>
+          </View>
+
+          <View
+            style={{
+              backgroundColor: theme.colors.card,
+              borderColor: theme.colors.border,
+              borderRadius: 12,
+              borderWidth: 1,
+              padding: spacing.sm,
+            }}>
+            <AppText tone="muted" style={{ fontSize: 13, textAlign: 'center' }}>
+              {fragranceVarietyLabel}
             </AppText>
           </View>
         </View>

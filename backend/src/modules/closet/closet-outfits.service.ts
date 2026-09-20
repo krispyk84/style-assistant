@@ -15,7 +15,7 @@ import {
 import { buildClosetOutfitSketchPrompt } from '../../ai/prompts/closet-outfit-sketch.prompts.js';
 import { storageProvider } from '../../storage/index.js';
 import { profileRepository } from '../profile/profile.repository.js';
-import { buildFragranceRecommendation, type FragranceRecommendationDto } from '../fragrances/fragrance-recommendation-integration.js';
+import { loadOwnedFragrances, scoreLoadedFragrances, type FragranceRecommendationDto } from '../fragrances/fragrance-recommendation-integration.js';
 import { seasonalTrendsService } from '../seasonal-trends/seasonal-trends.service.js';
 import { trendFeedbackService } from '../seasonal-trends/trend-feedback.service.js';
 import type { FashionGender } from '../seasonal-trends/seasonal-trends.repository.js';
@@ -470,19 +470,32 @@ export const closetOutfitsService = {
     const withFeedbackIds = await attachFeedbackIds(resolved, payload.formality, supabaseUserId);
     const withSketchJobs = await attachSketchJobs(withFeedbackIds, supabaseUserId);
 
-    // All 5 outfits share the same requested formality/weather/context here
-    // (unlike Ask a Stylist's per-look variation), so they legitimately can
-    // get the same top-scoring fragrance — not artificial repetition, just
-    // an accurate reflection of one shared context (spec section 32's
-    // "do not force artificial diversity" principle, applied here too).
-    const fragranceRecommendation = await buildFragranceRecommendation(supabaseUserId, {
-      season: payload.weatherContext?.season,
-      temperatureC: temperatureC ?? undefined,
-      formalityTier: payload.formality,
-      aestheticText: payload.additionalDetails,
-    });
+    // All 5 outfits share the same requested formality/weather/context, so
+    // at varietyLevel 0 they legitimately (and deterministically) resolve to
+    // the same single best-fit fragrance — not a bug, an accurate reflection
+    // of one shared context (spec section 32's "do not force artificial
+    // diversity" principle, applied here too). Above 0 though, each outfit
+    // must get its OWN independent weighted-random draw from the qualifying
+    // pool — scoring once and copying the result onto all 5 cards (the
+    // previous implementation) made the variety slider a no-op for this
+    // flow specifically, since one shared draw is one shared draw no matter
+    // how wide the qualifying pool is. loadOwnedFragrances still runs once
+    // (spec section 36 — one query per request); only the scoring/selection
+    // itself repeats per outfit.
+    const loadedFragrances = await loadOwnedFragrances(supabaseUserId);
 
-    return { outfits: withSketchJobs.map((outfit) => ({ ...outfit, fragranceRecommendation })) };
+    return {
+      outfits: withSketchJobs.map((outfit) => ({
+        ...outfit,
+        fragranceRecommendation: scoreLoadedFragrances(loadedFragrances, {
+          season: payload.weatherContext?.season,
+          temperatureC: temperatureC ?? undefined,
+          formalityTier: payload.formality,
+          aestheticText: payload.additionalDetails,
+          varietyLevel: payload.fragranceVariety,
+        }),
+      })),
+    };
   },
 
   async generateOutfitVariations(payload: GenerateClosetOutfitVariationsPayload, supabaseUserId: string) {

@@ -24,11 +24,14 @@ installShareHandoffListener();
 // — which visibly cross-dissolves against our JS BrandSplash underneath even
 // though the two are styled to match exactly, producing a brief dim-then-
 // brighten flicker. Taking explicit control (prevent + zero-duration,
-// no-fade hide once our own matching BrandSplash has painted, in
-// app/index.tsx) makes the handoff an instant swap between two identical-
-// looking screens instead of an animated cross-fade between them.
+// no-fade hide once our own matching React UI has painted) makes the handoff
+// an instant swap between two identical-looking screens instead of an
+// animated cross-fade between them.
 SplashScreen.preventAutoHideAsync().catch(() => {});
 SplashScreen.setOptions({ duration: 0, fade: false });
+const nativeSplashWatchdog = setTimeout(() => {
+  SplashScreen.hideAsync().catch(() => {});
+}, 8000);
 
 // [BOOT-DIAG] Module evaluated — if you see this, the JS bundle loaded and
 // this file was required successfully. Missing = bundle failed to parse.
@@ -117,6 +120,25 @@ function AppNavigation() {
   );
 }
 
+function NativeSplashController() {
+  useEffect(() => {
+    // Expo Router may restore or deep-link directly into a route other than
+    // app/index.tsx. Release the native splash from the root so every startup
+    // path reaches this handoff after React commits its first frame.
+    const frame = requestAnimationFrame(() => {
+      clearTimeout(nativeSplashWatchdog);
+      SplashScreen.hideAsync().catch(() => {});
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(nativeSplashWatchdog);
+    };
+  }, []);
+
+  return null;
+}
+
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
   // [BOOT-DIAG] If the root layout throws before NavigationContainer mounts,
   // onReady never fires and the splash stays up. Log the error here so it
@@ -155,6 +177,7 @@ export default function RootLayout() {
       <AuthProvider>
         <AppSessionProvider>
           <ToastProvider>
+            <NativeSplashController />
             <AppNavigation />
           </ToastProvider>
         </AppSessionProvider>

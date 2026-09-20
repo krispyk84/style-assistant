@@ -589,6 +589,7 @@ export const outfitsService = {
                 temperatureC: input.weatherContext?.temperatureC,
                 formalityTier: tier,
                 aestheticText: [input.vibeKeywords, input.additionalDetails].filter(Boolean).join(' '),
+                varietyLevel: input.fragranceVariety,
               })
             : null,
         };

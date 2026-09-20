@@ -298,6 +298,10 @@ export default function AppTabsLayout() {
         <Tabs.Screen name="travel-planner-mappers"    options={{ href: null }} />
         <Tabs.Screen name="useTravelPlannerForm"      options={{ href: null }} />
         <Tabs.Screen name="useSavedTripsData"         options={{ href: null }} />
+        <Tabs.Screen name="useItineraryUpload"        options={{ href: null }} />
+        {/* ── Hidden: fragrance closet artifacts — not tabs ───────────────── */}
+        <Tabs.Screen name="FragranceClosetSection"    options={{ href: null }} />
+        <Tabs.Screen name="useFragranceClosetData"    options={{ href: null }} />
       </Tabs>
 
       {isSplashMounted ? (

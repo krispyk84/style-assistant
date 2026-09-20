@@ -45,6 +45,16 @@ export type RecommendationContext = {
   aestheticText?: string;
   /** Only passed when the caller already has reliable resolved-piece color metadata — never computed here. */
   outfitColorFamily?: string;
+  /**
+   * User's best-fit ↔ variety preference, 0–100 (default 0 = pure best fit,
+   * byte-identical to the original deterministic behavior). Widens the
+   * qualifying pool from "only the top scorer" toward "the full eligible
+   * set" — scaled to this request's own observed score spread, not a fixed
+   * point value — then picks among that pool with score-weighted randomness
+   * so better fits still surface more often. See pickQualifyingPool's
+   * comment for why the band is relative rather than absolute.
+   */
+  varietyLevel?: number;
 };
 
 export type FragranceRecommendation = {
@@ -198,12 +208,22 @@ function scoreOne(owned: OwnedFragrance, context: RecommendationContext): Scored
   return { owned, total: weatherSeason + formality + vibe + dayNight + colorBonus, weatherSeason, formality };
 }
 
-/** Deterministic tie-break (section 29) — never randomized. isSignature is a modest final-step nudge only, never large enough to beat a materially better match resolved by the earlier steps. */
+/**
+ * Deterministic tie-break (section 29) — never randomized, and never
+ * influenced by isSignature. isSignature is purely a user-facing label (the
+ * star in the closet UI) — it does not contribute to scoring or break ties
+ * here, so marking a fragrance as a signature scent never biases it toward
+ * being recommended more often.
+ *
+ * This ordering is still the canonical "best fit first" ranking used by
+ * variety mode below (section 33) to build its qualifying pool — variety
+ * mode's randomness is scoped entirely to *which* member of that pool gets
+ * picked, never to how the pool itself is ranked or bounded.
+ */
 function compareCandidates(a: ScoredFragrance, b: ScoredFragrance): number {
   if (a.total !== b.total) return b.total - a.total;
   if (a.weatherSeason !== b.weatherSeason) return b.weatherSeason - a.weatherSeason;
   if (a.formality !== b.formality) return b.formality - a.formality;
-  if (a.owned.isSignature !== b.owned.isSignature) return a.owned.isSignature ? -1 : 1;
   const nameA = `${a.owned.fragrance.brand} ${a.owned.fragrance.name}`;
   const nameB = `${b.owned.fragrance.brand} ${b.owned.fragrance.name}`;
   if (nameA !== nameB) return nameA < nameB ? -1 : 1;
@@ -241,24 +261,77 @@ function buildReason(scored: ScoredFragrance, context: RecommendationContext): s
   return `Its ${accordPhrase} profile complements this look's overall character.`;
 }
 
+// ── Variety selection (section 33) ────────────────────────────────────────────
+//
+// Opt-in, off by default (varietyLevel 0 or absent behaves byte-identical to
+// the original single-winner selection — same candidate, same reason string).
+// Above 0, the qualifying pool widens from "only the top scorer" toward "the
+// full eligible set," and the pick within that pool is score-weighted random
+// rather than always the single best.
+//
+// The band is sized relative to the *observed* spread between the best and
+// worst eligible score for this request (topScore - bottomScore), not a
+// fixed point value out of the theoretical 0-100 scale. A fixed absolute
+// band silently degenerates to "only ever the top scorer" whenever a
+// closet's real score spread exceeds it — e.g. one fully AI-profiled,
+// broadly-suitable fragrance sitting 50+ points above several manually-added
+// fragrances that never got profiled (and so score at the scheme's flat
+// neutral defaults) — which is exactly the "variety maxed out and it's
+// still always the same fragrance" failure mode. Scaling to the observed
+// spread instead means varietyLevel 100 always pulls in the whole eligible
+// set (still weighted toward the better fits by weightedPick below), so
+// rotation is guaranteed regardless of how wide that gap happens to be.
+function pickQualifyingPool(scored: ScoredFragrance[], varietyLevel: number): ScoredFragrance[] {
+  const variety = Math.max(0, Math.min(100, varietyLevel));
+  if (variety <= 0) return [scored[0]!];
+  const topScore = scored[0]!.total;
+  const bottomScore = scored[scored.length - 1]!.total;
+  const bandWidth = (variety / 100) * (topScore - bottomScore);
+  if (bandWidth <= 0) return [scored[0]!]; // every eligible fragrance is exactly tied
+  return scored.filter((s) => topScore - s.total <= bandWidth);
+}
+
+/** Score-weighted random pick — never uniform, so the top of the pool still surfaces most often. */
+function weightedPick(pool: ScoredFragrance[], random: () => number): ScoredFragrance {
+  if (pool.length === 1) return pool[0]!;
+  // Shift weights so the lowest-scoring pool member still has some (small,
+  // non-zero) chance — a raw `total` weight would starve anything near 0.
+  const floor = Math.min(...pool.map((s) => s.total));
+  const weights = pool.map((s) => s.total - floor + 1);
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  let roll = random() * totalWeight;
+  for (let i = 0; i < pool.length; i++) {
+    roll -= weights[i]!;
+    if (roll <= 0) return pool[i]!;
+  }
+  return pool[pool.length - 1]!;
+}
+
 // ── Entry point ────────────────────────────────────────────────────────────────
 
 /**
- * Pure, synchronous, deterministic. Candidates are ALWAYS restricted to
- * ownedFragrances as passed in by the caller — this function never queries
- * anything itself, so an unowned fragrance can never be recommended as long
- * as the caller only passes the authenticated user's own owned fragrances
- * (see fragrance-recommendation-integration — the caller-side contract).
+ * Pure, synchronous. Candidates are ALWAYS restricted to ownedFragrances as
+ * passed in by the caller — this function never queries anything itself, so
+ * an unowned fragrance can never be recommended as long as the caller only
+ * passes the authenticated user's own owned fragrances (see
+ * fragrance-recommendation-integration — the caller-side contract).
+ *
+ * Deterministic unless context.varietyLevel > 0 AND more than one fragrance
+ * qualifies for the resulting band — the default (varietyLevel 0/absent)
+ * path never calls `random` at all. `random` is injectable (defaults to
+ * Math.random) purely so variety mode stays unit-testable.
  */
 export function recommendFragrance(input: {
   ownedFragrances: OwnedFragrance[];
   context: RecommendationContext;
+  random?: () => number;
 }): FragranceRecommendation | null {
   const eligible = input.ownedFragrances.filter(isEligible);
   if (eligible.length === 0) return null;
 
   const scored = eligible.map((owned) => scoreOne(owned, input.context)).sort(compareCandidates);
-  const winner = scored[0]!;
+  const pool = pickQualifyingPool(scored, input.context.varietyLevel ?? 0);
+  const winner = weightedPick(pool, input.random ?? Math.random);
 
   return {
     userFragranceId: winner.owned.userFragranceId,

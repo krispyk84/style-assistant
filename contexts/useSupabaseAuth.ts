@@ -10,6 +10,8 @@ import { AUTH_EVENT_HYDRATED, type AuthEventCallback } from './useAuthSideEffect
 
 export type AuthResult = { error: string | null };
 
+const AUTH_HYDRATION_TIMEOUT_MS = 8000;
+
 async function fetchSupabaseProfile(userId: string): Promise<SupabaseProfile | null> {
   const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
   return data ?? null;
@@ -46,23 +48,40 @@ export function useSupabaseAuth(onAuthEvent: AuthEventCallback): UseSupabaseAuth
 
   // ── Session hydration and ongoing listener ────────────────────────────────
   useEffect(() => {
+    let isMounted = true;
+
     // Restore session from AsyncStorage on app launch.
-    void supabase.auth.getSession().then(({ data: { session: stored } }) => {
-      setSession(stored);
-      setUser(stored?.user ?? null);
-      const token = ++profileFetchTokenRef.current;
-      if (stored?.user) {
-        void fetchSupabaseProfile(stored.user.id)
-          .then((profile) => {
-            if (profileFetchTokenRef.current === token) setSupabaseProfile(profile);
-          })
-          .catch((error) => recordError(error, 'fetch_supabase_profile'));
-      }
-      // Fire side effects synchronously before marking auth as loaded,
-      // preserving the original order: token sync + analytics ID fire first.
-      onAuthEventRef.current(AUTH_EVENT_HYDRATED, stored);
+    const hydrationTimeout = setTimeout(() => {
+      if (!isMounted) return;
+      recordError(new Error('Supabase session hydration timed out'), 'hydrate_auth_session');
       setIsAuthLoading(false);
-    });
+    }, AUTH_HYDRATION_TIMEOUT_MS);
+
+    void supabase.auth.getSession()
+      .then(({ data: { session: stored } }) => {
+        if (!isMounted) return;
+
+        setSession(stored);
+        setUser(stored?.user ?? null);
+        const token = ++profileFetchTokenRef.current;
+        if (stored?.user) {
+          void fetchSupabaseProfile(stored.user.id)
+            .then((profile) => {
+              if (profileFetchTokenRef.current === token) setSupabaseProfile(profile);
+            })
+            .catch((error) => recordError(error, 'fetch_supabase_profile'));
+        }
+        // Fire side effects synchronously before marking auth as loaded,
+        // preserving the original order: token sync + analytics ID fire first.
+        onAuthEventRef.current(AUTH_EVENT_HYDRATED, stored);
+        setIsAuthLoading(false);
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        recordError(error, 'hydrate_auth_session');
+        setIsAuthLoading(false);
+      })
+      .finally(() => clearTimeout(hydrationTimeout));
 
     // Listen to all subsequent auth changes (sign-in, sign-out, token refresh, etc.)
     const {
@@ -83,7 +102,11 @@ export function useSupabaseAuth(onAuthEvent: AuthEventCallback): UseSupabaseAuth
       onAuthEventRef.current(event, next);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      clearTimeout(hydrationTimeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   // ── Auth actions ──────────────────────────────────────────────────────────

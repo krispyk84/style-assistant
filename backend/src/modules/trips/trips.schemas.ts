@@ -70,6 +70,7 @@ export const generateTripOutfitsSchema = z.object({
   generateOnlyDayIndex: z.number().int().min(0).optional(),
   previousDaysSummary: z.array(z.string()).optional(),
   formalityTier: z.enum(['casual', 'smart-casual', 'business']).optional(),
+  fragranceVariety: z.number().min(0).max(100).optional(),
 });
 
 export const generateTripDaySketchSchema = z.object({

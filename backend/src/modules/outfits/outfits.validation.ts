@@ -68,6 +68,7 @@ export const generateOutfitsSchema = z.object({
     })
     .optional(),
   trendiness: z.number().min(0).max(100).optional(),
+  fragranceVariety: z.number().min(0).max(100).optional(),
   /** Location-derived, for seasonal fashion trend lookup — separate from weatherContext since it isn't weather data. */
   hemisphere: z.enum(['northern', 'southern']).optional(),
   region: z.string().trim().max(200).optional(),
