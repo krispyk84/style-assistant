@@ -65,6 +65,15 @@ type RawResponseSnapshot = {
     trendiness?: number;
     fragranceVariety?: number;
   };
+  // fragranceRecommendations has no dedicated tierResult column (it's
+  // additive, computed after everything else) — read back from the raw
+  // snapshot like the input fields above, keyed by tier so it survives a
+  // poll/history refetch instead of silently vanishing once the initial
+  // in-memory generate() response is no longer what the client is holding.
+  recommendations?: Array<{
+    tier?: OutfitTierSlug;
+    fragranceRecommendations?: OutfitResponse['recommendations'][number]['fragranceRecommendations'];
+  }>;
 };
 
 /**
@@ -76,6 +85,11 @@ function mapToOutfitResponse(result: OutfitResultWithRequest): OutfitResponse {
   const tierResults = result.tierResults;
   const rawResponse = (result.rawResponse ?? null) as RawResponseSnapshot | null;
   const rawAnchorItems = Array.isArray(rawResponse?.input?.anchorItems) ? rawResponse.input.anchorItems : null;
+  const rawFragranceByTier = new Map(
+    (rawResponse?.recommendations ?? [])
+      .filter((r): r is { tier: OutfitTierSlug; fragranceRecommendations?: OutfitResponse['recommendations'][number]['fragranceRecommendations'] } => Boolean(r.tier))
+      .map((r) => [r.tier, r.fragranceRecommendations ?? []]),
+  );
 
   return {
     requestId: result.requestId,
@@ -130,6 +144,7 @@ function mapToOutfitResponse(result: OutfitResultWithRequest): OutfitResponse {
       // receives when saving an outfit to favourites/week-plan, so this
       // alone bloated saved_outfits/week_plan rows to ~800KB+ each.
       variantIndex: tier.variantIndex,
+      fragranceRecommendations: rawFragranceByTier.get(toSlug(tier.tier)) ?? [],
     })),
   };
 }
