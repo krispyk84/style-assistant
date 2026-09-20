@@ -137,7 +137,7 @@ describe('recommendFragrance — weather and formality scoring', () => {
 // ── Deterministic tie-break (spec section 29) ────────────────────────────────
 
 describe('recommendFragrance — tie-break order', () => {
-  it('a signature fragrance does not beat a materially better-scoring match', () => {
+  it('a materially better-scoring match always wins, regardless of isSignature', () => {
     const signatureButWorse = makeOwned({ userFragranceId: 'sig', isSignature: true }, {
       id: 'sig-frag',
       seasonality: { spring: 0.1, summer: 0.1, fall: 0.1, winter: 0.1 },
@@ -153,14 +153,16 @@ describe('recommendFragrance — tie-break order', () => {
     expect(result?.fragranceId).toBe('better-frag');
   });
 
-  it('breaks an exact score tie in favor of the signature fragrance', () => {
+  it('isSignature never breaks a score tie — marking a fragrance as a signature scent must not bias the recommender toward it', () => {
     const identicalProfile: Partial<ScorableFragrance> = {
       seasonality: { spring: 0.5, summer: 0.5, fall: 0.5, winter: 0.5 },
       formality: { casual: 0.5, smartCasual: 0.5, business: 0.5, formalEvening: 0.5 },
     };
-    const signature = makeOwned({ userFragranceId: 'sig', isSignature: true }, { id: 'a-frag', ...identicalProfile });
-    const nonSignature = makeOwned({ userFragranceId: 'non-sig', isSignature: false }, { id: 'b-frag', ...identicalProfile });
-    const result = recommendFragrance({ ownedFragrances: [nonSignature, signature], context: {} });
+    // Signature scent is alphabetically LAST — if isSignature still influenced the tie-break,
+    // it would win despite that; the stable fallback should pick the alphabetically-first one instead.
+    const signature = makeOwned({ userFragranceId: 'sig', isSignature: true }, { id: 'z-frag', brand: 'Zenith', name: 'Zeta', ...identicalProfile });
+    const nonSignature = makeOwned({ userFragranceId: 'non-sig', isSignature: false }, { id: 'a-frag', brand: 'Aventura', name: 'Alpha', ...identicalProfile });
+    const result = recommendFragrance({ ownedFragrances: [signature, nonSignature], context: {} });
     expect(result?.fragranceId).toBe('a-frag');
   });
 
@@ -191,13 +193,16 @@ describe('recommendFragrance — variety mode', () => {
     expect(explicitZero?.fragranceId).toBe('best-frag');
   });
 
-  it('never selects a fragrance outside the qualifying band, however high varietyLevel is', () => {
+  it('at varietyLevel 100, even a much weaker fit is reachable — the band scales to the observed score spread, not a fixed cap (regression: a large real-world gap, e.g. one fully-profiled fragrance vs. several unprofiled ones, used to leave the pool stuck at size 1 regardless of the slider)', () => {
     const best = makeOwned({ userFragranceId: 'best' }, { id: 'best-frag', seasonality: { spring: 1, summer: 1, fall: 1, winter: 1 }, formality: { casual: 1, smartCasual: 1, business: 1, formalEvening: 1 } });
     const farWorse = makeOwned({ userFragranceId: 'far-worse' }, { id: 'far-worse-frag', seasonality: { spring: 0, summer: 0, fall: 0, winter: 0 }, formality: { casual: 0, smartCasual: 0, business: 0, formalEvening: 0 } });
     const context: RecommendationContext = { season: 'summer', formalityTier: 'business', varietyLevel: 100 };
-    // random() always returns just under 1 — if farWorse were ever in the pool, a roll this high would pick it.
-    const result = recommendFragrance({ ownedFragrances: [best, farWorse], context, random: () => 0.9999 });
-    expect(result?.fragranceId).toBe('best-frag');
+    // A high roll reaches all the way to farWorse — proving the pool includes the full range at 100...
+    const highRoll = recommendFragrance({ ownedFragrances: [best, farWorse], context, random: () => 0.9999 });
+    expect(highRoll?.fragranceId).toBe('far-worse-frag');
+    // ...while a low roll still lands on the top scorer — the weighting still favors the better fit.
+    const lowRoll = recommendFragrance({ ownedFragrances: [best, farWorse], context, random: () => 0 });
+    expect(lowRoll?.fragranceId).toBe('best-frag');
   });
 
   it('at high varietyLevel, a close-second strong fit can be selected instead of the single best', () => {
