@@ -137,8 +137,8 @@ export function ClosetOutfitCard({
       />
       </View>
 
-      {outfit.fragranceRecommendation ? (
-        <FragranceRecommendationCard recommendation={outfit.fragranceRecommendation} />
+      {outfit.fragranceRecommendations?.length ? (
+        <FragranceRecommendationCard recommendations={outfit.fragranceRecommendations} />
       ) : null}
 
       {onToggleHat || onToggleBag ? (

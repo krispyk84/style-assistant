@@ -169,8 +169,8 @@ export type LookRecommendation = {
   closetItemIds?: string[];
   /** Set only when the request was closetOnly — the enforced framework's slot breakdown. */
   framework?: OutfitFrameworkDisplay;
-  /** Additive, optional — absent/null whenever the user owns no eligible fragrances. */
-  fragranceRecommendation?: FragranceRecommendationDto | null;
+  /** Additive, optional — up to 3, ranked best-first; empty/absent whenever the user owns no eligible fragrances. */
+  fragranceRecommendations?: FragranceRecommendationDto[];
 };
 
 export type LookRequestResponse = {

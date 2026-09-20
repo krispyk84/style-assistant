@@ -118,8 +118,8 @@ export type TierRecommendationDto = {
   closetItemIds?: string[];
   /** Set only when the request was closetOnly — the enforced framework's slot breakdown. */
   framework?: OutfitFrameworkDto;
-  /** Additive, optional — old clients/results without this field remain fully valid. Null/absent whenever the user owns no eligible fragrances. */
-  fragranceRecommendation?: FragranceRecommendationDto | null;
+  /** Additive, optional — old clients/results without this field remain fully valid. Up to 3, ranked best-first; empty/absent whenever the user owns no eligible fragrances. */
+  fragranceRecommendations?: FragranceRecommendationDto[];
 };
 
 export type FragranceRecommendationDto = {

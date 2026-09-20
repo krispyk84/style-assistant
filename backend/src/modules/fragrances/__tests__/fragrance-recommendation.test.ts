@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { isEligible, matchOutfitVibe, recommendFragrance } from '../fragrance-recommendation.service.js';
+import { isEligible, matchOutfitVibe, recommendFragrances } from '../fragrance-recommendation.service.js';
 import type { OwnedFragrance, RecommendationContext, ScorableFragrance } from '../fragrance-recommendation.service.js';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -67,30 +67,88 @@ describe('matchOutfitVibe', () => {
 
 // ── No inventory ──────────────────────────────────────────────────────────────
 
-describe('recommendFragrance — no inventory', () => {
-  it('returns null when the user owns no fragrances', () => {
-    expect(recommendFragrance({ ownedFragrances: [], context: {} })).toBeNull();
+describe('recommendFragrances — no inventory', () => {
+  it('returns an empty array when the user owns no fragrances', () => {
+    expect(recommendFragrances({ ownedFragrances: [], context: {} })).toEqual([]);
   });
 
-  it('returns null when every owned fragrance is ineligible (all bottles empty)', () => {
+  it('returns an empty array when every owned fragrance is ineligible (all bottles empty)', () => {
     const owned = [makeOwned({ currentVolumeMl: 0 }, { id: 'a' })];
-    expect(recommendFragrance({ ownedFragrances: owned, context: {} })).toBeNull();
+    expect(recommendFragrances({ ownedFragrances: owned, context: {} })).toEqual([]);
   });
 });
 
 // ── Unowned fragrances never surface ─────────────────────────────────────────
 
-describe('recommendFragrance — candidate scope', () => {
+describe('recommendFragrances — candidate scope', () => {
   it('never recommends a fragrance outside the passed-in ownedFragrances list', () => {
     const owned = [makeOwned({ userFragranceId: 'u1' }, { id: 'owned-1' })];
-    const result = recommendFragrance({ ownedFragrances: owned, context: {} });
-    expect(result?.fragranceId).toBe('owned-1');
+    const result = recommendFragrances({ ownedFragrances: owned, context: {} });
+    expect(result.map((r) => r.fragranceId)).toEqual(['owned-1']);
+  });
+});
+
+// ── Up to 3, distinct, capped by real pool size (this session's feature request) ─
+
+describe('recommendFragrances — count and pool-size cap', () => {
+  it('defaults to up to 3 recommendations, ranked best-first', () => {
+    // Distinct brand/name (not just id) so ranking can't accidentally fall through to the
+    // alphabetical tie-break fallback and mask a real scoring bug — and an explicit season,
+    // since weatherSeason scoring is a flat default whenever context.season is unset.
+    const owned = ['w', 'x', 'y', 'z'].map((id, i) =>
+      makeOwned({ userFragranceId: id }, {
+        id,
+        brand: `House ${id.toUpperCase()}`,
+        name: 'Scent',
+        seasonality: { spring: 1 - i * 0.2, summer: 1 - i * 0.2, fall: 1 - i * 0.2, winter: 1 - i * 0.2 },
+      }),
+    );
+    const result = recommendFragrances({ ownedFragrances: owned, context: { season: 'summer' } });
+    expect(result).toHaveLength(3);
+    expect(result.map((r) => r.fragranceId)).toEqual(['w', 'x', 'y']);
+  });
+
+  it('returns fewer than 3 only because the eligible pool is smaller than 3 — never pads or repeats', () => {
+    const owned = [
+      makeOwned({ userFragranceId: 'only-one' }, { id: 'only-one-frag' }),
+    ];
+    const result = recommendFragrances({ ownedFragrances: owned, context: {} });
+    expect(result).toHaveLength(1);
+    expect(result[0]?.fragranceId).toBe('only-one-frag');
+  });
+
+  it('excludes ineligible (empty-bottle) fragrances from the pool-size cap, not just from being picked', () => {
+    const owned = [
+      makeOwned({ userFragranceId: 'a' }, { id: 'a-frag' }),
+      makeOwned({ userFragranceId: 'b' }, { id: 'b-frag' }),
+      makeOwned({ userFragranceId: 'empty', currentVolumeMl: 0 }, { id: 'empty-frag' }),
+    ];
+    const result = recommendFragrances({ ownedFragrances: owned, context: {} });
+    expect(result).toHaveLength(2);
+    expect(result.map((r) => r.fragranceId)).not.toContain('empty-frag');
+  });
+
+  it('never returns the same fragrance twice, even at high varietyLevel', () => {
+    const owned = ['a', 'b', 'c'].map((id) => makeOwned({ userFragranceId: id }, { id }));
+    const result = recommendFragrances({
+      ownedFragrances: owned,
+      context: { varietyLevel: 100 },
+      random: () => 0.5,
+    });
+    const ids = result.map((r) => r.fragranceId);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('honors an explicit smaller count', () => {
+    const owned = ['a', 'b', 'c'].map((id) => makeOwned({ userFragranceId: id }, { id }));
+    const result = recommendFragrances({ ownedFragrances: owned, context: {}, count: 1 });
+    expect(result).toHaveLength(1);
   });
 });
 
 // ── Weather / season + formality scoring ─────────────────────────────────────
 
-describe('recommendFragrance — weather and formality scoring', () => {
+describe('recommendFragrances — weather and formality scoring', () => {
   it('prefers the fragrance profiled best for the current season', () => {
     const summerScent = makeOwned({ userFragranceId: 'summer' }, {
       id: 'summer-frag',
@@ -101,8 +159,8 @@ describe('recommendFragrance — weather and formality scoring', () => {
       seasonality: { spring: 0.3, summer: 0.1, fall: 0.5, winter: 1 },
     });
     const context: RecommendationContext = { season: 'summer' };
-    const result = recommendFragrance({ ownedFragrances: [summerScent, winterScent], context });
-    expect(result?.fragranceId).toBe('summer-frag');
+    const result = recommendFragrances({ ownedFragrances: [summerScent, winterScent], context, count: 1 });
+    expect(result[0]?.fragranceId).toBe('summer-frag');
   });
 
   it('gives a light, citrus-forward fragrance a warm-weather accord bonus over a heavy, resinous one', () => {
@@ -115,8 +173,8 @@ describe('recommendFragrance — weather and formality scoring', () => {
       mainAccords: [{ name: 'Amber', weight: 1 }, { name: 'Resin', weight: 0.8 }],
     });
     const context: RecommendationContext = { temperatureC: 28 };
-    const result = recommendFragrance({ ownedFragrances: [light, heavy], context });
-    expect(result?.fragranceId).toBe('light-frag');
+    const result = recommendFragrances({ ownedFragrances: [light, heavy], context, count: 1 });
+    expect(result[0]?.fragranceId).toBe('light-frag');
   });
 
   it('prefers the fragrance profiled best for a business-formality outfit', () => {
@@ -129,14 +187,14 @@ describe('recommendFragrance — weather and formality scoring', () => {
       formality: { casual: 1, smartCasual: 0.5, business: 0.1, formalEvening: 0.1 },
     });
     const context: RecommendationContext = { formalityTier: 'business' };
-    const result = recommendFragrance({ ownedFragrances: [formal, casual], context });
-    expect(result?.fragranceId).toBe('formal-frag');
+    const result = recommendFragrances({ ownedFragrances: [formal, casual], context, count: 1 });
+    expect(result[0]?.fragranceId).toBe('formal-frag');
   });
 });
 
 // ── Deterministic tie-break (spec section 29) ────────────────────────────────
 
-describe('recommendFragrance — tie-break order', () => {
+describe('recommendFragrances — tie-break order', () => {
   it('a materially better-scoring match always wins, regardless of isSignature', () => {
     const signatureButWorse = makeOwned({ userFragranceId: 'sig', isSignature: true }, {
       id: 'sig-frag',
@@ -149,8 +207,8 @@ describe('recommendFragrance — tie-break order', () => {
       formality: { casual: 1, smartCasual: 1, business: 1, formalEvening: 1 },
     });
     const context: RecommendationContext = { season: 'summer', formalityTier: 'business' };
-    const result = recommendFragrance({ ownedFragrances: [signatureButWorse, betterMatch], context });
-    expect(result?.fragranceId).toBe('better-frag');
+    const result = recommendFragrances({ ownedFragrances: [signatureButWorse, betterMatch], context, count: 1 });
+    expect(result[0]?.fragranceId).toBe('better-frag');
   });
 
   it('isSignature never breaks a score tie — marking a fragrance as a signature scent must not bias the recommender toward it', () => {
@@ -162,8 +220,8 @@ describe('recommendFragrance — tie-break order', () => {
     // it would win despite that; the stable fallback should pick the alphabetically-first one instead.
     const signature = makeOwned({ userFragranceId: 'sig', isSignature: true }, { id: 'z-frag', brand: 'Zenith', name: 'Zeta', ...identicalProfile });
     const nonSignature = makeOwned({ userFragranceId: 'non-sig', isSignature: false }, { id: 'a-frag', brand: 'Aventura', name: 'Alpha', ...identicalProfile });
-    const result = recommendFragrance({ ownedFragrances: [signature, nonSignature], context: {} });
-    expect(result?.fragranceId).toBe('a-frag');
+    const result = recommendFragrances({ ownedFragrances: [signature, nonSignature], context: {}, count: 1 });
+    expect(result[0]?.fragranceId).toBe('a-frag');
   });
 
   it('falls back to stable brand+name ordering when every other tie-break dimension is equal', () => {
@@ -173,24 +231,24 @@ describe('recommendFragrance — tie-break order', () => {
     };
     const zFragrance = makeOwned({ userFragranceId: 'z' }, { id: 'z-id', brand: 'Zenith', name: 'Zeta', ...identicalProfile });
     const aFragrance = makeOwned({ userFragranceId: 'a' }, { id: 'a-id', brand: 'Aventura', name: 'Alpha', ...identicalProfile });
-    const result = recommendFragrance({ ownedFragrances: [zFragrance, aFragrance], context: {} });
-    expect(result?.fragranceId).toBe('a-id');
+    const result = recommendFragrances({ ownedFragrances: [zFragrance, aFragrance], context: {}, count: 1 });
+    expect(result[0]?.fragranceId).toBe('a-id');
   });
 });
 
 // ── Variety mode (spec section 33) ───────────────────────────────────────────
 
-describe('recommendFragrance — variety mode', () => {
+describe('recommendFragrances — variety mode', () => {
   it('varietyLevel 0 (and absent) is byte-identical to the original single-winner pick, and never calls random', () => {
     const best = makeOwned({ userFragranceId: 'best' }, { id: 'best-frag', seasonality: { spring: 1, summer: 1, fall: 1, winter: 1 } });
     const worse = makeOwned({ userFragranceId: 'worse' }, { id: 'worse-frag', seasonality: { spring: 0.9, summer: 0.9, fall: 0.9, winter: 0.9 } });
     const random = () => { throw new Error('random must not be called when varietyLevel is 0/absent'); };
 
-    const absent = recommendFragrance({ ownedFragrances: [worse, best], context: {}, random });
-    expect(absent?.fragranceId).toBe('best-frag');
+    const absent = recommendFragrances({ ownedFragrances: [worse, best], context: {}, random, count: 1 });
+    expect(absent[0]?.fragranceId).toBe('best-frag');
 
-    const explicitZero = recommendFragrance({ ownedFragrances: [worse, best], context: { varietyLevel: 0 }, random });
-    expect(explicitZero?.fragranceId).toBe('best-frag');
+    const explicitZero = recommendFragrances({ ownedFragrances: [worse, best], context: { varietyLevel: 0 }, random, count: 1 });
+    expect(explicitZero[0]?.fragranceId).toBe('best-frag');
   });
 
   it('at varietyLevel 100, even a much weaker fit is reachable — the band scales to the observed score spread, not a fixed cap (regression: a large real-world gap, e.g. one fully-profiled fragrance vs. several unprofiled ones, used to leave the pool stuck at size 1 regardless of the slider)', () => {
@@ -198,11 +256,11 @@ describe('recommendFragrance — variety mode', () => {
     const farWorse = makeOwned({ userFragranceId: 'far-worse' }, { id: 'far-worse-frag', seasonality: { spring: 0, summer: 0, fall: 0, winter: 0 }, formality: { casual: 0, smartCasual: 0, business: 0, formalEvening: 0 } });
     const context: RecommendationContext = { season: 'summer', formalityTier: 'business', varietyLevel: 100 };
     // A high roll reaches all the way to farWorse — proving the pool includes the full range at 100...
-    const highRoll = recommendFragrance({ ownedFragrances: [best, farWorse], context, random: () => 0.9999 });
-    expect(highRoll?.fragranceId).toBe('far-worse-frag');
+    const highRoll = recommendFragrances({ ownedFragrances: [best, farWorse], context, random: () => 0.9999, count: 1 });
+    expect(highRoll[0]?.fragranceId).toBe('far-worse-frag');
     // ...while a low roll still lands on the top scorer — the weighting still favors the better fit.
-    const lowRoll = recommendFragrance({ ownedFragrances: [best, farWorse], context, random: () => 0 });
-    expect(lowRoll?.fragranceId).toBe('best-frag');
+    const lowRoll = recommendFragrances({ ownedFragrances: [best, farWorse], context, random: () => 0, count: 1 });
+    expect(lowRoll[0]?.fragranceId).toBe('best-frag');
   });
 
   it('at varietyLevel 100, a MODERATE roll (not just the extreme edge) reaches a much-lower-scoring pool member — weighting flattens toward uniform, so a large real score gap cannot make the top scorer win nearly every draw (regression: a big gap left the top scorer overwhelmingly likely even after the pool was widened, which reads as "variety does nothing" even though a different pick was technically possible — e.g. always getting the same fragrance across 5 independently-generated outfits)', () => {
@@ -211,8 +269,8 @@ describe('recommendFragrance — variety mode', () => {
     const context: RecommendationContext = { season: 'summer', formalityTier: 'business', varietyLevel: 100 };
     // best/farWorse score 70/15 here — under the old raw-score weighting (56:1) this roll would
     // still have landed on best; under uniform-at-100 weighting (50:50) it crosses to farWorse.
-    const result = recommendFragrance({ ownedFragrances: [best, farWorse], context, random: () => 0.51 });
-    expect(result?.fragranceId).toBe('far-worse-frag');
+    const result = recommendFragrances({ ownedFragrances: [best, farWorse], context, random: () => 0.51, count: 1 });
+    expect(result[0]?.fragranceId).toBe('far-worse-frag');
   });
 
   it('at high varietyLevel, a close-second strong fit can be selected instead of the single best', () => {
@@ -220,18 +278,18 @@ describe('recommendFragrance — variety mode', () => {
     const closeSecond = makeOwned({ userFragranceId: 'close-second' }, { id: 'close-second-frag', seasonality: { spring: 0.95, summer: 0.95, fall: 0.95, winter: 0.95 } });
     const context: RecommendationContext = { season: 'summer', varietyLevel: 100 };
     // random() returns just under 1 — with two near-equal weights, this rolls onto the second pool member.
-    const result = recommendFragrance({ ownedFragrances: [best, closeSecond], context, random: () => 0.9999 });
-    expect(result?.fragranceId).toBe('close-second-frag');
+    const result = recommendFragrances({ ownedFragrances: [best, closeSecond], context, random: () => 0.9999, count: 1 });
+    expect(result[0]?.fragranceId).toBe('close-second-frag');
   });
 });
 
 // ── Reason string ──────────────────────────────────────────────────────────────
 
-describe('recommendFragrance — reason string', () => {
-  it('always returns a non-empty, deterministic reason', () => {
+describe('recommendFragrances — reason string', () => {
+  it('always returns a non-empty, deterministic reason for every recommendation', () => {
     const owned = [makeOwned({ userFragranceId: 'u1' }, { id: 'f1', mainAccords: [{ name: 'Citrus', weight: 1 }] })];
-    const result = recommendFragrance({ ownedFragrances: owned, context: { temperatureC: 25 } });
-    expect(result?.reason).toBeTruthy();
-    expect(typeof result?.reason).toBe('string');
+    const result = recommendFragrances({ ownedFragrances: owned, context: { temperatureC: 25 } });
+    expect(result[0]?.reason).toBeTruthy();
+    expect(typeof result[0]?.reason).toBe('string');
   });
 });

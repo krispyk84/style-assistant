@@ -34,8 +34,10 @@ vi.mock('@/components/ui/app-icon', () => ({ AppIcon: () => null }));
 vi.mock('@/components/generated/GeneratedSketchPanel', () => ({ GeneratedSketchPanel: () => <div data-testid="sketch-panel" /> }));
 vi.mock('@/components/cards/OutfitFrameworkView', () => ({ OutfitFrameworkView: () => null }));
 vi.mock('@/components/cards/FragranceRecommendationCard', () => ({
-  FragranceRecommendationCard: (props: { recommendation: { brand: string; name: string } }) => (
-    <div data-testid="fragrance-card">{props.recommendation.brand} — {props.recommendation.name}</div>
+  FragranceRecommendationCard: (props: { recommendations: { brand: string; name: string }[] }) => (
+    <div data-testid="fragrance-card">
+      {props.recommendations.map((r, i) => <div key={i}>{r.brand} — {r.name}</div>)}
+    </div>
   ),
 }));
 vi.mock('@/components/closet/closet-item-sheet', () => ({ ClosetItemSheet: () => null }));
@@ -210,24 +212,24 @@ describe('LookResultCardView — Save outfit / Add to week always-visible placem
 });
 
 describe('LookResultCardView — fragrance recommendation card', () => {
-  it('does not render the fragrance card when fragranceRecommendation is absent', () => {
+  it('does not render the fragrance card when fragranceRecommendations is absent', () => {
     render(<LookResultCardView recommendation={fakeRecommendation()} detailHref="/results/req-1" />);
     expect(screen.queryByTestId('fragrance-card')).toBeNull();
   });
 
-  it('does not render the fragrance card when fragranceRecommendation is explicitly null', () => {
-    render(<LookResultCardView recommendation={fakeRecommendation({ fragranceRecommendation: null })} detailHref="/results/req-1" />);
+  it('does not render the fragrance card when fragranceRecommendations is an empty array', () => {
+    render(<LookResultCardView recommendation={fakeRecommendation({ fragranceRecommendations: [] })} detailHref="/results/req-1" />);
     expect(screen.queryByTestId('fragrance-card')).toBeNull();
   });
 
-  it('renders the fragrance card when fragranceRecommendation is present', () => {
+  it('renders the fragrance card when fragranceRecommendations is present', () => {
     render(
       <LookResultCardView
         recommendation={fakeRecommendation({
-          fragranceRecommendation: {
+          fragranceRecommendations: [{
             userFragranceId: 'uf-1', fragranceId: 'f-1', brand: 'Le Labo', name: 'Santal 33',
             concentration: null, bottleSketchUrl: null, keyAccords: [], primaryVibe: null, reason: 'Fits the vibe.',
-          },
+          }],
         })}
         detailHref="/results/req-1"
       />,
@@ -242,15 +244,15 @@ describe('LookResultCardView — fragrance recommendation card', () => {
         <LookResultCardView
           recommendation={fakeRecommendation({
             title: 'Look A',
-            fragranceRecommendation: {
+            fragranceRecommendations: [{
               userFragranceId: 'uf-a', fragranceId: 'f-a', brand: 'Brand A', name: 'Scent A',
               concentration: null, bottleSketchUrl: null, keyAccords: [], primaryVibe: null, reason: 'A reason.',
-            },
+            }],
           })}
           detailHref="/results/req-a"
         />
         <LookResultCardView
-          recommendation={fakeRecommendation({ title: 'Look B', fragranceRecommendation: null })}
+          recommendation={fakeRecommendation({ title: 'Look B', fragranceRecommendations: [] })}
           detailHref="/results/req-b"
         />
       </>,

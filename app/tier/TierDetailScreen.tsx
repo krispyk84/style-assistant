@@ -90,8 +90,8 @@ export function TierDetailScreen() {
         </View>
         <LookTierDetailCard definition={matchedTier} recommendation={liveRecommendation} />
 
-        {liveRecommendation.fragranceRecommendation ? (
-          <FragranceRecommendationCard recommendation={liveRecommendation.fragranceRecommendation} />
+        {liveRecommendation.fragranceRecommendations?.length ? (
+          <FragranceRecommendationCard recommendations={liveRecommendation.fragranceRecommendations} />
         ) : null}
 
         {/* Second Opinion — ask a stylist about this specific look */}

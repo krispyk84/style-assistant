@@ -189,8 +189,8 @@ export function LookResultCardView({
 
         {recommendation.framework ? <OutfitFrameworkView framework={recommendation.framework} /> : null}
 
-        {recommendation.fragranceRecommendation ? (
-          <FragranceRecommendationCard recommendation={recommendation.fragranceRecommendation} />
+        {recommendation.fragranceRecommendations?.length ? (
+          <FragranceRecommendationCard recommendations={recommendation.fragranceRecommendations} />
         ) : null}
 
         {recommendation.fitNotes.length > 0 ? (

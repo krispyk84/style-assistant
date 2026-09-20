@@ -36,8 +36,8 @@ export type TripOutfitDay = {
   sketchUrl?: string;
   sketchJobId?: string;
   feedback?: 'love' | 'hate' | null;
-  /** Additive, optional — absent/null whenever the user owns no eligible fragrances. */
-  fragranceRecommendation?: FragranceRecommendationDto | null;
+  /** Additive, optional — up to 3, ranked best-first; empty/absent whenever the user owns no eligible fragrances. */
+  fragranceRecommendations?: FragranceRecommendationDto[];
 };
 
 export type RegenerateTripDayParams = {
