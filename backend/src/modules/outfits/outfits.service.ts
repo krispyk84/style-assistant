@@ -369,6 +369,7 @@ export function resolveClosetOnlyRecommendation(
     detailNotes: recommendation.detailNotes,
     closetItemIds,
     framework: buildFrameworkBreakdown({ tier: recommendation.tier, bySlot: framedBySlot, accessoryItems: framedAccessoryItems }),
+    primaryVibe: recommendation.primaryVibe,
   };
 }
 
@@ -588,7 +589,7 @@ export const outfitsService = {
                 season: input.weatherContext?.season,
                 temperatureC: input.weatherContext?.temperatureC,
                 formalityTier: tier,
-                aestheticText: [input.vibeKeywords, input.additionalDetails].filter(Boolean).join(' '),
+                outfitVibe: recommendation.primaryVibe,
                 varietyLevel: input.fragranceVariety,
               })
             : [],

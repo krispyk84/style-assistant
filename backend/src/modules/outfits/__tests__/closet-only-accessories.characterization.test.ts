@@ -88,6 +88,7 @@ function baseRecommendation(overrides: Partial<ClosetOnlyOutfitRecommendation>):
     whyItWorks: 'Simple and clean.',
     stylingDirection: 'Keep it casual.',
     detailNotes: ['Roll the sleeves', 'Tuck in the front'],
+    primaryVibe: 'AROMATIC_SPORTY',
     ...overrides,
   };
 }

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { FRAGRANCE_VIBE_OPTIONS, FRAGRANCE_VIBE_SCHEMA_DESCRIPTION } from '../fragrances/fragrance-types.js';
+
 const tierEnum = z.enum(['business', 'smart-casual', 'casual']);
 
 const OUTFIT_PIECE_CATEGORIES = [
@@ -56,6 +58,8 @@ export const outfitRecommendationSchema = z.object({
   closetItemIds: z.array(z.string()).optional(),
   // Set only when the request was closetOnly — the enforced framework's slot breakdown.
   framework: outfitFrameworkSchema.optional(),
+  /** The outfit's own aesthetic, classified against the fixed fragrance-vibe taxonomy — drives fragrance pairing. */
+  primaryVibe: z.enum(FRAGRANCE_VIBE_OPTIONS),
 });
 
 export const tieredOutfitGenerationSchema = z.object({
@@ -88,6 +92,8 @@ export const closetOnlyOutfitRecommendationSchema = z.object({
   whyItWorks: z.string().min(1),
   stylingDirection: z.string().min(1),
   detailNotes: z.array(z.string().min(1)).min(2).max(5),
+  /** The outfit's own aesthetic, classified against the fixed fragrance-vibe taxonomy — drives fragrance pairing. */
+  primaryVibe: z.enum(FRAGRANCE_VIBE_OPTIONS),
 });
 
 export const closetOnlyTieredOutfitGenerationSchema = z.object({
@@ -194,9 +200,14 @@ function buildOutfitRecommendationJsonSchema() {
         minItems: 2,
         maxItems: 5,
       },
+      primaryVibe: {
+        type: 'string',
+        enum: [...FRAGRANCE_VIBE_OPTIONS],
+        description: FRAGRANCE_VIBE_SCHEMA_DESCRIPTION,
+      },
     },
     required: [
-      'tier', 'title', 'anchorItem', 'anchorPiece', 'keyPieces', 'shoes', 'accessories', 'fitNotes', 'whyItWorks', 'stylingDirection', 'detailNotes',
+      'tier', 'title', 'anchorItem', 'anchorPiece', 'keyPieces', 'shoes', 'accessories', 'fitNotes', 'whyItWorks', 'stylingDirection', 'detailNotes', 'primaryVibe',
     ],
   } as const;
 }
@@ -249,8 +260,13 @@ function buildClosetOnlyOutfitRecommendationJsonSchema(roleIds: ClosetOnlyRoleId
       whyItWorks: { type: 'string' },
       stylingDirection: { type: 'string' },
       detailNotes: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 5 },
+      primaryVibe: {
+        type: 'string',
+        enum: [...FRAGRANCE_VIBE_OPTIONS],
+        description: FRAGRANCE_VIBE_SCHEMA_DESCRIPTION,
+      },
     },
-    required: ['tier', 'title', 'anchorItem', 'anchorPiece', 'keyPieceIds', 'shoeIds', 'accessoryIds', 'fitNotes', 'whyItWorks', 'stylingDirection', 'detailNotes'],
+    required: ['tier', 'title', 'anchorItem', 'anchorPiece', 'keyPieceIds', 'shoeIds', 'accessoryIds', 'fitNotes', 'whyItWorks', 'stylingDirection', 'detailNotes', 'primaryVibe'],
   } as const;
 }
 

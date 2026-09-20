@@ -8,6 +8,7 @@ import {
   TRIP_REGENERATION_BAG_RULE,
 } from './trip-shared-rules.js';
 import type { ClosetOutfitIndexItem, ClosetOutfitSlotShortlists } from './closet-outfits.prompts.js';
+import { FRAGRANCE_VIBE_OPTIONS, FRAGRANCE_VIBE_SCHEMA_DESCRIPTION } from '../../modules/fragrances/fragrance-types.js';
 
 type PromptProfile = Parameters<typeof formatProfileContext>[0];
 
@@ -215,6 +216,7 @@ export function buildTripOutfitsPrompt(
     ...TRIP_DAY_BAG_RULE_LINES,
     '- accessories: 0–3 items.',
     '- contextTags: 1–4 short tags (e.g. "beach-ready", "breathable", "semi-formal", "layerable").',
+    '- primaryVibe: classify each day\'s own aesthetic as exactly one value from the fixed vibe taxonomy, judged from the actual pieces/colors you chose — FRESH_CLEAN (crisp, minimal, understated), WARM_COZY (soft, relaxed, comfort-forward), DARK_SEDUCTIVE (moody, sultry, night-leaning), WOODY_EARTHY (rugged, natural, outdoor-adjacent), GOURMAND_SWEET (indulgent, playful, dessert-toned palettes), AROMATIC_SPORTY (athletic, active, weekend-casual), FLORAL_ROMANTIC (soft, romantic, date-leaning), SPICY_CONFIDENT (bold, statement-making, fashion-forward). This drives which fragrance gets paired with the day downstream.',
     ...buildTripTemperatureRuleLines(req.avgHighC),
     '',
     formatProfileContext(profile),
@@ -244,8 +246,9 @@ export function buildTripOutfitsPrompt(
     bag:          { type: ['string', 'null'], description: 'Bag or null' },
     accessories:  { type: 'array', items: { type: 'string' }, maxItems: 3 },
     contextTags:  { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 },
+    primaryVibe:  { type: 'string', enum: [...FRAGRANCE_VIBE_OPTIONS], description: FRAGRANCE_VIBE_SCHEMA_DESCRIPTION },
   };
-  const dayRequired = ['dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags'];
+  const dayRequired = ['dayIndex', 'date', 'title', 'dayType', 'rationale', 'pieces', 'shoes', 'bag', 'accessories', 'contextTags', 'primaryVibe'];
 
   const jsonSchema: TripOutfitsPrompt['jsonSchema'] = {
     name: 'trip_outfits',
@@ -493,6 +496,7 @@ export function buildTripDayChoiceSystemPrompt(): string {
     '9. NEVER include an item\'s id in the title or rationale text — ids belong only in chosenIds/accessoryIds. Refer to every piece by name only.',
     '10. NEVER mention or imply a piece that isn\'t one of your actual chosenIds/accessoryIds for that day. If a slot wasn\'t offered to you at all for this day, or you resolved it to null, that piece does not exist on this day — do not invent one in the rationale ("a light jacket adds...") or title. Only describe the exact pieces you actually chose ids for.',
     '11. Return one entry per day index provided, matched by "index". Do not skip or reorder.',
+    '12. primaryVibe: classify each day\'s own aesthetic as exactly one value from the fixed vibe taxonomy, judged from the actual pieces/colors you chose — FRESH_CLEAN (crisp, minimal, understated), WARM_COZY (soft, relaxed, comfort-forward), DARK_SEDUCTIVE (moody, sultry, night-leaning), WOODY_EARTHY (rugged, natural, outdoor-adjacent), GOURMAND_SWEET (indulgent, playful, dessert-toned palettes), AROMATIC_SPORTY (athletic, active, weekend-casual), FLORAL_ROMANTIC (soft, romantic, date-leaning), SPICY_CONFIDENT (bold, statement-making, fashion-forward). This drives which fragrance gets paired with the day downstream.',
     '',
     'Return ONLY valid JSON matching the provided schema. No markdown, no prose outside the JSON.',
   ].join('\n');

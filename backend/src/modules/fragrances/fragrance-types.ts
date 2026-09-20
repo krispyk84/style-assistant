@@ -13,6 +13,16 @@ export const FRAGRANCE_VIBE_OPTIONS = [
 
 export type FragranceVibe = (typeof FRAGRANCE_VIBE_OPTIONS)[number];
 
+// Shared JSON-schema description string for the `primaryVibe` field every
+// outfit-generation response schema adds (outfits, trips, closet) — each
+// outfit-generation LLM call classifies the outfit it just assembled
+// against this same fixed taxonomy, which the deterministic fragrance
+// recommender (fragrance-recommendation.service.ts) then matches against
+// each fragrance's own primaryVibe/secondaryVibes. One shared string keeps
+// the instruction identical across all three call sites.
+export const FRAGRANCE_VIBE_SCHEMA_DESCRIPTION =
+  "This outfit's own aesthetic, classified against a fixed vibe taxonomy — used downstream to match it with a fragrance that shares the same character (not just its weather/formality fit). Judge from the actual pieces and colors chosen, not the occasion alone.";
+
 export const FRAGRANCE_CONCENTRATION_OPTIONS = [
   'Eau de Cologne', 'Eau de Toilette', 'Eau de Parfum', 'Parfum', 'Extrait', 'Elixir', 'Other', 'Unknown',
 ] as const;

@@ -74,6 +74,7 @@ function baseRecommendation(overrides: Partial<ClosetOnlyOutfitRecommendation>):
     whyItWorks: '',
     stylingDirection: '',
     detailNotes: [],
+    primaryVibe: 'FRESH_CLEAN',
     ...overrides,
   };
 }
