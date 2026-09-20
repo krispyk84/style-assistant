@@ -88,13 +88,39 @@ export function isEligible(owned: OwnedFragrance): boolean {
 // ── Weather / season scoring — 25 points (section 25) ────────────────────────
 
 const LIGHT_ACCORD_KEYWORDS = ['citrus', 'aquatic', 'marine', 'green', 'aromatic', 'tea', 'fresh', 'musk', 'clean'];
-const HEAVY_ACCORD_KEYWORDS = ['gourmand', 'amber', 'leather', 'tobacco', 'resin', 'smoky', 'sweet', 'vanilla', 'spicy', 'spice'];
+// 'oud'/'wood'/'incense'/'agarwood'/'patchouli'/'balsamic' were previously
+// missing here — a rich oud's mainAccords are very often literally named
+// "Oud"/"Woody" with nothing else matching, which meant a temperature
+// mismatch never got penalized at all for exactly the fragrances where it
+// matters most.
+const HEAVY_ACCORD_KEYWORDS = [
+  'gourmand', 'amber', 'leather', 'tobacco', 'resin', 'smoky', 'sweet', 'vanilla', 'spicy', 'spice',
+  'oud', 'wood', 'incense', 'agarwood', 'patchouli', 'balsamic',
+];
 
 function sumMatchingAccordWeights(accords: { name: string; weight: number }[], keywords: string[]): number {
   return accords.reduce((sum, accord) => {
     const nameLower = accord.name.toLowerCase();
     return keywords.some((kw) => nameLower.includes(kw)) ? sum + accord.weight : sum;
   }, 0);
+}
+
+/**
+ * How far past the neutral 10-20°C shoulder band the temperature sits, as a
+ * 0-1 ramp in each direction — 0 right at the edge of the band, reaching 1
+ * at genuinely hot (35°C+) or cold (-5°C or below) extremes. Continuous
+ * rather than a flat "past this threshold" bonus/penalty, so a scorching
+ * 38°C day penalizes a heavy fragrance harder than a mild 21°C one — and,
+ * critically, this is driven by the request's actual temperatureC, not
+ * calendar season, so a hot day in nominal fall/spring is still treated as
+ * hot (see RecommendationContext.temperatureC's callers — always the real
+ * forecast/apparent temperature, never derived from the season label).
+ */
+function temperatureExtremity(temperatureC: number): { warm: number; cold: number } {
+  return {
+    warm: temperatureC > 20 ? Math.min(1, (temperatureC - 20) / 15) : 0,
+    cold: temperatureC < 10 ? Math.min(1, (10 - temperatureC) / 15) : 0,
+  };
 }
 
 function scoreWeatherSeason(fragrance: ScorableFragrance, context: RecommendationContext): number {
@@ -107,15 +133,20 @@ function scoreWeatherSeason(fragrance: ScorableFragrance, context: Recommendatio
     score = 9.375;
   }
 
-  // Adjustment ±6.25 pts (25% of max): accord-level warm/cold fit,
-  // bonuses/penalties only — never a hard exclusion.
+  // Adjustment, scaled by how extreme the actual temperature is (up to the
+  // same 18.75-pt magnitude as the base — a strong accord mismatch at a
+  // genuine extreme can cancel out an otherwise-good seasonality profile,
+  // though still not an outright ban: other dimensions can still lift a
+  // fragrance back up, and a fragrance whose own profiled seasonality
+  // disagrees with the accord-keyword heuristic isn't zeroed out either.
   if (context.temperatureC != null && fragrance.mainAccords && fragrance.mainAccords.length > 0) {
-    const isWarm = context.temperatureC >= 20;
-    const isCold = context.temperatureC <= 10;
-    if (isWarm || isCold) {
+    const { warm, cold } = temperatureExtremity(context.temperatureC);
+    const intensity = Math.max(warm, cold);
+    if (intensity > 0) {
       const lightWeight = sumMatchingAccordWeights(fragrance.mainAccords, LIGHT_ACCORD_KEYWORDS);
       const heavyWeight = sumMatchingAccordWeights(fragrance.mainAccords, HEAVY_ACCORD_KEYWORDS);
-      score += isWarm ? (lightWeight - heavyWeight) * 6.25 : (heavyWeight - lightWeight) * 6.25;
+      const direction = warm >= cold ? (lightWeight - heavyWeight) : (heavyWeight - lightWeight);
+      score += direction * intensity * 18.75;
     }
   }
 

@@ -229,6 +229,39 @@ describe('recommendFragrances — weather and formality scoring', () => {
   });
 });
 
+// ── Temperature-appropriateness (this session's feature request) ────────────
+
+describe('recommendFragrances — temperature-appropriateness', () => {
+  it('a rich oud loses decisively to a fresh citrus scent on a hot day — "oud"/"woody" previously matched no heavy-weather keyword at all', () => {
+    const oud = makeOwned({ userFragranceId: 'oud' }, { id: 'oud-frag', mainAccords: [{ name: 'Oud', weight: 1 }] });
+    const citrus = makeOwned({ userFragranceId: 'citrus' }, { id: 'citrus-frag', mainAccords: [{ name: 'Citrus', weight: 1 }] });
+    const context: RecommendationContext = { temperatureC: 35 };
+    const result = recommendFragrances({ ownedFragrances: [oud, citrus], context, count: 1 });
+    expect(result[0]?.fragranceId).toBe('citrus-frag');
+  });
+
+  it('a citrus-forward light scent loses to a heavier one on a cold day', () => {
+    const citrus = makeOwned({ userFragranceId: 'citrus' }, { id: 'citrus-frag', mainAccords: [{ name: 'Citrus', weight: 1 }, { name: 'Aquatic', weight: 0.8 }] });
+    const heavy = makeOwned({ userFragranceId: 'heavy' }, { id: 'heavy-frag', mainAccords: [{ name: 'Amber', weight: 1 }, { name: 'Vanilla', weight: 0.8 }] });
+    const context: RecommendationContext = { temperatureC: -5 };
+    const result = recommendFragrances({ ownedFragrances: [citrus, heavy], context, count: 1 });
+    expect(result[0]?.fragranceId).toBe('heavy-frag');
+  });
+
+  it('the temperature penalty scales with how extreme it is, not a flat past-threshold bonus/penalty — the same modest edge can survive a mild mismatch but not an extreme one', () => {
+    const oud = makeOwned({ userFragranceId: 'oud' }, { id: 'oud-frag', mainAccords: [{ name: 'Oud', weight: 1 }], formality: { casual: 0.8, smartCasual: 0.8, business: 0.8, formalEvening: 0.8 } });
+    const citrus = makeOwned({ userFragranceId: 'citrus' }, { id: 'citrus-frag', mainAccords: [{ name: 'Citrus', weight: 1 }] });
+
+    // Just past the neutral band (21°C) — oud's small formality edge is enough to still win.
+    const mild = recommendFragrances({ ownedFragrances: [oud, citrus], context: { temperatureC: 21 }, count: 1 });
+    expect(mild[0]?.fragranceId).toBe('oud-frag');
+
+    // A genuine hot-day extreme (35°C) — the same formality edge is no longer enough; ranking flips.
+    const extreme = recommendFragrances({ ownedFragrances: [oud, citrus], context: { temperatureC: 35 }, count: 1 });
+    expect(extreme[0]?.fragranceId).toBe('citrus-frag');
+  });
+});
+
 // ── Deterministic tie-break (spec section 29) ────────────────────────────────
 
 describe('recommendFragrances — tie-break order', () => {
