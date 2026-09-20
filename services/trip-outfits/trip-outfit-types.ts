@@ -1,4 +1,5 @@
 import type { OutfitFrameworkDisplay } from '@/types/api';
+import type { FragranceRecommendationDto } from '@/types/fragrance';
 
 export type TripDayType =
   | 'travel_day'
@@ -35,6 +36,8 @@ export type TripOutfitDay = {
   sketchUrl?: string;
   sketchJobId?: string;
   feedback?: 'love' | 'hate' | null;
+  /** Additive, optional — absent/null whenever the user owns no eligible fragrances. */
+  fragranceRecommendation?: FragranceRecommendationDto | null;
 };
 
 export type RegenerateTripDayParams = {

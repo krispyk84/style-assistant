@@ -1,5 +1,6 @@
 import { Pressable, View } from 'react-native';
 
+import { FragranceRecommendationCard } from '@/components/cards/FragranceRecommendationCard';
 import { LookTierDetailCard } from '@/components/cards/look-tier-detail-card';
 import { OutfitFrameworkView } from '@/components/cards/OutfitFrameworkView';
 import { OutfitPieceListView } from '@/components/cards/OutfitPieceListView';
@@ -88,6 +89,10 @@ export function TierDetailScreen() {
           <AppText tone="muted">{matchedTier.shortDescription}</AppText>
         </View>
         <LookTierDetailCard definition={matchedTier} recommendation={liveRecommendation} />
+
+        {liveRecommendation.fragranceRecommendation ? (
+          <FragranceRecommendationCard recommendation={liveRecommendation.fragranceRecommendation} />
+        ) : null}
 
         {/* Second Opinion — ask a stylist about this specific look */}
         <Pressable

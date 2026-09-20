@@ -15,6 +15,7 @@ import {
 import { buildClosetOutfitSketchPrompt } from '../../ai/prompts/closet-outfit-sketch.prompts.js';
 import { storageProvider } from '../../storage/index.js';
 import { profileRepository } from '../profile/profile.repository.js';
+import { buildFragranceRecommendation, type FragranceRecommendationDto } from '../fragrances/fragrance-recommendation-integration.js';
 import { seasonalTrendsService } from '../seasonal-trends/seasonal-trends.service.js';
 import { trendFeedbackService } from '../seasonal-trends/trend-feedback.service.js';
 import type { FashionGender } from '../seasonal-trends/seasonal-trends.repository.js';
@@ -101,6 +102,8 @@ type ResolvedOutfit = {
   sketchJobId: string;
   sketchStatus: 'pending' | 'ready' | 'failed';
   sketchImageUrl: string | null;
+  /** Additive, optional — old clients/results without this field remain fully valid. Null/absent whenever the user owns no eligible fragrances. */
+  fragranceRecommendation?: FragranceRecommendationDto | null;
 };
 
 async function loadIndex(supabaseUserId: string) {
@@ -465,7 +468,21 @@ export const closetOutfitsService = {
     ensureFootwearPresent(resolved, closetItems, tier, targetFormalityRank);
 
     const withFeedbackIds = await attachFeedbackIds(resolved, payload.formality, supabaseUserId);
-    return { outfits: await attachSketchJobs(withFeedbackIds, supabaseUserId) };
+    const withSketchJobs = await attachSketchJobs(withFeedbackIds, supabaseUserId);
+
+    // All 5 outfits share the same requested formality/weather/context here
+    // (unlike Ask a Stylist's per-look variation), so they legitimately can
+    // get the same top-scoring fragrance — not artificial repetition, just
+    // an accurate reflection of one shared context (spec section 32's
+    // "do not force artificial diversity" principle, applied here too).
+    const fragranceRecommendation = await buildFragranceRecommendation(supabaseUserId, {
+      season: payload.weatherContext?.season,
+      temperatureC: temperatureC ?? undefined,
+      formalityTier: payload.formality,
+      aestheticText: payload.additionalDetails,
+    });
+
+    return { outfits: withSketchJobs.map((outfit) => ({ ...outfit, fragranceRecommendation })) };
   },
 
   async generateOutfitVariations(payload: GenerateClosetOutfitVariationsPayload, supabaseUserId: string) {

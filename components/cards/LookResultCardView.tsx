@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/app-icon';
+import { FragranceRecommendationCard } from '@/components/cards/FragranceRecommendationCard';
 import { GeneratedSketchPanel } from '@/components/generated/GeneratedSketchPanel';
 import { spacing } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
@@ -187,6 +188,10 @@ export function LookResultCardView({
         </View>
 
         {recommendation.framework ? <OutfitFrameworkView framework={recommendation.framework} /> : null}
+
+        {recommendation.fragranceRecommendation ? (
+          <FragranceRecommendationCard recommendation={recommendation.fragranceRecommendation} />
+        ) : null}
 
         {recommendation.fitNotes.length > 0 ? (
           <View style={{ gap: spacing.xs }}>

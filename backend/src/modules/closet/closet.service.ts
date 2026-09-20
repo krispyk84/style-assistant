@@ -6,7 +6,7 @@ import { closetRepository } from './closet.repository.js';
 import { closetSketchService } from './closet-sketch.service.js';
 import { closetOutfitsService } from './closet-outfits.service.js';
 import { mapClosetItem } from './closet-response-mapper.js';
-import { analyzeClosetItem, matchClosetItems } from './closet-analysis.service.js';
+import { analyzeClosetItem, classifyItemKind, matchClosetItems } from './closet-analysis.service.js';
 import { analyseCloset as analyseClosetWardrobe } from './closet-wardrobe-analysis.service.js';
 import { openAiClient } from '../../ai/openai-client.js';
 import { buildHelpMePickSystemPrompt, buildHelpMePickUserPrompt } from '../../ai/prompts/help-me-pick.prompts.js';
@@ -17,6 +17,7 @@ import {
 } from './closet.schemas.js';
 import type {
   AnalyzeClosetItemPayload,
+  ClassifyItemKindPayload,
   ClosetMatchPayload,
   CreateClosetItemPairPayload,
   GenerateClosetOutfitsPayload,
@@ -40,6 +41,10 @@ const TROUSER_CATEGORIES = new Set(['Trousers']);
 export const closetService = {
   async analyzeItem(payload: AnalyzeClosetItemPayload, supabaseUserId?: string) {
     return analyzeClosetItem(payload, supabaseUserId);
+  },
+
+  async classifyItemKind(payload: ClassifyItemKindPayload, supabaseUserId?: string) {
+    return classifyItemKind(payload, supabaseUserId);
   },
 
   async saveItem(payload: SaveClosetItemPayload, supabaseUserId: string) {

@@ -3,6 +3,7 @@ import { logger } from '../../config/logger.js';
 import { describeError, HttpError } from '../../lib/http-error.js';
 import type { GenerateOutfitsRequest, OutfitResponse, OutfitTierSlug } from '../../contracts/outfits.contracts.js';
 import { openAiClient } from '../../ai/openai-client.js';
+import { loadOwnedFragrances, scoreLoadedFragrances } from '../fragrances/fragrance-recommendation-integration.js';
 import { buildAnchorImageContent } from '../../ai/image-input.js';
 import type { SubjectRenderingInput } from '../../ai/body-type-severity.js';
 import {
@@ -536,6 +537,11 @@ export const outfitsService = {
       recommendationMap = new Map(aiOutput.recommendations.map((recommendation) => [recommendation.tier, recommendation]));
     }
 
+    // Loaded once (spec section 36's "one efficient query"), scored once per
+    // tier below — fragrance never influences which garments were picked
+    // (outfit generation above is already fully complete), purely additive.
+    const ownedFragrances = supabaseUserId ? await loadOwnedFragrances(supabaseUserId) : null;
+
     const response: OutfitResponse = {
       requestId: input.requestId,
       status: 'completed' as const,
@@ -567,13 +573,25 @@ export const outfitsService = {
           throw new HttpError(502, 'OPENAI_MISSING_TIER', `The AI provider did not return the ${tier} recommendation.`);
         }
 
-        return mapOutfitRecommendation(
+        const mapped = mapOutfitRecommendation(
           recommendation,
           tier,
           buildStableSketchUrl(env.STORAGE_PUBLIC_BASE_URL, input.requestId, tier, variantMap?.[tier] ?? 0),
           variantMap?.[tier] ?? 0,
           getCanonicalAnchorDescription(input),
         );
+
+        return {
+          ...mapped,
+          fragranceRecommendation: ownedFragrances
+            ? scoreLoadedFragrances(ownedFragrances, {
+                season: input.weatherContext?.season,
+                temperatureC: input.weatherContext?.temperatureC,
+                formalityTier: tier,
+                aestheticText: [input.vibeKeywords, input.additionalDetails].filter(Boolean).join(' '),
+              })
+            : null,
+        };
       }),
     };
 

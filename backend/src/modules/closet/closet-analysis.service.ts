@@ -4,7 +4,8 @@ import path from 'node:path';
 import { openAiClient } from '../../ai/openai-client.js';
 import { storageConfig } from '../../config/storage.js';
 import { HttpError } from '../../lib/http-error.js';
-import type { AnalyzeClosetItemPayload, ClosetMatchPayload } from './closet.validation.js';
+import { buildClassifyItemKindPrompt, itemKindResponseSchema } from '../../ai/prompts/fragrance-classify.prompts.js';
+import type { AnalyzeClosetItemPayload, ClassifyItemKindPayload, ClosetMatchPayload } from './closet.validation.js';
 import { filterCandidatesPerSuggestion, buildCandidateItemsForLlm } from './closet-matcher.js';
 import {
   ANALYZE_INSTRUCTIONS,
@@ -63,6 +64,34 @@ export async function analyzeClosetItem(payload: AnalyzeClosetItemPayload, supab
   });
 
   return result;
+}
+
+/**
+ * Type-aware Add Closet Item flow, step 1 (spec section 4): classifies
+ * garment vs fragrance vs unknown BEFORE any type-specific processing runs.
+ * Deliberately does not run garment metadata extraction or fragrance
+ * profiling here — those stay fully separate, unaffected regressions for
+ * garments and a dedicated structured call for fragrances (fragrance-profile
+ * .service.ts), triggered only after this step routes to fragrance mode.
+ */
+export async function classifyItemKind(payload: ClassifyItemKindPayload, supabaseUserId?: string) {
+  const resolvedDataUrl = await imageUrlToDataUrl(payload.uploadedImageUrl).catch(() => null);
+  if (!resolvedDataUrl) {
+    throw new HttpError(422, 'IMAGE_UNAVAILABLE', 'The item image is no longer available. Re-upload it to classify.');
+  }
+
+  const { instructions, jsonSchema } = buildClassifyItemKindPrompt();
+  return openAiClient.createStructuredResponse({
+    schema: itemKindResponseSchema,
+    jsonSchema,
+    instructions,
+    userContent: [
+      { type: 'input_image', image_url: resolvedDataUrl, detail: 'high' },
+      { type: 'input_text', text: 'What kind of closet item is shown in this photo?' },
+    ],
+    supabaseUserId,
+    feature: 'fragrance-classify',
+  });
 }
 
 export async function matchClosetItems(payload: ClosetMatchPayload, supabaseUserId?: string) {

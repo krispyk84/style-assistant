@@ -233,6 +233,91 @@ model ClosetSketchJob {
   updatedAt          DateTime @updatedAt
 }
 
+// ── Fragrance closet ──────────────────────────────────────────────────────────
+//
+// Mirrors TrendSketch/TrendFeedback's shared-catalog + skinny-per-user-junction
+// pattern: Fragrance is a canonical, deduplicated catalog row shared across all
+// users (profiled via LLM once, or entered manually), UserFragrance is the thin
+// ownership/ personalization join. Deliberately NOT a ClosetItem — fragrance has
+// no garment category, no formality-slot participation, and no closet-matching
+// role; keeping it a separate domain is what keeps it from ever being pulled
+// into clothing-slot logic by accident.
+
+model Fragrance {
+  id               String   @id @default(cuid())
+  brand            String
+  name             String
+  concentration    String?
+
+  normalizedBrand  String
+  normalizedName   String
+  // brand+name+concentration normalized into one dedup key — deliberately
+  // includes concentration so EDT/EDP/Parfum and named flankers stay distinct
+  // catalog rows rather than collapsing into one.
+  canonicalKey     String   @unique
+
+  topNotes         Json?
+  middleNotes      Json?
+  baseNotes        Json?
+  // [{ name: string, weight: number (0-1) }]
+  mainAccords      Json?
+
+  primaryVibe      String?
+  secondaryVibes   Json?
+
+  // { spring, summer, fall, winter } suitability, each 0-1
+  seasonality      Json?
+  // { day, night } suitability, each 0-1
+  dayNight         Json?
+  // { casual, smartCasual, business, formalEvening } suitability, each 0-1
+  formality        Json?
+
+  // 'llm' | 'manual' — how this catalog row was created
+  profileSource    String   @default("manual")
+  profileModel     String?
+  profileVersion   String?
+  profileConfidence Float?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  userFragrances   UserFragrance[]
+
+  @@index([normalizedBrand])
+  @@index([normalizedName])
+}
+
+model UserFragrance {
+  id                     String    @id @default(cuid())
+  supabaseUserId         String
+  fragranceId            String
+  fragrance              Fragrance @relation(fields: [fragranceId], references: [id])
+
+  originalImageUrl       String?
+  // Points at /media/closet-sketch/:filename, same as ClosetItem.sketchImageUrl
+  // — fragrance bottle sketches reuse the existing generic ClosetSketchJob
+  // table/media route as-is (it already has no category-specific fields), not
+  // a new job table. The actual bytes live permanently in that job row.
+  bottleSketchUrl        String?
+  bottleSketchStatus     String    @default("not_started")
+
+  isSignature            Boolean   @default(false)
+  // null = quantity unknown (still recommendation-eligible), 0 = empty (excluded)
+  currentVolumeMl        Int?
+  userNotes              String?
+  // Partial override of the catalog Fragrance's profile fields — only the
+  // fields a user actually edited, never a full copy. Effective profile =
+  // override ?? catalog, field by field. Never written back to Fragrance.
+  profileOverrides       Json?
+
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@unique([supabaseUserId, fragranceId])
+  @@index([supabaseUserId])
+  @@index([fragranceId])
+}
+
 model HaircutSession {
   id               String          @id @default(cuid())
   supabaseUserId   String

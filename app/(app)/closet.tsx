@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
-import { useWindowDimensions } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { spacing } from '@/constants/theme';
 import { ClosetItemSheetView } from '@/components/closet/ClosetItemSheetView';
 import { ClosetAnalyzerModal } from '@/components/closet/ClosetAnalyzerModal';
@@ -13,10 +14,14 @@ import { useHelpMePick } from '@/components/closet/useHelpMePick';
 import { closetService } from '@/services/closet';
 import type { ClosetItem } from '@/types/closet';
 import { COLUMN_COUNT } from './closet-grid-utils';
+import { FragranceClosetSection } from './FragranceClosetSection';
 import { useClosetAnimations } from './useClosetAnimations';
 import { useClosetData } from './useClosetData';
 import { useClosetNavigation } from './useClosetNavigation';
 import { ClosetScreenView } from './ClosetScreenView';
+
+const CLOSET_SECTION_OPTIONS = ['Clothing', 'Fragrances'] as const;
+type ClosetSection = (typeof CLOSET_SECTION_OPTIONS)[number];
 
 // Categories excluded from Help Me Pick eligibility (accessories + shoes)
 const HELP_ME_PICK_EXCLUDED = new Set([
@@ -25,6 +30,11 @@ const HELP_ME_PICK_EXCLUDED = new Set([
 ]);
 
 export default function ClosetScreen() {
+  // ── Clothing / Fragrances split — purely a render switch; useClosetData's
+  // polling and every other garment hook below runs unconditionally exactly
+  // as before, so the Clothing tab's behavior stays byte-identical. ─────────
+  const [closetSection, setClosetSection] = useState<ClosetSection>('Clothing');
+
   // ── Step 1: Data — items, loading, polling, categories, sections ──────────
   const { items, setItems, isLoading, loadItems, categories, sections } = useClosetData();
 
@@ -132,8 +142,22 @@ export default function ClosetScreen() {
     setEditingItem(response.data); // open the new item for rename/recategorize right away
   }
 
+  if (closetSection === 'Fragrances') {
+    return (
+      <View style={{ flex: 1 }}>
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+          <SegmentedControl options={CLOSET_SECTION_OPTIONS} value={closetSection} onChange={setClosetSection} />
+        </View>
+        <FragranceClosetSection />
+      </View>
+    );
+  }
+
   return (
-    <>
+    <View style={{ flex: 1 }}>
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+        <SegmentedControl options={CLOSET_SECTION_OPTIONS} value={closetSection} onChange={setClosetSection} />
+      </View>
       <ClosetScreenView
         isLoading={isLoading}
         itemCount={items.length}
@@ -202,6 +226,6 @@ export default function ClosetScreen() {
       />
       <ClosetAnalyzerModal hook={closetAnalyzer} />
       <GenerateOutfitsModal hook={generateOutfits} />
-    </>
+    </View>
   );
 }
