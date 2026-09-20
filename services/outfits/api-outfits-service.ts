@@ -34,6 +34,7 @@ export const apiOutfitsService: OutfitsService = {
         additionalDetails: request.additionalDetails?.trim() || undefined,
         variantContext: request.variantContext,
         trendiness: request.trendiness,
+        fragranceVariety: request.fragranceVariety,
         hemisphere: request.hemisphere,
         region: request.region,
         stylistId: request.stylistId,

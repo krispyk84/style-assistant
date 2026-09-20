@@ -89,6 +89,12 @@ export type GenerateOutfitsRequest = {
    * Sourced from the user's app settings on the device.
    */
   trendiness?: number;
+  /**
+   * Fragrance best-fit ↔ variety 0–100 (0 = always the single best-matching
+   * fragrance, 100 = widest rotation among strong fits). Sourced from the
+   * user's app settings on the device.
+   */
+  fragranceVariety?: number;
 };
 
 export type TierRecommendationDto = {
@@ -150,6 +156,7 @@ export type OutfitResponse = {
     closetOnly?: boolean;
     additionalDetails?: string;
     trendiness?: number;
+    fragranceVariety?: number;
     stylistId?: StylistId;
   };
   recommendations: TierRecommendationDto[];

@@ -1,6 +1,7 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
 
 import { recordError } from '@/lib/crashlytics';
+import { useFragranceVariety } from '@/hooks/use-fragrance-variety';
 import { tripDraftStorage } from '@/lib/trip-draft-storage';
 import type { StoredTripPlan } from '@/lib/trip-outfits-storage';
 import { tripOutfitsStorage } from '@/lib/trip-outfits-storage';
@@ -48,6 +49,7 @@ export function useTripResultsData({
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [progressDay, setProgressDay] = useState(0);
+  const fragranceVariety = useFragranceVariety();
   const [totalProgressDays, setTotalProgressDays] = useState(0);
   const [closetItems, setClosetItems] = useState<ClosetItem[]>([]);
   const progressiveRunning = useRef(false);
@@ -134,6 +136,7 @@ export function useTripResultsData({
             usedOuterwear: collectUsedOuterwear(generatedDays),
             usedFootwear: collectUsedFootwear(generatedDays),
             usedAnchorItemIds: collectUsedAnchorItemIds(generatedDays),
+            fragranceVariety,
           }));
         } catch (err) {
           recordError(err, 'trip_progressive_generation_day_failed');

@@ -424,6 +424,8 @@ export type GenerateClosetOutfitsRequest = {
   formality: LookTierSlug;
   weatherContext?: WeatherContext | null;
   trendiness?: number;
+  /** Fragrance best-fit ↔ variety 0–100 from app settings — see CreateLookInput.fragranceVariety. */
+  fragranceVariety?: number;
   /** Location-derived, for seasonal fashion trend lookup — separate from weatherContext since it isn't weather data. */
   hemisphere?: Hemisphere;
   region?: string;
@@ -435,6 +437,7 @@ export type GenerateClosetOutfitVariationsRequest = {
   formality: LookTierSlug;
   weatherContext?: WeatherContext | null;
   trendiness?: number;
+  fragranceVariety?: number;
   hemisphere?: Hemisphere;
   region?: string;
   additionalDetails?: string;

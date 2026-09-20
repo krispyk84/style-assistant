@@ -138,6 +138,8 @@ export type GenerateTripOutfitsParams = {
   previousDaysSummary?: string[];
   /** User-selected formality for the day at generateOnlyDayIndex (trip form's per-day picker, defaults to 'casual') — authoritative when set. */
   formalityTier?: 'casual' | 'smart-casual' | 'business';
+  /** Fragrance best-fit ↔ variety 0–100, from app settings — see CreateLookInput.fragranceVariety. */
+  fragranceVariety?: number;
 };
 
 export type GenerateTripOutfitsResponse = {

@@ -24,6 +24,7 @@ export function useSettings() {
   const { profile } = useAppSession();
   const [sensitivity, setSensitivity] = useState(50);
   const [trendiness, setTrendiness] = useState(50);
+  const [fragranceVariety, setFragranceVariety] = useState(50);
   const [monthlyAiCost, setMonthlyAiCost] = useState<number | null>(null);
   const [isRefreshingTrends, setIsRefreshingTrends] = useState(false);
   const [trendsRefreshMessage, setTrendsRefreshMessage] = useState<string | null>(null);
@@ -37,6 +38,7 @@ export function useSettings() {
     void loadAppSettings().then((s) => {
       setSensitivity(s.closetMatchSensitivity);
       setTrendiness(s.trendiness);
+      setFragranceVariety(s.fragranceVariety);
     });
   }, []);
 
@@ -56,6 +58,10 @@ export function useSettings() {
 
   async function persistTrendiness(value: number) {
     await saveAppSettings({ trendiness: value });
+  }
+
+  async function persistFragranceVariety(value: number) {
+    await saveAppSettings({ fragranceVariety: value });
   }
 
   async function refreshSeasonalTrends() {
@@ -183,9 +189,17 @@ export function useSettings() {
         ? 'Balanced — mix of timeless staples and current pieces'
         : 'Safe — established silhouettes, neutral palettes, timeless wardrobe staples';
 
+  const fragranceVarietyLabel =
+    fragranceVariety >= 67
+      ? 'Variety — rotates among any fragrance that’s a strong fit for the outfit'
+      : fragranceVariety >= 34
+        ? 'Balanced — usually the best fit, occasionally another strong fit'
+        : 'Best fit — always the single best-matching fragrance';
+
   return {
     sensitivity, setSensitivity, persistSensitivity, sensitivityLabel,
     trendiness, setTrendiness, persistTrendiness, trendinessLabel,
+    fragranceVariety, setFragranceVariety, persistFragranceVariety, fragranceVarietyLabel,
     monthlyAiCost, appVersion,
     isRefreshingTrends, trendsRefreshMessage, refreshSeasonalTrends,
     isCheckingCloudBackup, cloudBackupMessage, checkCloudBackupStatus,

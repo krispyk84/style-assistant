@@ -63,6 +63,7 @@ type RawResponseSnapshot = {
     includeHat?: boolean;
     manualSeason?: OutfitResponse['input']['manualSeason'];
     trendiness?: number;
+    fragranceVariety?: number;
   };
 };
 
@@ -103,6 +104,7 @@ function mapToOutfitResponse(result: OutfitResultWithRequest): OutfitResponse {
       includeHat: rawResponse?.input?.includeHat ?? undefined,
       manualSeason: rawResponse?.input?.manualSeason ?? undefined,
       trendiness: rawResponse?.input?.trendiness ?? undefined,
+      fragranceVariety: rawResponse?.input?.fragranceVariety ?? undefined,
     },
     recommendations: tierResults.map((tier) => ({
       tier: toSlug(tier.tier),

@@ -9,6 +9,7 @@ import { LOOK_TIER_OPTIONS, type CreateLookInput, type LookTierSlug } from '@/ty
 import { trackCreateLookCompleted, trackCreateLookFailed } from '@/lib/analytics';
 import { recordError, log } from '@/lib/crashlytics';
 import { useTrendiness } from '@/hooks/use-trendiness';
+import { useFragranceVariety } from '@/hooks/use-fragrance-variety';
 
 export function useResultsData(stableParams: LookRouteParams & { requestId: string }) {
   const [response, setResponse] = useState<GenerateOutfitsResponse | null>(null);
@@ -24,6 +25,7 @@ export function useResultsData(stableParams: LookRouteParams & { requestId: stri
   const generateAbortRef = useRef<AbortController | null>(null);
 
   const trendiness = useTrendiness();
+  const fragranceVariety = useFragranceVariety();
   const parsedInput = useMemo(() => parseLookInput(stableParams), [stableParams]);
 
   // Keep ref in sync so the poll closure always reads the current set without re-creating the interval.
@@ -79,6 +81,7 @@ export function useResultsData(stableParams: LookRouteParams & { requestId: stri
           selectedTiers: tiersInOrder,
           generateOnlyTier: tier,
           trendiness,
+          fragranceVariety,
           hemisphere: input.weatherContext?.hemisphere ?? undefined,
           region: input.weatherContext?.countryCode ?? undefined,
         },

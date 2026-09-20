@@ -176,6 +176,40 @@ describe('recommendFragrance — tie-break order', () => {
   });
 });
 
+// ── Variety mode (spec section 33) ───────────────────────────────────────────
+
+describe('recommendFragrance — variety mode', () => {
+  it('varietyLevel 0 (and absent) is byte-identical to the original single-winner pick, and never calls random', () => {
+    const best = makeOwned({ userFragranceId: 'best' }, { id: 'best-frag', seasonality: { spring: 1, summer: 1, fall: 1, winter: 1 } });
+    const worse = makeOwned({ userFragranceId: 'worse' }, { id: 'worse-frag', seasonality: { spring: 0.9, summer: 0.9, fall: 0.9, winter: 0.9 } });
+    const random = () => { throw new Error('random must not be called when varietyLevel is 0/absent'); };
+
+    const absent = recommendFragrance({ ownedFragrances: [worse, best], context: {}, random });
+    expect(absent?.fragranceId).toBe('best-frag');
+
+    const explicitZero = recommendFragrance({ ownedFragrances: [worse, best], context: { varietyLevel: 0 }, random });
+    expect(explicitZero?.fragranceId).toBe('best-frag');
+  });
+
+  it('never selects a fragrance outside the qualifying band, however high varietyLevel is', () => {
+    const best = makeOwned({ userFragranceId: 'best' }, { id: 'best-frag', seasonality: { spring: 1, summer: 1, fall: 1, winter: 1 }, formality: { casual: 1, smartCasual: 1, business: 1, formalEvening: 1 } });
+    const farWorse = makeOwned({ userFragranceId: 'far-worse' }, { id: 'far-worse-frag', seasonality: { spring: 0, summer: 0, fall: 0, winter: 0 }, formality: { casual: 0, smartCasual: 0, business: 0, formalEvening: 0 } });
+    const context: RecommendationContext = { season: 'summer', formalityTier: 'business', varietyLevel: 100 };
+    // random() always returns just under 1 — if farWorse were ever in the pool, a roll this high would pick it.
+    const result = recommendFragrance({ ownedFragrances: [best, farWorse], context, random: () => 0.9999 });
+    expect(result?.fragranceId).toBe('best-frag');
+  });
+
+  it('at high varietyLevel, a close-second strong fit can be selected instead of the single best', () => {
+    const best = makeOwned({ userFragranceId: 'best' }, { id: 'best-frag', seasonality: { spring: 1, summer: 1, fall: 1, winter: 1 } });
+    const closeSecond = makeOwned({ userFragranceId: 'close-second' }, { id: 'close-second-frag', seasonality: { spring: 0.95, summer: 0.95, fall: 0.95, winter: 0.95 } });
+    const context: RecommendationContext = { season: 'summer', varietyLevel: 100 };
+    // random() returns just under 1 — with two near-equal weights, this rolls onto the second pool member.
+    const result = recommendFragrance({ ownedFragrances: [best, closeSecond], context, random: () => 0.9999 });
+    expect(result?.fragranceId).toBe('close-second-frag');
+  });
+});
+
 // ── Reason string ──────────────────────────────────────────────────────────────
 
 describe('recommendFragrance — reason string', () => {

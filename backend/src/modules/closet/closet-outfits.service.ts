@@ -480,6 +480,7 @@ export const closetOutfitsService = {
       temperatureC: temperatureC ?? undefined,
       formalityTier: payload.formality,
       aestheticText: payload.additionalDetails,
+      varietyLevel: payload.fragranceVariety,
     });
 
     return { outfits: withSketchJobs.map((outfit) => ({ ...outfit, fragranceRecommendation })) };

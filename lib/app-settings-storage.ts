@@ -7,6 +7,8 @@ export type AppSettings = {
   closetMatchSensitivity: number;
   /** 0 = safe/classic, 100 = very trendy. Default: 50 (balanced). Sent with every outfit generation request. */
   trendiness: number;
+  /** 0 = always the single best-fit fragrance, 100 = widest rotation among strong fits. Default: 50 (balanced). Sent with every outfit generation request. */
+  fragranceVariety: number;
   /** Last size entered when saving a closet item — used to pre-fill the Size field. */
   lastUsedSize?: string;
   /** Appearance mode: 'light', 'dark', or 'system'. Default: 'system'. */
@@ -16,6 +18,7 @@ export type AppSettings = {
 const DEFAULT_SETTINGS: AppSettings = {
   closetMatchSensitivity: 50,
   trendiness: 50,
+  fragranceVariety: 50,
 };
 
 export async function loadAppSettings(): Promise<AppSettings> {

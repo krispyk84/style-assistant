@@ -148,6 +148,7 @@ export function buildTripDayGenerationParams({
   usedOuterwear,
   usedFootwear,
   usedAnchorItemIds,
+  fragranceVariety,
 }: {
   tripId: string;
   draft: TripDraft;
@@ -156,6 +157,7 @@ export function buildTripDayGenerationParams({
   usedOuterwear: string[];
   usedFootwear: string[];
   usedAnchorItemIds: string[];
+  fragranceVariety?: number;
 }): GenerateTripOutfitsParams {
   return {
     tripId,
@@ -193,5 +195,6 @@ export function buildTripDayGenerationParams({
     usedFootwear,
     usedAnchorItemIds,
     formalityTier: draft.dayFormality?.[dayIndex] ?? 'casual',
+    fragranceVariety,
   };
 }
