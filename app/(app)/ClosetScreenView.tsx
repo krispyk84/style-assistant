@@ -550,7 +550,7 @@ export function ClosetScreenView({
   const trimmedQuery = searchQuery.trim();
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['left', 'right']}>
       {searchOpen && !isPairSelectMode ? (
         <FlatList<ClosetItem>
           data={trimmedQuery ? searchResults : []}
@@ -658,7 +658,7 @@ export function ClosetScreenView({
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.1,
             shadowRadius: 8,
-            top: insets.top + spacing.md,
+            top: spacing.md,
           }}>
           <AppIcon color={theme.colors.text} name="add" size={16} />
           <AppText style={{ fontSize: 14 }}>Add</AppText>

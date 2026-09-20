@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { spacing } from '@/constants/theme';
@@ -34,6 +35,7 @@ export default function ClosetScreen() {
   // polling and every other garment hook below runs unconditionally exactly
   // as before, so the Clothing tab's behavior stays byte-identical. ─────────
   const [closetSection, setClosetSection] = useState<ClosetSection>('Clothing');
+  const insets = useSafeAreaInsets();
 
   // ── Step 1: Data — items, loading, polling, categories, sections ──────────
   const { items, setItems, isLoading, loadItems, categories, sections } = useClosetData();
@@ -155,7 +157,7 @@ export default function ClosetScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: insets.top + spacing.sm }}>
         <SegmentedControl options={CLOSET_SECTION_OPTIONS} value={closetSection} onChange={setClosetSection} />
       </View>
       <ClosetScreenView
