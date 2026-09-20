@@ -147,7 +147,7 @@ export default function ClosetScreen() {
   if (closetSection === 'Fragrances') {
     return (
       <View style={{ flex: 1 }}>
-        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: insets.top + spacing.sm }}>
           <SegmentedControl options={CLOSET_SECTION_OPTIONS} value={closetSection} onChange={setClosetSection} />
         </View>
         <FragranceClosetSection />
