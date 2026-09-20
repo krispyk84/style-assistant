@@ -352,8 +352,8 @@ export function TripDayCard({
           </View>
         )}
 
-        {day.fragranceRecommendation ? (
-          <FragranceRecommendationCard recommendation={day.fragranceRecommendation} />
+        {day.fragranceRecommendations?.length ? (
+          <FragranceRecommendationCard recommendations={day.fragranceRecommendations} />
         ) : null}
 
         {/* Love / Hate — always visible */}

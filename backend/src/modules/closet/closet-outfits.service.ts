@@ -102,8 +102,8 @@ type ResolvedOutfit = {
   sketchJobId: string;
   sketchStatus: 'pending' | 'ready' | 'failed';
   sketchImageUrl: string | null;
-  /** Additive, optional — old clients/results without this field remain fully valid. Null/absent whenever the user owns no eligible fragrances. */
-  fragranceRecommendation?: FragranceRecommendationDto | null;
+  /** Additive, optional — old clients/results without this field remain fully valid. Up to 3, ranked best-first; empty/absent whenever the user owns no eligible fragrances. */
+  fragranceRecommendations?: FragranceRecommendationDto[];
 };
 
 async function loadIndex(supabaseUserId: string) {
@@ -487,7 +487,7 @@ export const closetOutfitsService = {
     return {
       outfits: withSketchJobs.map((outfit) => ({
         ...outfit,
-        fragranceRecommendation: scoreLoadedFragrances(loadedFragrances, {
+        fragranceRecommendations: scoreLoadedFragrances(loadedFragrances, {
           season: payload.weatherContext?.season,
           temperatureC: temperatureC ?? undefined,
           formalityTier: payload.formality,

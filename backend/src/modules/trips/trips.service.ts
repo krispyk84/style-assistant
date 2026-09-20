@@ -655,7 +655,7 @@ async function generateFullClosetTripOutfits(
       rationale: chosen.rationale,
       contextTags: shape.contextTags,
       ...mapDaySlotsToDto(chosen.bySlot, chosen.accessoryItems, resolvedTier),
-      fragranceRecommendation: scoreLoadedFragrances(ownedFragrances, {
+      fragranceRecommendations: scoreLoadedFragrances(ownedFragrances, {
         season: request.dressSeason === 'summer' || request.dressSeason === 'tropical' ? 'summer' : request.dressSeason === 'winter' ? 'winter' : undefined,
         temperatureC: request.avgHighC,
         formalityTier: resolvedTier,
@@ -777,7 +777,7 @@ export const tripsService = {
         bag: day.bag ?? null,
         accessories: day.accessories ?? [],
         closetItemIds: undefined,
-        fragranceRecommendation: scoreLoadedFragrances(ownedFragrances, {
+        fragranceRecommendations: scoreLoadedFragrances(ownedFragrances, {
           season: request.dressSeason === 'summer' || request.dressSeason === 'tropical' ? 'summer' : request.dressSeason === 'winter' ? 'winter' : undefined,
           temperatureC: request.avgHighC,
           formalityTier: dayTypeToFormalityTier(day.dayType),

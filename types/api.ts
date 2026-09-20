@@ -416,8 +416,8 @@ export type ClosetGeneratedOutfit = {
   sketchJobId: string;
   sketchStatus: 'pending' | 'ready' | 'failed';
   sketchImageUrl: string | null;
-  /** Additive, optional — absent/null whenever the user owns no eligible fragrances. */
-  fragranceRecommendation?: FragranceRecommendationDto | null;
+  /** Additive, optional — up to 3, ranked best-first; empty/absent whenever the user owns no eligible fragrances. */
+  fragranceRecommendations?: FragranceRecommendationDto[];
 };
 
 export type GenerateClosetOutfitsRequest = {

@@ -6,7 +6,7 @@
 
 import { fragrancesRepository } from './fragrances.repository.js';
 import {
-  recommendFragrance,
+  recommendFragrances,
   type OwnedFragrance,
   type RecommendationContext,
   type ScorableFragrance,
@@ -87,24 +87,17 @@ export async function loadOwnedFragrances(supabaseUserId: string): Promise<Loade
   };
 }
 
-/** Pure, synchronous scoring against an already-loaded inventory — safe to call once per tier/day/look without re-querying. */
-export function scoreLoadedFragrances(loaded: LoadedFragrances, context: RecommendationContext): FragranceRecommendationDto | null {
-  if (loaded.owned.length === 0) return null;
+/**
+ * Pure, synchronous scoring against an already-loaded inventory — safe to
+ * call once per tier/day/look/outfit without re-querying. Returns up to 3
+ * distinct recommendations (see recommendFragrances), fewer only when the
+ * eligible inventory itself is smaller than 3.
+ */
+export function scoreLoadedFragrances(loaded: LoadedFragrances, context: RecommendationContext): FragranceRecommendationDto[] {
+  if (loaded.owned.length === 0) return [];
 
-  const recommendation = recommendFragrance({ ownedFragrances: loaded.owned, context });
-  if (!recommendation) return null;
-
-  return {
+  return recommendFragrances({ ownedFragrances: loaded.owned, context }).map((recommendation) => ({
     ...recommendation,
     bottleSketchUrl: loaded.bottleSketchByUserFragranceId.get(recommendation.userFragranceId) ?? null,
-  };
-}
-
-/** Convenience wrapper for the common single-context case (trips, closet-outfits, single-tier regenerate). */
-export async function buildFragranceRecommendation(
-  supabaseUserId: string,
-  context: RecommendationContext,
-): Promise<FragranceRecommendationDto | null> {
-  const loaded = await loadOwnedFragrances(supabaseUserId);
-  return scoreLoadedFragrances(loaded, context);
+  }));
 }

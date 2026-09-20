@@ -324,7 +324,22 @@ function weightedPick(pool: ScoredFragrance[], varietyLevel: number, random: () 
   return pool[pool.length - 1]!;
 }
 
+function toRecommendation(scored: ScoredFragrance, context: RecommendationContext): FragranceRecommendation {
+  return {
+    userFragranceId: scored.owned.userFragranceId,
+    fragranceId: scored.owned.fragrance.id,
+    brand: scored.owned.fragrance.brand,
+    name: scored.owned.fragrance.name,
+    concentration: scored.owned.fragrance.concentration,
+    keyAccords: pickKeyAccords(scored.owned.fragrance),
+    primaryVibe: scored.owned.fragrance.primaryVibe,
+    reason: buildReason(scored, context),
+  };
+}
+
 // ── Entry point ────────────────────────────────────────────────────────────────
+
+const DEFAULT_RECOMMENDATION_COUNT = 3;
 
 /**
  * Pure, synchronous. Candidates are ALWAYS restricted to ownedFragrances as
@@ -333,32 +348,38 @@ function weightedPick(pool: ScoredFragrance[], varietyLevel: number, random: () 
  * passes the authenticated user's own owned fragrances (see
  * fragrance-recommendation-integration — the caller-side contract).
  *
- * Deterministic unless context.varietyLevel > 0 AND more than one fragrance
- * qualifies for the resulting band — the default (varietyLevel 0/absent)
- * path never calls `random` at all. `random` is injectable (defaults to
- * Math.random) purely so variety mode stays unit-testable.
+ * Returns up to `count` (default 3) DISTINCT fragrances, ranked best-first —
+ * fewer only when the closet doesn't have that many eligible fragrances to
+ * draw from, never by padding or repeating. Each slot is its own draw
+ * without replacement: pickQualifyingPool + weightedPick run again against
+ * whatever's left after the previous slot's pick is removed, so slot 2 and
+ * 3 still respect the same best-fit/variety balance as slot 1 rather than
+ * just being "the rest of the ranked list" — at varietyLevel 0 that
+ * collapses to exactly the top-3 ranked list (deterministic, no `random`
+ * calls at all); above 0 each slot is an independent weighted draw.
  */
-export function recommendFragrance(input: {
+export function recommendFragrances(input: {
   ownedFragrances: OwnedFragrance[];
   context: RecommendationContext;
   random?: () => number;
-}): FragranceRecommendation | null {
+  count?: number;
+}): FragranceRecommendation[] {
   const eligible = input.ownedFragrances.filter(isEligible);
-  if (eligible.length === 0) return null;
+  if (eligible.length === 0) return [];
 
   const varietyLevel = input.context.varietyLevel ?? 0;
-  const scored = eligible.map((owned) => scoreOne(owned, input.context)).sort(compareCandidates);
-  const pool = pickQualifyingPool(scored, varietyLevel);
-  const winner = weightedPick(pool, varietyLevel, input.random ?? Math.random);
+  const random = input.random ?? Math.random;
+  const count = Math.max(1, input.count ?? DEFAULT_RECOMMENDATION_COUNT);
 
-  return {
-    userFragranceId: winner.owned.userFragranceId,
-    fragranceId: winner.owned.fragrance.id,
-    brand: winner.owned.fragrance.brand,
-    name: winner.owned.fragrance.name,
-    concentration: winner.owned.fragrance.concentration,
-    keyAccords: pickKeyAccords(winner.owned.fragrance),
-    primaryVibe: winner.owned.fragrance.primaryVibe,
-    reason: buildReason(winner, input.context),
-  };
+  let remaining = eligible.map((owned) => scoreOne(owned, input.context)).sort(compareCandidates);
+  const picks: ScoredFragrance[] = [];
+
+  while (picks.length < count && remaining.length > 0) {
+    const pool = pickQualifyingPool(remaining, varietyLevel);
+    const winner = weightedPick(pool, varietyLevel, random);
+    picks.push(winner);
+    remaining = remaining.filter((s) => s !== winner);
+  }
+
+  return picks.map((scored) => toRecommendation(scored, input.context));
 }

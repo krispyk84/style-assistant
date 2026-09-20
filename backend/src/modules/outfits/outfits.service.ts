@@ -583,7 +583,7 @@ export const outfitsService = {
 
         return {
           ...mapped,
-          fragranceRecommendation: ownedFragrances
+          fragranceRecommendations: ownedFragrances
             ? scoreLoadedFragrances(ownedFragrances, {
                 season: input.weatherContext?.season,
                 temperatureC: input.weatherContext?.temperatureC,
@@ -591,7 +591,7 @@ export const outfitsService = {
                 aestheticText: [input.vibeKeywords, input.additionalDetails].filter(Boolean).join(' '),
                 varietyLevel: input.fragranceVariety,
               })
-            : null,
+            : [],
         };
       }),
     };
