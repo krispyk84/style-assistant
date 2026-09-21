@@ -11,7 +11,16 @@ import type { LookRecommendation, LookTierSlug } from '@/types/look-request';
 // the same pattern lib/trip-day-variant-flow.ts already uses for its own
 // "sub-screen hands a chosen day back" handoff.
 
-type SwapResultListener = (recommendation: LookRecommendation, tier: LookTierSlug) => void;
+// Listener may return a Promise — the caller (e.g. MultiLookResults'
+// "Use for [Day]" handler) awaits emit() before navigating back, so the
+// day's persistDay write actually lands before trip-results' return-trip
+// reload effect re-fetches. Without this, emit()+navigate raced against
+// persistDay's un-awaited network write: whichever landed first won, so the
+// reload could show pre-swap data — not just for the swapped day, but
+// (since the reload replaces the whole day list) intermittently for every
+// other already-ready day too, right down to kicking off a fresh sketch
+// generation for them.
+type SwapResultListener = (recommendation: LookRecommendation, tier: LookTierSlug) => void | Promise<void>;
 
 let _listener: SwapResultListener | null = null;
 
@@ -22,8 +31,8 @@ export const tripDaySwapFlow = {
   clearListener() {
     _listener = null;
   },
-  emit(recommendation: LookRecommendation, tier: LookTierSlug) {
-    _listener?.(recommendation, tier);
+  async emit(recommendation: LookRecommendation, tier: LookTierSlug): Promise<void> {
+    await _listener?.(recommendation, tier);
     _listener = null;
   },
 };

@@ -205,11 +205,11 @@ export function useTripResultsActions({
       swappedItems,
     });
 
-    tripDayVariantFlow.setListener((selectedDay) => {
+    tripDayVariantFlow.setListener(async (selectedDay) => {
       stopSketchPoll(day.id);
       const merged: TripOutfitDay = { ...selectedDay, id: day.id, feedback: null };
       setDays((prev) => prev.map((current) => (current.id === day.id ? merged : current)));
-      void persistDay(activeTripId, merged);
+      await persistDay(activeTripId, merged);
     });
 
     router.push(buildTripDayVariantsHref());
@@ -228,11 +228,11 @@ export function useTripResultsActions({
     const activeTripId = plan?.tripId ?? tripId;
     if (!activeTripId || !plan) return;
 
-    tripDaySwapFlow.setListener((recommendation, tier) => {
+    tripDaySwapFlow.setListener(async (recommendation, tier) => {
       stopSketchPoll(day.id);
       const merged = mapLookRecommendationToTripDay(day, recommendation, tier);
       setDays((prev) => prev.map((current) => (current.id === day.id ? merged : current)));
-      void persistDay(activeTripId, merged);
+      await persistDay(activeTripId, merged);
     });
 
     const swapParams = {

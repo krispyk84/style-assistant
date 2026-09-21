@@ -310,11 +310,20 @@ export function MultiLookResults({
   // to a stale local-AsyncStorage read instead of the DB-backed trip it
   // actually loaded from, making every already-generated day look like it
   // needs a brand new sketch.
-  function handleUseForTripDay(slot: SlotState) {
-    if (!slot.response || !swapTripId) return;
+  //
+  // emit() is awaited BEFORE navigating: the listener's persistDay write is
+  // a real network call, and trip-results' own reload effect re-fetches the
+  // whole trip the moment this dismissTo lands — racing an un-awaited write
+  // against that reload meant the reload could win, showing pre-swap data
+  // for the ENTIRE day list (not just the swapped day), which read as
+  // already-ready days suddenly needing a fresh sketch again.
+  const usingForTripDayRef = useRef(false);
+  async function handleUseForTripDay(slot: SlotState) {
+    if (!slot.response || !swapTripId || usingForTripDayRef.current) return;
     const recommendation = slot.response.recommendations.find((r) => r.tier === tier);
     if (!recommendation) return;
-    tripDaySwapFlow.emit(recommendation, tier);
+    usingForTripDayRef.current = true;
+    await tripDaySwapFlow.emit(recommendation, tier);
     router.dismissTo(buildTripResultsHref({ tripId: swapTripId, savedTripId: swapSavedTripId }));
   }
 
@@ -455,7 +464,7 @@ export function MultiLookResults({
                 anchorDescription={parsedInput.anchorItemDescription}
                 detailHref={buildSelfieReviewHref(slot.requestId, recommendation, parsedInput.anchorItemDescription)}
                 swapDayTitle={swapDayTitle}
-                onUseForTripDay={swapDayTitle ? () => handleUseForTripDay(slot) : undefined}
+                onUseForTripDay={swapDayTitle ? () => void handleUseForTripDay(slot) : undefined}
               />
             </View>
           );

@@ -13,7 +13,10 @@ export type PendingVariantRequest = GenerateTripDayVariantsParams & {
   swappedItems: OutfitThumbnailItem[];
 };
 
-type VariantResultListener = (day: TripOutfitDay) => void;
+// Listener may return a Promise — see trip-day-swap-flow.ts's matching
+// comment: the caller awaits emit() before navigating back so persistDay's
+// write actually lands before any return-trip reload can race it.
+type VariantResultListener = (day: TripOutfitDay) => void | Promise<void>;
 
 let _pendingRequest: PendingVariantRequest | null = null;
 let _listener: VariantResultListener | null = null;
@@ -33,8 +36,8 @@ export const tripDayVariantFlow = {
   clearListener() {
     _listener = null;
   },
-  emit(day: TripOutfitDay) {
-    _listener?.(day);
+  async emit(day: TripOutfitDay): Promise<void> {
+    await _listener?.(day);
     _listener = null;
   },
 };
