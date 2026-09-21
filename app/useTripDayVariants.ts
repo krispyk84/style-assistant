@@ -46,8 +46,11 @@ export function useTripDayVariants() {
     };
   }, []);
 
-  function selectVariant(day: TripOutfitDay) {
-    tripDayVariantFlow.emit(day);
+  // Awaits emit() before navigating back — the listener's persistDay write
+  // is a real network call; see trip-day-swap-flow.ts's matching comment
+  // for why an un-awaited write racing the return navigation is a bug.
+  async function selectVariant(day: TripOutfitDay) {
+    await tripDayVariantFlow.emit(day);
     router.back();
   }
 

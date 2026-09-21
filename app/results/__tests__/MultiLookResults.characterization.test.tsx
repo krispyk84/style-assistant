@@ -877,6 +877,11 @@ describe('MultiLookResults — swap-outfit "Use for Day" action', () => {
 
     (primaryProps.onUseForTripDay as () => void)();
 
+    // handleUseForTripDay now awaits tripDaySwapFlow.emit() before navigating
+    // (the fix for the race this suite's other two tests guard against) —
+    // dismissTo lands a tick after the synchronous call above, not within it.
+    await waitFor(() => expect(routerDismissTo).toHaveBeenCalled());
+
     expect(emitSpy).toHaveBeenCalledTimes(1);
     const [emittedRecommendation, emittedTier] = emitSpy.mock.calls[0]!;
     expect(emittedRecommendation.title).toBe('Look for req-primary');
@@ -904,11 +909,13 @@ describe('MultiLookResults — swap-outfit "Use for Day" action', () => {
     const primaryProps = await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary'));
     (primaryProps.onUseForTripDay as () => void)();
 
-    expect(routerDismissTo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pathname: '/trip-results',
-        params: expect.objectContaining({ tripId: 'trip-1', savedTripId: 'saved-db-id-1' }),
-      }),
+    await waitFor(() =>
+      expect(routerDismissTo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pathname: '/trip-results',
+          params: expect.objectContaining({ tripId: 'trip-1', savedTripId: 'saved-db-id-1' }),
+        }),
+      ),
     );
   });
 
@@ -927,6 +934,7 @@ describe('MultiLookResults — swap-outfit "Use for Day" action', () => {
     const primaryProps = await waitFor(() => lastCallFor(LookResultCardMock, 'req-primary'));
     (primaryProps.onUseForTripDay as () => void)();
 
+    await waitFor(() => expect(routerDismissTo).toHaveBeenCalled());
     const call = routerDismissTo.mock.calls[0]![0] as { params: Record<string, unknown> };
     expect(call.params.savedTripId).toBeUndefined();
   });
