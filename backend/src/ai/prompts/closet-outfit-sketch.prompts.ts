@@ -24,6 +24,17 @@ export type ClosetOutfitSketchItem = {
 const OUTERWEAR_CATEGORIES = new Set(['Blazer', 'Sports Jacket', 'Jacket', 'Overshirt', 'Coat', 'Suit']);
 const FOOTWEAR_CATEGORIES = new Set(['Shoes', 'Sneakers', 'Loafers', 'Boots']);
 const ACCESSORY_CATEGORIES = new Set(['Belt', 'Bag', 'Watch', 'Scarf', 'Hat', 'Tie', 'Socks', 'Sunglasses']);
+// Mirrors SLOT_GROUPS.primaryTop in closet-taxonomy.ts — the base/innermost
+// torso layer. Distinct from TOP_LAYER_CATEGORIES below so the prompt can
+// give an explicit layering order between the two instead of bundling both
+// into one undifferentiated "garments" list, which previously left the
+// image model to guess which top is worn over which — it would sometimes
+// resolve that ambiguity by just dropping one of the two tops entirely.
+const PRIMARY_TOP_CATEGORIES = new Set(['Shirt', 'Polo', 'T-Shirt', 'Swim Shirt', 'Performance Top', 'Athletic Top', 'Tank Top']);
+// A standalone knit/sweater-style secondary top or thermal layer worn OVER
+// the primary top — NOT in OUTERWEAR_CATEGORIES (those are true outerwear:
+// blazers/jackets/coats, already handled by outerwearRule below).
+const TOP_LAYER_CATEGORIES = new Set(['Knitwear', 'Cardigan', 'Hoodie', 'Vest']);
 
 function describeItem(item: ClosetOutfitSketchItem): string {
   const color = item.primaryColor || item.colorFamily;
@@ -91,6 +102,20 @@ export function buildClosetOutfitSketchPrompt(input: {
         ? `LAYERING UNDER OUTERWEAR — HARD CONSTRAINT: underneath ${outerwear.map(describeItem).join(', ')}, the figure wears ONLY ${garments.map(describeItem).join(', ')} — nothing else. Do not render a second top, undershirt, sweater, or any other layer beneath the outerwear, and do not show so much as a sliver of collar, placket, or cuff from any garment not in that list. Whatever is visible under the outerwear (whether worn open or closed) must be exactly the garment(s) named above, never an invented additional layer.`
         : null;
 
+  // Third failure mode, distinct from both of the above: when the outfit has
+  // TWO torso garments that are neither one "true outerwear" (handled by
+  // outerwearRule) — a primary top plus a standalone knit/sweater secondary
+  // top or thermal layer — the model previously had no stated order between
+  // them. Left to guess, it sometimes drew only one of the two (the actual
+  // reported bug: a recommended base layer silently missing from the
+  // sketch) rather than rendering a coherent base-layer-under-sweater look.
+  const primaryTopItems = garments.filter((item) => PRIMARY_TOP_CATEGORIES.has(item.category));
+  const topLayerItems = garments.filter((item) => TOP_LAYER_CATEGORIES.has(item.category));
+  const topLayeringRule =
+    primaryTopItems.length > 0 && topLayerItems.length > 0
+      ? `TOP LAYERING ORDER — HARD CONSTRAINT: on the torso, ${primaryTopItems.map(describeItem).join(' and ')} is worn as the base layer closest to the body; ${topLayerItems.map(describeItem).join(' and ')} is worn OVER it as the visible outer top layer. ${topLayerItems.map(describeItem).join(' and ')} is the dominant garment at the chest/torso, but ${primaryTopItems.map(describeItem).join(' and ')} MUST still read as present — show its collar, cuff, or hem extending visibly beyond the outer layer's silhouette (e.g. a shirt or polo collar rising above the sweater's neckline, or a sleeve/hem showing beyond the sweater's own sleeve/hem), rather than fully concealing it. Do NOT draw ${primaryTopItems.map(describeItem).join(' and ')} as a separate, fully visible standalone garment side-by-side with ${topLayerItems.map(describeItem).join(' and ')} — it is layered underneath, not worn alongside it.`
+      : null;
+
   // Garment CONSTRUCTION fidelity — a separate failure mode from adding/
   // omitting a piece: the model sometimes renders a correctly-listed item as
   // a simpler, generic garment (e.g. a "collared button-up shirt" drawn as a
@@ -121,6 +146,7 @@ export function buildClosetOutfitSketchPrompt(input: {
     outfitSection,
     exclusivityRule,
     outerwearRule,
+    topLayeringRule,
     constructionRule,
     'Every listed item is a REAL garment the wearer already owns — render each one true to its stated color, pattern, and material rather than inventing a different interpretation.',
     QUALITY_ADDENDUM,
