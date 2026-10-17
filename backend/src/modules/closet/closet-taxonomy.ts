@@ -81,17 +81,36 @@ export const CATEGORY_TO_GROUP: Record<string, string> = {
 // on top of the stored category rather than trusting category alone here.
 const BLAZER_LIKE_TITLE_KEYWORDS = ['blazer', 'sports jacket', 'sport jacket', 'sport coat', 'sportcoat'];
 
+// A knitted polo ("Johnny collar" sweater, knit polo shirt, etc.) is commonly
+// catalogued under the generic 'Knitwear' category — but it functions as a
+// collared TOP in its own right, not as a layer worn over another top. Left
+// as plain 'knitwear', it stays eligible for secondaryTop/thermalLayer
+// (SLOT_GROUPS), where it gets offered as a "worn over" layer alongside a
+// separately-chosen primaryTop — stacking two collared garments (a dress
+// shirt or polo underneath a polo-collared sweater on top), which is not a
+// real layering combination and is what the model kept selecting despite an
+// explicit prompt rule against it. Reclassifying it to the 'polo' group
+// instead routes it to primaryTop only (SLOT_GROUPS.primaryTop includes
+// 'polo'; secondaryTop/thermalLayer's groups do not) — a structural
+// guarantee the LLM can't override, rather than a prompt instruction it can
+// still violate.
+const KNIT_POLO_TITLE_KEYWORDS = ['polo'];
+
 /**
  * Resolves an item's canonical garment group — CATEGORY_TO_GROUP's lookup,
  * corrected for a 'Jacket'-categorized item whose own title identifies it as
- * a blazer/sports jacket. Use this instead of indexing CATEGORY_TO_GROUP
- * directly wherever an item's title is available.
+ * a blazer/sports jacket, or a 'Knitwear'-categorized item whose title
+ * identifies it as a knit polo. Use this instead of indexing
+ * CATEGORY_TO_GROUP directly wherever an item's title is available.
  */
 export function resolveGarmentGroup(item: { category: string; title: string }): string | undefined {
   const group = CATEGORY_TO_GROUP[item.category];
+  const title = item.title.toLowerCase();
   if (group === 'jacket') {
-    const title = item.title.toLowerCase();
     if (BLAZER_LIKE_TITLE_KEYWORDS.some((keyword) => title.includes(keyword))) return 'blazer';
+  }
+  if (group === 'knitwear') {
+    if (KNIT_POLO_TITLE_KEYWORDS.some((keyword) => title.includes(keyword))) return 'polo';
   }
   return group;
 }
