@@ -107,12 +107,17 @@ jobs:
 
       # RENDER_DEPLOY_HOOK_URL_DEV is not currently configured as a repo
       # secret (the dev Render service deploy hook hasn't been wired up).
-      # Guarding on it being non-empty means this step is cleanly SKIPPED
-      # rather than failing the whole job (and emailing a failure notice)
-      # on every push to dev — once the secret is added, this condition is
-      # true and the step runs exactly as before.
+      # continue-on-error means this step's failure (curl given an empty
+      # URL) no longer fails the whole job or sends a failure-notification
+      # email on every push to dev. (The `secrets` context can't be
+      # referenced in `if:` — GitHub Actions doesn't allow it there, which
+      # is what broke this workflow file the first time this was tried —
+      # continue-on-error is the supported way to make a step non-blocking.)
+      # Once the secret is added, this step will succeed outright and
+      # continue-on-error becomes a no-op.
       - name: Trigger Render deploy (dev)
-        if: github.ref_name == 'dev' && secrets.RENDER_DEPLOY_HOOK_URL_DEV != ''
+        if: github.ref_name == 'dev'
+        continue-on-error: true
         run: |
           curl --fail-with-body --silent --show-error \
             "${{ secrets.RENDER_DEPLOY_HOOK_URL_DEV }}"
