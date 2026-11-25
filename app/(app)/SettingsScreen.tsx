@@ -6,6 +6,7 @@ import { SensitivitySlider } from '@/components/ui/sensitivity-slider';
 import { spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme, type AppearanceMode } from '@/contexts/theme-context';
+import { useClosetExport } from './useClosetExport';
 import { useLogout } from './useLogout';
 import { useSettings } from './useSettings';
 
@@ -32,6 +33,7 @@ export function SettingsScreen() {
     isCheckingSupabaseDirect, supabaseDirectMessage, checkSupabaseDirectStatus, checkPayloadSize, cleanupLegacySketches,
     authEventLogMessage, viewAuthEventLog, resetAuthEventLog,
   } = useSettings();
+  const { isExporting, exportMessage, exportCloset } = useClosetExport();
   const { handleLogout } = useLogout();
 
   const cardStyle = {
@@ -216,6 +218,37 @@ export function SettingsScreen() {
           ) : null}
           {monthlyAiCost !== null ? (
             <AppText tone="subtle" style={{ fontSize: 12 }}>AI usage this month: ${monthlyAiCost.toFixed(2)}</AppText>
+          ) : null}
+        </View>
+
+        {/* Export closet */}
+        <View style={cardStyle}>
+          <View style={{ gap: spacing.xs }}>
+            <AppText variant="sectionTitle">Export Your Closet</AppText>
+            <AppText tone="muted">
+              Download a ZIP with every garment and fragrance — full details plus sketches and original photos where available.
+            </AppText>
+          </View>
+          <Pressable
+            disabled={isExporting}
+            onPress={() => void exportCloset()}
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.colors.subtleSurface,
+              borderColor: theme.colors.border,
+              borderRadius: 16,
+              borderWidth: 1,
+              justifyContent: 'center',
+              minHeight: 48,
+              opacity: isExporting ? 0.6 : 1,
+              paddingHorizontal: spacing.md,
+            }}>
+            <AppText style={{ fontFamily: theme.fonts.sansMedium, fontSize: 13 }}>
+              {isExporting ? 'Preparing export…' : 'Export Closet'}
+            </AppText>
+          </Pressable>
+          {exportMessage ? (
+            <AppText tone="muted" style={{ fontSize: 12 }}>{exportMessage}</AppText>
           ) : null}
         </View>
 
