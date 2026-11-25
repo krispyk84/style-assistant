@@ -226,7 +226,7 @@ export function SettingsScreen() {
           <View style={{ gap: spacing.xs }}>
             <AppText variant="sectionTitle">Export Your Closet</AppText>
             <AppText tone="muted">
-              Download a ZIP with every garment and fragrance — full details plus sketches and original photos where available.
+              Download a ZIP with every garment and fragrance — full details plus sketches and original photos where available. Larger wardrobes can take up to a minute to prepare.
             </AppText>
           </View>
           <Pressable
