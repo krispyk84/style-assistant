@@ -36,6 +36,26 @@ async function fetchImageBytes(imageUrl: string): Promise<{ buffer: Buffer; exte
   }
 }
 
+// Fetching hundreds of items' photos/sketches one at a time would make the
+// export take minutes and risk a platform request timeout. A small worker
+// pool bounds how many image fetches are in flight at once without
+// overwhelming the storage backend — order of `results` still matches `items`.
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await fn(items[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
+const IMAGE_FETCH_CONCURRENCY = 10;
+
 function slugify(title: string, id: string): string {
   const base = title
     .toLowerCase()
@@ -83,28 +103,25 @@ export const closetExportService = {
 
     const zip = new AdmZip();
 
-    const garmentRows: Record<string, unknown>[] = [];
-    for (const item of garments) {
+    const garmentRows = await mapWithConcurrency(garments, IMAGE_FETCH_CONCURRENCY, async (item) => {
       const slug = slugify(item.title, item.id);
+      const [image, sketch] = await Promise.all([
+        item.uploadedImageUrl ? fetchImageBytes(item.uploadedImageUrl) : null,
+        item.sketchImageUrl ? fetchImageBytes(item.sketchImageUrl) : null,
+      ]);
+
       let imagePath: string | null = null;
       let sketchPath: string | null = null;
-
-      if (item.uploadedImageUrl) {
-        const image = await fetchImageBytes(item.uploadedImageUrl);
-        if (image) {
-          imagePath = `images/garments/${slug}${image.extension}`;
-          zip.addFile(imagePath, image.buffer);
-        }
+      if (image) {
+        imagePath = `images/garments/${slug}${image.extension}`;
+        zip.addFile(imagePath, image.buffer);
       }
-      if (item.sketchImageUrl) {
-        const sketch = await fetchImageBytes(item.sketchImageUrl);
-        if (sketch) {
-          sketchPath = `sketches/garments/${slug}${sketch.extension}`;
-          zip.addFile(sketchPath, sketch.buffer);
-        }
+      if (sketch) {
+        sketchPath = `sketches/garments/${slug}${sketch.extension}`;
+        zip.addFile(sketchPath, sketch.buffer);
       }
 
-      garmentRows.push({
+      return {
         id: item.id,
         title: item.title,
         brand: item.brand,
@@ -128,31 +145,28 @@ export const closetExportService = {
         hasSketch: Boolean(sketchPath),
         imageFile: imagePath,
         sketchFile: sketchPath,
-      });
-    }
+      };
+    });
 
-    const fragranceRows: Record<string, unknown>[] = [];
-    for (const entry of fragranceEntries) {
+    const fragranceRows = await mapWithConcurrency(fragranceEntries, IMAGE_FETCH_CONCURRENCY, async (entry) => {
       const slug = slugify(`${entry.fragrance.brand} ${entry.fragrance.name}`, entry.id);
+      const [image, sketch] = await Promise.all([
+        entry.originalImageUrl ? fetchImageBytes(entry.originalImageUrl) : null,
+        entry.bottleSketchUrl ? fetchImageBytes(entry.bottleSketchUrl) : null,
+      ]);
+
       let imagePath: string | null = null;
       let sketchPath: string | null = null;
-
-      if (entry.originalImageUrl) {
-        const image = await fetchImageBytes(entry.originalImageUrl);
-        if (image) {
-          imagePath = `images/fragrances/${slug}${image.extension}`;
-          zip.addFile(imagePath, image.buffer);
-        }
+      if (image) {
+        imagePath = `images/fragrances/${slug}${image.extension}`;
+        zip.addFile(imagePath, image.buffer);
       }
-      if (entry.bottleSketchUrl) {
-        const sketch = await fetchImageBytes(entry.bottleSketchUrl);
-        if (sketch) {
-          sketchPath = `sketches/fragrances/${slug}${sketch.extension}`;
-          zip.addFile(sketchPath, sketch.buffer);
-        }
+      if (sketch) {
+        sketchPath = `sketches/fragrances/${slug}${sketch.extension}`;
+        zip.addFile(sketchPath, sketch.buffer);
       }
 
-      fragranceRows.push({
+      return {
         id: entry.id,
         brand: entry.fragrance.brand,
         name: entry.fragrance.name,
@@ -171,8 +185,8 @@ export const closetExportService = {
         hasSketch: Boolean(sketchPath),
         imageFile: imagePath,
         sketchFile: sketchPath,
-      });
-    }
+      };
+    });
 
     const manifest = {
       exportedAt: new Date().toISOString(),
